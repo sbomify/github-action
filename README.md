@@ -27,8 +27,8 @@ steps:
       uses: actions/checkout@v3
 
     - name: Upload SBOM
-      uses: yourusername/sbomify-upload-action@v1.0
+      uses: sbomify/github-action@master
       with:
-      token: ${{ secrets.SBOMIFY_TOKEN }}
-      sbom-file: 'sbom-file.json'
+        token: ${{ secrets.SBOMIFY_TOKEN }}
+        sbom-file: 'sbom-file.json'
 ```
