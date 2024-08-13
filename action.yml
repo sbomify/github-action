@@ -1,0 +1,24 @@
+---
+name: 'sbomify Upload Action'
+description: 'A GitHub Action to upload an SBOM file to sbomify via cURL'
+author: 'Viktor Petersson'
+inputs:
+  token:
+    description: 'Authorization token for sbomify API'
+    required: true
+  sbom-file:
+    description: 'Path to the SBOM file to be uploaded'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - run: ./entrypoint.sh
+      shell: bash
+      with:
+        args:
+          - ${{ inputs.token }}
+          - ${{ inputs.sbom-file }}
+
+branding:
+  icon: 'upload-cloud'
+  color: 'blue'
