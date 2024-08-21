@@ -15,7 +15,7 @@ This GitHub Action uploads an SBOM file to sbomify.
 ## Example Usage
 
 ```yaml
-name: Upload SBOM to sbomify
+name: Upload an SBOM to sbomify
 
 on: [push]
 
