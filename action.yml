@@ -1,7 +1,7 @@
 ---
-name: 'sbomify Upload Action'
-description: 'A GitHub Action to upload an SBOM file to sbomify via cURL'
-author: 'Viktor Petersson'
+name: 'sbomify'
+description: 'A GitHub Action to upload an SBOM (JSON) CycloneDX or SPDX to sbomify'
+author: 'sbomify'
 inputs:
   token:
     description: 'Authorization token for sbomify API'
