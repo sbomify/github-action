@@ -6,7 +6,13 @@ SBOM_FILE="$2"
 
 # Check if the SBOM file exists
 if [ ! -f "$SBOM_FILE" ]; then
-  echo "SBOM file not found: $SBOM_FILE"
+  echo "[Error] SBOM file not found: $SBOM_FILE"
+  exit 1
+fi
+
+# Make sure it's a JSON file
+if ! jq -e '.' "$SBOM_FILE" > /dev/null; then
+  echo "[Error] $SBOM_FILE is not a valid JSON file." >&2
   exit 1
 fi
 
@@ -16,7 +22,7 @@ if jq -e '.bomFormat == "CycloneDX"' "$SBOM_FILE" > /dev/null; then
 elif jq -e '.spdxVersion != null' "$SBOM_FILE" > /dev/null; then
   FORMAT="spdx"
 else
-  echo "Neither CycloneDX nor SPDX format found in JSON file."
+  echo "[Error] Neither CycloneDX nor SPDX format found in JSON file."
   exit 1
 fi
 

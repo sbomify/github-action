@@ -1,6 +1,6 @@
 ---
 name: 'sbomify'
-description: 'A GitHub Action to upload an SBOM (JSON) CycloneDX or SPDX to sbomify'
+description: 'A GitHub Action to upload an SBOM CycloneDX or SPDX to sbomify'
 author: 'sbomify'
 inputs:
   token:
