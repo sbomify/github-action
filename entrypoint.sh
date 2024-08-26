@@ -2,13 +2,10 @@
 
 # Define the token
 TOKEN="$1"
+SBOM_FILE="$1"
 
 # Check if the SBOM file exists
-if [ -f "$1" ]; then
-    SBOM_FILE="$1"
-elif [ -f "$WORKDIR/$1" ]; then
-    SBOM_FILE="$WORKDIR/$1"
-else
+if [ ! -f "$1" ]; then
   echo "[Error] SBOM file not found: $SBOM_FILE"
   exit 1
 fi
