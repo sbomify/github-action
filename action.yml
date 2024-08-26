@@ -12,12 +12,8 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - run: ./entrypoint.sh
+    - run: ./entrypoint.sh ${{ inputs.token }} ${{ inputs.sbom-file }}
       shell: bash
-      with:
-        args:
-          - ${{ inputs.token }}
-          - ${{ inputs.sbom-file }}
 
 branding:
   icon: 'upload-cloud'
