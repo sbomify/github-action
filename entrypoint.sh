@@ -2,7 +2,7 @@
 
 # Define the token
 TOKEN="$1"
-SBOM_FILE="/github/workspace/$1"
+SBOM_FILE="/github/workspace/$2"
 
 # Check if the SBOM file exists
 if [ ! -f "$SBOM_FILE" ]; then
