@@ -2,10 +2,10 @@
 
 # Define the token
 TOKEN="$1"
-SBOM_FILE="$1"
+SBOM_FILE="/github/workspace/$1"
 
 # Check if the SBOM file exists
-if [ ! -f "$1" ]; then
+if [ ! -f "$SBOM_FILE" ]; then
   echo "[Error] SBOM file not found: $SBOM_FILE"
   exit 1
 fi
