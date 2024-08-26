@@ -10,10 +10,11 @@ inputs:
     description: 'Path to the SBOM file to be uploaded'
     required: true
 runs:
-  using: 'composite'
-  steps:
-    - run: ./entrypoint.sh ${{ inputs.token }} ${{ inputs.sbom-file }}
-      shell: bash
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.token }}
+    - ${{ inputs.sbom-file }}
 
 branding:
   icon: 'upload-cloud'

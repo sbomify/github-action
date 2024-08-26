@@ -1,11 +1,14 @@
 #!/bin/bash
 
-# Get the inputs from the arguments
+# Define the token
 TOKEN="$1"
-SBOM_FILE="$2"
 
 # Check if the SBOM file exists
-if [ ! -f "$SBOM_FILE" ]; then
+if [ -f "$1" ]; then
+    SBOM_FILE="$1"
+elif [ -f "$WORKDIR/$1" ]; then
+    SBOM_FILE="$WORKDIR/$1"
+else
   echo "[Error] SBOM file not found: $SBOM_FILE"
   exit 1
 fi
