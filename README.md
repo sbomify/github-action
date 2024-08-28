@@ -20,15 +20,16 @@ name: Upload an SBOM to sbomify
 on: [push]
 
 jobs:
-upload-sbom:
-runs-on: ubuntu-latest
-steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+  [...]
+  upload-sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Upload SBOM
-      uses: sbomify/github-action@master
-      with:
-        token: ${{ secrets.SBOMIFY_TOKEN }}
-        sbom-file: 'sbom-file.json'
+      - name: Upload SBOM
+        uses: sbomify/github-action@master
+        with:
+          token: ${{ secrets.SBOMIFY_TOKEN }}
+          sbom-file: 'sbom-file.json'
 ```
