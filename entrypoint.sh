@@ -3,6 +3,7 @@
 # Define the token
 TOKEN="$1"
 SBOM_FILE="/github/workspace/$2"
+COMPONENT_ID="$3"
 
 # Check if the SBOM file exists
 if [ ! -f "$SBOM_FILE" ]; then
@@ -31,7 +32,7 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d @"$SBOM_FILE" \
-  "https://app.sbomify.com/api/v1/sboms/artifact/$FORMAT"
+  "https://app.sbomify.com/api/v1/sboms/artifact/$FORMAT/$COMPONENT_ID"
 
 # Check the result of the curl command
 if [ $? -ne 0 ]; then

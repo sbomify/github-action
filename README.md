@@ -12,6 +12,10 @@ This GitHub Action uploads an SBOM file to sbomify.
 
 **Required** The path to the SBOM file to be uploaded.
 
+### `component-id`
+
+**Required** ID of the component against which the SBOM is to be uploaded.
+
 ## Example Usage
 
 ```yaml
@@ -32,4 +36,5 @@ jobs:
         with:
           token: ${{ secrets.SBOMIFY_TOKEN }}
           sbom-file: 'sbom-file.json'
+          component-id: 'xFef-szx_r'
 ```

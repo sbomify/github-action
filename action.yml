@@ -9,12 +9,16 @@ inputs:
   sbom-file:
     description: 'Path to the SBOM file to be uploaded'
     required: true
+  component-id:
+    description: 'ID of component to upload SBOM to'
+    required: true
 runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
     - ${{ inputs.token }}
     - ${{ inputs.sbom-file }}
+    - ${{ inputs.component-id }}
 
 branding:
   icon: 'upload-cloud'
