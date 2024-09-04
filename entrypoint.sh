@@ -7,11 +7,12 @@ COMPONENT_ID="$3"
 
 print_message() {
     local message="$1"
-    local border=$(printf "%${#message}s" | tr ' ' '-')
-
-    echo " $border "
+    echo \`\`\`
+    echo " "
+    echo " ## sbomify says"
+    echo " "
     echo " $message"
-    echo " $border "
+    echo " "
     echo "      _                     _  __"
     echo "     | |                   (_)/ _|"
     echo "  ___| |__   ___  _ __ ___  _| |_ _   _"
@@ -21,6 +22,7 @@ print_message() {
     echo "                                   __/ |"
     echo " The SBOM sharing and easy        |___/"
     echo " and collaboration platform"
+    echo \`\`\`
 }
 
 # Check if the SBOM file exists
