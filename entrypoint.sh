@@ -5,25 +5,22 @@ TOKEN="$1"
 SBOM_FILE="/github/workspace/$2"
 COMPONENT_ID="$3"
 
-robot_say() {
+print_message() {
     local message="$1"
     local border=$(printf "%${#message}s" | tr ' ' '-')
 
-    echo "::group::sbomify says"  # GitHub Actions log grouping for better readability
     echo " $border "
-    echo "[ $message ]"
+    echo " $message"
     echo " $border "
-    echo "        _____"
-    echo "       /     \\"
-    echo "      | O   O |"
-    echo "      |   ^   |"
-    echo "      |  \\_/  |"
-    echo "       \\_____/ "
-    echo "       _|___|_"
-    echo "     /       \\"
-    echo "    | |     | |"
-    echo "    |_|     |_|"
-    echo "::endgroup::"  # End log group
+    echo "      _                     _  __"
+    echo "     | |                   (_)/ _|"
+    echo "  ___| |__   ___  _ __ ___  _| |_ _   _"
+    echo " / __| '_ \ / _ \| '_ ' _ \| |  _| | | |"
+    echo " \__ \ |_) | (_) | | | | | | | | | |_| |"
+    echo " |___/_.__/ \___/|_| |_| |_|_|_|  \__, |"
+    echo "                                   __/ |"
+    echo " The SBOM sharing and easy        |___/"
+    echo " and collaboration platform"
 }
 
 # Check if the SBOM file exists
@@ -57,8 +54,8 @@ curl -s -X POST \
 
 # Check the result of the curl command
 if [ $? -ne 0 ]; then
-  robot_say "Failed to upload SBOM file." >> ${GITHUB_STEP_SUMMARY}
+  print_message "Failed to upload SBOM file." >> ${GITHUB_STEP_SUMMARY}
   exit 1
 else
-  robot_say "SBOM file uploaded successfully." >> ${GITHUB_STEP_SUMMARY}
+  print_message "SBOM file uploaded successfully." >> ${GITHUB_STEP_SUMMARY}
 fi
