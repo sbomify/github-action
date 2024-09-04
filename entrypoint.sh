@@ -9,7 +9,7 @@ robot_say() {
     local message="$1"
     local border=$(printf "%${#message}s" | tr ' ' '-')
 
-    echo "::group::Robot Says"  # GitHub Actions log grouping for better readability
+    echo "::group::sbomify says"  # GitHub Actions log grouping for better readability
     echo " $border "
     echo "[ $message ]"
     echo " $border "
@@ -49,7 +49,7 @@ else
 fi
 
 # Execute the curl command to upload the SBOM file
-curl -X POST \
+curl -s -X POST \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d @"$SBOM_FILE" \
@@ -57,8 +57,8 @@ curl -X POST \
 
 # Check the result of the curl command
 if [ $? -ne 0 ]; then
-  robot_say "Failed to upload SBOM file."
+  robot_say "Failed to upload SBOM file." >> ${GITHUB_STEP_SUMMARY}
   exit 1
 else
-  robot_say "SBOM file uploaded successfully."
+  robot_say "SBOM file uploaded successfully." >> ${GITHUB_STEP_SUMMARY}
 fi
