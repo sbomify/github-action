@@ -36,5 +36,5 @@ jobs:
         with:
           token: ${{ secrets.SBOMIFY_TOKEN }}
           sbom-file: 'sbom-file.json'
-          component-id: 'xFef-szx_r'
+          component-id: 'my-component-id'
 ```
