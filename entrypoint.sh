@@ -51,7 +51,7 @@ fi
 curl -s -X POST \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d @"$SBOM_FILE" \
+  --data-binary @"$SBOM_FILE" \
   "https://app.sbomify.com/api/v1/sboms/artifact/$FORMAT/$COMPONENT_ID" | jq
 
 # Check the result of the curl command
