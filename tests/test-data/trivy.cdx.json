@@ -1,0 +1,116 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:0b624ed3-5f55-4754-9002-7105d577a0ab",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2024-09-18T14:37:51+00:00",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "group": "aquasecurity",
+          "name": "trivy",
+          "version": "0.54.1"
+        }
+      ]
+    },
+    "component": {
+      "bom-ref": "4e7516fe-7195-4fc2-9178-e47f06258a46",
+      "type": "application",
+      "name": "python/requirements.txt",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:SchemaVersion",
+          "value": "2"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "36231f44-bbb5-4220-bace-c74bc37b6042",
+      "type": "application",
+      "name": "requirements.txt",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:Class",
+          "value": "lang-pkgs"
+        },
+        {
+          "name": "aquasecurity:trivy:Type",
+          "value": "pip"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:pypi/asgiref@3.8.1",
+      "type": "library",
+      "name": "asgiref",
+      "version": "3.8.1",
+      "purl": "pkg:pypi/asgiref@3.8.1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pip"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:pypi/django@5.1",
+      "type": "library",
+      "name": "Django",
+      "version": "5.1",
+      "purl": "pkg:pypi/django@5.1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pip"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:pypi/sqlparse@0.5.1",
+      "type": "library",
+      "name": "sqlparse",
+      "version": "0.5.1",
+      "purl": "pkg:pypi/sqlparse@0.5.1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pip"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "36231f44-bbb5-4220-bace-c74bc37b6042",
+      "dependsOn": [
+        "pkg:pypi/asgiref@3.8.1",
+        "pkg:pypi/django@5.1",
+        "pkg:pypi/sqlparse@0.5.1"
+      ]
+    },
+    {
+      "ref": "4e7516fe-7195-4fc2-9178-e47f06258a46",
+      "dependsOn": [
+        "36231f44-bbb5-4220-bace-c74bc37b6042"
+      ]
+    },
+    {
+      "ref": "pkg:pypi/asgiref@3.8.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:pypi/django@5.1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:pypi/sqlparse@0.5.1",
+      "dependsOn": []
+    }
+  ],
+  "vulnerabilities": []
+}

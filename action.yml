@@ -2,31 +2,9 @@
 name: 'sbomify'
 description: 'A GitHub Action to upload an SBOM CycloneDX or SPDX to sbomify'
 author: 'sbomify'
-inputs:
-  token:
-    description: 'Authorization token for sbomify API.'
-    required: true
-  component-id:
-    description: 'sbomify ID of component to upload.'
-    required: true
-  sbom-file:
-    description: 'Path to the SBOM file to be uploaded.'
-    required: false
-  lockfile:
-    description: 'Lockfile for your programming language. See Readme for support and details.'
-    required: false
-  output-file:
-    description: 'Path if SBOM if you want to write a local copy.'
-    required: false
 runs:
   using: 'docker'
   image: 'Dockerfile'
-  args:
-    - ${{ inputs.token }}
-    - ${{ inputs.component-id }}
-    - ${{ inputs.sbom-file }}
-    - ${{ inputs.lockfile }}
-    - ${{ inputs.output-file }}
 branding:
   icon: 'upload-cloud'
   color: 'blue'

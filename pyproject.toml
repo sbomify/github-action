@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "sbomify GitHub Action"
+version = "0.1.0"
+description = "GitHub Actions module for generating, augmenting and distributing SBOMs"
+authors = ["sbomify <hello@sbomify.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+requests = "^2.32.3"
+cyclonedx-bom = "^4.6.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

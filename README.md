@@ -39,8 +39,8 @@ jobs:
 
       - name: Upload SBOM
         uses: sbomify/github-action@master
-        with:
-          token: ${{ secrets.SBOMIFY_TOKEN }}
-          sbom-file: 'sbom-file.json'
-          component-id: 'my-component-id'
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'my-component-id'
+          SBOM_FILE: 'sbom-file.json'
 ```

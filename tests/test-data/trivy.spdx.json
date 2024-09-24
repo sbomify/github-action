@@ -1,0 +1,130 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "python/requirements.txt",
+  "documentNamespace": "http://aquasecurity.github.io/trivy/filesystem/python/requirements.txt-eb633c84-42c5-4283-acf4-d2672ec4abf3",
+  "creationInfo": {
+    "creators": [
+      "Organization: aquasecurity",
+      "Tool: trivy-0.54.1"
+    ],
+    "created": "2024-09-18T14:37:52Z"
+  },
+  "packages": [
+    {
+      "name": "requirements.txt",
+      "SPDXID": "SPDXRef-Application-81de20a339858bba",
+      "downloadLocation": "NONE",
+      "filesAnalyzed": false,
+      "attributionTexts": [
+        "Class: lang-pkgs",
+        "Type: pip"
+      ],
+      "primaryPackagePurpose": "APPLICATION"
+    },
+    {
+      "name": "Django",
+      "SPDXID": "SPDXRef-Package-81c9664ec5a4dbae",
+      "versionInfo": "5.1",
+      "supplier": "NOASSERTION",
+      "downloadLocation": "NONE",
+      "filesAnalyzed": false,
+      "sourceInfo": "package found in: requirements.txt",
+      "licenseConcluded": "NONE",
+      "licenseDeclared": "NONE",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/django@5.1"
+        }
+      ],
+      "attributionTexts": [
+        "PkgType: pip"
+      ],
+      "primaryPackagePurpose": "LIBRARY"
+    },
+    {
+      "name": "asgiref",
+      "SPDXID": "SPDXRef-Package-7832bd55fd8f9bc3",
+      "versionInfo": "3.8.1",
+      "supplier": "NOASSERTION",
+      "downloadLocation": "NONE",
+      "filesAnalyzed": false,
+      "sourceInfo": "package found in: requirements.txt",
+      "licenseConcluded": "NONE",
+      "licenseDeclared": "NONE",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/asgiref@3.8.1"
+        }
+      ],
+      "attributionTexts": [
+        "PkgType: pip"
+      ],
+      "primaryPackagePurpose": "LIBRARY"
+    },
+    {
+      "name": "sqlparse",
+      "SPDXID": "SPDXRef-Package-42b015fa51ceb7b2",
+      "versionInfo": "0.5.1",
+      "supplier": "NOASSERTION",
+      "downloadLocation": "NONE",
+      "filesAnalyzed": false,
+      "sourceInfo": "package found in: requirements.txt",
+      "licenseConcluded": "NONE",
+      "licenseDeclared": "NONE",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/sqlparse@0.5.1"
+        }
+      ],
+      "attributionTexts": [
+        "PkgType: pip"
+      ],
+      "primaryPackagePurpose": "LIBRARY"
+    },
+    {
+      "name": "python/requirements.txt",
+      "SPDXID": "SPDXRef-Filesystem-4a3ee0efc46c3ca4",
+      "downloadLocation": "NONE",
+      "filesAnalyzed": false,
+      "attributionTexts": [
+        "SchemaVersion: 2"
+      ],
+      "primaryPackagePurpose": "SOURCE"
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-Application-81de20a339858bba",
+      "relatedSpdxElement": "SPDXRef-Package-42b015fa51ceb7b2",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Application-81de20a339858bba",
+      "relatedSpdxElement": "SPDXRef-Package-7832bd55fd8f9bc3",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Application-81de20a339858bba",
+      "relatedSpdxElement": "SPDXRef-Package-81c9664ec5a4dbae",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Filesystem-4a3ee0efc46c3ca4",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-Filesystem-4a3ee0efc46c3ca4",
+      "relatedSpdxElement": "SPDXRef-Application-81de20a339858bba",
+      "relationshipType": "CONTAINS"
+    }
+  ]
+}

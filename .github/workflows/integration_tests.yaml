@@ -16,10 +16,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Test vnvalid JSON
+      - name: Dockerfile build
         run: |
-          ./entrypoint.sh fake-token fake-component $(pwd)/test-data/invalid_json.json || echo “Test Passed”
+          docker build . -t gh-action
+
+      # This is admittably somewhat naive testing, but bether than nothing.
+      - name: Test invalid JSON
+        run: |
+          docker run --rm -ti \
+            -e TOKEN=fake-token \
+            -e COMPONENT_ID=fake-component \
+            -e SBOM_FILE=test-data/invalid_json.json
 
       - name: Test valid JSON
         run: |
-          ./entrypoint.sh fake-token fake-component $(pwd)/test-data/valid_json.json || echo “Test Passed”
+          ./entrypoint.sh fake-token fake-component $(pwd)/test-data/valid_json.json \
+            || echo “Test passed”
