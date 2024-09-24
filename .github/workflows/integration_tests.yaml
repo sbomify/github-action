@@ -1,0 +1,27 @@
+---
+name: Integration Tests
+
+on:  # yamllint disable-line rule:truthy
+  push: null
+  pull_request: null
+
+jobs:
+  build:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Test vnvalid JSON
+        continue-on-error: true
+        run: |
+          ./entrypoint.sh fake-token fake-component $(pwd)/test-data/invalid_json.json
+
+      - name: Test valid JSON
+        continue-on-error: true
+        run: |
+          ./entrypoint.sh fake-token fake-component $(pwd)/test-data/valid_json.json

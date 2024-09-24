@@ -1,0 +1,23 @@
+---
+    name: Dockerfile Tests
+
+    on:  # yamllint disable-line rule:truthy
+      push: null
+      pull_request: null
+
+    jobs:
+      build:
+        name: Dockerfile Tests
+        runs-on: ubuntu-latest
+
+        steps:
+          - name: Code Checkout
+            uses: actions/checkout@v4
+            with:
+              fetch-depth: 0
+
+          - name: Dockerfile build
+            run: |
+              docker build . -t gh-action
+
+          # Add hadolint

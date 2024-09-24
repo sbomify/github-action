@@ -1,0 +1,23 @@
+---
+name: ShellCheck
+
+on:  # yamllint disable-line rule:truthy
+  push: null
+  pull_request: null
+
+jobs:
+  build:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install ShellCheck
+        run: apt update && apt install shellcheck
+
+      - name: Run ShellCheck
+        run: shellcheck entrypoint.sh
