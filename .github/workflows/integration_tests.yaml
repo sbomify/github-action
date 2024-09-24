@@ -17,11 +17,9 @@ jobs:
           fetch-depth: 0
 
       - name: Test vnvalid JSON
-        continue-on-error: true
         run: |
           ./entrypoint.sh fake-token fake-component $(pwd)/test-data/invalid_json.json || echo “Test Passed”
 
       - name: Test valid JSON
-        continue-on-error: true
         run: |
           ./entrypoint.sh fake-token fake-component $(pwd)/test-data/valid_json.json || echo “Test Passed”
