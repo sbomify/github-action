@@ -1,4 +1,5 @@
 #!/bin/bash
+#shellcheck disable=SC2181
 
 PATH_EXPANSION () {
   # @TODO: This needs to be patched to support relative paths.
@@ -15,9 +16,9 @@ PATH_EXPANSION () {
 # Define the token
 TOKEN="$1"
 COMPONENT_ID="$2"
-SBOM_FILE="$(PATH_EXPANSION $3)"
-LOCK_FILE="$(PATH_EXPANSION $4)"
-OUTPUT_FILE="$(PATH_EXPANSION $5)"
+SBOM_FILE="$(PATH_EXPANSION "$3")"
+LOCK_FILE="$(PATH_EXPANSION "$4")"
+OUTPUT_FILE="$(PATH_EXPANSION "$5")"
 
 print_message() {
     local message="$1"
@@ -138,8 +139,8 @@ curl -s -X POST \
 
 # Check the result of the curl command
 if [ $? -ne 0 ]; then
-  print_message "Failed to upload SBOM file." >> ${GITHUB_STEP_SUMMARY}
+  print_message "Failed to upload SBOM file." >> "${GITHUB_STEP_SUMMARY}"
   exit 1
 else
-  print_message "SBOM file uploaded successfully." >> ${GITHUB_STEP_SUMMARY}
+  print_message "SBOM file uploaded successfully." >> "${GITHUB_STEP_SUMMARY}"
 fi
