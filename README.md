@@ -4,6 +4,10 @@ This GitHub Action for generating and uploading SBOMs to sbomify.
 
 You can use this action for just uploading SBOMs, or you can use the generation feature based on a language specific lock file, in which case the tool will use an opinionated approach to author an SBOM for you.
 
+The tool will use:
+* JSON as the file format
+* The latest version of CycloneDX as the SBOM format supported by the library
+
 ## Inputs
 
 ### `token`

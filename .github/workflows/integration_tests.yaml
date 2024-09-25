@@ -16,19 +16,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Dockerfile build
+      - name: Install Poetry
         run: |
-          docker build . -t gh-action
+          python -m pip install pipx --no-cache
+          pipx install poetry --global
+          pipx ensurepath --global
+
+      - name: Install virtual environment
+        run: |
+          poetry install
 
       # This is admittably somewhat naive testing, but bether than nothing.
-      - name: Test invalid JSON
+      - name: Run tests
         run: |
-          docker run --rm -ti \
-            -e TOKEN=fake-token \
-            -e COMPONENT_ID=fake-component \
-            -e SBOM_FILE=test-data/invalid_json.json
-
-      - name: Test valid JSON
-        run: |
-          ./entrypoint.sh fake-token fake-component $(pwd)/test-data/valid_json.json \
-            || echo “Test passed”
+          PYTHONPATH=$(pwd) \
+            poetry run python tests/test_entrypoint.py
