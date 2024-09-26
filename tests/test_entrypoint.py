@@ -2,8 +2,11 @@ import os
 import sys
 import unittest
 
-from entrypoint import (generate_sbom_from_python_lock_file, path_expansion,
-                        validate_sbom)
+from entrypoint import (
+    generate_sbom_from_python_lock_file,
+    path_expansion,
+    validate_sbom,
+)
 
 
 class TestPathExpansion(unittest.TestCase):
@@ -145,6 +148,7 @@ class TestPythonSBOMGeneration(unittest.TestCase):
         self.assertEqual(sbom_type, "cyclonedx")
 
         os.remove(output_file)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -70,8 +70,8 @@ def generate_sbom_from_python_lock_file(
         output_file,
     ]
 
-    if lock_file_type == 'poetry':
-        cmd += ['--no-dev']
+    if lock_file_type == "poetry":
+        cmd += ["--no-dev"]
 
     result = subprocess.run(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
@@ -148,7 +148,12 @@ def main():
         LOCK_FILE_NAME = os.path.basename(FILE)
 
         # Common Python lock file names
-        COMMON_PYTHON_LOCK_FILES = ["Pipfile.lock", "poetry.lock", "pyproject.toml",  "requirements.txt"]
+        COMMON_PYTHON_LOCK_FILES = [
+            "Pipfile.lock",
+            "poetry.lock",
+            "pyproject.toml",
+            "requirements.txt",
+        ]
 
         # Check if the LOCK_FILE is a recognized Python lock file
         if os.path.basename(FILE) in COMMON_PYTHON_LOCK_FILES:
