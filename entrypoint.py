@@ -52,7 +52,9 @@ def validate_sbom(file_path):
         sys.exit(1)
 
 
-def generate_sbom_from_requirements(requirements_file, output_file, schema_version="1.6"):
+def generate_sbom_from_requirements(
+    requirements_file, output_file, schema_version="1.6"
+):
     """
     This should be rewritten as a native function.
 
@@ -65,7 +67,7 @@ def generate_sbom_from_requirements(requirements_file, output_file, schema_versi
         "--schema-version",
         schema_version,
         "--outfile",
-        output_file
+        output_file,
     ]
 
     result = subprocess.run(
@@ -73,6 +75,7 @@ def generate_sbom_from_requirements(requirements_file, output_file, schema_versi
     )
 
     return result.returncode
+
 
 def print_message(message, file=None):
     ascii_art = f"""
@@ -150,8 +153,7 @@ def main():
             # Provide the appropriate parser
             if LOCK_FILE_NAME == "requirements.txt":
                 sbom_generation = generate_sbom_from_requirements(
-                    requirements_file=LOCK_FILE,
-                    output_file=OUTPUT_FILE
+                    requirements_file=LOCK_FILE, output_file=OUTPUT_FILE
                 )
             elif LOCK_FILE_NAME == "poetry.lock":
                 print("placeholder")
