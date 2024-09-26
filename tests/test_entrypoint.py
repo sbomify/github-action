@@ -85,7 +85,7 @@ class TestSBOMValidation(unittest.TestCase):
         self.assertEqual(result, "spdx")
 
 
-class TestSBOMGeneration(unittest.TestCase):
+class TestPythonSBOMGeneration(unittest.TestCase):
     def test_generation_requirements_txt(self):
         """
         Test CycloneDX generation of SBOM
@@ -106,6 +106,45 @@ class TestSBOMGeneration(unittest.TestCase):
 
         os.remove(output_file)
 
+    def test_generation_poetry(self):
+        """
+        Test CycloneDX generation of SBOM
+        from a `poetry.lock` file.
+        """
+
+        output_file = "test_poetry_generation.json"
+        generation_return_code = generate_sbom_from_python_lock_file(
+            lock_file=os.path.dirname("poetry.lock"),
+            lock_file_type="poetry",
+            output_file=output_file,
+        )
+
+        sbom_type = validate_sbom(output_file)
+
+        self.assertEqual(generation_return_code, 0)
+        self.assertEqual(sbom_type, "cyclonedx")
+
+        os.remove(output_file)
+
+    def test_generation_pipenv(self):
+        """
+        Test CycloneDX generation of SBOM
+        from a `poetry.lock` file.
+        """
+
+        output_file = "test_pipenv_generation.json"
+        generation_return_code = generate_sbom_from_python_lock_file(
+            lock_file=os.path.dirname("tests/test-data/Pipfile.lock"),
+            lock_file_type="pipenv",
+            output_file=output_file,
+        )
+
+        sbom_type = validate_sbom(output_file)
+
+        self.assertEqual(generation_return_code, 0)
+        self.assertEqual(sbom_type, "cyclonedx")
+
+        os.remove(output_file)
 
 if __name__ == "__main__":
     unittest.main()
