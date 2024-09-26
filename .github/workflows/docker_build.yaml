@@ -20,6 +20,7 @@ jobs:
         run: |
             docker build . -t gha
 
+      # Simulate GitHub Actions run
       - name: Run Container
         run: |
             docker run --rm \
@@ -27,4 +28,5 @@ jobs:
                 -e COMPONENT_ID=placeholder \
                 -e UPLOAD=false \
                 -e SBOM_FILE=tests/test-data/syft.cdx.json \
+                -v $(pwd):/github/workspace \
                 gha
