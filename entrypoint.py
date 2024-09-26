@@ -52,8 +52,8 @@ def validate_sbom(file_path):
         sys.exit(1)
 
 
-def generate_sbom_from_requirements(
-    requirements_file, output_file, schema_version="1.6"
+def generate_sbom_from_python_lock_file(
+    lock_file, lock_file_type, output_file, schema_version="1.6"
 ):
     """
     This should be rewritten as a native function.
@@ -62,8 +62,8 @@ def generate_sbom_from_requirements(
     """
     cmd = [
         "cyclonedx-py",
-        "requirements",
-        requirements_file,
+        lock_file_type,
+        lock_file,
         "--schema-version",
         schema_version,
         "--outfile",
@@ -152,13 +152,23 @@ def main():
 
             # Provide the appropriate parser
             if LOCK_FILE_NAME == "requirements.txt":
-                sbom_generation = generate_sbom_from_requirements(
-                    requirements_file=LOCK_FILE, output_file=OUTPUT_FILE
+                sbom_generation = generate_sbom_from_python_lock_file(
+                    lock_file=LOCK_FILE,
+                    lock_file_type="requirements",
+                    output_file=OUTPUT_FILE,
                 )
             elif LOCK_FILE_NAME == "poetry.lock":
-                print("placeholder")
+                sbom_generation = generate_sbom_from_python_lock_file(
+                    lock_file=LOCK_FILE,
+                    lock_file_type="poetry",
+                    output_file=OUTPUT_FILE,
+                )
             elif LOCK_FILE_NAME == "Pipfile.lock":
-                print("placeholder")
+                sbom_generation = generate_sbom_from_python_lock_file(
+                    lock_file=LOCK_FILE,
+                    lock_file_type="pipenv",
+                    output_file=OUTPUT_FILE,
+                )
             else:
                 print(f"[Warning] {FILE} is not a recognized Python lock file.")
                 sys.exit(1)

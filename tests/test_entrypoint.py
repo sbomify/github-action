@@ -1,10 +1,10 @@
-import unittest
 import os
 import sys
+import unittest
 
-from entrypoint import path_expansion
-from entrypoint import validate_sbom
-from entrypoint import generate_sbom_from_requirements
+from entrypoint import (generate_sbom_from_python_lock_file, path_expansion,
+                        validate_sbom)
+
 
 class TestPathExpansion(unittest.TestCase):
     def test_valid_absolute_path(self):
@@ -12,7 +12,7 @@ class TestPathExpansion(unittest.TestCase):
         Test that a valid absolute path returns the correct path.
         """
 
-        valid_file_path = os.path.join(os.getcwd(), 'tests/test-data/valid_json.json' )
+        valid_file_path = os.path.join(os.getcwd(), "tests/test-data/valid_json.json")
 
         # Call the function with a valid absolute path
         result = path_expansion(valid_file_path)
@@ -25,9 +25,9 @@ class TestPathExpansion(unittest.TestCase):
         Test that a valid relative path returns the correct joined path.
         """
         # Call the function with a valid relative path
-        result = path_expansion('tests/test-data/valid_json.json')
+        result = path_expansion("tests/test-data/valid_json.json")
 
-        expected_result = os.path.join(os.getcwd(), 'tests/test-data/valid_json.json')
+        expected_result = os.path.join(os.getcwd(), "tests/test-data/valid_json.json")
 
         # Assert that the returned path is the joined relative path
         self.assertEqual(result, expected_result)
@@ -39,10 +39,11 @@ class TestPathExpansion(unittest.TestCase):
 
         # Expect SystemExit with code 1 when calling the function
         with self.assertRaises(SystemExit) as cm:
-            path_expansion('invalid/path.txt')
+            path_expansion("invalid/path.txt")
 
         # Assert that the exit code is 1
         self.assertEqual(cm.exception.code, 1)
+
 
 class TestSBOMValidation(unittest.TestCase):
     def test_invalid_json(self):
@@ -52,7 +53,7 @@ class TestSBOMValidation(unittest.TestCase):
 
         # Expect SystemExit with code 1 when calling the function
         with self.assertRaises(SystemExit) as cm:
-            validate_sbom('tests/test-data/invalid_json.json')
+            validate_sbom("tests/test-data/invalid_json.json")
 
         # Assert that the exit code is 1
         self.assertEqual(cm.exception.code, 1)
@@ -64,7 +65,7 @@ class TestSBOMValidation(unittest.TestCase):
 
         # Expect SystemExit with code 1 when calling the function
         with self.assertRaises(SystemExit) as cm:
-            validate_sbom('tests/test-data/valid_json.json')
+            validate_sbom("tests/test-data/valid_json.json")
 
         # Assert that the exit code is 1
         self.assertEqual(cm.exception.code, 1)
@@ -73,15 +74,16 @@ class TestSBOMValidation(unittest.TestCase):
         """
         Test that a valid CycloneDX SBOM.
         """
-        result = validate_sbom('tests/test-data/syft.cdx.json')
-        self.assertEqual(result, 'cyclonedx')
+        result = validate_sbom("tests/test-data/syft.cdx.json")
+        self.assertEqual(result, "cyclonedx")
 
     def test_valid_spdx(self):
         """
         Test that a valid SPDX SBOM.
         """
-        result = validate_sbom('tests/test-data/syft.spdx.json')
-        self.assertEqual(result, 'spdx')
+        result = validate_sbom("tests/test-data/syft.spdx.json")
+        self.assertEqual(result, "spdx")
+
 
 class TestSBOMGeneration(unittest.TestCase):
     def test_generation_requirements_txt(self):
@@ -90,16 +92,20 @@ class TestSBOMGeneration(unittest.TestCase):
         from a `requirements.txt` file.
         """
 
-        generation_return_code = generate_sbom_from_requirements(
-            requirements_file = 'tests/test-data/requirements.txt',
-            output_file='test_generation.json'
+        output_file = "test_requirements_generation.json"
+        generation_return_code = generate_sbom_from_python_lock_file(
+            lock_file="tests/test-data/requirements.txt",
+            lock_file_type="requirements",
+            output_file=output_file,
         )
 
-
-        sbom_type = validate_sbom('test_generation.json')
+        sbom_type = validate_sbom(output_file)
 
         self.assertEqual(generation_return_code, 0)
-        self.assertEqual(sbom_type, 'cyclonedx')
+        self.assertEqual(sbom_type, "cyclonedx")
 
-if __name__ == '__main__':
+        os.remove(output_file)
+
+
+if __name__ == "__main__":
     unittest.main()
