@@ -22,7 +22,7 @@ jobs:
 
       - name: Run Container
         run: |
-            docker run --rm -ti \
+            docker run --rm \
                 -e TOKEN=placeholder \
                 -e COMPONENT_ID=placeholder \
                 -e UPLOAD=false \
