@@ -1,0 +1,30 @@
+---
+name: Docker Build/Checks
+
+on:  # yamllint disable-line rule:truthy
+  push: null
+  pull_request: null
+
+jobs:
+  build:
+    name: Docker Build/Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build Container
+        run: |
+            docker build . -t gha
+
+      - name: Run Container
+        run: |
+            docker run --rm -ti \
+                -e TOKEN=placeholder \
+                -e COMPONENT_ID=placeholder \
+                -e UPLOAD=false \
+                -e SBOM_FILE=tests/test-data/syft.cdx.json \
+                gha
