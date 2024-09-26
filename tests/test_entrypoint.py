@@ -4,6 +4,7 @@ import sys
 
 from entrypoint import path_expansion
 from entrypoint import validate_sbom
+from entrypoint import generate_sbom_from_requirements
 
 class TestPathExpansion(unittest.TestCase):
     def test_valid_absolute_path(self):
@@ -81,6 +82,24 @@ class TestSBOMValidation(unittest.TestCase):
         """
         result = validate_sbom('tests/test-data/syft.spdx.json')
         self.assertEqual(result, 'spdx')
+
+class TestSBOMGeneration(unittest.TestCase):
+    def test_generation_requirements_txt(self):
+        """
+        Test CycloneDX generation of SBOM
+        from a `requirements.txt` file.
+        """
+
+        generation_return_code = generate_sbom_from_requirements(
+            requirements_file = 'tests/test-data/requirements.txt',
+            output_file='test_generation.json'
+        )
+
+
+        sbom_type = validate_sbom('test_generation.json')
+
+        self.assertEqual(generation_return_code, 0)
+        self.assertEqual(sbom_type, 'cyclonedx')
 
 if __name__ == '__main__':
     unittest.main()

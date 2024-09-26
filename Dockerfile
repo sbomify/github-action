@@ -8,7 +8,7 @@ RUN pipx ensurepath --global
 
 COPY pyproject.toml /usr/src/app/
 COPY poetry.lock /usr/src/app/
-RUN poetry install
+RUN poetry install --only main
 
 COPY entrypoint.py /usr/src/app/
 
