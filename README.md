@@ -1,6 +1,12 @@
 # sbomify Upload Action
 
-This GitHub Action uploads an SBOM file to sbomify.
+This GitHub Action for generating and uploading SBOMs to sbomify.
+
+You can use this action for just uploading SBOMs, or you can use the generation feature based on a language specific lock file, in which case the tool will use an opinionated approach to author an SBOM for you.
+
+The tool will use:
+* JSON as the file format
+* The latest version of CycloneDX as the SBOM format supported by the library
 
 ## Inputs
 
@@ -8,13 +14,17 @@ This GitHub Action uploads an SBOM file to sbomify.
 
 **Required** The authorization token for the sbomify API. Use a GitHub Secret to store this token.
 
-### `sbom-file`
-
-**Required** The path to the SBOM file to be uploaded.
-
 ### `component-id`
 
 **Required** ID of the component against which the SBOM is to be uploaded.
+
+### `sbom-file`
+
+**Optional** The path to the SBOM file to be uploaded. If not specified, provide a lockfile.
+
+### `lockfile`
+
+**Optional** The path to the language specific lockfile. If not specified, provide an SBOM.
 
 ## Example Usage
 
@@ -33,8 +43,8 @@ jobs:
 
       - name: Upload SBOM
         uses: sbomify/github-action@master
-        with:
-          token: ${{ secrets.SBOMIFY_TOKEN }}
-          sbom-file: 'sbom-file.json'
-          component-id: 'my-component-id'
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'my-component-id'
+          SBOM_FILE: 'sbom-file.json'
 ```

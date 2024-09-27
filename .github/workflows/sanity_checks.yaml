@@ -1,0 +1,39 @@
+---
+name: Sanity Checks
+
+on:  # yamllint disable-line rule:truthy
+  push: null
+  pull_request: null
+
+jobs:
+  build:
+    name: Sanity Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Poetry
+        run: |
+          python -m pip install pipx --no-cache
+          pipx install poetry --global
+          pipx ensurepath --global
+
+      - name: Install virtual environment
+        run: |
+          poetry install
+
+      - name: Run isort
+        run: |
+            poetry run isort \
+              --profile black \
+              -c *.py tests/*.py
+
+      - name: Run black
+        run: |
+            poetry run black \
+              --check *.py tests/*.py
+
