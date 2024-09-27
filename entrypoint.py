@@ -30,7 +30,7 @@ def path_expansion(path):
 
 
 def evaluate_boolean(value):
-    return value.lower() in ["true", "yes", "yes", "yeah"]
+    return value.lower() in ["true", "yes", "yeah", "1"]
 
 
 def validate_sbom(file_path):
@@ -123,10 +123,16 @@ def main():
     else:
         LOCK_FILE = None
 
+    # Add some duplication logic
+    if SBOM_FILE and LOCK_FILE:
+        print("[Error] Please provide SBOM_FILE of LOCK_FILE, not both.")
+        sys.exit(1)
+
     OUTPUT_FILE = os.getenv("OUTPUT_FILE", "sbom_output.json")
 
-    # Default to upload
+    # Default to true
     UPLOAD = evaluate_boolean(os.getenv("UPLOAD", "True"))
+    AUGMENT = evaluate_boolean(os.getenv("AUGMENT", "False"))
 
     # Check if either SBOM_FILE or LOCK_FILE exists
     if SBOM_FILE:
@@ -193,6 +199,9 @@ def main():
     else:
         print("[Error] Unrecognized FILE_TYPE.")
         sys.exit(1)
+
+    if AUGMENT:
+        print("placeholder")
 
     if UPLOAD:
         # Execute the POST request to upload the SBOM file

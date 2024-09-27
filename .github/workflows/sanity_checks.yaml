@@ -26,12 +26,11 @@ jobs:
         run: |
           poetry install
 
-
       - name: Run isort
         run: |
-            poetry run isort entrypoint.py
+            poetry run isort -c *.py tests/*.py
 
       - name: Run black
         run: |
-            poetry run black entrypoint.py
+            poetry run black --check *.py tests/*.py
 
