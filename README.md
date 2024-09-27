@@ -10,21 +10,28 @@ The tool will use:
 
 ## Inputs
 
-### `token`
+### `TOKEN`
 
 **Required** The authorization token for the sbomify API. Use a GitHub Secret to store this token.
 
-### `component-id`
+### `COMPONENT_ID`
 
 **Required** ID of the component against which the SBOM is to be uploaded.
 
-### `sbom-file`
+### `SBOM_FILE`
 
 **Optional** The path to the SBOM file to be uploaded. If not specified, provide a lockfile.
 
-### `lockfile`
+### `LOCK_FILE`
 
 **Optional** The path to the language specific lockfile. If not specified, provide an SBOM.
+
+Supported lock files:
+
+* Python
+  * Pipfile (`Pipfile.lock`)
+  * Poetry (`poetry.lock` and/or `pyproject.toml`)
+  * Pip (`requirements.txt`)
 
 ## Example Usage
 
@@ -47,4 +54,15 @@ jobs:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'my-component-id'
           SBOM_FILE: 'sbom-file.json'
+```
+
+You could also use this to generate an SBOM:
+
+```yaml
+      - name: Upload SBOM
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'my-component-id'
+          LOCK_FILE: 'requirementes.txt'
 ```
