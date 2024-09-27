@@ -28,9 +28,12 @@ jobs:
 
       - name: Run isort
         run: |
-            poetry run isort -c *.py tests/*.py
+            poetry run isort \
+              --profile black \
+              -c *.py tests/*.py
 
       - name: Run black
         run: |
-            poetry run black --check *.py tests/*.py
+            poetry run black \
+              --check *.py tests/*.py
 
