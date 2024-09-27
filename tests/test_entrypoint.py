@@ -2,11 +2,8 @@ import os
 import sys
 import unittest
 
-from entrypoint import (
-    generate_sbom_from_python_lock_file,
-    path_expansion,
-    validate_sbom,
-)
+from entrypoint import (generate_sbom_from_python_lock_file, path_expansion,
+                        validate_sbom)
 
 
 class TestPathExpansion(unittest.TestCase):
