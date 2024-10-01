@@ -16,8 +16,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Simulate GitHub Actions run
-      - uses: sbomify/github-action@0c76dfa7e5cd5ee83d5014604e221139dbcbf2cd
+      # Simulate GitHub Actions run.
+      # Change `@master` for the hash you want to test.
+      - uses: sbomify/github-action@master
         name: Test Run
         env:
           TOKEN: placeholder
