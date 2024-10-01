@@ -16,17 +16,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build Container
-        run: |
-            docker build . -t gha
-
-      # Simulate GitHub Actions run
-      - name: Run Container
-        run: |
-            docker run --rm \
-                -e TOKEN=placeholder \
-                -e COMPONENT_ID=placeholder \
-                -e UPLOAD=false \
-                -e SBOM_FILE=tests/test-data/syft.cdx.json \
-                -v $(pwd):/github/workspace \
-                gha
+      # Simulate GitHub Actions run.
+      # Change `@master` for the hash you want to test.
+      - uses: sbomify/github-action@master
+        name: Test Run
+        env:
+          TOKEN: placeholder
+          COMPONENT_ID: placeholder
+          UPLOAD: false
+          SBOM_FILE: tests/test-data/syft.cdx.json
