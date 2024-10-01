@@ -2,16 +2,15 @@ FROM python:3-slim-bullseye
 
 WORKDIR /usr/src/app
 
+RUN mkdir -p /opt/poetry
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=on \
     PIP_DISABLE_PIP_VERSION_CHECK=on \
     PIP_DEFAULT_TIMEOUT=100 \
-    POETRY_HOME="/opt/poetry" \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
-    POETRY_NO_INTERACTION=1 \
-    PYSETUP_PATH="/opt/pysetup" \
-    VENV_PATH="/opt/pysetup/.venv"
+    POETRY_CACHE_DIR=/opt/poetry \
+    POETRY_NO_INTERACTION=1
 
 RUN python -m pip install pipx --no-cache
 RUN pipx install poetry --global
