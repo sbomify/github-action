@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0
 
       # Simulate GitHub Actions run
-      - uses: sbomify/github-action@d792faea781b5cb468a3215daf6825c83f5b4afd
+      - uses: sbomify/github-action@69137fea5f8eb948158a832afad7fda0c38b532f
         name: Test Run
         env:
           TOKEN: placeholder
