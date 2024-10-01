@@ -12,4 +12,4 @@ RUN poetry install --only main
 
 COPY entrypoint.py /usr/src/app/
 
-CMD [ "poetry", "run", "python", "entrypoint.py" ]
+CMD [ "poetry", "run", "python", "/usr/src/app/entrypoint.py" ]
