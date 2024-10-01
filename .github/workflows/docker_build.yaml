@@ -20,7 +20,7 @@ jobs:
       - uses: sbomify/github-action@$GITHUB_SHA
         name: Test Run
         env:
-          TOKEN=placeholder
-          COMPONENT_ID=placeholder
-          UPLOAD=false
-          SBOM_FILE=tests/test-data/syft.cdx.json
+          TOKEN: placeholder
+          COMPONENT_ID: placeholder
+          UPLOAD: false
+          SBOM_FILE: tests/test-data/syft.cdx.json
