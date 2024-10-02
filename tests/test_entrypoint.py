@@ -3,10 +3,10 @@ import sys
 import unittest
 
 from entrypoint import (
+    enrich_sbom_with_parley,
     generate_sbom_from_python_lock_file,
     path_expansion,
     validate_sbom,
-    enrich_sbom_with_parley,
 )
 
 
@@ -176,6 +176,7 @@ class TestEnrichment(unittest.TestCase):
 
         # Assert that the exit code is 1
         self.assertEqual(cm.exception.code, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

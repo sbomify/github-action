@@ -84,12 +84,7 @@ def enrich_sbom_with_parley(input_file, output_file):
     enriched SBOM as the output.
     """
 
-    cmd = [
-            "parlay",
-            "ecosystems",
-            "enrich",
-            input_file
-    ]
+    cmd = ["parlay", "ecosystems", "enrich", input_file]
 
     try:
         result = subprocess.run(
@@ -107,17 +102,23 @@ def enrich_sbom_with_parley(input_file, output_file):
 
         # Validate JSON
         try:
-            json_data = json.loads(output)  # This will raise a ValueError if it's not valid JSON
+            json_data = json.loads(
+                output
+            )  # This will raise a ValueError if it's not valid JSON
 
             # Write the output to a file if it's valid JSON
-            with open(output_file, 'w') as f:
-                json.dump(json_data, f, indent=4)  # Write it as formatted JSON to the file
+            with open(output_file, "w") as f:
+                json.dump(
+                    json_data, f, indent=4
+                )  # Write it as formatted JSON to the file
 
         except json.JSONDecodeError as e:
             print(f"[Error] Invalid JSON: {e}")
 
     else:
-        print(f"[Error] Enrichment command failed with return code {result.returncode}.")
+        print(
+            f"[Error] Enrichment command failed with return code {result.returncode}."
+        )
         sys.exit(1)
 
     return result.returncode
@@ -257,7 +258,6 @@ def main():
 
         enrich = enrich_sbom_with_parley(SBOM_FILE, OUTPUT_FILE)
         sbom_type = validate_sbom(OUTPUT_FILE)
-
 
     if UPLOAD:
         # Execute the POST request to upload the SBOM file
