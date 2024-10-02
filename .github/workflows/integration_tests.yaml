@@ -16,18 +16,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Poetry
+      - name: Build container
         run: |
-          python -m pip install pipx --no-cache
-          pipx install poetry --global
-          pipx ensurepath --global
+          docker build . -t gha
 
-      - name: Install virtual environment
-        run: |
-          poetry install
 
       # This is admittably somewhat naive testing, but bether than nothing.
       - name: Run tests
         run: |
-          PYTHONPATH=$(pwd) \
-            poetry run python tests/test_entrypoint.py
+          docker run --rm \
+            -v $(pwd):/github/workspace \
+            -w /github/workspace \
+            -e TOKEN=placeholder \
+            -e COMPONENT_ID=placeholder \
+            -e UPLOAD=false \
+            -e PYTHONPATH=/github/workspace \
+            gha \
+            poetry -C /usr/src/app/ run python tests/test_entrypoint.py
+
+      - name: Run enrichment test
+        run: |
+          docker run --rm \
+            -v $(pwd):/github/workspace \
+            -w /github/workspace \
+            -e TOKEN=placeholder \
+            -e COMPONENT_ID=placeholder \
+            -e UPLOAD=false \
+            -e SBOM_FILE="tests/test-data/syft.cdx.json" \
+            -e ENRICH=true \
+            gha

@@ -57,8 +57,6 @@ def generate_sbom_from_python_lock_file(
 ):
     """
     This should be rewritten as a native function.
-
-    Returns an SBOM JSON object
     """
     cmd = [
         "cyclonedx-py",
@@ -76,6 +74,51 @@ def generate_sbom_from_python_lock_file(
     result = subprocess.run(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
     )
+
+    return result.returncode
+
+
+def enrich_sbom_with_parley(input_file, output_file):
+    """
+    Takes a path to an SBOM as input and returns an
+    enriched SBOM as the output.
+    """
+
+    cmd = [
+            "parlay",
+            "ecosystems",
+            "enrich",
+            input_file
+    ]
+
+    try:
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
+        )
+
+    except subprocess.CalledProcessError as e:
+        print(f"[Error] Command failed with error: {e}")
+        sys.exit(1)
+
+    # Check if returncode is zero
+    if result.returncode == 0:
+        # Get the output
+        output = result.stdout
+
+        # Validate JSON
+        try:
+            json_data = json.loads(output)  # This will raise a ValueError if it's not valid JSON
+
+            # Write the output to a file if it's valid JSON
+            with open(output_file, 'w') as f:
+                json.dump(json_data, f, indent=4)  # Write it as formatted JSON to the file
+
+        except json.JSONDecodeError as e:
+            print(f"[Error] Invalid JSON: {e}")
+
+    else:
+        print(f"[Error] Enrichment command failed with return code {result.returncode}.")
+        sys.exit(1)
 
     return result.returncode
 
@@ -133,6 +176,7 @@ def main():
     # Default to true
     UPLOAD = evaluate_boolean(os.getenv("UPLOAD", "True"))
     AUGMENT = evaluate_boolean(os.getenv("AUGMENT", "False"))
+    ENRICH = evaluate_boolean(os.getenv("ENRICH", "False"))
 
     # Check if either SBOM_FILE or LOCK_FILE exists
     if SBOM_FILE:
@@ -142,13 +186,13 @@ def main():
         FILE = LOCK_FILE
         FILE_TYPE = "LOCK_FILE"
     else:
-        print("[Error] Neither SBOM file nor LOCK file found.")
+        print("[Error] Neither SBOM file nor lockfile found.")
         sys.exit(1)
 
     # If SBOM_FILE is found, make sure it's a JSON file and detect artifact type
     if FILE_TYPE == "SBOM":
         FORMAT = validate_sbom(FILE)
-        SBOM_FILE = FILE  # Ensure SBOM_FILE is set
+        SBOM_FILE = FILE
     elif FILE_TYPE == "LOCK_FILE":
 
         LOCK_FILE_NAME = os.path.basename(FILE)
@@ -201,7 +245,19 @@ def main():
         sys.exit(1)
 
     if AUGMENT:
-        print("placeholder")
+        """
+        Enrich SBOM with vendor/license information
+        from sbomify's backend.
+        """
+
+    if ENRICH:
+        """
+        Enrich SBOM using Snyk's Parlay
+        """
+
+        enrich = enrich_sbom_with_parley(SBOM_FILE, OUTPUT_FILE)
+        sbom_type = validate_sbom(OUTPUT_FILE)
+
 
     if UPLOAD:
         # Execute the POST request to upload the SBOM file
