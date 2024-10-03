@@ -1,9 +1,44 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 
 import requests
+
+"""
+
+There are three steps in our SBOM generation.
+
+# Step 1: Generation / Validation
+In this step we either generate an SBOM from a lockfile
+or we validate a provided SBOM.
+
+The output of this phase is `step_1.json`.
+
+# Step 2: Augmentation
+This step augments the provided SBOM with data about
+you as the software provider from sbomify's backend.
+This includes merging in information about licensing,
+supplier and vendor. This data is required for NTIA
+Minimum Elements compliance.
+
+The output of this `step_2.json`.
+
+
+# Step 3: Enrichment
+SBOMs will vary a lot in quality of the components.
+As we aspire to reach NTIA Minimum Elements compliants
+we will use an enrichment tool (Parlay) to ensure that
+as many of our components in the SBOM as possible have
+the required data.
+
+The output of this step is `step_3.json`.
+
+Since both step 2 and 3 are optional, we will only
+write `OUTPUT_FILE` at the end of the run.
+
+"""
 
 
 def path_expansion(path):
@@ -27,6 +62,17 @@ def path_expansion(path):
     else:
         print("[Error] Specified input file not found.")
         sys.exit(1)
+
+
+def get_last_sbom_from_last_step():
+    """
+    Helper funtion to get the SBOM from the previous step.
+    """
+    steps = ["step_3.json", "step_2.json", "step_1.json"]
+    for file in steps:
+        if os.path.isfile(file):
+            return file
+    return
 
 
 def evaluate_boolean(value):
@@ -56,9 +102,7 @@ def generate_sbom_from_python_lock_file(
     lock_file, lock_file_type, output_file, schema_version="1.6"
 ):
     """
-    This should be rewritten as a native function.
-
-    Returns an SBOM JSON object
+    Takes a Python lockfile and generates a CycloneDX SBOM.
     """
     cmd = [
         "cyclonedx-py",
@@ -76,6 +120,98 @@ def generate_sbom_from_python_lock_file(
     result = subprocess.run(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
     )
+
+    return result.returncode
+
+
+def generate_sbom_from_rust_lock_file(lock_file, output_file):
+    """
+    Takes a rust lockfile and generates a CycloneDX SBOM.
+    """
+    cmd = [
+        "trivy",
+        "fs",
+        lock_file,
+        "--parallel",
+        "0",
+        "--format",
+        "cyclonedx",
+    ]
+
+    try:
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
+        )
+    except subprocess.CalledProcessError as e:
+
+        print(f"[Error] Command failed with error: {e}")
+        sys.exit(1)
+
+    # Check if returncode is zero
+    if result.returncode == 0:
+        # Get the output
+        output = result.stdout
+
+        # Validate JSON
+        try:
+            json_data = json.loads(
+                output
+            )  # This will raise a ValueError if it's not valid JSON
+
+            # Write the output to a file if it's valid JSON
+            with open(output_file, "w") as f:
+                json.dump(
+                    json_data, f, indent=4
+                )  # Write it as formatted JSON to the file
+
+        except json.JSONDecodeError as e:
+            print(f"[Error] Invalid JSON: {e}")
+
+    return result.returncode
+
+
+def enrich_sbom_with_parley(input_file, output_file):
+    """
+    Takes a path to an SBOM as input and returns an
+    enriched SBOM as the output.
+    """
+
+    cmd = ["parlay", "ecosystems", "enrich", input_file]
+
+    try:
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
+        )
+
+    except subprocess.CalledProcessError as e:
+        print(f"[Error] Command failed with error: {e}")
+        sys.exit(1)
+
+    # Check if returncode is zero
+    if result.returncode == 0:
+        # Get the output
+        output = result.stdout
+
+        # Validate JSON
+        try:
+            json_data = json.loads(
+                output
+            )  # This will raise a ValueError if it's not valid JSON
+
+            # Write the output to a file if it's valid JSON
+            with open(output_file, "w") as f:
+                json.dump(
+                    json_data, f, indent=4
+                )  # Write it as formatted JSON to the file
+
+        except json.JSONDecodeError as e:
+            print(f"[Error] Invalid JSON: {e}")
+
+    else:
+        print(
+            f"[Error] Enrichment command failed with return code {result.returncode}."
+        )
+        sys.exit(1)
 
     return result.returncode
 
@@ -133,6 +269,7 @@ def main():
     # Default to true
     UPLOAD = evaluate_boolean(os.getenv("UPLOAD", "True"))
     AUGMENT = evaluate_boolean(os.getenv("AUGMENT", "False"))
+    ENRICH = evaluate_boolean(os.getenv("ENRICH", "False"))
 
     # Check if either SBOM_FILE or LOCK_FILE exists
     if SBOM_FILE:
@@ -142,13 +279,13 @@ def main():
         FILE = LOCK_FILE
         FILE_TYPE = "LOCK_FILE"
     else:
-        print("[Error] Neither SBOM file nor LOCK file found.")
+        print("[Error] Neither SBOM file nor lockfile found.")
         sys.exit(1)
 
     # If SBOM_FILE is found, make sure it's a JSON file and detect artifact type
     if FILE_TYPE == "SBOM":
         FORMAT = validate_sbom(FILE)
-        SBOM_FILE = FILE  # Ensure SBOM_FILE is set
+        shutil.copy(SBOM_FILE, "step_1.json")
     elif FILE_TYPE == "LOCK_FILE":
 
         LOCK_FILE_NAME = os.path.basename(FILE)
@@ -161,6 +298,11 @@ def main():
             "requirements.txt",
         ]
 
+        # Common Rust lock file names
+        COMMON_RUST_LOCK_FILES = [
+            "Cargo.lock",
+        ]
+
         # Check if the LOCK_FILE is a recognized Python lock file
         if os.path.basename(FILE) in COMMON_PYTHON_LOCK_FILES:
 
@@ -169,20 +311,20 @@ def main():
                 sbom_generation = generate_sbom_from_python_lock_file(
                     lock_file=LOCK_FILE,
                     lock_file_type="requirements",
-                    output_file=OUTPUT_FILE,
+                    output_file="step_1.json",
                 )
             elif LOCK_FILE_NAME == "poetry.lock" or LOCK_FILE_NAME == "pyproject.toml":
                 # Poetry doesn't actually take the lock file, but rather the folder
                 sbom_generation = generate_sbom_from_python_lock_file(
                     lock_file=os.path.dirname(LOCK_FILE),
                     lock_file_type="poetry",
-                    output_file=OUTPUT_FILE,
+                    output_file="step_1.json",
                 )
             elif LOCK_FILE_NAME == "Pipfile.lock":
                 sbom_generation = generate_sbom_from_python_lock_file(
                     lock_file=LOCK_FILE,
                     lock_file_type="pipenv",
-                    output_file=OUTPUT_FILE,
+                    output_file="step_1.json",
                 )
             else:
                 print(f"[Warning] {FILE} is not a recognized Python lock file.")
@@ -191,8 +333,14 @@ def main():
             if not sbom_generation == 0:
                 print("[Error]: SBOM Generation failed.")
 
-            SBOM_FILE = OUTPUT_FILE
-            FORMAT = validate_sbom(SBOM_FILE)
+            FORMAT = validate_sbom("step_1.json")
+
+        # Check if the LOCK_FILE is a recognized Rust lock file
+        elif os.path.basename(FILE) in COMMON_RUST_LOCK_FILES:
+            generate_sbom_from_rust_lock_file(
+                lock_file=LOCK_FILE, output_file="step_1.json"
+            )
+
         else:
             print(f"[Warning] {FILE} is not a recognized lock file.")
             sys.exit(1)
@@ -200,8 +348,26 @@ def main():
         print("[Error] Unrecognized FILE_TYPE.")
         sys.exit(1)
 
+    # Step 2
     if AUGMENT:
-        print("placeholder")
+        """
+        Enrich SBOM with vendor/license information
+        from sbomify's backend.
+        """
+
+    # Step 3
+    if ENRICH:
+        """
+        Enrich SBOM using Snyk's Parlay
+        """
+
+        enrich = enrich_sbom_with_parley(get_last_sbom_from_last_step(), "step_3.json")
+        sbom_type = validate_sbom("step_3.json")
+
+    # Clean up and write final SBOM
+    shutil.copy(get_last_sbom_from_last_step(), OUTPUT_FILE)
+    while get_last_sbom_from_last_step():
+        os.remove(get_last_sbom_from_last_step())
 
     if UPLOAD:
         # Execute the POST request to upload the SBOM file
@@ -211,7 +377,7 @@ def main():
             "Authorization": f"Bearer {TOKEN}",
         }
 
-        with open(SBOM_FILE, "r") as f:
+        with open(OUTPUT_FILE, "r") as f:
             sbom_data = f.read()
 
         response = requests.post(url, headers=headers, data=sbom_data)

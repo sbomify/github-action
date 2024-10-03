@@ -1,12 +1,10 @@
 # sbomify Upload Action
 
-This GitHub Action for generating and uploading SBOMs to sbomify.
+This is an opinionated tool for helping with the SBOM life cycle, namely [generating, augmenting and enriching](https://sbomify.com/features/generate-collaborate-analyze/).
 
-You can use this action for just uploading SBOMs, or you can use the generation feature based on a language specific lock file, in which case the tool will use an opinionated approach to author an SBOM for you.
+The goal is to help users generate NTIA Minimum Elements compliant SBOMs by stitching together various tools, along with metadata augmentation from sbomify.
 
-The tool will use:
-* JSON as the file format
-* The latest version of CycloneDX as the SBOM format supported by the library
+This tool can be used both with an SBOM, as well with a lock-file from various software packages (see `LOCK_FILE`).
 
 ## Inputs
 
@@ -26,12 +24,29 @@ The tool will use:
 
 **Optional** The path to the language specific lockfile. If not specified, provide an SBOM.
 
-Supported lock files:
+| Language | Tool Used | Supported Lockfile(s) |
+|---|---|---|
+| Python | [cyclonedx-python](https://github.com/CycloneDX/cyclonedx-python) | Pipfile (`Pipfile.lock`), Poetry (`poetry.lock` and/or `pyproject.toml`), Pip (`requirements.txt`) |
+| Rust | [trivy](https://github.com/aquasecurity/trivy) | `Cargo.lock` |
 
-* Python
-  * Pipfile (`Pipfile.lock`)
-  * Poetry (`poetry.lock` and/or `pyproject.toml`)
-  * Pip (`requirements.txt`)
+### `OUTPUT_FILE`
+
+**Optional** Set this to write the final SBOM to disk for usage with other tools (and/or attestation).
+
+### `AUGMENT`
+
+**Optional** Set this option to enrich your SBOM with author, vendor and license metadata provided for your component in sbomify's platform. Most SBOM generation tools will not provide this information for you.
+
+### `ENRICH`
+
+**Optional** Set this option to enrich your SBOM using [Ecosyste.ms](https://github.com/ecosyste-ms). This can help with improving your NTIA Minimum Elements Compliance.
+
+## Opinions
+
+While we aspire to become fully format agnostic, we are making some assumptions:
+
+* We always us JSON (i.e. XML is not supported)
+* Currently the tooling is skewed towards CycloneDX, but we aim for improving our SPDX support going forward
 
 ## Example Usage
 
