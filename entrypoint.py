@@ -216,11 +216,8 @@ def enrich_sbom_with_parley(input_file, output_file):
     return result.returncode
 
 
-def print_message(message, file=None):
+def print_banner():
     ascii_art = f"""
- ## sbomify says
-
- {message}
 
       _                     _  __
      | |                   (_)/ _|
@@ -232,12 +229,14 @@ def print_message(message, file=None):
  The SBOM hub for secure          |___/
  sharing and distribution.
 """
-    print("```", file=file)
-    print(ascii_art, file=file)
-    print("```", file=file)
+    print("```")
+    print(ascii_art)
+    print("```")
 
 
 def main():
+    print_banner()
+
     # Make sure required variables are defined
     TOKEN = os.getenv("TOKEN")
     if not TOKEN:
@@ -269,7 +268,6 @@ def main():
     UPLOAD = evaluate_boolean(os.getenv("UPLOAD", "True"))
     AUGMENT = evaluate_boolean(os.getenv("AUGMENT", "False"))
     ENRICH = evaluate_boolean(os.getenv("ENRICH", "False"))
-
 
     # Check if either SBOM_FILE or LOCK_FILE exists
     if SBOM_FILE:
@@ -382,17 +380,11 @@ def main():
 
         response = requests.post(url, headers=headers, data=sbom_data)
 
-        # Check the result of the request
-        GITHUB_STEP_SUMMARY = os.getenv(
-            "GITHUB_STEP_SUMMARY", "github_step_summary.txt"
-        )
         if response.status_code != 200:
-            with open(GITHUB_STEP_SUMMARY, "a") as f:
-                print_message("Failed to upload SBOM file.", file=f)
+            print("[Error] Failed to upload SBOM file.")
             sys.exit(1)
         else:
-            with open(GITHUB_STEP_SUMMARY, "a") as f:
-                print_message("SBOM file uploaded successfully.", file=f)
+            print("[Info] SBOM file uploaded successfully.")
 
 
 if __name__ == "__main__":
