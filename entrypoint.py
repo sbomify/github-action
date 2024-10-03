@@ -56,7 +56,7 @@ def generate_sbom_from_python_lock_file(
     lock_file, lock_file_type, output_file, schema_version="1.6"
 ):
     """
-    This should be rewritten as a native function.
+    Takes a Python lockfile and generates a CycloneDX SBOM.
     """
     cmd = [
         "cyclonedx-py",
@@ -74,6 +74,52 @@ def generate_sbom_from_python_lock_file(
     result = subprocess.run(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
     )
+
+    return result.returncode
+
+
+def generate_sbom_from_rust_lock_file(lock_file, output_file):
+    """
+    Takes a rust lockfile and generates a CycloneDX SBOM.
+    """
+    cmd = [
+        "trivy",
+        "fs",
+        lock_file,
+        "--parallel",
+        "0",
+        "--format",
+        "cyclonedx",
+    ]
+
+    try:
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
+        )
+    except subprocess.CalledProcessError as e:
+
+        print(f"[Error] Command failed with error: {e}")
+        sys.exit(1)
+
+    # Check if returncode is zero
+    if result.returncode == 0:
+        # Get the output
+        output = result.stdout
+
+        # Validate JSON
+        try:
+            json_data = json.loads(
+                output
+            )  # This will raise a ValueError if it's not valid JSON
+
+            # Write the output to a file if it's valid JSON
+            with open(output_file, "w") as f:
+                json.dump(
+                    json_data, f, indent=4
+                )  # Write it as formatted JSON to the file
+
+        except json.JSONDecodeError as e:
+            print(f"[Error] Invalid JSON: {e}")
 
     return result.returncode
 
@@ -206,6 +252,11 @@ def main():
             "requirements.txt",
         ]
 
+        # Common Rust lock file names
+        COMMON_RUST_LOCK_FILES = [
+            "Cargo.lock",
+        ]
+
         # Check if the LOCK_FILE is a recognized Python lock file
         if os.path.basename(FILE) in COMMON_PYTHON_LOCK_FILES:
 
@@ -238,6 +289,13 @@ def main():
 
             SBOM_FILE = OUTPUT_FILE
             FORMAT = validate_sbom(SBOM_FILE)
+
+        # Check if the LOCK_FILE is a recognized Rust lock file
+        elif os.path.basename(FILE) in COMMON_RUST_LOCK_FILES:
+            generate_sbom_from_rust_lock_file(
+                lock_file=LOCK_FILE, output_file=OUTPUT_FILE
+            )
+
         else:
             print(f"[Warning] {FILE} is not a recognized lock file.")
             sys.exit(1)

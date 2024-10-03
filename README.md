@@ -2,7 +2,7 @@
 
 This is an opinionated tool for helping with the SBOM life cycle, namely [generating, augmenting and enriching](https://sbomify.com/features/generate-collaborate-analyze/).
 
-The goal is to help users generate NTIA Minimum Elements compliant SBOMs by stitching together various tools, along with metadata from sbomify.
+The goal is to help users generate NTIA Minimum Elements compliant SBOMs by stitching together various tools, along with metadata augmentation from sbomify.
 
 This tool can be used both with an SBOM, as well with a lock-file from various software packages (see `LOCK_FILE`).
 
@@ -24,12 +24,10 @@ This tool can be used both with an SBOM, as well with a lock-file from various s
 
 **Optional** The path to the language specific lockfile. If not specified, provide an SBOM.
 
-Supported lock files:
-
-* Python
-  * Pipfile (`Pipfile.lock`)
-  * Poetry (`poetry.lock` and/or `pyproject.toml`)
-  * Pip (`requirements.txt`)
+| Language | Tool Used | Supported Lockfile(s) |
+|---|---|---|
+| Python | [cyclonedx-python](https://github.com/CycloneDX/cyclonedx-python) | Pipfile (`Pipfile.lock`), Poetry (`poetry.lock` and/or `pyproject.toml`), Pip (`requirements.txt`) |
+| Rust | [trivy](https://github.com/aquasecurity/trivy) | `Cargo.lock` |
 
 ### `OUTPUT_FILE`
 

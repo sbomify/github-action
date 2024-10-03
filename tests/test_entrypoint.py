@@ -5,6 +5,7 @@ import unittest
 from entrypoint import (
     enrich_sbom_with_parley,
     generate_sbom_from_python_lock_file,
+    generate_sbom_from_rust_lock_file,
     path_expansion,
     validate_sbom,
 )
@@ -149,6 +150,21 @@ class TestPythonSBOMGeneration(unittest.TestCase):
         self.assertEqual(sbom_type, "cyclonedx")
 
         os.remove(output_file)
+
+
+class TestRustSBOMGeneration(unittest.TestCase):
+    def test_generation_cargo_lock(self):
+        """
+        Test CycloneDX generation of SBOM
+        from a `Cargo.lock` file.
+        """
+
+        output_file = "test_cargo_generation.json"
+
+        generation_return_code = generate_sbom_from_rust_lock_file(
+            lock_file="tests/test-data/Cargo.lock",
+            output_file=output_file,
+        )
 
 
 class TestEnrichment(unittest.TestCase):
