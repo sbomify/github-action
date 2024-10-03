@@ -40,6 +40,7 @@ write `OUTPUT_FILE` at the end of the run.
 
 """
 
+
 def path_expansion(path):
     """
     Takes a path/file and returns an absolute path.
@@ -348,7 +349,6 @@ def main():
                     output_file="step_1.json",
                 )
 
-
             else:
                 print(f"[Warning] {FILE} is not a recognized Python lock file.")
                 sys.exit(1)
@@ -361,37 +361,27 @@ def main():
         # Rust
         elif os.path.basename(FILE) in COMMON_RUST_LOCK_FILES:
             print("[Info] Detected Rust lockfile")
-            run_trivy_fs(
-                lock_file=LOCK_FILE, output_file="step_1.json"
-            )
+            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
 
         # JavaScript / Node.JS
         elif os.path.basename(FILE) in COMMON_JAVASCRIPT_LOCK_FILES:
             print("[Info] Detected JavaScript lockfile")
-            run_trivy_fs(
-                lock_file=LOCK_FILE, output_file="step_1.json"
-            )
+            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
 
         # Ruby
         elif os.path.basename(FILE) in COMMON_RUBY_LOCK_FILES:
             print("[Info] Detected Ruby lockfile")
-            run_trivy_fs(
-                lock_file=LOCK_FILE, output_file="step_1.json"
-            )
+            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
 
         # Go
         elif os.path.basename(FILE) in COMMON_GO_LOCK_FILES:
             print("[Info] Detected Go lockfile")
-            run_trivy_fs(
-                lock_file=LOCK_FILE, output_file="step_1.json"
-            )
+            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
 
         # Dart
         elif os.path.basename(FILE) in COMMON_DART_LOCK_FILES:
             print("[Info] Detected Dart lockfile")
-            run_trivy_fs(
-                lock_file=LOCK_FILE, output_file="step_1.json"
-            )
+            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
         else:
             print(f"[Error] {FILE} is not a recognized lock file.")
             sys.exit(1)

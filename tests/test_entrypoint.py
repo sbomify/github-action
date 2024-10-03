@@ -5,8 +5,8 @@ import unittest
 from entrypoint import (
     enrich_sbom_with_parley,
     generate_sbom_from_python_lock_file,
-    run_trivy_fs,
     path_expansion,
+    run_trivy_fs,
     validate_sbom,
 )
 
