@@ -378,7 +378,7 @@ def main():
 
         response = requests.post(url, headers=headers, data=sbom_data)
 
-        if response.status_code != 200:
+        if not response.ok:
             print(
                 "[Error] Failed to upload SBOM file ({}).".format(response.status_code)
             )
