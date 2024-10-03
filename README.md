@@ -1,4 +1,7 @@
-# sbomify Upload Action
+# sbomify SBOM Generation Tool
+[![sbomified](https://sbomify.com/assets/images/logo/badge.svg)](https://app.sbomify.com/component/Gu9wem8mkX)
+
+![SBOM lifecycle](https://sbomify.com/assets/images/site/lifecycle.svg)
 
 This is an opinionated tool for helping with the SBOM life cycle, namely [generating, augmenting and enriching](https://sbomify.com/features/generate-collaborate-analyze/).
 
@@ -16,11 +19,11 @@ This tool can be used both with an SBOM, as well with a lock-file from various s
 
 **Required** ID of the component against which the SBOM is to be uploaded.
 
-### `SBOM_FILE`
+### `SBOM_FILE` (path)
 
 **Optional** The path to the SBOM file to be uploaded. If not specified, provide a lockfile.
 
-### `LOCK_FILE`
+### `LOCK_FILE` (path)
 
 **Optional** The path to the language specific lockfile. If not specified, provide an SBOM.
 
@@ -29,17 +32,21 @@ This tool can be used both with an SBOM, as well with a lock-file from various s
 | Python | [cyclonedx-python](https://github.com/CycloneDX/cyclonedx-python) | Pipfile (`Pipfile.lock`), Poetry (`poetry.lock` and/or `pyproject.toml`), Pip (`requirements.txt`) |
 | Rust | [trivy](https://github.com/aquasecurity/trivy) | `Cargo.lock` |
 
-### `OUTPUT_FILE`
+### `OUTPUT_FILE` (path)
 
 **Optional** Set this to write the final SBOM to disk for usage with other tools (and/or attestation).
 
-### `AUGMENT`
+### `AUGMENT` (true/false)
 
 **Optional** Set this option to enrich your SBOM with author, vendor and license metadata provided for your component in sbomify's platform. Most SBOM generation tools will not provide this information for you.
 
-### `ENRICH`
+### `ENRICH` (true/false)
 
 **Optional** Set this option to enrich your SBOM using [Ecosyste.ms](https://github.com/ecosyste-ms). This can help with improving your NTIA Minimum Elements Compliance.
+
+### `UPLOAD` (true/false)
+
+You can use this tool in standalone mode, where you don't upload the final SBOM to sbomify.
 
 ## Opinions
 
@@ -69,6 +76,8 @@ jobs:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'my-component-id'
           SBOM_FILE: 'sbom-file.json'
+          AUGMENT: true
+          ENRICH: true
 ```
 
 You could also use this to generate an SBOM:
