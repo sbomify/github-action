@@ -266,10 +266,10 @@ def main():
 
     OUTPUT_FILE = os.getenv("OUTPUT_FILE", "sbom_output.json")
 
-    # Default to true
     UPLOAD = evaluate_boolean(os.getenv("UPLOAD", "True"))
     AUGMENT = evaluate_boolean(os.getenv("AUGMENT", "False"))
     ENRICH = evaluate_boolean(os.getenv("ENRICH", "False"))
+
 
     # Check if either SBOM_FILE or LOCK_FILE exists
     if SBOM_FILE:

@@ -19,7 +19,7 @@ jobs:
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'Gu9wem8mkX'
-          SBOM_FILE: 'poetry.lock'
+          LOCK_FILE: 'poetry.lock'
           AUGMENT: false
           ENRICH: true
           UPLOAD: true
