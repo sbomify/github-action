@@ -5,7 +5,7 @@ import unittest
 from entrypoint import (
     enrich_sbom_with_parley,
     generate_sbom_from_python_lock_file,
-    generate_sbom_from_rust_lock_file,
+    run_trivy_fs,
     path_expansion,
     validate_sbom,
 )
@@ -161,7 +161,7 @@ class TestRustSBOMGeneration(unittest.TestCase):
 
         output_file = "test_cargo_generation.json"
 
-        generation_return_code = generate_sbom_from_rust_lock_file(
+        generation_return_code = run_trivy_fs(
             lock_file="tests/test-data/Cargo.lock",
             output_file=output_file,
         )
