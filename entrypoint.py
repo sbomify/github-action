@@ -229,9 +229,7 @@ def print_banner():
  The SBOM hub for secure          |___/
  sharing and distribution.
 """
-    print("```")
     print(ascii_art)
-    print("```")
 
 
 def main():
@@ -381,7 +379,9 @@ def main():
         response = requests.post(url, headers=headers, data=sbom_data)
 
         if response.status_code != 200:
-            print("[Error] Failed to upload SBOM file.")
+            print(
+                "[Error] Failed to upload SBOM file ({}).".format(response.status_code)
+            )
             sys.exit(1)
         else:
             print("[Info] SBOM file uploaded successfully.")
