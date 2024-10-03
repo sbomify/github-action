@@ -124,9 +124,9 @@ def generate_sbom_from_python_lock_file(
     return result.returncode
 
 
-def generate_sbom_from_rust_lock_file(lock_file, output_file):
+def run_trivy_fs(lock_file, output_file):
     """
-    Takes a rust lockfile and generates a CycloneDX SBOM.
+    Takes a supported lockfile and generates a CycloneDX SBOM.
     """
     cmd = [
         "trivy",
@@ -267,6 +267,8 @@ def main():
     AUGMENT = evaluate_boolean(os.getenv("AUGMENT", "False"))
     ENRICH = evaluate_boolean(os.getenv("ENRICH", "False"))
 
+    # Step 1
+
     # Check if either SBOM_FILE or LOCK_FILE exists
     if SBOM_FILE:
         FILE = SBOM_FILE
@@ -299,9 +301,33 @@ def main():
             "Cargo.lock",
         ]
 
+        # Common JavaScript lock file names
+        COMMON_JAVASCRIPT_LOCK_FILES = [
+            "package.json",
+            "package-lock.json",
+            "yarn.lock",
+            "pnpm-lock.yaml",
+        ]
+
+        # Common Ruby lock file names
+        COMMON_RUBY_LOCK_FILES = [
+            "Gemfile.lock",
+        ]
+
+        # Common Go lock file names
+        COMMON_GO_LOCK_FILES = [
+            "go.mod.lock",
+        ]
+
+        # Common Dart lock file names
+        COMMON_DART_LOCK_FILES = [
+            "pubspec.lock",
+        ]
+
         # Check if the LOCK_FILE is a recognized Python lock file
         if os.path.basename(FILE) in COMMON_PYTHON_LOCK_FILES:
 
+            print("[Info] Detected Python lockfile")
             # Provide the appropriate parser
             if LOCK_FILE_NAME == "requirements.txt":
                 sbom_generation = generate_sbom_from_python_lock_file(
@@ -322,6 +348,7 @@ def main():
                     lock_file_type="pipenv",
                     output_file="step_1.json",
                 )
+
             else:
                 print(f"[Warning] {FILE} is not a recognized Python lock file.")
                 sys.exit(1)
@@ -331,14 +358,32 @@ def main():
 
             FORMAT = validate_sbom("step_1.json")
 
-        # Check if the LOCK_FILE is a recognized Rust lock file
+        # Rust
         elif os.path.basename(FILE) in COMMON_RUST_LOCK_FILES:
-            generate_sbom_from_rust_lock_file(
-                lock_file=LOCK_FILE, output_file="step_1.json"
-            )
+            print("[Info] Detected Rust lockfile")
+            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
 
+        # JavaScript / Node.JS
+        elif os.path.basename(FILE) in COMMON_JAVASCRIPT_LOCK_FILES:
+            print("[Info] Detected JavaScript lockfile")
+            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
+
+        # Ruby
+        elif os.path.basename(FILE) in COMMON_RUBY_LOCK_FILES:
+            print("[Info] Detected Ruby lockfile")
+            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
+
+        # Go
+        elif os.path.basename(FILE) in COMMON_GO_LOCK_FILES:
+            print("[Info] Detected Go lockfile")
+            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
+
+        # Dart
+        elif os.path.basename(FILE) in COMMON_DART_LOCK_FILES:
+            print("[Info] Detected Dart lockfile")
+            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
         else:
-            print(f"[Warning] {FILE} is not a recognized lock file.")
+            print(f"[Error] {FILE} is not a recognized lock file.")
             sys.exit(1)
     else:
         print("[Error] Unrecognized FILE_TYPE.")

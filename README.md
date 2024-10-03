@@ -31,6 +31,10 @@ This tool can be used both with an SBOM, as well with a lock-file from various s
 |---|---|---|
 | Python | [cyclonedx-python](https://github.com/CycloneDX/cyclonedx-python) | Pipfile (`Pipfile.lock`), Poetry (`poetry.lock` and/or `pyproject.toml`), Pip (`requirements.txt`) |
 | Rust | [trivy](https://github.com/aquasecurity/trivy) | `Cargo.lock` |
+| JavaScript (Node.js) | [trivy](https://github.com/aquasecurity/trivy) | `package.json`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml` |
+| Ruby | [trivy](https://github.com/aquasecurity/trivy) | `Gemfile.lock` |
+| Go | [trivy](https://github.com/aquasecurity/trivy) | `go.mod` |
+| Dart | [trivy](https://github.com/aquasecurity/trivy) | `pubspec.lock` |
 
 ### `OUTPUT_FILE` (path)
 
