@@ -3,8 +3,9 @@
 name: Upload an SBOM to sbomify
 
 on:
-  branches:
-    - master
+  push:
+    branches:
+      - master
 
 jobs:
   upload-sbom:

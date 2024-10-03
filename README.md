@@ -58,6 +58,7 @@ While we aspire to become fully format agnostic, we are making some assumptions:
 ## Example Usage
 
 ```yaml
+---
 name: Upload an SBOM to sbomify
 
 on: [push]
@@ -89,4 +90,17 @@ You could also use this to generate an SBOM:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'my-component-id'
           LOCK_FILE: 'requirementes.txt'
+```
+
+We can also use this GitHub Actions in standalone mode to generate an SBOM:
+
+```yaml
+      - name: Upload SBOM
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'my-component-id'
+          LOCK_FILE: 'Cargo.lock'
+          OUTPUT_FILE: 'my-sbom.cdx.json'
+          UPLOAD: false
 ```
