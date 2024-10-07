@@ -1,9 +1,9 @@
-from typing import Literal
 import json
 import os
 import shutil
 import subprocess
 import sys
+from typing import Literal
 
 import requests
 
