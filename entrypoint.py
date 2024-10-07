@@ -41,8 +41,7 @@ write `OUTPUT_FILE` at the end of the run.
 
 """
 
-# SBOMIFY_API_BASE = "https://app.sbomify.com/api/v1"
-SBOMIFY_API_BASE = "http://127.0.0.1:8000/api/v1"
+SBOMIFY_API_BASE = "https://app.sbomify.com/api/v1"
 
 
 def path_expansion(path):
