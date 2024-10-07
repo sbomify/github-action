@@ -1,3 +1,4 @@
+from typing import Literal
 import json
 import os
 import shutil
@@ -39,6 +40,9 @@ Since both step 2 and 3 are optional, we will only
 write `OUTPUT_FILE` at the end of the run.
 
 """
+
+# SBOMIFY_API_BASE = "https://app.sbomify.com/api/v1"
+SBOMIFY_API_BASE = "http://127.0.0.1:8000/api/v1"
 
 
 def path_expansion(path):
@@ -96,6 +100,32 @@ def validate_sbom(file_path):
     else:
         print("[Error] Neither CycloneDX nor SPDX format found in JSON file.")
         sys.exit(1)
+
+
+def get_spec_version(file_format: Literal['cyclonedx', 'spdx'], json_data: dict) -> str:
+    if file_format == 'cyclonedx':
+        return json_data.get('specVersion')
+
+    if file_format == 'spdx':
+        return json_data.get('spdxVersion').removeprefix('SPDX-')
+
+
+def get_metadata(file_format: Literal['cyclonedx', 'spdx'], json_data: dict) -> dict:
+    if file_format == 'cyclonedx':
+        return json_data.get('metadata')
+
+    if file_format == 'spdx':
+        return json_data.get('creationInfo')
+
+
+def set_metadata(file_format: Literal['cyclonedx', 'spdx'], json_data: dict, metadata: dict) -> dict:
+    if file_format == 'cyclonedx':
+        json_data['metadata'] = metadata
+
+    if file_format == 'spdx':
+        json_data['creationInfo'] = metadata
+
+    return json_data
 
 
 def generate_sbom_from_python_lock_file(
@@ -217,7 +247,7 @@ def enrich_sbom_with_parley(input_file, output_file):
 
 
 def print_banner():
-    ascii_art = f"""
+    ascii_art = """
 
       _                     _  __
      | |                   (_)/ _|
@@ -395,13 +425,37 @@ def main():
         Enrich SBOM with vendor/license information
         from sbomify's backend.
         """
+        sbom_input_file = get_last_sbom_from_last_step()
+        sbom_data = json.loads(open(sbom_input_file, "r").read())
+
+
+        # Get format version from sbom_file
+        SPEC_VERSION = get_spec_version(FORMAT, sbom_data)
+        sbom_metadata = get_metadata(FORMAT, sbom_data)
+
+        url = SBOMIFY_API_BASE + f"/sboms/artifact/{FORMAT}/{SPEC_VERSION}/{COMPONENT_ID}/metadata"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {TOKEN}",
+        }
+
+        response = requests.post(url, headers=headers, json=sbom_metadata)
+
+        if not response.ok:
+            print(f"[Error] Failed to augment SBOM file via sbomify ({response.status_code}).")
+            sys.exit(1)
+
+        set_metadata(FORMAT, sbom_data, response.json())
+        with open("step_2.json", "w") as f:
+            json.dump(sbom_data, f)
+
+        print("[Info] SBOM file augmented successfully.")
 
     # Step 3
     if ENRICH:
         """
         Enrich SBOM using Snyk's Parlay
         """
-
         enrich = enrich_sbom_with_parley(get_last_sbom_from_last_step(), "step_3.json")
         sbom_type = validate_sbom("step_3.json")
 
@@ -412,7 +466,7 @@ def main():
 
     if UPLOAD:
         # Execute the POST request to upload the SBOM file
-        url = f"https://app.sbomify.com/api/v1/sboms/artifact/{FORMAT}/{COMPONENT_ID}"
+        url = SBOMIFY_API_BASE + f"/sboms/artifact/{FORMAT}/{COMPONENT_ID}"
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {TOKEN}",
