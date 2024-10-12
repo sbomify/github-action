@@ -295,6 +295,9 @@ def main():
     UPLOAD = evaluate_boolean(os.getenv("UPLOAD", "True"))
     AUGMENT = evaluate_boolean(os.getenv("AUGMENT", "False"))
     ENRICH = evaluate_boolean(os.getenv("ENRICH", "False"))
+    OVERRIDE_SBOM_METADTA = evaluate_boolean(os.getenv("OVERRIDE_SBOM_METADATA", "False"))
+    OVERRIDE_NAME = evaluate_boolean(os.getenv("OVERRIDE_NAME", "False"))
+    OVERRIDE_SBOM_VERSION = os.getenv("OVERRIDE_SBOM_VERSION", None)
 
     # Step 1
 
@@ -438,7 +441,18 @@ def main():
             "Authorization": f"Bearer {TOKEN}",
         }
 
-        response = requests.post(url, headers=headers, json=sbom_metadata)
+        query_params = {}
+
+        if OVERRIDE_SBOM_VERSION:
+            query_params["sbom_version"] = OVERRIDE_SBOM_VERSION
+
+        if OVERRIDE_NAME:
+            query_params["override_name"] = True
+
+        if OVERRIDE_SBOM_METADTA:
+            query_params["override_metadata"] = True
+
+        response = requests.post(url, headers=headers, json=sbom_metadata, params=query_params)
 
         if not response.ok:
             print(f"[Error] Failed to augment SBOM file via sbomify ({response.status_code}).")

@@ -44,6 +44,18 @@ This tool can be used both with an SBOM, as well with a lock-file from various s
 
 **Optional** Set this option to enrich your SBOM with author, vendor and license metadata provided for your component in sbomify's platform. Most SBOM generation tools will not provide this information for you.
 
+### `OVERRIDE_SBOM_METADTA` (true/false)
+
+**Optional** Set this option when augmenting the SBOM to allow overwriting sbom metadata with metadata for your component. It is useful when when metadata in the SBOM and metadata for your component contain same items. By default metadata present in the SBOM takes precedence. If you want component metadata to overwrite SBOM metadata then set this to True.
+
+### `OVERRIDE_NAME` (true/false)
+
+**Optional** Set this option when augmenting the SBOM to set the component name within the SBOM to your component name at sbomify. This overwrites the name set by sbom generation tool.
+
+### `OVERRIDE_SBOM_VERSION` (string)
+
+**Optional** Set this option when augmenting the SBOM to overwrite the component version within the sbom metadata with the version provided. Useful if the tool generating the sbom is not setting the correct version for your software component.
+
 ### `ENRICH` (true/false)
 
 **Optional** Set this option to enrich your SBOM using [Ecosyste.ms](https://github.com/ecosyste-ms). This can help with improving your NTIA Minimum Elements Compliance.
