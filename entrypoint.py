@@ -101,28 +101,30 @@ def validate_sbom(file_path):
         sys.exit(1)
 
 
-def get_spec_version(file_format: Literal['cyclonedx', 'spdx'], json_data: dict) -> str:
-    if file_format == 'cyclonedx':
-        return json_data.get('specVersion')
+def get_spec_version(file_format: Literal["cyclonedx", "spdx"], json_data: dict) -> str:
+    if file_format == "cyclonedx":
+        return json_data.get("specVersion")
 
-    if file_format == 'spdx':
-        return json_data.get('spdxVersion').removeprefix('SPDX-')
-
-
-def get_metadata(file_format: Literal['cyclonedx', 'spdx'], json_data: dict) -> dict:
-    if file_format == 'cyclonedx':
-        return json_data.get('metadata')
-
-    if file_format == 'spdx':
-        return json_data.get('creationInfo')
+    if file_format == "spdx":
+        return json_data.get("spdxVersion").removeprefix("SPDX-")
 
 
-def set_metadata(file_format: Literal['cyclonedx', 'spdx'], json_data: dict, metadata: dict) -> dict:
-    if file_format == 'cyclonedx':
-        json_data['metadata'] = metadata
+def get_metadata(file_format: Literal["cyclonedx", "spdx"], json_data: dict) -> dict:
+    if file_format == "cyclonedx":
+        return json_data.get("metadata")
 
-    if file_format == 'spdx':
-        json_data['creationInfo'] = metadata
+    if file_format == "spdx":
+        return json_data.get("creationInfo")
+
+
+def set_metadata(
+    file_format: Literal["cyclonedx", "spdx"], json_data: dict, metadata: dict
+) -> dict:
+    if file_format == "cyclonedx":
+        json_data["metadata"] = metadata
+
+    if file_format == "spdx":
+        json_data["creationInfo"] = metadata
 
     return json_data
 
@@ -295,7 +297,9 @@ def main():
     UPLOAD = evaluate_boolean(os.getenv("UPLOAD", "True"))
     AUGMENT = evaluate_boolean(os.getenv("AUGMENT", "False"))
     ENRICH = evaluate_boolean(os.getenv("ENRICH", "False"))
-    OVERRIDE_SBOM_METADTA = evaluate_boolean(os.getenv("OVERRIDE_SBOM_METADATA", "False"))
+    OVERRIDE_SBOM_METADTA = evaluate_boolean(
+        os.getenv("OVERRIDE_SBOM_METADATA", "False")
+    )
     OVERRIDE_NAME = evaluate_boolean(os.getenv("OVERRIDE_NAME", "False"))
     OVERRIDE_SBOM_VERSION = os.getenv("OVERRIDE_SBOM_VERSION", None)
 
@@ -430,12 +434,14 @@ def main():
         sbom_input_file = get_last_sbom_from_last_step()
         sbom_data = json.loads(open(sbom_input_file, "r").read())
 
-
         # Get format version from sbom_file
         SPEC_VERSION = get_spec_version(FORMAT, sbom_data)
         sbom_metadata = get_metadata(FORMAT, sbom_data)
 
-        url = SBOMIFY_API_BASE + f"/sboms/artifact/{FORMAT}/{SPEC_VERSION}/{COMPONENT_ID}/metadata"
+        url = (
+            SBOMIFY_API_BASE
+            + f"/sboms/artifact/{FORMAT}/{SPEC_VERSION}/{COMPONENT_ID}/metadata"
+        )
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {TOKEN}",
@@ -452,10 +458,14 @@ def main():
         if OVERRIDE_SBOM_METADTA:
             query_params["override_metadata"] = True
 
-        response = requests.post(url, headers=headers, json=sbom_metadata, params=query_params)
+        response = requests.post(
+            url, headers=headers, json=sbom_metadata, params=query_params
+        )
 
         if not response.ok:
-            print(f"[Error] Failed to augment SBOM file via sbomify ({response.status_code}).")
+            print(
+                f"[Error] Failed to augment SBOM file via sbomify ({response.status_code})."
+            )
             sys.exit(1)
 
         set_metadata(FORMAT, sbom_data, response.json())
