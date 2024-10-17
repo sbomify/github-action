@@ -52,7 +52,7 @@ This tool can be used both with an SBOM, as well with a lock-file from various s
 
 **Optional** Set this option when augmenting the SBOM to set the component name within the SBOM to your component name at sbomify. This overwrites the name set by sbom generation tool.
 
-### `OVERRIDE_SBOM_VERSION` (string)
+### `SBOM_VERSION` (string)
 
 **Optional** Set this option when augmenting the SBOM to overwrite the component version within the sbom metadata with the version provided. Useful if the tool generating the sbom is not setting the correct version for your software component.
 

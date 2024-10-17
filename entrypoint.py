@@ -301,7 +301,7 @@ def main():
         os.getenv("OVERRIDE_SBOM_METADATA", "False")
     )
     OVERRIDE_NAME = evaluate_boolean(os.getenv("OVERRIDE_NAME", "False"))
-    OVERRIDE_SBOM_VERSION = os.getenv("OVERRIDE_SBOM_VERSION", None)
+    SBOM_VERSION = os.getenv("SBOM_VERSION", None)
 
     # Step 1
 
@@ -449,8 +449,8 @@ def main():
 
         query_params = {}
 
-        if OVERRIDE_SBOM_VERSION:
-            query_params["sbom_version"] = OVERRIDE_SBOM_VERSION
+        if SBOM_VERSION:
+            query_params["sbom_version"] = SBOM_VERSION
 
         if OVERRIDE_NAME:
             query_params["override_name"] = True
