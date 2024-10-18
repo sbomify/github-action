@@ -44,7 +44,7 @@ This tool can be used both with an SBOM, as well with a lock-file from various s
 
 **Optional** Set this option to enrich your SBOM with author, vendor and license metadata provided for your component in sbomify's platform. Most SBOM generation tools will not provide this information for you.
 
-### `OVERRIDE_SBOM_METADTA` (true/false)
+### `OVERRIDE_SBOM_METADATA` (true/false)
 
 **Optional** Set this option when augmenting the SBOM to allow overwriting sbom metadata with metadata for your component. It is useful when when metadata in the SBOM and metadata for your component contain same items. By default metadata present in the SBOM takes precedence. If you want component metadata to overwrite SBOM metadata then set this to True.
 
