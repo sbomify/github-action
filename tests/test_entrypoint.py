@@ -7,6 +7,7 @@ from entrypoint import (
     generate_sbom_from_python_lock_file,
     path_expansion,
     run_trivy_fs,
+    run_trivy_docker_image,
     validate_sbom,
 )
 
@@ -166,6 +167,20 @@ class TestRustSBOMGeneration(unittest.TestCase):
             output_file=output_file,
         )
 
+
+class TestDockerImageSBOMGeneration(unittest.TestCase):
+    def test_generation_docker_image(self):
+        """
+        Test CycloneDX generation of SBOM
+        from a Docker Image.
+        """
+
+        output_file = "test_docker_image_generation.json"
+
+        generation_return_code = run_trivy_docker_image(
+            docker_image="nginx:latest",
+            output_file=output_file,
+        )
 
 class TestEnrichment(unittest.TestCase):
     def test_enrichment(self):

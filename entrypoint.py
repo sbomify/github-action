@@ -201,6 +201,53 @@ def run_trivy_fs(lock_file, output_file):
     return result.returncode
 
 
+def run_trivy_docker_image(docker_image, output_file):
+    """
+    Takes a Docker image and generates a CycloneDX SBOM.
+    """
+    cmd = [
+        "trivy",
+        "image",
+        "--parallel",
+        "0",
+        "--format",
+        "cyclonedx",
+        "--pkg-types"
+        "os"
+        docker-image
+    ]
+
+    try:
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
+        )
+    except subprocess.CalledProcessError as e:
+
+        print(f"[Error] Command failed with error: {e}")
+        sys.exit(1)
+
+    # Check if returncode is zero
+    if result.returncode == 0:
+        # Get the output
+        output = result.stdout
+
+        # Validate JSON
+        try:
+            json_data = json.loads(
+                output
+            )  # This will raise a ValueError if it's not valid JSON
+
+            # Write the output to a file if it's valid JSON
+            with open(output_file, "w") as f:
+                json.dump(
+                    json_data, f, indent=4
+                )  # Write it as formatted JSON to the file
+
+        except json.JSONDecodeError as e:
+            print(f"[Error] Invalid JSON: {e}")
+
+    return result.returncode
+
 def enrich_sbom_with_parley(input_file, output_file):
     """
     Takes a path to an SBOM as input and returns an
@@ -282,13 +329,18 @@ def main():
     else:
         SBOM_FILE = None
 
+    if os.getenv("DOCKER_IMAGE"):
+        DOCKER_IMAGE = os.getenv("DOCKER_IMAGE")
+    else:
+        DOCKER_IMAGE = None
+
     if os.getenv("LOCK_FILE"):
         LOCK_FILE = path_expansion(os.getenv("LOCK_FILE"))
     else:
         LOCK_FILE = None
 
     # Add some duplication logic
-    if SBOM_FILE and LOCK_FILE:
+    if SBOM_FILE and LOCK_FILE and DOCKER_IMAGE:
         print("[Error] Please provide SBOM_FILE of LOCK_FILE, not both.")
         sys.exit(1)
 
@@ -297,7 +349,7 @@ def main():
     UPLOAD = evaluate_boolean(os.getenv("UPLOAD", "True"))
     AUGMENT = evaluate_boolean(os.getenv("AUGMENT", "False"))
     ENRICH = evaluate_boolean(os.getenv("ENRICH", "False"))
-    OVERRIDE_SBOM_METADTA = evaluate_boolean(
+    OVERRIDE_SBOM_METADATA = evaluate_boolean(
         os.getenv("OVERRIDE_SBOM_METADATA", "False")
     )
     OVERRIDE_NAME = evaluate_boolean(os.getenv("OVERRIDE_NAME", "False"))
@@ -312,14 +364,19 @@ def main():
     elif LOCK_FILE:
         FILE = LOCK_FILE
         FILE_TYPE = "LOCK_FILE"
+    elif DOCKER_IMAGE:
+        pass
     else:
-        print("[Error] Neither SBOM file nor lockfile found.")
+        print("[Error] Neither SBOM file, Docker image nor lockfile found.")
         sys.exit(1)
 
     # If SBOM_FILE is found, make sure it's a JSON file and detect artifact type
     if FILE_TYPE == "SBOM":
         FORMAT = validate_sbom(FILE)
         shutil.copy(SBOM_FILE, "step_1.json")
+    elif DOCKER_IMAGE":
+        print("[Info] Detected Docker Image as input")
+        run_trivy_docker_image(docker_image=DOCKER_IMAGE, output_file="step_1.json")
     elif FILE_TYPE == "LOCK_FILE":
 
         LOCK_FILE_NAME = os.path.basename(FILE)
