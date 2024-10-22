@@ -6,8 +6,8 @@ from entrypoint import (
     enrich_sbom_with_parley,
     generate_sbom_from_python_lock_file,
     path_expansion,
-    run_trivy_fs,
     run_trivy_docker_image,
+    run_trivy_fs,
     validate_sbom,
 )
 
@@ -181,6 +181,7 @@ class TestDockerImageSBOMGeneration(unittest.TestCase):
             docker_image="nginx:latest",
             output_file=output_file,
         )
+
 
 class TestEnrichment(unittest.TestCase):
     def test_enrichment(self):
