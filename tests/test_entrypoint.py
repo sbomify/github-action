@@ -182,6 +182,18 @@ class TestDockerImageSBOMGeneration(unittest.TestCase):
             output_file=output_file,
         )
 
+        with open(output_file, "r") as f:
+            json_data = json.load(f)
+
+        nginx_component_exists = any(
+            component.get("name") == "nginx"
+            for component in json_data.get("components", [])
+        )
+        self.assertTrue(
+            nginx_component_exists,
+            "The component with 'name': 'nginx' was not found in 'components'.",
+        )
+
 
 class TestEnrichment(unittest.TestCase):
     def test_enrichment(self):
