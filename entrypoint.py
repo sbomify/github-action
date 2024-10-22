@@ -513,7 +513,7 @@ def main():
         if OVERRIDE_NAME:
             query_params["override_name"] = True
 
-        if OVERRIDE_SBOM_METADTA:
+        if OVERRIDE_SBOM_METADATA:
             query_params["override_metadata"] = True
 
         response = requests.post(
