@@ -212,9 +212,9 @@ def run_trivy_docker_image(docker_image, output_file):
         "0",
         "--format",
         "cyclonedx",
-        "--pkg-types"
-        "os"
-        docker-image
+        "--pkg-types",
+        "os",
+        docker_image,
     ]
 
     try:
@@ -247,6 +247,7 @@ def run_trivy_docker_image(docker_image, output_file):
             print(f"[Error] Invalid JSON: {e}")
 
     return result.returncode
+
 
 def enrich_sbom_with_parley(input_file, output_file):
     """
@@ -374,7 +375,7 @@ def main():
     if FILE_TYPE == "SBOM":
         FORMAT = validate_sbom(FILE)
         shutil.copy(SBOM_FILE, "step_1.json")
-    elif DOCKER_IMAGE":
+    elif DOCKER_IMAGE:
         print("[Info] Detected Docker Image as input")
         run_trivy_docker_image(docker_image=DOCKER_IMAGE, output_file="step_1.json")
     elif FILE_TYPE == "LOCK_FILE":
