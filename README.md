@@ -23,6 +23,12 @@ This tool can be used both with an SBOM, as well with a lock-file from various s
 
 **Optional** The path to the SBOM file to be uploaded. If not specified, provide a lockfile.
 
+### `DOCKER_IMAGE` (string)
+
+**Optional** The name of a Docker image. This can be either a locally built image, or a publicly available Docker image from Docker Hub.
+
+Note that this will only generate the system packages from the Docker image. Separate out your application dependencies and use `LOCK_FILE` against a separate sbomify component, and then aggregate them using a "project". See [SBOM hierarchy](https://sbomify.com/features/sbom-hierarchy/) for more details.
+
 ### `LOCK_FILE` (path)
 
 **Optional** The path to the language specific lockfile. If not specified, provide an SBOM.

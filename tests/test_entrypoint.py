@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import unittest
@@ -6,6 +7,7 @@ from entrypoint import (
     enrich_sbom_with_parley,
     generate_sbom_from_python_lock_file,
     path_expansion,
+    run_trivy_docker_image,
     run_trivy_fs,
     validate_sbom,
 )
@@ -164,6 +166,33 @@ class TestRustSBOMGeneration(unittest.TestCase):
         generation_return_code = run_trivy_fs(
             lock_file="tests/test-data/Cargo.lock",
             output_file=output_file,
+        )
+
+
+class TestDockerImageSBOMGeneration(unittest.TestCase):
+    def test_generation_docker_image(self):
+        """
+        Test CycloneDX generation of SBOM
+        from a Docker Image.
+        """
+
+        output_file = "test_docker_image_generation.json"
+
+        generation_return_code = run_trivy_docker_image(
+            docker_image="nginx:latest",
+            output_file=output_file,
+        )
+
+        with open(output_file, "r") as f:
+            json_data = json.load(f)
+
+        nginx_component_exists = any(
+            component.get("name") == "nginx"
+            for component in json_data.get("components", [])
+        )
+        self.assertTrue(
+            nginx_component_exists,
+            "The component with 'name': 'nginx' was not found in 'components'.",
         )
 
 
