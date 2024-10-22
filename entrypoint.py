@@ -330,7 +330,7 @@ def main():
     else:
         SBOM_FILE = None
 
-    if os.getenv("DOCKER_IMAGE"):
+    if os.getenv("DOCKER_IMAGE", False):
         DOCKER_IMAGE = os.getenv("DOCKER_IMAGE")
     else:
         DOCKER_IMAGE = None
