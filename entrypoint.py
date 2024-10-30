@@ -373,7 +373,7 @@ def main():
 
     # If SBOM_FILE is found, make sure it's a JSON file and detect artifact type
     if FILE_TYPE == "SBOM":
-        FORMAT = validate_sbom(FILE)
+        FORMAT = validate_sbom(SBOM_FILE)
         shutil.copy(SBOM_FILE, "step_1.json")
     elif DOCKER_IMAGE:
         print("[Info] Detected Docker Image as input")
@@ -450,8 +450,6 @@ def main():
             if not sbom_generation == 0:
                 print("[Error]: SBOM Generation failed.")
 
-            FORMAT = validate_sbom("step_1.json")
-
         # Rust
         elif os.path.basename(FILE) in COMMON_RUST_LOCK_FILES:
             print("[Info] Detected Rust lockfile")
@@ -479,6 +477,10 @@ def main():
         else:
             print(f"[Error] {FILE} is not a recognized lock file.")
             sys.exit(1)
+
+        # Set the SBOM format based on the output
+        FORMAT = validate_sbom("step_1.json")
+
     else:
         print("[Error] Unrecognized FILE_TYPE.")
         sys.exit(1)
