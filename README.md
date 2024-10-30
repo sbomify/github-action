@@ -111,7 +111,7 @@ You could also use this to generate an SBOM:
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'my-component-id'
-          LOCK_FILE: 'requirementes.txt'
+          LOCK_FILE: 'requirements.txt'
 ```
 
 We can also use this GitHub Actions in standalone mode to generate an SBOM:
