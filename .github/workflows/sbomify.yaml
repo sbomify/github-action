@@ -6,9 +6,14 @@ on:
   push:
     branches:
       - master
-
+    tags:
+      - v*.*
 jobs:
   upload-sbom:
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -20,7 +25,13 @@ jobs:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'Gu9wem8mkX'
           LOCK_FILE: 'poetry.lock'
-          SBOM_VERSION: ${{ github.ref_name }}
+          SBOM_VERSION: ${{ github.ref_name }}-${{ github.sha }}
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
+          OUTPUT_FILE: github-action.cdx.json
+
+      - name: Attest
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: '${{ github.workspace }}/github-action.cdx.json'
