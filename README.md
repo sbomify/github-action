@@ -122,7 +122,7 @@ jobs:
           ENRICH: true
 ```
 
-### Standaalone mode
+### Standalone mode
 
 ```yaml
       - name: Upload SBOM
@@ -134,7 +134,6 @@ jobs:
           OUTPUT_FILE: 'my-sbom.cdx.json'
           AUGMENT: true
           ENRICH: true
-          UPLOAD: false
 ```
 
 ### Attesting your SBOMs
@@ -151,7 +150,6 @@ More sophisticated users may also want to use GitHub's built-in [build provenanc
           SBOM_VERSION: ${{ github.ref_name }}-${{ github.sha }}
           AUGMENT: true
           ENRICH: true
-          UPLOAD: true
           OUTPUT_FILE: github-action.cdx.json
 
       - name: Attest
