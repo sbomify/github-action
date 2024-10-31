@@ -62,6 +62,8 @@ Note that this will only generate the system packages from the Docker image. Sep
 
 **Optional** Set this option when augmenting the SBOM to overwrite the component version within the sbom metadata with the version provided. Useful if the tool generating the sbom is not setting the correct version for your software component.
 
+If you are releasing using GitHub releases, you might want to set `SBOM_VERSION` to `${{ github.ref_name }}`, and if you're using rolling releases, you might want to set it to `${{ github.sha }}`.
+
 ### `ENRICH` (true/false)
 
 **Optional** Set this option to enrich your SBOM using [Ecosyste.ms](https://github.com/ecosyste-ms). This can help with improving your NTIA Minimum Elements Compliance.
@@ -78,6 +80,8 @@ While we aspire to become fully format agnostic, we are making some assumptions:
 * Currently the tooling is skewed towards CycloneDX, but we aim for improving our SPDX support going forward
 
 ## Example Usage
+
+### Upload existing SBOM
 
 ```yaml
 ---
@@ -103,7 +107,8 @@ jobs:
           ENRICH: true
 ```
 
-You could also use this to generate an SBOM:
+
+### Generate an SBOM from a `requirements.txt` lockfile
 
 ```yaml
       - name: Upload SBOM
@@ -112,9 +117,12 @@ You could also use this to generate an SBOM:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'my-component-id'
           LOCK_FILE: 'requirements.txt'
+          SBOM_VERSION: ${{ github.ref_name }}
+          AUGMENT: true
+          ENRICH: true
 ```
 
-We can also use this GitHub Actions in standalone mode to generate an SBOM:
+### Standaalone mode
 
 ```yaml
       - name: Upload SBOM
@@ -124,5 +132,34 @@ We can also use this GitHub Actions in standalone mode to generate an SBOM:
           COMPONENT_ID: 'my-component-id'
           LOCK_FILE: 'Cargo.lock'
           OUTPUT_FILE: 'my-sbom.cdx.json'
+          AUGMENT: true
+          ENRICH: true
           UPLOAD: false
 ```
+
+### Attesting your SBOMs
+
+More sophisticated users may also want to use GitHub's built-in [build provenance attestations](https://github.com/actions/attest-build-provenance). Behind the scenes, this will help you provide a SLSA build provenance predicate using the in-toto format. You can find a fully example [here](https://github.com/sbomify/github-action/blob/master/.github/workflows/sbomify.yaml), but here is a non-complete example:
+
+```yaml
+      - name: Upload SBOM
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'Gu9wem8mkX'
+          LOCK_FILE: 'poetry.lock'
+          SBOM_VERSION: ${{ github.ref_name }}-${{ github.sha }}
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: true
+          OUTPUT_FILE: github-action.cdx.json
+
+      - name: Attest
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: '${{ github.workspace }}/github-action.cdx.json'
+```
+
+You can read more about attestation in [this blog post](https://sbomify.com/2024/10/31/github-action-update-and-attestation/).
+
+
