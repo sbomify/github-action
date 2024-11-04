@@ -410,7 +410,7 @@ def main():
 
         # Common Go lock file names
         COMMON_GO_LOCK_FILES = [
-            "go.mod.lock",
+            "go.mod",
         ]
 
         # Common Dart lock file names
