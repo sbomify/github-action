@@ -494,6 +494,23 @@ def main():
         sbom_input_file = get_last_sbom_from_last_step()
         sbom_data = json.loads(open(sbom_input_file, "r").read())
 
+        # Make sure we have the mandatory fields
+        if FORMAT == "cyclonedx":
+            # Ensure 'metadata' and 'component' keys exist in sbom_data
+            metadata = sbom_data.get("metadata", {})
+            component = metadata.get("component", {})
+
+            # Check if 'name' and 'type' are missing, and add them if necessary
+            if "name" not in component:
+                component["name"] = os.path.basename(FILE)
+
+            # Default this to "application" if nothing is set
+            if "type" not in component:
+                component["type"] = "application"
+
+            # Update the main sbom_data dictionary
+            sbom_data["metadata"]["component"] = component
+
         # Get format version from sbom_file
         SPEC_VERSION = get_spec_version(FORMAT, sbom_data)
         sbom_metadata = get_metadata(FORMAT, sbom_data)
