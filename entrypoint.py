@@ -499,7 +499,7 @@ def main():
         sbom_metadata = get_metadata(FORMAT, sbom_data)
 
         # Verify that metadata contains 'component' section, otherwise show error and exit.
-        if FORMAT == 'cyclonedx' and not sbom_metadata.get("component"):
+        if FORMAT == "cyclonedx" and not sbom_metadata.get("component"):
             print(
                 "[Error] SBOM file metadata section does not contain 'component' information. Exiting."
             )
