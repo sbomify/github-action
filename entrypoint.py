@@ -498,6 +498,13 @@ def main():
         SPEC_VERSION = get_spec_version(FORMAT, sbom_data)
         sbom_metadata = get_metadata(FORMAT, sbom_data)
 
+        # Verify that metadata contains 'component' section, otherwise show error and exit.
+        if FORMAT == 'cyclonedx' and not sbom_metadata.get("component"):
+            print(
+                "[Error] SBOM file metadata section does not contain 'component' information. Exiting."
+            )
+            sys.exit(1)
+
         url = (
             SBOMIFY_API_BASE
             + f"/sboms/artifact/{FORMAT}/{SPEC_VERSION}/{COMPONENT_ID}/metadata"
