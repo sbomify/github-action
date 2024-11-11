@@ -479,12 +479,13 @@ def main():
             print(f"[Error] {FILE} is not a recognized lock file.")
             sys.exit(1)
 
-        # Set the SBOM format based on the output
-        FORMAT = validate_sbom("step_1.json")
 
     else:
         print("[Error] Unrecognized FILE_TYPE.")
         sys.exit(1)
+
+    # Set the SBOM format based on the output
+    FORMAT = validate_sbom("step_1.json")
 
     # Step 2
     if AUGMENT:
