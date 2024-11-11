@@ -366,6 +366,7 @@ def main():
         FILE = LOCK_FILE
         FILE_TYPE = "LOCK_FILE"
     elif DOCKER_IMAGE:
+        FILE_TYPE = None
         pass
     else:
         print("[Error] Neither SBOM file, Docker image nor lockfile found.")
