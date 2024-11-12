@@ -5,7 +5,7 @@ author: 'sbomify'
 runs:
   using: 'docker'
   # Bump/pin this to release
-  image: 'docker://sbomifyhub/sbomify-action:latest'
+  image: 'docker://sbomifyhub/sbomify-action:0.3.0'
 branding:
   icon: 'upload-cloud'
   color: 'blue'
