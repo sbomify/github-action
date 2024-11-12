@@ -129,7 +129,7 @@ jobs:
         uses: sbomify/github-action@master
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-          COMPONENT_ID: 'my-component-id'
+          COMPONENT_ID: 'Your Component ID'
           LOCK_FILE: 'Cargo.lock'
           OUTPUT_FILE: 'my-sbom.cdx.json'
           AUGMENT: true
@@ -145,7 +145,7 @@ More sophisticated users may also want to use GitHub's built-in [build provenanc
         uses: sbomify/github-action@master
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-          COMPONENT_ID: 'Gu9wem8mkX'
+          COMPONENT_ID: 'Your Component ID'
           LOCK_FILE: 'poetry.lock'
           SBOM_VERSION: ${{ github.ref_name }}-${{ github.sha }}
           AUGMENT: true
@@ -160,4 +160,33 @@ More sophisticated users may also want to use GitHub's built-in [build provenanc
 
 You can read more about attestation in [this blog post](https://sbomify.com/2024/10/31/github-action-update-and-attestation/).
 
+## Using in GitLab
 
+While named GitHub Actions, the SBOM generation tool is in fact CI/CD agnostic and will work on most CI/CD platforms, including GitLab.
+
+The CI/CD job would look something similar to this:
+
+```yaml
+generate-sbom:
+  image: sbomifyhub/sbomify-action
+  variables:
+    TOKEN: $SBOMIFY_TOKEN
+    COMPONENT_ID: 'Your Component ID'
+    UPLOAD: true
+    AUGMENT: true
+    ENRICH: true
+    SBOM_VERSION: $CI_COMMIT_SHA
+    LOCK_FILE: 'poetry.lock'
+```
+
+This repository is mirrored to GitLab under [sbomify/github-action](https://gitlab.com/sbomify/github-action), where [.gitlab-ci.yml](https://github.com/sbomify/github-action/blob/master/.gitlab-ci.yml) triggers a job.
+
+To use this pipeline in your own CI/CD pipeline, simply copy the flow in the `.gitlab-ci.yml` file above and adjust it to your needs, then new CI/CD variable with the following settings:
+
+* Type: Variable
+* Environments: All
+* Visibility: Masked and hidden
+* Protect variable
+* Description: sbomify token
+* Key: SBOMIFY_TOKEN
+* Value: Your sbomify token
