@@ -4,8 +4,7 @@ description: 'A GitHub Action to upload an SBOM CycloneDX or SPDX to sbomify'
 author: 'sbomify'
 runs:
   using: 'docker'
-  # Bump/pin this to release
-  image: 'docker://ghcr.io/sbomify/sbomify-action:latest'
+  image: 'Dockerfile'
 branding:
   icon: 'upload-cloud'
   color: 'blue'
