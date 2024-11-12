@@ -1,0 +1,11 @@
+---
+generate-sbom:
+  image: sbomifyhub/sbomify-action
+  variables:
+    TOKEN: $SBOMIFY_TOKEN
+    COMPONENT_ID: 'GFcFpn8q4h'
+    UPLOAD: true
+    AUGMENT: true
+    ENRICH: true
+    SBOM_VERSION: $CI_COMMIT_SHA
+    LOCK_FILE: 'poetry.lock'
