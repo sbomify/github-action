@@ -9,3 +9,5 @@ sbom-job:
     ENRICH: true
     SBOM_VERSION: $CI_COMMIT_SHA
     LOCK_FILE: 'poetry.lock'
+  script:
+    - echo "Starting SBOM generation"
