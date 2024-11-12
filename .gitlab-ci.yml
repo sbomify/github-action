@@ -9,8 +9,12 @@ sbom-job:
     ENRICH: true
     SBOM_VERSION: $CI_COMMIT_SHA
     LOCK_FILE: 'poetry.lock'
-    OUTPUT_FILE: "build/test-sbom.cdx.json"
+    OUTPUT_FILE: "gitlab-sbom.cdx.json"
+
   script:
-    - pwd
-    - find
     - /sbomify.sh
+
+  artifacts:
+    paths:
+      - gitlab-sbom.cdx.json
+    when: always
