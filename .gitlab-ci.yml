@@ -11,4 +11,6 @@ sbom-job:
     LOCK_FILE: 'poetry.lock'
     OUTPUT_FILE: "build/test-sbom.cdx.json"
   script:
+    - pwd
+    - find
     - /sbomify.sh
