@@ -177,6 +177,9 @@ generate-sbom:
     ENRICH: true
     SBOM_VERSION: $CI_COMMIT_SHA
     LOCK_FILE: 'poetry.lock'
+    OUTPUT_FILE: "build/test-sbom.cdx.json"
+  script:
+    - /sbomify.sh
 ```
 
 This repository is mirrored to GitLab under [sbomify/github-action](https://gitlab.com/sbomify/github-action), where [.gitlab-ci.yml](https://github.com/sbomify/github-action/blob/master/.gitlab-ci.yml) triggers a job.

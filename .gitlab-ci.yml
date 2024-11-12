@@ -9,5 +9,6 @@ sbom-job:
     ENRICH: true
     SBOM_VERSION: $CI_COMMIT_SHA
     LOCK_FILE: 'poetry.lock'
+    OUTPUT_FILE: "build/test-sbom.cdx.json"
   script:
-    - poetry -C /usr/src/app/ run python /usr/src/app/entrypoint.py
+    - /sbomify.sh
