@@ -181,7 +181,7 @@ generate-sbom:
 
 This repository is mirrored to GitLab under [sbomify/github-action](https://gitlab.com/sbomify/github-action), where [.gitlab-ci.yml](https://github.com/sbomify/github-action/blob/master/.gitlab-ci.yml) triggers a job.
 
-To use this pipeline in your own CI/CD pipeline, simply copy the flow in the `.gitlab-ci.yml` file above and adjust it to your needs, then new CI/CD variable with the following settings:
+To use this pipeline in your own CI/CD pipeline, simply copy the flow in the `.gitlab-ci.yml` file above and adjust it to your needs, then new CI/CD variable (Settings > CI/CD > Variables) with the following settings:
 
 * Type: Variable
 * Environments: All
