@@ -177,12 +177,12 @@ generate-sbom:
     ENRICH: true
     SBOM_VERSION: $CI_COMMIT_SHA
     LOCK_FILE: 'poetry.lock'
-    OUTPUT_FILE: "build/test-sbom.cdx.json"
+    OUTPUT_FILE: test-sbom.cdx.json"
   script:
     - /sbomify.sh
 ```
 
-This repository is mirrored to GitLab under [sbomify/github-action](https://gitlab.com/sbomify/github-action), where [.gitlab-ci.yml](https://github.com/sbomify/github-action/blob/master/.gitlab-ci.yml) triggers a job.
+This repository is mirrored to GitLab under [sbomify/github-action](https://gitlab.com/sbomify/github-action), where [.gitlab-ci.yml](https://github.com/sbomify/github-action/blob/master/.gitlab-ci.yml) triggers a [job](https://gitlab.com/sbomify/github-action/-/jobs).
 
 To use this pipeline in your own CI/CD pipeline, simply copy the flow in the `.gitlab-ci.yml` file above and adjust it to your needs, then new CI/CD variable (Settings > CI/CD > Variables) with the following settings:
 
