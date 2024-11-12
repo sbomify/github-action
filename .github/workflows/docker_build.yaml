@@ -1,9 +1,12 @@
 ---
 name: Docker Build/Checks
 
-on:  # yamllint disable-line rule:truthy
-  push: null
-
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - v*.*
 jobs:
   build:
     name: Docker Build/Checks

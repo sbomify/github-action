@@ -1,5 +1,4 @@
 ---
-
 name: Upload an SBOM to sbomify
 
 on:
