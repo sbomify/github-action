@@ -10,4 +10,4 @@ sbom-job:
     SBOM_VERSION: $CI_COMMIT_SHA
     LOCK_FILE: 'poetry.lock'
   script:
-    - echo "Starting SBOM generation"
+    - poetry -C /usr/src/app/ run python /usr/src/app/entrypoint.py
