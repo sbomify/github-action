@@ -1,5 +1,5 @@
 ---
-generate-sbom:
+sbom-job:
   image: sbomifyhub/sbomify-action
   variables:
     TOKEN: $SBOMIFY_TOKEN
