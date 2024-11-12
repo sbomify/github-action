@@ -1,5 +1,5 @@
 ---
-name: Build and push Docker Imag
+name: Build and push Docker Image
 on:
   push:
     branches:
@@ -33,16 +33,17 @@ jobs:
 
       - name: Push image
         run: |
+          set -x
           GITHUB_IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
           GITHUB_IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
-          DOCKER_HUB_IMAGE_ID=sbomifyhub/sbomify-action
+          DOCKER_HUB_IMAGE_ID=sbomifyhub/$IMAGE_NAME
 
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
 
           [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
 
           [ "$VERSION" == "master" ] && VERSION=latest
-          echo GITHUB_IMAGE_ID=$IMAGE_ID
+
           echo VERSION=$VERSION
           docker tag $IMAGE_NAME $GITHUB_IMAGE_ID:$VERSION
           docker tag $IMAGE_NAME $DOCKER_HUB_IMAGE_ID:$VERSION
