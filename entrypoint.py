@@ -479,7 +479,6 @@ def main():
             print(f"[Error] {FILE} is not a recognized lock file.")
             sys.exit(1)
 
-
     else:
         print("[Error] Unrecognized FILE_TYPE.")
         sys.exit(1)
