@@ -35,7 +35,7 @@ jobs:
         run: |
           set -x
           GITHUB_IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
-          GITHUB_IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+          GITHUB_IMAGE_ID=$(echo $GITHUB_IMAGE_ID | tr '[A-Z]' '[a-z]')
           DOCKER_HUB_IMAGE_ID=sbomifyhub/$IMAGE_NAME
 
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
