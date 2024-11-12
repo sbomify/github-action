@@ -37,6 +37,11 @@ RUN rm -rf /tmp/*
 
 FROM python:3-slim-bullseye
 
+# Add some labels
+LABEL org.opencontainers.image.source=https://github.com/sbomify/github-action
+LABEL org.opencontainers.image.description="sbomify Action"
+LABEL org.opencontainers.image.licenses=Apache-2.0
+
 WORKDIR /usr/src/app
 
 RUN mkdir -p /opt/poetry
