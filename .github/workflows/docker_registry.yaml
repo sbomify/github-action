@@ -51,8 +51,6 @@ jobs:
           docker push $GITHUB_IMAGE_ID:$VERSION
           docker push $DOCKER_HUB_IMAGE_ID:$VERSION
 
-      - name: "Summary"
-        run: |
           echo \`\`\` >> ${GITHUB_STEP_SUMMARY}
           echo "Use $GITHUB_IMAGE_ID:$VERSION within GitHub" >> ${GITHUB_STEP_SUMMARY}
           echo "Use $DOCKER_HUB_IMAGE_ID:$VERSION outside of GitHub" >> ${GITHUB_STEP_SUMMARY}
