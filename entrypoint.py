@@ -564,7 +564,7 @@ def main():
     parent_dir = os.path.dirname(OUTPUT_FILE)
 
     # Check if the parent directory exists; if not, create it recursively
-    if not os.path.exists(parent_dir):
+    if parent_dir and not os.path.exists(parent_dir):
         os.makedirs(parent_dir)
 
     # Clean up and write final SBOM
