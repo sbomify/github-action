@@ -560,6 +560,13 @@ def main():
         enrich = enrich_sbom_with_parley(get_last_sbom_from_last_step(), "step_3.json")
         sbom_type = validate_sbom("step_3.json")
 
+    # Get the parent directory of the file path
+    parent_dir = os.path.dirname(OUTPUT_FILE)
+
+    # Check if the parent directory exists; if not, create it recursively
+    if not os.path.exists(parent_dir):
+        os.makedirs(parent_dir)
+
     # Clean up and write final SBOM
     shutil.copy(get_last_sbom_from_last_step(), OUTPUT_FILE)
     while get_last_sbom_from_last_step():
