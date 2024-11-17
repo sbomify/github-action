@@ -174,7 +174,6 @@ def run_trivy_fs(lock_file, output_file):
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
         )
     except subprocess.CalledProcessError as e:
-
         print(f"[Error] Command failed with error: {e}")
         sys.exit(1)
 
@@ -222,7 +221,6 @@ def run_trivy_docker_image(docker_image, output_file):
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
         )
     except subprocess.CalledProcessError as e:
-
         print(f"[Error] Command failed with error: {e}")
         sys.exit(1)
 
@@ -380,7 +378,6 @@ def main():
         print("[Info] Detected Docker Image as input")
         run_trivy_docker_image(docker_image=DOCKER_IMAGE, output_file="step_1.json")
     elif FILE_TYPE == "LOCK_FILE":
-
         LOCK_FILE_NAME = os.path.basename(FILE)
 
         # Common Python lock file names
@@ -421,7 +418,6 @@ def main():
 
         # Check if the LOCK_FILE is a recognized Python lock file
         if os.path.basename(FILE) in COMMON_PYTHON_LOCK_FILES:
-
             print("[Info] Detected Python lockfile")
             # Provide the appropriate parser
             if LOCK_FILE_NAME == "requirements.txt":
@@ -536,14 +532,20 @@ def main():
         if OVERRIDE_SBOM_METADATA:
             query_params["override_metadata"] = True
 
-        response = requests.post(
-            url, headers=headers, json=sbom_metadata, params=query_params
-        )
+        try:
+            response = requests.post(
+                url, headers=headers, json=sbom_metadata, params=query_params
+            )
+        except requests.exceptions.ConnectionError:
+            print("[Error] Connection error: Failed to connect to sbomify.")
+            sys.exit(1)
 
         if not response.ok:
-            print(
-                f"[Error] Failed to augment SBOM file via sbomify ({response.status_code})."
-            )
+            err_msg = f"[Error] Failed to augment SBOM file via sbomify. [{response.status_code}]"
+            if response.json() and "detail" in response.json():
+                err_msg += f"-[{response.json()['detail']}]"
+
+            print(err_msg)
             sys.exit(1)
 
         set_metadata(FORMAT, sbom_data, response.json())
@@ -583,12 +585,18 @@ def main():
         with open(OUTPUT_FILE, "r") as f:
             sbom_data = f.read()
 
-        response = requests.post(url, headers=headers, data=sbom_data)
+        try:
+            response = requests.post(url, headers=headers, data=sbom_data)
+        except requests.exceptions.ConnectionError:
+            print("[Error] Connection error: Failed to connect to sbomify.")
+            sys.exit(1)
 
         if not response.ok:
-            print(
-                "[Error] Failed to upload SBOM file ({}).".format(response.status_code)
-            )
+            err_msg = f"[Error] Failed to upload SBOM file. [{response.status_code}]"
+            if response.json() and "detail" in response.json():
+                err_msg += f"-[{response.json()['detail']}]"
+
+            print(err_msg)
             sys.exit(1)
         else:
             print("[Info] SBOM file uploaded successfully.")
