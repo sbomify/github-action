@@ -200,8 +200,29 @@ Much like GitLab, this Action works just fine in BitBucket too. This repository 
 
 * Navigate to Settings -> Repository variables
 * Create a new Repository varialbe named `SBOMIFY_TOKEN` with your sbomify token
-* Create your `bitbucket-pipelines.yml` file
+* Create your `bitbucket-pipelines.yml` file ([example file](https://github.com/sbomify/github-action/blob/master/bitbucket-pipelines.yml)
 
+
+The file would look something similar to this:
+
+```yaml
+pipelines:
+  default:
+    - step:
+        name: Build SBOM
+        image: atlassian/default-image:latest
+        script:
+          - pipe: docker://sbomifyhub/sbomify-action:latest
+            variables:
+              TOKEN: $SBOMIFY_TOKEN
+              COMPONENT_ID: "Your Component ID"
+              UPLOAD: "true"
+              AUGMENT: "true"
+              ENRICH: "true"
+              SBOM_VERSION: $BITBUCKET_COMMIT
+              LOCK_FILE: "poetry.lock"
+              OUTPUT_FILE: "bitbucket-sbom.cdx.json"
+```
 
 ## Using in Docker
 
