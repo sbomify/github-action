@@ -1,0 +1,13 @@
+---
+
+script:
+  pipe: sbomify/bitbucket-pipe
+  variables:
+    TOKEN: $SBOMIFY_TOKEN
+    COMPONENT_ID: 9QRNwn8qRF
+    UPLOAD: true
+    AUGMENT: true
+    ENRICH: true
+    SBOM_VERSION: $BITBUCKET_COMMIT
+    LOCK_FILE: 'poetry.lock'
+    OUTPUT_FILE: "bitbucket-sbom.cdx.json"

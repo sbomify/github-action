@@ -193,3 +193,24 @@ To use this pipeline in your own CI/CD pipeline, simply copy the flow in the `.g
 * Description: sbomify token
 * Key: SBOMIFY_TOKEN
 * Value: Your sbomify token
+
+## Using in BitBucket
+
+Much like GitLab, this Action works just fine in BitBucket too. This repository is mirrored on Bitbucket under [sbomify/bitbucket-pipe](https://bitbucket.org/sbomify/bitbucket-pipe).
+
+* Navigate to Settings -> Repository variables
+* Create a new Repository varialbe named `SBOMIFY_TOKEN` with your sbomify token
+* Create your `bitbucket-pipelines.yml` file
+
+
+## Using in Docker
+
+You can also use the Actions module directly in Docker as follows:
+
+```bash
+$ docker run -rm \
+   -e TOKEN=<my token> \
+   -e COMPONENT_ID=<my component id> \
+   -e LOCK_FILE=requirements.txt \
+   sbomifyhub/sbomify-action
+```
