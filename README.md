@@ -200,7 +200,7 @@ Much like GitLab, this Action works just fine in BitBucket too. This repository 
 
 * Navigate to Settings -> Repository variables
 * Create a new Repository varialbe named `SBOMIFY_TOKEN` with your sbomify token
-* Create your `bitbucket-pipelines.yml` file ([example file](https://github.com/sbomify/github-action/blob/master/bitbucket-pipelines.yml)
+* Create your `bitbucket-pipelines.yml` file ([example file](https://github.com/sbomify/github-action/blob/master/bitbucket-pipelines.yml))
 
 
 The file would look something similar to this:
