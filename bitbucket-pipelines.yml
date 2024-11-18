@@ -5,7 +5,8 @@ pipelines:
         name: Build SBOM
         image: atlassian/default-image:latest
         script:
-          - pipe: sbomify/bitbucket-pipe:latest
+          #- pipe: sbomify/bitbucket-pipe:latest
+          - pipe: docker://sbomifyhub/sbomify-action:latest
             variables:
               TOKEN: $SBOMIFY_TOKEN
               COMPONENT_ID: "9QRNwn8qRF"
