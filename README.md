@@ -7,7 +7,7 @@ This is an opinionated tool for helping with the SBOM life cycle, namely [genera
 
 The goal is to help users generate NTIA Minimum Elements compliant SBOMs by stitching together various tools, along with metadata augmentation from sbomify.
 
-This tool can be used both with an SBOM, as well with a lock-file from various software packages (see `LOCK_FILE`).
+This tool can be used both with an SBOM, as well as with a lock-file from various software packages (see `LOCK_FILE`).
 
 ## Inputs
 
@@ -52,7 +52,7 @@ Note that this will only generate the system packages from the Docker image. Sep
 
 ### `OVERRIDE_SBOM_METADATA` (true/false)
 
-**Optional** Set this option when augmenting the SBOM to allow overwriting sbom metadata with metadata for your component. It is useful when when metadata in the SBOM and metadata for your component contain same items. By default metadata present in the SBOM takes precedence. If you want component metadata to overwrite SBOM metadata then set this to True.
+**Optional** Set this option when augmenting the SBOM to allow overwriting sbom metadata with metadata for your component. It is useful when metadata in the SBOM and metadata for your component contain the same items. By default, metadata present in the SBOM takes precedence. If you want component metadata to overwrite SBOM metadata then set this to True.
 
 ### `OVERRIDE_NAME` (true/false)
 
@@ -76,7 +76,7 @@ You can use this tool in standalone mode, where you don't upload the final SBOM 
 
 While we aspire to become fully format agnostic, we are making some assumptions:
 
-* We always us JSON (i.e. XML is not supported)
+* We always use JSON (i.e. XML is not supported)
 * Currently the tooling is skewed towards CycloneDX, but we aim for improving our SPDX support going forward
 
 ## Example Usage
@@ -199,7 +199,7 @@ To use this pipeline in your own CI/CD pipeline, simply copy the flow in the `.g
 Much like GitLab, this Action works just fine in BitBucket too. This repository is mirrored on Bitbucket under [sbomify/bitbucket-pipe](https://bitbucket.org/sbomify/bitbucket-pipe).
 
 * Navigate to Settings -> Repository variables
-* Create a new Repository varialbe named `SBOMIFY_TOKEN` with your sbomify token
+* Create a new Repository variable named `SBOMIFY_TOKEN` with your sbomify token
 * Create your `bitbucket-pipelines.yml` file ([example file](https://github.com/sbomify/github-action/blob/master/bitbucket-pipelines.yml))
 
 
@@ -229,9 +229,10 @@ pipelines:
 You can also use the Actions module directly in Docker as follows:
 
 ```bash
-$ docker run -rm \
+$ docker run --rm \
+   -v $(pwd):/code \
    -e TOKEN=<my token> \
    -e COMPONENT_ID=<my component id> \
-   -e LOCK_FILE=requirements.txt \
+   -e LOCK_FILE=/code/requirements.txt \
    sbomifyhub/sbomify-action
 ```
