@@ -3,8 +3,8 @@ FROM python:3-slim-bullseye AS fetcher
 WORKDIR /tmp
 
 # Define tool versions
-ENV PARLAY_VERSION=0.6.0 \
-    TRIVY_VERSION=0.56.2
+ENV PARLAY_VERSION=0.8.0 \
+    TRIVY_VERSION=0.59.1
 
 RUN apt-get update && \
     apt-get install -y curl
