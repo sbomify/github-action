@@ -3,10 +3,10 @@ import os
 import shutil
 import subprocess
 import sys
-import sentry_sdk
 from typing import Literal
 
 import requests
+import sentry_sdk
 
 """
 
