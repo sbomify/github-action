@@ -31,7 +31,7 @@ jobs:
             -e UPLOAD=false \
             -e PYTHONPATH=/github/workspace \
             gha \
-            poetry -C /usr/src/app/ run python tests/test_entrypoint.py
+            poetry run python tests/test_entrypoint.py
 
       - name: Run enrichment test
         run: |

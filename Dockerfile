@@ -35,37 +35,48 @@ RUN chmod +x /tmp/trivy
 RUN mv trivy /usr/local/bin
 RUN rm -rf /tmp/*
 
+# Final stage
 FROM python:3-slim-bullseye
 
-# Add some labels
+# Add labels
 LABEL org.opencontainers.image.source=https://github.com/sbomify/github-action
 LABEL org.opencontainers.image.description="sbomify Action"
 LABEL org.opencontainers.image.licenses=Apache-2.0
 
 WORKDIR /usr/src/app
 
-RUN mkdir -p /opt/poetry
+# Install build dependencies and Poetry
+RUN apt-get update && \
+    apt-get install -y curl build-essential && \
+    curl -sSL https://install.python-poetry.org | python3 -
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=on \
-    PIP_DEFAULT_TIMEOUT=100 \
-    POETRY_VIRTUALENVS_IN_PROJECT=true \
-    POETRY_CACHE_DIR=/opt/poetry \
-    POETRY_NO_INTERACTION=1
-
+# Copy tools from fetcher
 COPY --from=fetcher /usr/local/bin/parlay /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/trivy /usr/local/bin/
 
-RUN python -m pip install pipx --no-cache
-RUN pipx install poetry --global
-RUN pipx ensurepath --global
+# Set Poetry configuration
+ENV PATH="/root/.local/bin:${PATH}" \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_IN_PROJECT=false \
+    POETRY_VIRTUALENVS_PATH="/opt/poetry/venv" \
+    POETRY_VIRTUALENVS_CREATE=false \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100
 
-COPY pyproject.toml /usr/src/app/
-COPY poetry.lock /usr/src/app/
+# Copy and install dependencies
+COPY pyproject.toml poetry.lock /opt/poetry/
+WORKDIR /opt/poetry
 RUN poetry install --only main
 
+# Add virtualenv to path
+ENV PATH="/opt/poetry/venv/sbomify-github-action/bin:$PATH"
+
+# Copy application files
 COPY entrypoint.py /usr/src/app/
 COPY sbomify.sh /
 
-CMD /sbomify.sh
+WORKDIR /usr/src/app
+
+CMD ["/sbomify.sh"]
