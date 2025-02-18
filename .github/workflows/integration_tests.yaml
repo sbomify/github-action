@@ -15,11 +15,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Install Poetry and dependencies including test requirements
+      # Install Poetry and dependencies
       - name: Install Poetry
         run: |
           curl -sSL https://install.python-poetry.org | python3 -
-          poetry install --with test
+          poetry install
 
       # Run tests directly with Poetry
       - name: Run tests
