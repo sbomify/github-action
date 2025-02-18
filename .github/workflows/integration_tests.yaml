@@ -27,6 +27,7 @@ jobs:
           TOKEN: placeholder
           COMPONENT_ID: placeholder
           UPLOAD: false
+          PYTHONPATH: ${{ github.workspace }}
         run: poetry run python tests/test_entrypoint.py
 
       - name: Run enrichment test
