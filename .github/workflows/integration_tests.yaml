@@ -30,7 +30,7 @@ jobs:
             -e UPLOAD=false \
             -e PYTHONPATH=/github/workspace \
             gha-test \
-            poetry run python tests/test_entrypoint.py
+            /sbomify_tests.sh
 
       - name: Build container
         run: |

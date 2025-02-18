@@ -97,6 +97,7 @@ ENV PYTHONUNBUFFERED=1 \
 # Copy application files
 COPY entrypoint.py /usr/src/app/
 COPY sbomify.sh /
+COPY sbomify_tests.sh /
 
 WORKDIR /usr/src/app
 
