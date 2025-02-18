@@ -1,5 +1,4 @@
 #!/bin/bash
+source /etc/profile.d/venv.sh
 
-poetry \
-    -C /usr/src/app/ \
-    run python /usr/src/app/entrypoint.py
+poetry run python /usr/src/app/entrypoint.py

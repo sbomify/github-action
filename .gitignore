@@ -1,3 +1,7 @@
 .DS_Store
 __pycache__
 venv
+enriched_sbom.cdx.json
+test_cargo_generation.json
+test_docker_image_generation.json
+sbom_output.json

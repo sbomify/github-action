@@ -6,6 +6,7 @@ import sys
 from typing import Literal
 
 import requests
+import sentry_sdk
 
 """
 
@@ -353,6 +354,21 @@ def main():
     )
     OVERRIDE_NAME = evaluate_boolean(os.getenv("OVERRIDE_NAME", "False"))
     SBOM_VERSION = os.getenv("SBOM_VERSION", None)
+
+    # Init Sentry
+    sentry_sdk.init(
+        dsn="https://df0bcb2d9d6ae6f7564e1568a1a4625c@o4508342753230848.ingest.us.sentry.io/4508834660155392",
+        # Add data like request headers and IP for users,
+        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+        send_default_pii=True,
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for tracing.
+        traces_sample_rate=1.0,
+        # Set profiles_sample_rate to 1.0 to profile 100%
+        # of sampled transactions.
+        # We recommend adjusting this value in production.
+        profiles_sample_rate=1.0,
+    )
 
     # Step 1
 

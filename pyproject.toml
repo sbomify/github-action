@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "sbomify GitHub Action"
+name = "sbomify-github-action"
 version = "0.1.0"
 description = "GitHub Actions module for generating, augmenting and distributing SBOMs"
 authors = ["sbomify <hello@sbomify.com>"]
@@ -10,7 +10,7 @@ package-mode = false
 python = "^3.10"
 requests = "^2.32.3"
 cyclonedx-bom = "^5.1.0"
-
+sentry-sdk = "^2.21.0"
 
 [tool.poetry.group.dev.dependencies]
 isort = "^5.13.2"

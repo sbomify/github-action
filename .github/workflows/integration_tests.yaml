@@ -15,12 +15,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build container
+      - name: Build test container
         run: |
-          docker build . -t gha
+          docker build . -t gha-test --build-arg INSTALL_TEST_DEPS=true
 
-
-      # This is admittably somewhat naive testing, but bether than nothing.
+      # This is admittedly somewhat naive testing, but better than nothing.
       - name: Run tests
         run: |
           docker run --rm \
@@ -30,8 +29,12 @@ jobs:
             -e COMPONENT_ID=placeholder \
             -e UPLOAD=false \
             -e PYTHONPATH=/github/workspace \
-            gha \
-            poetry -C /usr/src/app/ run python tests/test_entrypoint.py
+            gha-test \
+            /sbomify_tests.sh
+
+      - name: Build container
+        run: |
+          docker build . -t gha
 
       - name: Run enrichment test
         run: |
