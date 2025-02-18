@@ -15,23 +15,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build container
+      # Install Poetry and dependencies including test requirements
+      - name: Install Poetry
         run: |
-          docker build . -t gha
+          curl -sSL https://install.python-poetry.org | python3 -
+          poetry install --with test
 
-
-      # This is admittably somewhat naive testing, but bether than nothing.
+      # Run tests directly with Poetry
       - name: Run tests
-        run: |
-          docker run --rm \
-            -v $(pwd):/github/workspace \
-            -w /github/workspace \
-            -e TOKEN=placeholder \
-            -e COMPONENT_ID=placeholder \
-            -e UPLOAD=false \
-            -e PYTHONPATH=/github/workspace \
-            gha \
-            poetry run python tests/test_entrypoint.py
+        env:
+          TOKEN: placeholder
+          COMPONENT_ID: placeholder
+          UPLOAD: false
+        run: poetry run python tests/test_entrypoint.py
 
       - name: Run enrichment test
         run: |
