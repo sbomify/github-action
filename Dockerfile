@@ -53,10 +53,17 @@ ENV PATH="/root/.local/bin:${PATH}" \
 
 WORKDIR /app
 
+# Add build argument for test dependencies
+ARG INSTALL_TEST_DEPS=false
+
 # Install dependencies
 COPY pyproject.toml poetry.lock ./
 RUN poetry config virtualenvs.path /opt/poetry/virtualenvs && \
-    poetry install --only main --no-root && \
+    if [ "$INSTALL_TEST_DEPS" = "true" ]; then \
+        poetry install; \
+    else \
+        poetry install --only main; \
+    fi && \
     poetry env info
 
 # Final stage
