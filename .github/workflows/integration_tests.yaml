@@ -15,24 +15,40 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build test container
-        run: |
-          docker build . -t gha-test --build-arg INSTALL_TEST_DEPS=true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
 
-      # This is admittedly somewhat naive testing, but better than nothing.
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.7.1
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --with dev
+
       - name: Run tests
         run: |
-          docker run --rm \
-            -v $(pwd):/github/workspace \
-            -w /github/workspace \
-            -e TOKEN=placeholder \
-            -e COMPONENT_ID=placeholder \
-            -e UPLOAD=false \
-            -e PYTHONPATH=/github/workspace \
-            gha-test \
-            /sbomify_tests.sh
+          poetry run pytest
+        env:
+          TOKEN: placeholder
+          COMPONENT_ID: placeholder
+          UPLOAD: 'false'
+          PYTHONPATH: ${{ github.workspace }}
 
-      - name: Build container
+      - name: Build container for enrichment test
         run: |
           docker build . -t gha
 

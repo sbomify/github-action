@@ -40,31 +40,23 @@ FROM python:3-slim-bullseye AS builder
 
 # Install build dependencies and Poetry
 RUN apt-get update && \
-    apt-get install -y curl build-essential && \
-    curl -sSL https://install.python-poetry.org | python3 -
+    apt-get install -y curl build-essential
+RUN curl -sSL https://install.python-poetry.org | python3 -
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Set Poetry configuration
-ENV PATH="/root/.local/bin:${PATH}" \
-    POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_IN_PROJECT=false \
-    POETRY_VIRTUALENVS_PATH="/opt/poetry/virtualenvs" \
-    POETRY_VIRTUALENVS_CREATE=true \
-    POETRY_CACHE_DIR=/tmp/poetry_cache
+ENV PATH="/root/.local/bin:${PATH}"
+ENV POETRY_NO_INTERACTION=1
 
 WORKDIR /app
+COPY . /app/
 
-# Add build argument for test dependencies
-ARG INSTALL_TEST_DEPS=false
+RUN poetry build
 
-# Install dependencies
-COPY pyproject.toml poetry.lock ./
-RUN poetry config virtualenvs.path /opt/poetry/virtualenvs && \
-    if [ "$INSTALL_TEST_DEPS" = "true" ]; then \
-        poetry install; \
-    else \
-        poetry install --only main; \
-    fi && \
-    poetry env info
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+RUN uv venv /opt/venv
+RUN uv pip install dist/sbomify_github_action-0.1.0-py3-none-any.whl
 
 # Final stage
 FROM python:3-slim-bullseye
@@ -74,31 +66,13 @@ LABEL org.opencontainers.image.source=https://github.com/sbomify/github-action
 LABEL org.opencontainers.image.description="sbomify Action"
 LABEL org.opencontainers.image.licenses=Apache-2.0
 
-# Copy Poetry installation and virtualenv from builder
-COPY --from=builder /root/.local /root/.local
-COPY --from=builder /opt/poetry/virtualenvs /opt/poetry/virtualenvs
-
 # Copy tools from fetcher
 COPY --from=fetcher /usr/local/bin/parlay /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/trivy /usr/local/bin/
+COPY --from=builder /opt/venv /opt/venv
 
-# Set environment variables and activate virtualenv
-RUN VENV_PATH=$(find /opt/poetry/virtualenvs -mindepth 1 -maxdepth 1 -type d | head -n1) && \
-    echo "export PATH=${VENV_PATH}/bin:/root/.local/bin:\${PATH}" > /etc/profile.d/venv.sh && \
-    echo "export VIRTUAL_ENV=${VENV_PATH}" >> /etc/profile.d/venv.sh && \
-    echo "source /etc/profile.d/venv.sh" >> /root/.bashrc
+ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    POETRY_VIRTUALENVS_PATH="/opt/poetry/virtualenvs" \
-    POETRY_VIRTUALENVS_IN_PROJECT=false \
-    POETRY_VIRTUALENVS_CREATE=false
-
-# Copy application files
-COPY entrypoint.py /usr/src/app/
-COPY sbomify.sh /
-COPY sbomify_tests.sh /
-
-WORKDIR /usr/src/app
-
-CMD ["/sbomify.sh"]
+CMD ["sbomify-action"]

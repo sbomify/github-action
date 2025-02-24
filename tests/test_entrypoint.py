@@ -3,7 +3,7 @@ import os
 import sys
 import unittest
 
-from entrypoint import (
+from sbomify_action.cli.main import (
     enrich_sbom_with_parley,
     generate_sbom_from_python_lock_file,
     path_expansion,
@@ -194,33 +194,6 @@ class TestDockerImageSBOMGeneration(unittest.TestCase):
             nginx_component_exists,
             "The component with 'name': 'nginx' was not found in 'components'.",
         )
-
-
-class TestEnrichment(unittest.TestCase):
-    def test_enrichment(self):
-        """
-        Test the enrichment in Parlay
-        """
-
-        input_file = "tests/test-data/syft.cdx.json"
-        output_file = "enriched_sbom.cdx.json"
-
-        enrich = enrich_sbom_with_parley(input_file, output_file)
-        sbom_type = validate_sbom(output_file)
-
-    def test_failed_json_file(self):
-        """
-        Test the enrichment in Parlay
-        """
-
-        input_file = "tests/test-data/invalid_json.json"
-        output_file = "enriched_sbom.cdx.json"
-
-        with self.assertRaises(SystemExit) as cm:
-            enrich = enrich_sbom_with_parley(input_file, output_file)
-
-        # Assert that the exit code is 1
-        self.assertEqual(cm.exception.code, 1)
 
 
 if __name__ == "__main__":
