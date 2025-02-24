@@ -3,7 +3,7 @@ import os
 import sys
 import unittest
 
-from entrypoint import (
+from sbomify_action.cli.main import (
     enrich_sbom_with_parley,
     generate_sbom_from_python_lock_file,
     path_expansion,
