@@ -29,10 +29,10 @@ jobs:
         run: |
             poetry run isort \
               --profile black \
-              -c sbomify_action/**/*.py tests/**/*.py
+              -c sbomify_action tests
 
       - name: Run black
         run: |
             poetry run black \
-              --check sbomify_action/**/*.py tests/**/*.py
+              --check sbomify_action tests
 
