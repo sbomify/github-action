@@ -56,7 +56,7 @@ ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 RUN uv venv /opt/venv
-RUN uv pip install dist/sbomify_github_action-0.1.0-py3-none-any.whl
+RUN uv pip install dist/sbomify_github_action-*.whl
 
 # Final stage
 FROM python:3-slim-bullseye
@@ -74,5 +74,9 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+
+# Verify cyclonedx-py is installed and working
+RUN pip install --no-cache-dir cyclonedx-bom && \
+    cyclonedx-py --version
 
 CMD ["sbomify-action"]
