@@ -4,6 +4,7 @@ WORKDIR /tmp
 
 # Define tool versions
 ENV PARLAY_VERSION=0.8.0 \
+    BOMCTL_VERSION=0.4.2 \
     TRIVY_VERSION=0.59.1
 
 RUN apt-get update && \
@@ -33,6 +34,19 @@ RUN sha256sum --ignore-missing -c trivy_checksum.txt
 RUN tar xvfz trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
 RUN chmod +x /tmp/trivy
 RUN mv trivy /usr/local/bin
+RUN rm -rf /tmp/*
+
+# Install bomctl
+RUN curl -sL \
+    -o bomctl_${BOMCTL_VERSION}_linux_amd64.tar.gz \
+    "https://github.com/bomctl/bomctl/releases/download/v${BOMCTL_VERSION}/bomctl_${BOMCTL_VERSION}_linux_amd64.tar.gz"
+RUN curl -sL \
+    -o bomctl_checksum.txt \
+    "https://github.com/bomctl/bomctl/releases/download/v${BOMCTL_VERSION}/bomctl_${BOMCTL_VERSION}_checksums.txt"
+RUN sha256sum --ignore-missing -c bomctl_checksum.txt
+RUN tar xvfz bomctl_${BOMCTL_VERSION}_linux_amd64.tar.gz
+RUN chmod +x /tmp/bomctl
+RUN mv bomctl /usr/local/bin
 RUN rm -rf /tmp/*
 
 # Python builder stage
@@ -69,6 +83,7 @@ LABEL org.opencontainers.image.licenses=Apache-2.0
 # Copy tools from fetcher
 COPY --from=fetcher /usr/local/bin/parlay /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/trivy /usr/local/bin/
+COPY --from=fetcher /usr/local/bin/bomctl /usr/local/bin/
 COPY --from=builder /opt/venv /opt/venv
 
 ENV PATH="/opt/venv/bin:$PATH"
