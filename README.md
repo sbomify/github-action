@@ -48,17 +48,29 @@ Note that this will only generate the system packages from the Docker image. Sep
 
 ### `AUGMENT` (true/false)
 
-**Optional** Set this option to enrich your SBOM with author, vendor and license metadata provided for your component in sbomify's platform. Most SBOM generation tools will not provide this information for you.
+**Optional** Adds supplier, author, and license information from your sbomify component to your SBOM. Most SBOM generation tools don't include this business metadata.
 
-**Note:** Metadata augmentation is only supported for CycloneDX format SBOMs. SPDX format SBOMs will skip the augmentation step with a warning message.
+**Note:** Only works with CycloneDX format SBOMs. SPDX format SBOMs will skip augmentation with a warning message.
 
 ### `OVERRIDE_SBOM_METADATA` (true/false)
 
-**Optional** Set this option when augmenting the SBOM to allow overwriting sbom metadata with metadata for your component. It is useful when metadata in the SBOM and metadata for your component contain the same items. By default, metadata present in the SBOM takes precedence. If you want component metadata to overwrite SBOM metadata then set this to True.
+**Optional** Controls what happens when both your SBOM and sbomify have the same type of metadata (like supplier information).
+
+- **`false` (default)**: Keep your existing SBOM metadata and add sbomify data to it
+- **`true`**: Replace your SBOM metadata with sbomify data
+
+**When to use `false`**: You want to preserve metadata from your build tools and add sbomify information alongside it.
+
+**When to use `true`**: You want to standardize all SBOMs using your sbomify component definitions.
 
 ### `OVERRIDE_NAME` (true/false)
 
-**Optional** Set this option when augmenting the SBOM to set the component name within the SBOM to your component name at sbomify. This overwrites the name set by sbom generation tool.
+**Optional** Sets the component name in your SBOM to match the component name from your sbomify configuration.
+
+- **`false` (default)**: Keep the component name as set by your SBOM generation tool
+- **`true`**: Replace the component name with the name from your sbomify component
+
+**When to use**: Useful for standardizing component names across all SBOMs when your SBOM generation tools use different naming conventions than your sbomify component definitions.
 
 ### `SBOM_VERSION` (string)
 
