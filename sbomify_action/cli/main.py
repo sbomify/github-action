@@ -920,44 +920,17 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
         if hasattr(bom.metadata.component, "version") and bom.metadata.component.version:
             component_metadata["version"] = bom.metadata.component.version
 
-        # Apply component type if present (properly handle enum serialization)
+        # Apply component type if present - preserve original JSON value since it's already correct
         if hasattr(bom.metadata.component, "type") and bom.metadata.component.type:
-            component_type = _serialize_component_type(bom.metadata.component.type)
-            component_metadata["type"] = component_type
+            # Just preserve the original JSON value instead of re-serializing the enum
+            original_type = original_json.get("metadata", {}).get("component", {}).get("type")
+            if original_type:
+                component_metadata["type"] = original_type
 
     # Apply version-specific metadata handling (tools are version-specific, others are same format)
     _apply_version_specific_metadata(metadata, bom, spec_version, prefer_backend)
 
     return updated_json
-
-
-def _serialize_component_type(component_type) -> str:
-    """
-    Properly serialize CycloneDX component type enum to string.
-
-    Args:
-        component_type: ComponentType enum value
-
-    Returns:
-        String representation of the component type
-    """
-    try:
-        # Handle different possible formats
-        type_str = str(component_type)
-
-        # Remove enum prefix if present (e.g., "ComponentType.CONTAINER" -> "container")
-        if "." in type_str:
-            type_str = type_str.split(".")[-1]
-
-        # Remove "componenttype" prefix if present (e.g., "componenttype.container" -> "container")
-        if type_str.lower().startswith("componenttype"):
-            type_str = type_str.split("componenttype")[-1].lstrip(".")
-
-        # Convert to lowercase and return
-        return type_str.lower()
-    except Exception:
-        # Fallback for any unexpected format
-        return str(component_type).lower()
 
 
 def _apply_version_specific_metadata(metadata: dict, bom: Bom, spec_version: str, prefer_backend: bool):
