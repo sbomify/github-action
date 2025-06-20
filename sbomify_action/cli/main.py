@@ -403,31 +403,62 @@ def evaluate_boolean(value: str) -> bool:
 
 def validate_sbom(file_path: str) -> str:
     """
-    Validate SBOM file and detect format.
+    Validate and detect the format of an SBOM file.
 
     Args:
-        file_path: Path to SBOM file
+        file_path: Path to the SBOM JSON file
 
     Returns:
-        SBOM format ('cyclonedx' or 'spdx')
+        Format string: 'cyclonedx' or 'spdx'
 
     Raises:
-        SBOMValidationError: If SBOM is invalid or format is unsupported
+        SBOMValidationError: If SBOM is invalid or unsupported format
     """
     try:
-        with Path(file_path).open() as f:
+        with Path(file_path).open("r") as f:
             data = json.load(f)
     except json.JSONDecodeError:
         raise SBOMValidationError("Invalid JSON format")
     except FileNotFoundError:
         raise SBOMValidationError(f"SBOM file not found: {file_path}")
 
-    # Detect artifact type
+    # Detect artifact type (only log once during initial validation)
     if data.get("bomFormat") == "CycloneDX":
         logger.info("Detected CycloneDX SBOM.")
         return "cyclonedx"
     elif data.get("spdxVersion") is not None:
         logger.info("Detected SPDX SBOM.")
+        return "spdx"
+    else:
+        raise SBOMValidationError("Neither CycloneDX nor SPDX format found in JSON file")
+
+
+def _detect_sbom_format_silent(file_path: str) -> str:
+    """
+    Silently detect the format of an SBOM file without logging.
+    Used for internal format checks after initial detection.
+
+    Args:
+        file_path: Path to the SBOM JSON file
+
+    Returns:
+        Format string: 'cyclonedx' or 'spdx'
+
+    Raises:
+        SBOMValidationError: If SBOM is invalid or unsupported format
+    """
+    try:
+        with Path(file_path).open("r") as f:
+            data = json.load(f)
+    except json.JSONDecodeError:
+        raise SBOMValidationError("Invalid JSON format")
+    except FileNotFoundError:
+        raise SBOMValidationError(f"SBOM file not found: {file_path}")
+
+    # Detect artifact type without logging
+    if data.get("bomFormat") == "CycloneDX":
+        return "cyclonedx"
+    elif data.get("spdxVersion") is not None:
         return "spdx"
     else:
         raise SBOMValidationError("Neither CycloneDX nor SPDX format found in JSON file")
@@ -523,17 +554,17 @@ def load_sbom_from_file(file_path: str) -> tuple[str, dict, object]:
         with Path(file_path).open("r") as f:
             sbom_json = json.load(f)
 
-        # Detect format first
+        # Detect format silently (format should already be known at this point)
         if sbom_json.get("bomFormat") == "CycloneDX":
             sbom_format = "cyclonedx"
             # Use cyclonedx deserializer
             parsed_object = Bom.from_json(sbom_json)
-            logger.info(f"Successfully loaded CycloneDX SBOM from {file_path}")
+            logger.debug(f"Successfully loaded CycloneDX SBOM from {file_path}")
         elif sbom_json.get("spdxVersion") is not None:
             sbom_format = "spdx"
             # For now, just return the JSON - we'll add SPDX library later
             parsed_object = sbom_json  # Placeholder for future SPDX object
-            logger.info(f"Successfully loaded SPDX SBOM from {file_path}")
+            logger.debug(f"Successfully loaded SPDX SBOM from {file_path}")
         else:
             raise SBOMValidationError("Neither CycloneDX nor SPDX format found in JSON file")
 
@@ -575,16 +606,19 @@ def _enrich_cyclonedx_sbom(original_json: dict, bom: Bom, config: "Config") -> t
     Enrich CycloneDX SBOM with backend metadata.
     """
     # Get backend metadata
+    logger.info("🔍 Fetching component metadata from sbomify API")
     augmentation_data = _fetch_backend_metadata(config)
 
     # Add sbomify as a processing tool
     _add_sbomify_tool_metadata(bom)
+    logger.info("🔧 Added sbomify as processing tool to SBOM metadata")
 
     # Apply to CycloneDX BOM object
     if "supplier" in augmentation_data:
         from cyclonedx.model.bom import OrganizationalContact, OrganizationalEntity
 
         supplier_data = augmentation_data["supplier"]
+        logger.info(f"🏢 Adding supplier information: {supplier_data.get('name', 'Unknown')}")
 
         # Create backend supplier entity
         backend_supplier = OrganizationalEntity(
@@ -597,6 +631,8 @@ def _enrich_cyclonedx_sbom(original_json: dict, bom: Bom, config: "Config") -> t
 
         # Add contacts if present
         if "contacts" in supplier_data:
+            contact_count = len(supplier_data["contacts"])
+            logger.info(f"📞 Adding {contact_count} supplier contact(s) from sbomify")
             for contact_data in supplier_data["contacts"]:
                 contact = OrganizationalContact(
                     name=contact_data.get("name"), email=contact_data.get("email"), phone=contact_data.get("phone")
@@ -606,6 +642,7 @@ def _enrich_cyclonedx_sbom(original_json: dict, bom: Bom, config: "Config") -> t
         # Merge with existing supplier or replace based on preference
         if bom.metadata.supplier and not config.override_sbom_metadata:
             # Preserve existing supplier, merge with backend data
+            logger.info("🔄 Merging supplier information with existing SBOM data (preserving existing)")
             existing_supplier = bom.metadata.supplier
 
             # Keep existing name if prefer_existing, otherwise use backend name
@@ -649,24 +686,41 @@ def _enrich_cyclonedx_sbom(original_json: dict, bom: Bom, config: "Config") -> t
             bom.metadata.supplier = merged_supplier
         else:
             # Use backend supplier (either no existing supplier or override_sbom_metadata=True)
+            if config.override_sbom_metadata:
+                logger.info("🔄 Replacing existing supplier information with sbomify data (override mode)")
+            else:
+                logger.info("➕ Adding supplier information from sbomify (no existing supplier)")
             bom.metadata.supplier = backend_supplier
 
     # Add authors if present
     if "authors" in augmentation_data:
         from cyclonedx.model.bom import OrganizationalContact
 
+        author_count = len(augmentation_data["authors"])
+        logger.info(f"👥 Adding {author_count} author(s) from sbomify")
+
         for author_data in augmentation_data["authors"]:
             author = OrganizationalContact(
                 name=author_data.get("name"), email=author_data.get("email"), phone=author_data.get("phone")
             )
             bom.metadata.authors.add(author)
+            logger.debug(f"  ➕ Added author: {author_data.get('name', 'Unknown')}")
 
     # Add licenses if present - now supporting advanced formats
     if "licenses" in augmentation_data:
+        license_count = len(augmentation_data["licenses"])
+        logger.info(f"📜 Adding {license_count} license(s) from sbomify")
+
         for license_data in augmentation_data["licenses"]:
             license_obj = _process_license_data(license_data)
             if license_obj:
                 bom.metadata.licenses.add(license_obj)
+                # Log license details
+                if isinstance(license_data, str):
+                    logger.debug(f"  ➕ Added license: {license_data}")
+                elif isinstance(license_data, dict):
+                    license_name = license_data.get("name", "Unknown")
+                    logger.debug(f"  ➕ Added license: {license_name}")
 
     # Apply enrichment back to JSON with intelligent merging
     # Use override_sbom_metadata to control merging preference
@@ -676,7 +730,7 @@ def _enrich_cyclonedx_sbom(original_json: dict, bom: Bom, config: "Config") -> t
     # Apply local SBOM overrides (component name, version)
     bom, updated_json = _apply_local_sbom_overrides(bom, updated_json, config, augmentation_data)
 
-    logger.info("Successfully enriched CycloneDX SBOM with backend metadata")
+    logger.debug("Successfully enriched CycloneDX SBOM with backend metadata")
     return bom, updated_json
 
 
@@ -685,13 +739,28 @@ def _enrich_spdx_sbom(original_json: dict, spdx_obj: object, config: "Config") -
     Enrich SPDX SBOM with backend metadata (placeholder for future implementation).
     """
     # Get backend metadata
+    logger.info("🔍 Fetching component metadata from sbomify API")
     augmentation_data = _fetch_backend_metadata(config)
+
+    # Log what metadata is available
+    available_metadata = []
+    if "supplier" in augmentation_data:
+        available_metadata.append("supplier information")
+    if "authors" in augmentation_data:
+        available_metadata.append(f"{len(augmentation_data['authors'])} author(s)")
+    if "licenses" in augmentation_data:
+        available_metadata.append(f"{len(augmentation_data['licenses'])} license(s)")
+
+    if available_metadata:
+        logger.info(f"➕ Adding to SPDX SBOM: {', '.join(available_metadata)}")
+    else:
+        logger.info("ℹ️  No additional metadata available from sbomify for this component")
 
     # TODO: Implement SPDX enrichment using SPDX libraries
     # For now, apply directly to JSON
     updated_json = _apply_spdx_metadata_to_json(original_json, augmentation_data)
 
-    logger.info("Successfully enriched SPDX SBOM with backend metadata")
+    logger.debug("Successfully enriched SPDX SBOM with backend metadata")
     return spdx_obj, updated_json
 
 
@@ -784,9 +853,9 @@ def _apply_local_sbom_overrides(
         if augmentation_data and "name" in augmentation_data:
             backend_component_name = augmentation_data["name"]
             bom.metadata.component.name = backend_component_name
-            logger.info(f"Overrode component name to: {backend_component_name}")
+            logger.info(f"🏷️  Overrode component name with sbomify data: {backend_component_name}")
         else:
-            logger.warning("OVERRIDE_NAME requested but component name not available in backend metadata")
+            logger.warning("⚠️  OVERRIDE_NAME requested but component name not available in backend metadata")
 
     # Apply component version override if specified
     if config.sbom_version and hasattr(bom.metadata, "component") and bom.metadata.component:
@@ -801,7 +870,7 @@ def _apply_local_sbom_overrides(
             bom.metadata.component = Component(
                 name=component_name, type=ComponentType.APPLICATION, version=config.sbom_version
             )
-        logger.info(f"Set component version to {config.sbom_version}")
+        logger.info(f"🔢 Set component version from configuration: {config.sbom_version}")
 
     # Apply changes back to JSON
     updated_json = _apply_cyclonedx_metadata_to_json(original_json, bom, True)
@@ -1273,6 +1342,63 @@ def print_banner() -> None:
     logger.info(ascii_art)
 
 
+def _log_step_header(step_num: int, title: str, emoji: str = "") -> None:
+    """
+    Log a nicely formatted step header optimized for GitHub Actions.
+
+    Args:
+        step_num: Step number (1-5)
+        title: Step title
+        emoji: Optional emoji to include
+    """
+    import os
+
+    # Check if we're running in GitHub Actions
+    is_github_actions = os.getenv("GITHUB_ACTIONS") == "true"
+
+    # Create a shorter border optimized for GitHub Actions (max 60 chars)
+    title_with_step = f"STEP {step_num}: {title}"
+    border_length = min(60, max(50, len(title_with_step) + 4))
+    border = "=" * border_length
+
+    # Use GitHub Actions grouping if available
+    if is_github_actions:
+        # GitHub Actions group syntax
+        print(f"::group::{emoji} {title_with_step}")
+        logger.info(f"{emoji} {title_with_step}")
+        logger.info(border)
+    else:
+        # Local/standard logging with full ASCII art
+        logger.info("")
+        logger.info(border)
+        logger.info(f"{emoji} {title_with_step.center(border_length - 2)} {emoji}")
+        logger.info(border)
+
+
+def _log_step_end(step_num: int, success: bool = True) -> None:
+    """
+    Log step completion and close GitHub Actions group if applicable.
+
+    Args:
+        step_num: Step number (1-5)
+        success: Whether the step completed successfully
+    """
+    import os
+
+    is_github_actions = os.getenv("GITHUB_ACTIONS") == "true"
+
+    if success:
+        logger.info(f"✅ Step {step_num} completed successfully")
+    else:
+        logger.error(f"❌ Step {step_num} failed")
+
+    # Close GitHub Actions group
+    if is_github_actions:
+        print("::endgroup::")
+    else:
+        logger.info("")  # Add spacing for local runs
+
+
 def main() -> None:
     """Main entry point for the sbomify action."""
     print_banner()
@@ -1290,7 +1416,7 @@ def main() -> None:
     config = load_config()
 
     # Step 1: SBOM Generation/Validation
-    logger.info("Starting SBOM processing workflow")
+    _log_step_header(1, "SBOM Generation/Input Processing", "📋")
 
     # Check if either SBOM_FILE or LOCK_FILE exists
     if config.sbom_file:
@@ -1309,30 +1435,38 @@ def main() -> None:
     # Process input based on type
     try:
         if FILE_TYPE == "SBOM":
+            logger.info(f"Processing existing SBOM file: {FILE}")
             FORMAT = validate_sbom(FILE)
             shutil.copy(FILE, "step_1.json")
         elif config.docker_image:
-            logger.info("Detected Docker Image as input")
+            logger.info(f"Generating SBOM from Docker image: {config.docker_image}")
             run_trivy_docker_image(docker_image=config.docker_image, output_file="step_1.json")
         elif FILE_TYPE == "LOCK_FILE":
+            logger.info(f"Generating SBOM from lock file: {FILE}")
             process_lock_file(FILE)
         else:
             logger.error("Unrecognized FILE_TYPE.")
             sys.exit(1)
     except (FileProcessingError, SBOMGenerationError, SBOMValidationError) as e:
-        logger.error(f"Step 1 failed: {e}")
+        logger.error(f"❌ Step 1 failed: {e}")
+        _log_step_end(1, success=False)
         sys.exit(1)
 
-    # Set the SBOM format based on the output
+    # Set the SBOM format based on the output (silent detection for generated SBOMs)
     try:
-        FORMAT = validate_sbom("step_1.json")
+        if FILE_TYPE != "SBOM":  # Only detect format if we generated the SBOM
+            FORMAT = _detect_sbom_format_silent("step_1.json")
+            logger.info(f"Generated SBOM format: {FORMAT.upper()}")
     except SBOMValidationError as e:
-        logger.error(f"Generated SBOM validation failed: {e}")
+        logger.error(f"❌ Generated SBOM validation failed: {e}")
+        _log_step_end(1, success=False)
         sys.exit(1)
+
+    _log_step_end(1)
 
     # Step 2: Augmentation
     if config.augment:
-        logger.info("Starting SBOM augmentation")
+        _log_step_header(2, "SBOM Augmentation with Backend Metadata", "🔧")
         try:
             sbom_input_file = get_last_sbom_from_last_step()
             if not sbom_input_file:
@@ -1343,7 +1477,7 @@ def main() -> None:
 
             # Check if format is supported for augmentation
             if FORMAT == "spdx":
-                logger.info("Starting SPDX SBOM augmentation")
+                logger.info("Augmenting SPDX SBOM with supplier, author, and license information")
                 # Load SPDX SBOM (currently using JSON fallback)
                 sbom_format, original_json, parsed_object = load_sbom_from_file(sbom_input_file)
 
@@ -1355,9 +1489,9 @@ def main() -> None:
                 # Save enriched SBOM
                 save_sbom_to_file(updated_json, "step_2.json")
 
-                logger.info("SPDX SBOM file augmented successfully.")
+                logger.info("SPDX SBOM augmentation completed")
             elif FORMAT == "cyclonedx":
-                logger.info("Starting CycloneDX SBOM augmentation")
+                logger.info("Augmenting CycloneDX SBOM with supplier, author, and license information")
                 # Use format-agnostic loading
                 sbom_format, original_json, parsed_object = load_sbom_from_file(sbom_input_file)
 
@@ -1378,29 +1512,44 @@ def main() -> None:
                 # Save enriched SBOM
                 save_sbom_to_file(updated_json, "step_2.json")
 
-                logger.info("CycloneDX SBOM file augmented successfully.")
+                logger.info("CycloneDX SBOM augmentation completed")
             else:
                 raise SBOMValidationError(f"Unsupported format '{FORMAT}' for augmentation")
 
+            _log_step_end(2)
+
         except (FileProcessingError, APIError, SBOMValidationError) as e:
-            logger.error(f"Step 2 (augmentation) failed: {e}")
+            logger.error(f"❌ Step 2 (augmentation) failed: {e}")
+            _log_step_end(2, success=False)
             sys.exit(1)
+    else:
+        _log_step_header(2, "SBOM Augmentation - SKIPPED", "⏭️")
+        logger.info("SBOM augmentation disabled (AUGMENT=false)")
+        _log_step_end(2)
 
     # Step 3: Enrichment
     if config.enrich:
-        logger.info("Starting SBOM enrichment")
+        _log_step_header(3, "SBOM Enrichment with Ecosystem Data", "🌟")
         try:
             sbom_input_file = get_last_sbom_from_last_step()
             if not sbom_input_file:
                 raise FileProcessingError("No SBOM file found from previous step")
 
+            logger.info("Enriching SBOM components with ecosystem metadata from Ecosyste.ms")
             enrich_sbom_with_parley(sbom_input_file, "step_3.json")
-            validate_sbom("step_3.json")
+            _detect_sbom_format_silent("step_3.json")  # Silent validation
+            _log_step_end(3)
         except (FileProcessingError, SBOMGenerationError, SBOMValidationError) as e:
-            logger.error(f"Step 3 (enrichment) failed: {e}")
+            logger.error(f"❌ Step 3 (enrichment) failed: {e}")
+            _log_step_end(3, success=False)
             sys.exit(1)
+    else:
+        _log_step_header(3, "SBOM Enrichment - SKIPPED", "⏭️")
+        logger.info("SBOM enrichment disabled (ENRICH=false)")
+        _log_step_end(3)
 
-    # Finalize output
+    # Step 4: Finalize output
+    _log_step_header(4, "Finalizing SBOM Output", "📦")
     try:
         final_sbom_file = get_last_sbom_from_last_step()
         if not final_sbom_file:
@@ -1421,15 +1570,17 @@ def main() -> None:
             temp_file = get_last_sbom_from_last_step()
             Path(temp_file).unlink()
 
-        logger.info(f"SBOM processing completed. Output saved to: {config.output_file}")
+        logger.info(f"📄 Final SBOM saved to: {config.output_file}")
+        _log_step_end(4)
 
     except (FileProcessingError, OSError) as e:
-        logger.error(f"Failed to finalize output: {e}")
+        logger.error(f"❌ Failed to finalize output: {e}")
+        _log_step_end(4, success=False)
         sys.exit(1)
 
-    # Upload SBOM via API
+    # Step 5: Upload SBOM via API
     if config.upload:
-        logger.info("Starting SBOM upload")
+        _log_step_header(5, "Uploading SBOM to sbomify", "⬆️")
         try:
             # Validate SBOM before uploading (for CycloneDX)
             if FORMAT == "cyclonedx":
@@ -1449,6 +1600,8 @@ def main() -> None:
 
             with Path(config.output_file).open() as f:
                 sbom_data = f.read()
+
+            logger.info(f"Uploading {FORMAT.upper()} SBOM to component: {config.component_id}")
 
             try:
                 response = requests.post(
@@ -1472,11 +1625,34 @@ def main() -> None:
 
                 raise APIError(err_msg)
             else:
-                logger.info("SBOM file uploaded successfully.")
+                logger.info("✅ SBOM uploaded successfully to sbomify")
+
+            _log_step_end(5)
 
         except (APIError, FileProcessingError) as e:
-            logger.error(f"Error uploading SBOM: {e}")
+            logger.error(f"❌ Step 5 (upload) failed: {e}")
+            _log_step_end(5, success=False)
             sys.exit(1)
+    else:
+        _log_step_header(5, "SBOM Upload - SKIPPED", "⏭️")
+        logger.info("SBOM upload disabled (UPLOAD=false)")
+        _log_step_end(5)
+
+    # Final success message optimized for both local and GitHub Actions
+    import os
+
+    if os.getenv("GITHUB_ACTIONS") == "true":
+        # Simple success message for GitHub Actions
+        logger.info("")
+        logger.info("🎉 SUCCESS! All steps completed successfully!")
+        logger.info("")
+    else:
+        # Fancy ASCII art for local runs
+        logger.info("")
+        logger.info("🎉" + "=" * 58 + "🎉")
+        logger.info("🎉" + " SUCCESS! All steps completed successfully! ".center(58) + "🎉")
+        logger.info("🎉" + "=" * 58 + "🎉")
+        logger.info("")
 
 
 def _add_sbomify_tool_metadata(bom: Bom) -> None:
@@ -1564,12 +1740,12 @@ def _process_license_data(license_data: Any) -> Optional[Any]:
     return None
 
 
-def _validate_cyclonedx_sbom(sbom_json: dict) -> bool | None:
+def _validate_cyclonedx_sbom(sbom_file_path: str) -> bool | None:
     """
     Validate CycloneDX SBOM using cyclonedx-py tool.
 
     Args:
-        sbom_json: SBOM JSON dict to validate
+        sbom_file_path: Path to the SBOM JSON file to validate
 
     Returns:
         True if valid, False if invalid, None if validation tool not available
@@ -1582,7 +1758,10 @@ def _validate_cyclonedx_sbom(sbom_json: dict) -> bool | None:
     try:
         # Write SBOM to temporary file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump(sbom_json, f)
+            # Load and re-write the SBOM to ensure clean JSON
+            with Path(sbom_file_path).open("r") as source_f:
+                sbom_data = json.load(source_f)
+            json.dump(sbom_data, f)
             temp_file = f.name
 
         try:
@@ -1590,7 +1769,7 @@ def _validate_cyclonedx_sbom(sbom_json: dict) -> bool | None:
             result = subprocess.run(["cyclonedx-py", "validate", temp_file], capture_output=True, text=True, timeout=30)
 
             if result.returncode == 0:
-                logger.info("SBOM validation successful")
+                logger.debug("SBOM validation successful")
                 return True
             else:
                 logger.warning(f"SBOM validation failed: {result.stderr}")
@@ -1601,7 +1780,7 @@ def _validate_cyclonedx_sbom(sbom_json: dict) -> bool | None:
             os.unlink(temp_file)
 
     except FileNotFoundError:
-        logger.info("cyclonedx-py tool not available, skipping validation")
+        logger.debug("cyclonedx-py tool not available, skipping validation")
         return None
     except subprocess.TimeoutExpired:
         logger.warning("SBOM validation timed out")
