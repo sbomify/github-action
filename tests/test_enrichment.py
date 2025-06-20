@@ -426,8 +426,14 @@ class TestSBOMEnrichment:
             assert "tools" in metadata
 
             tools = metadata["tools"]
+            # Handle the newer CycloneDX format where tools is {"components": [...]}
+            if isinstance(tools, dict) and "components" in tools:
+                tools_list = tools["components"]
+            else:
+                tools_list = tools if isinstance(tools, list) else []
+
             sbomify_tool = None
-            for tool in tools:
+            for tool in tools_list:
                 if isinstance(tool, dict) and tool.get("name") == "sbomify-github-action":
                     sbomify_tool = tool
                     break
@@ -457,26 +463,34 @@ class TestSBOMEnrichment:
         assert sbomify_action.__version__ != "unknown"
         assert SBOMIFY_VERSION != "unknown"
 
-    def test_cyclonedx_validation(self):
+    def test_cyclonedx_validation(self, tmp_path):
         """Test CycloneDX validation functionality."""
+        # Create a test SBOM dictionary
+        test_sbom = {"metadata": {"component": {"name": "test"}}}
+
         with patch("subprocess.run") as mock_run:
             # Mock successful validation
             mock_run.return_value.returncode = 0
             mock_run.return_value.stderr = ""
 
+            # Create temporary SBOM file
+            sbom_file = tmp_path / "test_sbom.json"
+            with open(sbom_file, "w") as f:
+                json.dump(test_sbom, f)
+
             # Test successful validation
-            result = _validate_cyclonedx_sbom({"metadata": {"component": {"name": "test"}}})
+            result = _validate_cyclonedx_sbom(str(sbom_file))
             assert result is True
 
             # Test validation failure
             mock_run.return_value.returncode = 1
             mock_run.return_value.stderr = "Validation errors"
-            result = _validate_cyclonedx_sbom({"metadata": {"component": {"name": "test"}}})
+            result = _validate_cyclonedx_sbom(str(sbom_file))
             assert result is False
 
             # Test when cyclonedx-py is not available
             mock_run.side_effect = FileNotFoundError("cyclonedx-py not found")
-            result = _validate_cyclonedx_sbom({"metadata": {"component": {"name": "test"}}})
+            result = _validate_cyclonedx_sbom(str(sbom_file))
             assert result is None  # Graceful fallback
 
     @patch("sbomify_action.cli.main.requests.get")
