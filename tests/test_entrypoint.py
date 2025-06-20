@@ -10,6 +10,11 @@ from sbomify_action.cli.main import (
     run_trivy_fs,
     validate_sbom,
 )
+from sbomify_action.exceptions import (
+    FileProcessingError,
+    SBOMGenerationError,
+    SBOMValidationError,
+)
 
 
 class TestPathExpansion(unittest.TestCase):
@@ -40,41 +45,32 @@ class TestPathExpansion(unittest.TestCase):
 
     def test_invalid_path(self):
         """
-        Test that an invalid path results in sys.exit(1).
+        Test that an invalid path results in FileProcessingError.
         """
 
-        # Expect SystemExit with code 1 when calling the function
-        with self.assertRaises(SystemExit) as cm:
+        # Expect FileProcessingError when calling the function
+        with self.assertRaises(FileProcessingError):
             path_expansion("invalid/path.txt")
-
-        # Assert that the exit code is 1
-        self.assertEqual(cm.exception.code, 1)
 
 
 class TestSBOMValidation(unittest.TestCase):
     def test_invalid_json(self):
         """
-        Test that an invalid JSON results in sys.exit(1).
+        Test that an invalid JSON results in SBOMValidationError.
         """
 
-        # Expect SystemExit with code 1 when calling the function
-        with self.assertRaises(SystemExit) as cm:
+        # Expect SBOMValidationError when calling the function
+        with self.assertRaises(SBOMValidationError):
             validate_sbom("tests/test-data/invalid_json.json")
-
-        # Assert that the exit code is 1
-        self.assertEqual(cm.exception.code, 1)
 
     def test_invalid_sbom(self):
         """
-        Test that an valid JSON, but not an SBOM, results in sys.exit(1).
+        Test that a valid JSON, but not an SBOM, results in SBOMValidationError.
         """
 
-        # Expect SystemExit with code 1 when calling the function
-        with self.assertRaises(SystemExit) as cm:
+        # Expect SBOMValidationError when calling the function
+        with self.assertRaises(SBOMValidationError):
             validate_sbom("tests/test-data/valid_json.json")
-
-        # Assert that the exit code is 1
-        self.assertEqual(cm.exception.code, 1)
 
     def test_valid_cyclonedx(self):
         """
@@ -206,17 +202,15 @@ class TestEnrichment(unittest.TestCase):
 
     def test_failed_json_file(self):
         """
-        Test the enrichment in Parlay
+        Test the enrichment in Parlay with invalid input
         """
 
         input_file = "tests/test-data/invalid_json.json"
         output_file = "enriched_sbom.cdx.json"
 
-        with self.assertRaises(SystemExit) as cm:
+        # After refactoring, this should raise SBOMGenerationError instead of CalledProcessError
+        with self.assertRaises(SBOMGenerationError):
             enrich_sbom_with_parley(input_file, output_file)
-
-        # Assert that the exit code is 1
-        self.assertEqual(cm.exception.code, 1)
 
 
 if __name__ == "__main__":

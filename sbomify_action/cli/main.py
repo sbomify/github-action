@@ -3,10 +3,21 @@ import os
 import shutil
 import subprocess
 import sys
-from typing import Literal
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal, Optional
 
 import requests
 import sentry_sdk
+
+from ..exceptions import (
+    APIError,
+    ConfigurationError,
+    FileProcessingError,
+    SBOMGenerationError,
+    SBOMValidationError,
+)
+from ..logging_config import logger
 
 """
 
@@ -44,62 +55,320 @@ write `OUTPUT_FILE` at the end of the run.
 
 SBOMIFY_API_BASE = "https://app.sbomify.com/api/v1"
 
+# Lock file constants for better maintainability
+COMMON_PYTHON_LOCK_FILES = [
+    "Pipfile.lock",
+    "poetry.lock",
+    "pyproject.toml",
+    "requirements.txt",
+]
 
-def path_expansion(path):
+COMMON_RUST_LOCK_FILES = ["Cargo.lock"]
+
+COMMON_JAVASCRIPT_LOCK_FILES = [
+    "package.json",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "bun.lock",
+]
+
+COMMON_RUBY_LOCK_FILES = ["Gemfile.lock"]
+COMMON_GO_LOCK_FILES = ["go.mod"]
+COMMON_DART_LOCK_FILES = ["pubspec.lock"]
+
+
+def process_lock_file(file_path: str) -> None:
+    """
+    Process a lock file and generate step_1.json SBOM.
+
+    Args:
+        file_path: Path to the lock file
+
+    Raises:
+        FileProcessingError: If lock file type is not supported
+        SBOMGenerationError: If SBOM generation fails
+    """
+    lock_file_name = Path(file_path).name
+
+    if lock_file_name in COMMON_PYTHON_LOCK_FILES:
+        logger.info("Detected Python lockfile")
+        _process_python_lock_file(file_path, lock_file_name)
+    elif lock_file_name in COMMON_RUST_LOCK_FILES:
+        logger.info("Detected Rust lockfile")
+        run_trivy_fs(lock_file=file_path, output_file="step_1.json")
+    elif lock_file_name in COMMON_JAVASCRIPT_LOCK_FILES:
+        logger.info("Detected JavaScript lockfile")
+        run_trivy_fs(lock_file=file_path, output_file="step_1.json")
+    elif lock_file_name in COMMON_RUBY_LOCK_FILES:
+        logger.info("Detected Ruby lockfile")
+        run_trivy_fs(lock_file=file_path, output_file="step_1.json")
+    elif lock_file_name in COMMON_GO_LOCK_FILES:
+        logger.info("Detected Go lockfile")
+        run_trivy_fs(lock_file=file_path, output_file="step_1.json")
+    elif lock_file_name in COMMON_DART_LOCK_FILES:
+        logger.info("Detected Dart lockfile")
+        run_trivy_fs(lock_file=file_path, output_file="step_1.json")
+    else:
+        raise FileProcessingError(f"{file_path} is not a recognized lock file type")
+
+
+def _process_python_lock_file(file_path: str, lock_file_name: str) -> None:
+    """
+    Process Python-specific lock files.
+
+    Args:
+        file_path: Path to the lock file
+        lock_file_name: Name of the lock file
+
+    Raises:
+        SBOMGenerationError: If SBOM generation fails
+        FileProcessingError: If lock file type is not recognized
+    """
+    if lock_file_name == "requirements.txt":
+        return_code = generate_sbom_from_python_lock_file(
+            lock_file=file_path,
+            lock_file_type="requirements",
+            output_file="step_1.json",
+        )
+    elif lock_file_name in ["poetry.lock", "pyproject.toml"]:
+        project_dir = str(Path(file_path).parent)
+        logger.info(f"Using Poetry project directory: {project_dir}")
+        return_code = generate_sbom_from_python_lock_file(
+            lock_file=project_dir,
+            lock_file_type="poetry",
+            output_file="step_1.json",
+        )
+    elif lock_file_name == "Pipfile.lock":
+        return_code = generate_sbom_from_python_lock_file(
+            lock_file=file_path,
+            lock_file_type="pipenv",
+            output_file="step_1.json",
+        )
+    else:
+        raise FileProcessingError(f"{lock_file_name} is not a recognized Python lock file")
+
+    if return_code != 0:
+        raise SBOMGenerationError(f"SBOM generation failed with return code {return_code}")
+
+
+# Configuration dataclass for better organization
+@dataclass
+class Config:
+    """Configuration settings for the SBOM action."""
+
+    token: str
+    component_id: str
+    sbom_file: Optional[str] = None
+    docker_image: Optional[str] = None
+    lock_file: Optional[str] = None
+    output_file: str = "sbom_output.json"
+    upload: bool = True
+    augment: bool = False
+    enrich: bool = False
+    override_sbom_metadata: bool = False
+    override_name: bool = False
+    sbom_version: Optional[str] = None
+
+    def validate(self) -> None:
+        """
+        Validate configuration settings.
+
+        Raises:
+            ConfigurationError: If configuration is invalid
+        """
+        if not self.token:
+            raise ConfigurationError("sbomify API token is not defined")
+        if not self.component_id:
+            raise ConfigurationError("Component ID is not defined")
+
+        inputs = [self.sbom_file, self.lock_file, self.docker_image]
+        if sum(bool(x) for x in inputs) > 1:
+            raise ConfigurationError("Please provide only one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
+        if not any(inputs):
+            raise ConfigurationError("Please provide one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
+
+
+def load_config() -> Config:
+    """
+    Load and validate configuration from environment variables.
+
+    Returns:
+        Validated configuration object
+
+    Raises:
+        ConfigurationError: If configuration is invalid
+    """
+    config = Config(
+        token=os.getenv("TOKEN", ""),
+        component_id=os.getenv("COMPONENT_ID", ""),
+        sbom_file=path_expansion(os.getenv("SBOM_FILE")) if os.getenv("SBOM_FILE") else None,
+        docker_image=os.getenv("DOCKER_IMAGE"),
+        lock_file=path_expansion(os.getenv("LOCK_FILE")) if os.getenv("LOCK_FILE") else None,
+        output_file=os.getenv("OUTPUT_FILE", "sbom_output.json"),
+        upload=evaluate_boolean(os.getenv("UPLOAD", "True")),
+        augment=evaluate_boolean(os.getenv("AUGMENT", "False")),
+        enrich=evaluate_boolean(os.getenv("ENRICH", "False")),
+        override_sbom_metadata=evaluate_boolean(os.getenv("OVERRIDE_SBOM_METADATA", "False")),
+        override_name=evaluate_boolean(os.getenv("OVERRIDE_NAME", "False")),
+        sbom_version=os.getenv("SBOM_VERSION"),
+    )
+
+    try:
+        config.validate()
+    except ConfigurationError as e:
+        logger.error(f"Configuration error: {e}")
+        sys.exit(1)
+
+    return config
+
+
+def setup_dependencies() -> None:
+    """
+    Check and install required dependencies.
+
+    Raises:
+        SBOMGenerationError: If dependency setup fails
+    """
+    try:
+        result = subprocess.run(
+            ["cyclonedx-py", "--version"],
+            capture_output=True,
+            check=True,
+            text=True,
+            shell=False,  # Security: explicit shell=False
+            timeout=30,  # Security: add timeout
+        )
+        logger.info(f"cyclonedx-py version: {result.stdout.strip()}")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"cyclonedx-py command failed: {e}")
+        logger.error(f"Command output: {e.stdout if hasattr(e, 'stdout') else 'No output'}")
+        log_command_error("cyclonedx-py", e.stderr if hasattr(e, "stderr") else "No error")
+    except FileNotFoundError:
+        logger.error("cyclonedx-py command not found. Make sure it's installed.")
+        try:
+            logger.info("Attempting to install cyclonedx-py...")
+            result = subprocess.run(
+                ["pip", "install", "cyclonedx-bom"],
+                check=True,
+                capture_output=True,
+                shell=False,  # Security: explicit shell=False
+                timeout=120,  # Security: add timeout for installation
+            )
+            logger.info("cyclonedx-py installed successfully.")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to install cyclonedx-py: {e}")
+            log_command_error("pip", e.stderr if hasattr(e, "stderr") else "No error")
+            raise SBOMGenerationError("Failed to install required cyclonedx-py dependency")
+    except subprocess.TimeoutExpired:
+        logger.error("cyclonedx-py version check timed out")
+        raise SBOMGenerationError("Dependency check timed out")
+
+
+def initialize_sentry() -> None:
+    """Initialize Sentry for error tracking."""
+    # TODO: Make DSN configurable via environment variable
+    sentry_dsn = os.getenv(
+        "SENTRY_DSN", "https://df0bcb2d9d6ae6f7564e1568a1a4625c@o4508342753230848.ingest.us.sentry.io/4508834660155392"
+    )
+
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        send_default_pii=True,
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+    )
+
+
+def path_expansion(path: str) -> str:
     """
     Takes a path/file and returns an absolute path.
     This function is needed to handle GitHub Action's
-    somewhat custom path management in side Docker.
-    """
-    relative_path = os.path.join(os.getcwd(), path)
-    workspace_relative_path = os.path.join("/github/workspace", path)
+    somewhat custom path management inside Docker.
 
-    if os.path.isfile(path):
-        print(f"[Info] Using input file '{path}'.")
-        return os.path.join(os.getcwd(), path)
-    elif os.path.isfile(relative_path):
-        print(f"[Info] Using input file '{relative_path}'.")
-        return relative_path
-    elif os.path.isfile(workspace_relative_path):
-        print(f"[Info] Using input file '{workspace_relative_path}'.")
-        return workspace_relative_path
+    Args:
+        path: Input path to expand
+
+    Returns:
+        Absolute path string
+
+    Raises:
+        FileProcessingError: If file is not found
+    """
+    current_dir = Path.cwd()
+    relative_path = current_dir / path
+    workspace_relative_path = Path("/github/workspace") / path
+
+    if Path(path).is_file():
+        logger.info(f"Using input file '{path}'.")
+        return str(current_dir / path)
+    elif relative_path.is_file():
+        logger.info(f"Using input file '{relative_path}'.")
+        return str(relative_path)
+    elif workspace_relative_path.is_file():
+        logger.info(f"Using input file '{workspace_relative_path}'.")
+        return str(workspace_relative_path)
     else:
-        print("[Error] Specified input file not found.")
-        sys.exit(1)
+        raise FileProcessingError("Specified input file not found")
 
 
-def get_last_sbom_from_last_step():
+def get_last_sbom_from_last_step() -> Optional[str]:
     """
-    Helper funtion to get the SBOM from the previous step.
+    Helper function to get the SBOM from the previous step.
+
+    Returns:
+        Path to the most recent SBOM file, or None if not found
     """
     steps = ["step_3.json", "step_2.json", "step_1.json"]
     for file in steps:
-        if os.path.isfile(file):
+        if Path(file).is_file():
             return file
-    return
+    return None
 
 
-def evaluate_boolean(value):
+def evaluate_boolean(value: str) -> bool:
+    """
+    Evaluate string values as boolean.
+
+    Args:
+        value: String value to evaluate
+
+    Returns:
+        Boolean result
+    """
     return value.lower() in ["true", "yes", "yeah", "1"]
 
 
-def validate_sbom(file_path):
+def validate_sbom(file_path: str) -> str:
+    """
+    Validate SBOM file and detect format.
+
+    Args:
+        file_path: Path to SBOM file
+
+    Returns:
+        SBOM format ('cyclonedx' or 'spdx')
+
+    Raises:
+        SBOMValidationError: If SBOM is invalid or format is unsupported
+    """
     try:
-        with open(file_path) as f:
+        with Path(file_path).open() as f:
             data = json.load(f)
     except json.JSONDecodeError:
-        print("[Error] Invalid JSON.")
-        sys.exit(1)
+        raise SBOMValidationError("Invalid JSON format")
+    except FileNotFoundError:
+        raise SBOMValidationError(f"SBOM file not found: {file_path}")
+
     # Detect artifact type
     if data.get("bomFormat") == "CycloneDX":
-        print("[Info] Detected CycloneDX SBOM.")
+        logger.info("Detected CycloneDX SBOM.")
         return "cyclonedx"
     elif data.get("spdxVersion") is not None:
-        print("[Info] Detected SPDX SBOM.")
+        logger.info("Detected SPDX SBOM.")
         return "spdx"
     else:
-        print("[Error] Neither CycloneDX nor SPDX format found in JSON file.")
-        sys.exit(1)
+        raise SBOMValidationError("Neither CycloneDX nor SPDX format found in JSON file")
 
 
 def get_spec_version(file_format: Literal["cyclonedx", "spdx"], json_data: dict) -> str:
@@ -138,12 +407,26 @@ def log_command_error(command_name, stderr):
         stderr: The stderr output from the command
     """
     if stderr:
-        print(f"[{command_name}] error: {stderr.strip()}")
+        logger.error(f"[{command_name}] error: {stderr.strip()}")
 
 
-def generate_sbom_from_python_lock_file(lock_file, lock_file_type, output_file, schema_version="1.6"):
+def generate_sbom_from_python_lock_file(
+    lock_file: str, lock_file_type: str, output_file: str, schema_version: str = "1.6"
+) -> int:
     """
     Takes a Python lockfile and generates a CycloneDX SBOM.
+
+    Args:
+        lock_file: Path to the lock file
+        lock_file_type: Type of lock file (requirements, poetry, pipenv)
+        output_file: Path to save the generated SBOM
+        schema_version: CycloneDX schema version to use
+
+    Returns:
+        Process return code
+
+    Raises:
+        SBOMGenerationError: If SBOM generation fails
     """
     cmd = [
         "cyclonedx-py",
@@ -158,22 +441,85 @@ def generate_sbom_from_python_lock_file(lock_file, lock_file_type, output_file, 
     if lock_file_type == "poetry":
         cmd += ["--no-dev"]
 
-    print(f"[Info] Running command: {' '.join(cmd)}")
+    logger.info(f"Running command: {' '.join(cmd)}")
 
     try:
-        result = subprocess.run(cmd, capture_output=True, check=True, text=True)
-        print(f"[Info] Command completed successfully with return code {result.returncode}")
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            check=True,
+            text=True,
+            shell=False,  # Security: explicit shell=False
+            timeout=300,  # Security: 5 minute timeout for SBOM generation
+        )
+        logger.info(f"Command completed successfully with return code {result.returncode}")
         return result.returncode
     except subprocess.CalledProcessError as e:
-        print(f"[Error] Command failed with return code {e.returncode}")
-        print(f"[Error] Command output: {e.stdout}")
+        logger.error(f"Command failed with return code {e.returncode}")
+        logger.error(f"Command output: {e.stdout}")
         log_command_error("cyclonedx-py", e.stderr)
-        raise
+        raise SBOMGenerationError(f"cyclonedx-py failed with return code {e.returncode}")
+    except subprocess.TimeoutExpired:
+        logger.error("SBOM generation timed out")
+        raise SBOMGenerationError("SBOM generation timed out after 5 minutes")
 
 
-def run_trivy_fs(lock_file, output_file):
+def run_command_with_json_output(cmd: list, command_name: str, output_file: str) -> int:
     """
-    Takes a supported lockfile and generates a CycloneDX SBOM.
+    Generic function to run a command that outputs JSON and save it to a file.
+
+    Args:
+        cmd: Command to run as a list
+        command_name: Name of the command for error reporting
+        output_file: Path to save the JSON output
+
+    Returns:
+        Process return code
+
+    Raises:
+        SBOMGenerationError: If command fails or output is invalid JSON
+    """
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            check=True,
+            text=True,
+            shell=False,  # Security: explicit shell=False
+            timeout=600,  # Security: 10 minute timeout
+        )
+    except subprocess.CalledProcessError as e:
+        logger.error(f"{command_name} command failed with error: {e}")
+        log_command_error(command_name, e.stderr)
+        raise SBOMGenerationError(f"{command_name} command failed with return code {e.returncode}")
+    except subprocess.TimeoutExpired:
+        logger.error(f"{command_name} command timed out")
+        raise SBOMGenerationError(f"{command_name} command timed out")
+
+    if result.returncode == 0:
+        try:
+            json_data = json.loads(result.stdout)
+            with Path(output_file).open("w") as f:
+                json.dump(json_data, f, indent=4)
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON output from {command_name}: {e}")
+            raise SBOMGenerationError(f"Invalid JSON output from {command_name}")
+    else:
+        log_command_error(command_name, result.stderr)
+
+    return result.returncode
+
+
+def run_trivy_fs(lock_file: str, output_file: str) -> int:
+    """
+    Takes a supported lockfile and generates a CycloneDX SBOM using Trivy.
+
+    Args:
+        lock_file: Path to the lock file
+        output_file: Path to save the generated SBOM
+
+    Returns:
+        Process return code
     """
     cmd = [
         "trivy",
@@ -185,38 +531,19 @@ def run_trivy_fs(lock_file, output_file):
         "cyclonedx",
     ]
 
-    try:
-        result = subprocess.run(cmd, capture_output=True, check=True, text=True)
-    except subprocess.CalledProcessError as e:
-        print(f"[Error] Command failed with error: {e}")
-        log_command_error("trivy", e.stderr)
-        sys.exit(1)
-
-    # Check if returncode is zero
-    if result.returncode == 0:
-        # Get the output
-        output = result.stdout
-
-        # Validate JSON
-        try:
-            json_data = json.loads(output)  # This will raise a ValueError if it's not valid JSON
-
-            # Write the output to a file if it's valid JSON
-            with open(output_file, "w") as f:
-                json.dump(json_data, f, indent=4)  # Write it as formatted JSON to the file
-
-        except json.JSONDecodeError as e:
-            print(f"[Error] Invalid JSON: {e}")
-    else:
-        # If the command didn't fail with an exception but returned non-zero
-        log_command_error("trivy", result.stderr)
-
-    return result.returncode
+    return run_command_with_json_output(cmd, "trivy", output_file)
 
 
-def run_trivy_docker_image(docker_image, output_file):
+def run_trivy_docker_image(docker_image: str, output_file: str) -> int:
     """
-    Takes a Docker image and generates a CycloneDX SBOM.
+    Takes a Docker image and generates a CycloneDX SBOM using Trivy.
+
+    Args:
+        docker_image: Docker image name/tag
+        output_file: Path to save the generated SBOM
+
+    Returns:
+        Process return code
     """
     cmd = [
         "trivy",
@@ -230,76 +557,26 @@ def run_trivy_docker_image(docker_image, output_file):
         docker_image,
     ]
 
-    try:
-        result = subprocess.run(cmd, capture_output=True, check=True, text=True)
-    except subprocess.CalledProcessError as e:
-        print(f"[Error] Command failed with error: {e}")
-        log_command_error("trivy", e.stderr)
-        sys.exit(1)
-
-    # Check if returncode is zero
-    if result.returncode == 0:
-        # Get the output
-        output = result.stdout
-
-        # Validate JSON
-        try:
-            json_data = json.loads(output)  # This will raise a ValueError if it's not valid JSON
-
-            # Write the output to a file if it's valid JSON
-            with open(output_file, "w") as f:
-                json.dump(json_data, f, indent=4)  # Write it as formatted JSON to the file
-
-        except json.JSONDecodeError as e:
-            print(f"[Error] Invalid JSON: {e}")
-    else:
-        # If the command didn't fail with an exception but returned non-zero
-        log_command_error("trivy", result.stderr)
-
-    return result.returncode
+    return run_command_with_json_output(cmd, "trivy", output_file)
 
 
-def enrich_sbom_with_parley(input_file, output_file):
+def enrich_sbom_with_parley(input_file: str, output_file: str) -> int:
     """
-    Takes a path to an SBOM as input and returns an
-    enriched SBOM as the output.
-    """
+    Takes a path to an SBOM as input and returns an enriched SBOM as the output.
 
+    Args:
+        input_file: Path to input SBOM file
+        output_file: Path to save enriched SBOM
+
+    Returns:
+        Process return code
+    """
     cmd = ["parlay", "ecosystems", "enrich", input_file]
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, check=True, text=True)
-
-    except subprocess.CalledProcessError as e:
-        print(f"[Error] Command failed with error: {e}")
-        log_command_error("parlay", e.stderr)
-        sys.exit(1)
-
-    # Check if returncode is zero
-    if result.returncode == 0:
-        # Get the output
-        output = result.stdout
-
-        # Validate JSON
-        try:
-            json_data = json.loads(output)  # This will raise a ValueError if it's not valid JSON
-
-            # Write the output to a file if it's valid JSON
-            with open(output_file, "w") as f:
-                json.dump(json_data, f, indent=4)  # Write it as formatted JSON to the file
-
-        except json.JSONDecodeError as e:
-            print(f"[Error] Invalid JSON: {e}")
-
-    else:
-        print(f"[Error] Enrichment command failed with return code {result.returncode}.")
-        log_command_error("parlay", result.stderr)
-        sys.exit(1)
-
-    return result.returncode
+    return run_command_with_json_output(cmd, "parlay", output_file)
 
 
-def print_banner():
+def print_banner() -> None:
+    """Print the sbomify banner."""
     ascii_art = """
 
       _                     _  __
@@ -312,360 +589,239 @@ def print_banner():
  The SBOM hub for secure          |___/
  sharing and distribution.
 """
-    print(ascii_art)
+    logger.info(ascii_art)
 
 
-def main():
+def main() -> None:
+    """Main entry point for the sbomify action."""
     print_banner()
 
-    # Check if cyclonedx-py is available
+    # Setup dependencies
     try:
-        result = subprocess.run(
-            ["cyclonedx-py", "--version"],
-            capture_output=True,
-            check=True,
-            text=True,
-        )
-        print(f"[Info] cyclonedx-py version: {result.stdout.strip()}")
-    except subprocess.CalledProcessError as e:
-        print(f"[Error] cyclonedx-py command failed: {e}")
-        print(f"[Error] Command output: {e.stdout if hasattr(e, 'stdout') else 'No output'}")
-        log_command_error("cyclonedx-py", e.stderr if hasattr(e, "stderr") else "No error")
-    except FileNotFoundError:
-        print("[Error] cyclonedx-py command not found. Make sure it's installed.")
-        # Try to install it
-        try:
-            print("[Info] Attempting to install cyclonedx-py...")
-            result = subprocess.run(
-                ["pip", "install", "cyclonedx-bom"],
-                check=True,
-                capture_output=True,
-            )
-            print("[Info] cyclonedx-py installed successfully.")
-        except subprocess.CalledProcessError as e:
-            print(f"[Error] Failed to install cyclonedx-py: {e}")
-            log_command_error("pip", e.stderr if hasattr(e, "stderr") else "No error")
-            sys.exit(1)
-
-    # Make sure required variables are defined
-    TOKEN = os.getenv("TOKEN")
-    if not TOKEN:
-        print("[Error] sbomify API token is not defined. Exiting.")
+        setup_dependencies()
+    except SBOMGenerationError as e:
+        logger.error(f"Dependency setup failed: {e}")
         sys.exit(1)
 
-    COMPONENT_ID = os.getenv("COMPONENT_ID")
-    if not COMPONENT_ID:
-        print("[Error] Component ID is not defined. Exiting.")
-        sys.exit(1)
+    # Initialize Sentry
+    initialize_sentry()
 
-    if os.getenv("SBOM_FILE"):
-        SBOM_FILE = path_expansion(os.getenv("SBOM_FILE"))
-    else:
-        SBOM_FILE = None
+    config = load_config()
 
-    if os.getenv("DOCKER_IMAGE", False):
-        DOCKER_IMAGE = os.getenv("DOCKER_IMAGE")
-    else:
-        DOCKER_IMAGE = None
-
-    if os.getenv("LOCK_FILE"):
-        LOCK_FILE = path_expansion(os.getenv("LOCK_FILE"))
-    else:
-        LOCK_FILE = None
-
-    # Add some duplication logic
-    if SBOM_FILE and LOCK_FILE and DOCKER_IMAGE:
-        print("[Error] Please provide SBOM_FILE of LOCK_FILE, not both.")
-        sys.exit(1)
-
-    OUTPUT_FILE = os.getenv("OUTPUT_FILE", "sbom_output.json")
-
-    UPLOAD = evaluate_boolean(os.getenv("UPLOAD", "True"))
-    AUGMENT = evaluate_boolean(os.getenv("AUGMENT", "False"))
-    ENRICH = evaluate_boolean(os.getenv("ENRICH", "False"))
-    OVERRIDE_SBOM_METADATA = evaluate_boolean(os.getenv("OVERRIDE_SBOM_METADATA", "False"))
-    OVERRIDE_NAME = evaluate_boolean(os.getenv("OVERRIDE_NAME", "False"))
-    SBOM_VERSION = os.getenv("SBOM_VERSION", None)
-
-    # Init Sentry
-    sentry_sdk.init(
-        dsn="https://df0bcb2d9d6ae6f7564e1568a1a4625c@o4508342753230848.ingest.us.sentry.io/4508834660155392",
-        # Add data like request headers and IP for users,
-        # see https://docs.sentry.io/platforms/python/data-management/data-collected/
-        # for more info
-        send_default_pii=True,
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for tracing.
-        traces_sample_rate=1.0,
-        # Set profiles_sample_rate to 1.0 to profile 100%
-        # of sampled transactions.
-        # We recommend adjusting this value in production.
-        profiles_sample_rate=1.0,
-    )
-
-    # Step 1
+    # Step 1: SBOM Generation/Validation
+    logger.info("Starting SBOM processing workflow")
 
     # Check if either SBOM_FILE or LOCK_FILE exists
-    if SBOM_FILE:
-        FILE = SBOM_FILE
+    if config.sbom_file:
+        FILE = config.sbom_file
         FILE_TYPE = "SBOM"
-    elif LOCK_FILE:
-        FILE = LOCK_FILE
+    elif config.lock_file:
+        FILE = config.lock_file
         FILE_TYPE = "LOCK_FILE"
-    elif DOCKER_IMAGE:
+    elif config.docker_image:
         FILE_TYPE = None
         pass
     else:
-        print("[Error] Neither SBOM file, Docker image nor lockfile found.")
+        logger.error("Neither SBOM file, Docker image nor lockfile found.")
         sys.exit(1)
 
-    # If SBOM_FILE is found, make sure it's a JSON file and detect artifact type
-    if FILE_TYPE == "SBOM":
-        FORMAT = validate_sbom(SBOM_FILE)
-        shutil.copy(SBOM_FILE, "step_1.json")
-    elif DOCKER_IMAGE:
-        print("[Info] Detected Docker Image as input")
-        run_trivy_docker_image(docker_image=DOCKER_IMAGE, output_file="step_1.json")
-    elif FILE_TYPE == "LOCK_FILE":
-        LOCK_FILE_NAME = os.path.basename(FILE)
-
-        # Common Python lock file names
-        COMMON_PYTHON_LOCK_FILES = [
-            "Pipfile.lock",
-            "poetry.lock",
-            "pyproject.toml",
-            "requirements.txt",
-        ]
-
-        # Common Rust lock file names
-        COMMON_RUST_LOCK_FILES = [
-            "Cargo.lock",
-        ]
-
-        # Common JavaScript lock file names
-        COMMON_JAVASCRIPT_LOCK_FILES = [
-            "package.json",
-            "package-lock.json",
-            "yarn.lock",
-            "pnpm-lock.yaml",
-            "bun.lock",
-        ]
-
-        # Common Ruby lock file names
-        COMMON_RUBY_LOCK_FILES = [
-            "Gemfile.lock",
-        ]
-
-        # Common Go lock file names
-        COMMON_GO_LOCK_FILES = [
-            "go.mod",
-        ]
-
-        # Common Dart lock file names
-        COMMON_DART_LOCK_FILES = [
-            "pubspec.lock",
-        ]
-
-        # Check if the LOCK_FILE is a recognized Python lock file
-        if os.path.basename(FILE) in COMMON_PYTHON_LOCK_FILES:
-            print("[Info] Detected Python lockfile")
-            # Provide the appropriate parser
-            if LOCK_FILE_NAME == "requirements.txt":
-                sbom_generation = generate_sbom_from_python_lock_file(
-                    lock_file=LOCK_FILE,
-                    lock_file_type="requirements",
-                    output_file="step_1.json",
-                )
-            elif LOCK_FILE_NAME == "poetry.lock" or LOCK_FILE_NAME == "pyproject.toml":
-                # Poetry doesn't actually take the lock file, but rather the folder
-                project_dir = os.path.dirname(LOCK_FILE)
-                print(f"[Info] Using Poetry project directory: {project_dir}")
-                try:
-                    sbom_generation = generate_sbom_from_python_lock_file(
-                        lock_file=project_dir,
-                        lock_file_type="poetry",
-                        output_file="step_1.json",
-                    )
-                except subprocess.CalledProcessError as e:
-                    print(f"[Error] SBOM Generation failed: {str(e)}")
-                    print(f"[Error] Command output: {e.stdout if hasattr(e, 'stdout') else 'No output'}")
-                    log_command_error("cyclonedx-py", e.stderr if hasattr(e, "stderr") else "No error")
-                    sys.exit(1)
-            elif LOCK_FILE_NAME == "Pipfile.lock":
-                sbom_generation = generate_sbom_from_python_lock_file(
-                    lock_file=LOCK_FILE,
-                    lock_file_type="pipenv",
-                    output_file="step_1.json",
-                )
-
-            else:
-                print(f"[Warning] {FILE} is not a recognized Python lock file.")
-                sys.exit(1)
-
-            if not sbom_generation == 0:
-                print("[Error]: SBOM Generation failed.")
-
-        # Rust
-        elif os.path.basename(FILE) in COMMON_RUST_LOCK_FILES:
-            print("[Info] Detected Rust lockfile")
-            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
-
-        # JavaScript / Node.JS
-        elif os.path.basename(FILE) in COMMON_JAVASCRIPT_LOCK_FILES:
-            print("[Info] Detected JavaScript lockfile")
-            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
-
-        # Ruby
-        elif os.path.basename(FILE) in COMMON_RUBY_LOCK_FILES:
-            print("[Info] Detected Ruby lockfile")
-            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
-
-        # Go
-        elif os.path.basename(FILE) in COMMON_GO_LOCK_FILES:
-            print("[Info] Detected Go lockfile")
-            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
-
-        # Dart
-        elif os.path.basename(FILE) in COMMON_DART_LOCK_FILES:
-            print("[Info] Detected Dart lockfile")
-            run_trivy_fs(lock_file=LOCK_FILE, output_file="step_1.json")
+    # Process input based on type
+    try:
+        if FILE_TYPE == "SBOM":
+            FORMAT = validate_sbom(FILE)
+            shutil.copy(FILE, "step_1.json")
+        elif config.docker_image:
+            logger.info("Detected Docker Image as input")
+            run_trivy_docker_image(docker_image=config.docker_image, output_file="step_1.json")
+        elif FILE_TYPE == "LOCK_FILE":
+            process_lock_file(FILE)
         else:
-            print(f"[Error] {FILE} is not a recognized lock file.")
+            logger.error("Unrecognized FILE_TYPE.")
             sys.exit(1)
-
-    else:
-        print("[Error] Unrecognized FILE_TYPE.")
+    except (FileProcessingError, SBOMGenerationError, SBOMValidationError) as e:
+        logger.error(f"Step 1 failed: {e}")
         sys.exit(1)
 
     # Set the SBOM format based on the output
-    FORMAT = validate_sbom("step_1.json")
+    try:
+        FORMAT = validate_sbom("step_1.json")
+    except SBOMValidationError as e:
+        logger.error(f"Generated SBOM validation failed: {e}")
+        sys.exit(1)
 
-    # Step 2
-    if AUGMENT:
-        """
-        Enrich SBOM with vendor/license information
-        from sbomify's backend.
-        """
-        sbom_input_file = get_last_sbom_from_last_step()
-        sbom_data = json.loads(open(sbom_input_file).read())
+    # Step 2: Augmentation
+    if config.augment:
+        logger.info("Starting SBOM augmentation")
+        try:
+            sbom_input_file = get_last_sbom_from_last_step()
+            if not sbom_input_file:
+                raise FileProcessingError("No SBOM file found from previous step")
 
-        # Check if format is supported for augmentation
-        if FORMAT == "spdx":
-            print("[Warning] SBOM augmentation is not supported for SPDX format. Skipping augmentation.")
-            print("[Info] Only CycloneDX format is supported for metadata augmentation.")
-        elif FORMAT == "cyclonedx":
-            # Make sure we have the mandatory fields
-            # Ensure 'metadata' and 'component' keys exist in sbom_data
-            metadata = sbom_data.get("metadata", {})
-            component = metadata.get("component", {})
+            with Path(sbom_input_file).open() as f:
+                sbom_data = json.load(f)
 
-            # Check if 'name' and 'type' are missing, and add them if necessary
-            if "name" not in component:
-                component["name"] = os.path.basename(FILE)
+            # Check if format is supported for augmentation
+            if FORMAT == "spdx":
+                logger.warning("SBOM augmentation is not supported for SPDX format. Skipping augmentation.")
+                logger.info("Only CycloneDX format is supported for metadata augmentation.")
+            elif FORMAT == "cyclonedx":
+                # Make sure we have the mandatory fields
+                # Ensure 'metadata' and 'component' keys exist in sbom_data
+                metadata = sbom_data.get("metadata", {})
+                component = metadata.get("component", {})
 
-            # Default this to "application" if nothing is set
-            if "type" not in component:
-                component["type"] = "application"
+                # Check if 'name' and 'type' are missing, and add them if necessary
+                if "name" not in component:
+                    component["name"] = Path(FILE).name if FILE else "unknown"
 
-            # Update the main sbom_data dictionary
-            sbom_data["metadata"]["component"] = component
+                # Default this to "application" if nothing is set
+                if "type" not in component:
+                    component["type"] = "application"
 
-            # Get format version from sbom_file
-            SPEC_VERSION = get_spec_version(FORMAT, sbom_data)
-            sbom_metadata = get_metadata(FORMAT, sbom_data)
+                # Update the main sbom_data dictionary
+                sbom_data["metadata"]["component"] = component
 
-            # Updated URL structure for v0.12+
-            url = SBOMIFY_API_BASE + f"/sboms/artifact/cyclonedx/{SPEC_VERSION}/{COMPONENT_ID}/metadata"
+                # Get format version from sbom_file
+                SPEC_VERSION = get_spec_version(FORMAT, sbom_data)
+                sbom_metadata = get_metadata(FORMAT, sbom_data)
+
+                # Updated URL structure for v0.12+
+                url = SBOMIFY_API_BASE + f"/sboms/artifact/cyclonedx/{SPEC_VERSION}/{config.component_id}/metadata"
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {config.token}",
+                }
+
+                query_params = {}
+
+                if config.sbom_version:
+                    query_params["sbom_version"] = config.sbom_version
+
+                if config.override_name:
+                    query_params["override_name"] = True
+
+                if config.override_sbom_metadata:
+                    query_params["override_metadata"] = True
+
+                try:
+                    response = requests.post(
+                        url,
+                        headers=headers,
+                        json=sbom_metadata,
+                        params=query_params,
+                        timeout=60,  # Security: add timeout
+                    )
+                except requests.exceptions.ConnectionError:
+                    raise APIError("Failed to connect to sbomify API")
+                except requests.exceptions.Timeout:
+                    raise APIError("API request timed out")
+
+                if not response.ok:
+                    err_msg = f"Failed to augment SBOM file via sbomify. [{response.status_code}]"
+                    if response.headers.get("content-type") == "application/json":
+                        try:
+                            error_data = response.json()
+                            if "detail" in error_data:
+                                err_msg += f" - {error_data['detail']}"
+                        except (ValueError, KeyError):
+                            pass
+
+                    raise APIError(err_msg)
+
+                set_metadata(FORMAT, sbom_data, response.json())
+                with Path("step_2.json").open("w") as f:
+                    json.dump(sbom_data, f)
+
+                logger.info("SBOM file augmented successfully.")
+            else:
+                raise SBOMValidationError(f"Unsupported format '{FORMAT}' for augmentation")
+
+        except (FileProcessingError, APIError, SBOMValidationError) as e:
+            logger.error(f"Step 2 (augmentation) failed: {e}")
+            sys.exit(1)
+
+    # Step 3: Enrichment
+    if config.enrich:
+        logger.info("Starting SBOM enrichment")
+        try:
+            sbom_input_file = get_last_sbom_from_last_step()
+            if not sbom_input_file:
+                raise FileProcessingError("No SBOM file found from previous step")
+
+            enrich_sbom_with_parley(sbom_input_file, "step_3.json")
+            validate_sbom("step_3.json")
+        except (FileProcessingError, SBOMGenerationError, SBOMValidationError) as e:
+            logger.error(f"Step 3 (enrichment) failed: {e}")
+            sys.exit(1)
+
+    # Finalize output
+    try:
+        final_sbom_file = get_last_sbom_from_last_step()
+        if not final_sbom_file:
+            raise FileProcessingError("No SBOM file found to finalize")
+
+        # Get the parent directory of the file path
+        parent_dir = Path(config.output_file).parent
+
+        # Check if the parent directory exists; if not, create it recursively
+        if parent_dir != Path(".") and not parent_dir.exists():
+            parent_dir.mkdir(parents=True, exist_ok=True)
+
+        # Clean up and write final SBOM
+        shutil.copy(final_sbom_file, config.output_file)
+
+        # Clean up temporary files
+        while get_last_sbom_from_last_step():
+            temp_file = get_last_sbom_from_last_step()
+            Path(temp_file).unlink()
+
+        logger.info(f"SBOM processing completed. Output saved to: {config.output_file}")
+
+    except (FileProcessingError, OSError) as e:
+        logger.error(f"Failed to finalize output: {e}")
+        sys.exit(1)
+
+    # Upload if requested
+    if config.upload:
+        logger.info("Starting SBOM upload")
+        try:
+            # Execute the POST request to upload the SBOM file
+            url = SBOMIFY_API_BASE + f"/sboms/artifact/{FORMAT}/{config.component_id}"
             headers = {
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {TOKEN}",
+                "Authorization": f"Bearer {config.token}",
             }
 
-            query_params = {}
-
-            if SBOM_VERSION:
-                query_params["sbom_version"] = SBOM_VERSION
-
-            if OVERRIDE_NAME:
-                query_params["override_name"] = True
-
-            if OVERRIDE_SBOM_METADATA:
-                query_params["override_metadata"] = True
+            with Path(config.output_file).open() as f:
+                sbom_data = f.read()
 
             try:
-                response = requests.post(url, headers=headers, json=sbom_metadata, params=query_params)
+                response = requests.post(
+                    url,
+                    headers=headers,
+                    data=sbom_data,
+                    timeout=120,  # Security: add timeout for upload
+                )
             except requests.exceptions.ConnectionError:
-                print("[Error] Connection error: Failed to connect to sbomify.")
-                sys.exit(1)
+                raise APIError("Failed to connect to sbomify API for upload")
+            except requests.exceptions.Timeout:
+                raise APIError("SBOM upload timed out")
 
             if not response.ok:
-                err_msg = f"[Error] Failed to augment SBOM file via sbomify. [{response.status_code}]"
-                if response.headers.get("content-type") == "application/json":
-                    try:
-                        error_data = response.json()
-                        if "detail" in error_data:
-                            err_msg += f" - {error_data['detail']}"
-                    except (ValueError, KeyError):
-                        pass
+                err_msg = f"Failed to upload SBOM file. [{response.status_code}]"
+                try:
+                    if response.json() and "detail" in response.json():
+                        err_msg += f"-[{response.json()['detail']}]"
+                except (ValueError, json.JSONDecodeError):
+                    pass
 
-                print(err_msg)
-                sys.exit(1)
+                raise APIError(err_msg)
+            else:
+                logger.info("SBOM file uploaded successfully.")
 
-            set_metadata(FORMAT, sbom_data, response.json())
-            with open("step_2.json", "w") as f:
-                json.dump(sbom_data, f)
-
-            print("[Info] SBOM file augmented successfully.")
-        else:
-            print(f"[Error] Unsupported format '{FORMAT}' for augmentation.")
+        except (APIError, FileProcessingError) as e:
+            logger.error(f"Upload failed: {e}")
             sys.exit(1)
-
-    # Step 3
-    if ENRICH:
-        """
-        Enrich SBOM using Snyk's Parlay
-        """
-        enrich_sbom_with_parley(get_last_sbom_from_last_step(), "step_3.json")
-        validate_sbom("step_3.json")
-
-    # Get the parent directory of the file path
-    parent_dir = os.path.dirname(OUTPUT_FILE)
-
-    # Check if the parent directory exists; if not, create it recursively
-    if parent_dir and not os.path.exists(parent_dir):
-        os.makedirs(parent_dir)
-
-    # Clean up and write final SBOM
-    shutil.copy(get_last_sbom_from_last_step(), OUTPUT_FILE)
-    while get_last_sbom_from_last_step():
-        os.remove(get_last_sbom_from_last_step())
-
-    if UPLOAD:
-        # Execute the POST request to upload the SBOM file
-        url = SBOMIFY_API_BASE + f"/sboms/artifact/{FORMAT}/{COMPONENT_ID}"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {TOKEN}",
-        }
-
-        with open(OUTPUT_FILE) as f:
-            sbom_data = f.read()
-
-        try:
-            response = requests.post(url, headers=headers, data=sbom_data)
-        except requests.exceptions.ConnectionError:
-            print("[Error] Connection error: Failed to connect to sbomify.")
-            sys.exit(1)
-
-        if not response.ok:
-            err_msg = f"[Error] Failed to upload SBOM file. [{response.status_code}]"
-            if response.json() and "detail" in response.json():
-                err_msg += f"-[{response.json()['detail']}]"
-
-            print(err_msg)
-            sys.exit(1)
-        else:
-            print("[Info] SBOM file uploaded successfully.")
 
 
 if __name__ == "__main__":
