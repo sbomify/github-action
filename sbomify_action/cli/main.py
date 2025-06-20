@@ -586,8 +586,8 @@ def _enrich_cyclonedx_sbom(original_json: dict, bom: Bom, config: "Config") -> t
 
         supplier_data = augmentation_data["supplier"]
 
-        # Create supplier entity
-        supplier = OrganizationalEntity(
+        # Create backend supplier entity
+        backend_supplier = OrganizationalEntity(
             name=supplier_data.get("name"),
             urls=supplier_data.get("url", [])
             if isinstance(supplier_data.get("url"), list)
@@ -601,9 +601,55 @@ def _enrich_cyclonedx_sbom(original_json: dict, bom: Bom, config: "Config") -> t
                 contact = OrganizationalContact(
                     name=contact_data.get("name"), email=contact_data.get("email"), phone=contact_data.get("phone")
                 )
-                supplier.contacts.add(contact)
+                backend_supplier.contacts.add(contact)
 
-        bom.metadata.supplier = supplier
+        # Merge with existing supplier or replace based on preference
+        if bom.metadata.supplier and not config.override_sbom_metadata:
+            # Preserve existing supplier, merge with backend data
+            existing_supplier = bom.metadata.supplier
+
+            # Keep existing name if prefer_existing, otherwise use backend name
+            merged_name = existing_supplier.name if existing_supplier.name else backend_supplier.name
+
+            # Merge URLs
+            merged_urls = set()
+            if existing_supplier.urls:
+                # Convert XsUri objects to strings
+                for url in existing_supplier.urls:
+                    merged_urls.add(str(url))
+            if backend_supplier.urls:
+                # Backend URLs should already be strings
+                for url in backend_supplier.urls:
+                    merged_urls.add(str(url))
+
+            # Merge contacts (avoid duplicates by email)
+            merged_contacts = set()
+            existing_emails = set()
+
+            # Add existing contacts first
+            if existing_supplier.contacts:
+                for contact in existing_supplier.contacts:
+                    merged_contacts.add(contact)
+                    if contact.email:
+                        existing_emails.add(contact.email)
+
+            # Add backend contacts (no email duplicates)
+            if backend_supplier.contacts:
+                for contact in backend_supplier.contacts:
+                    if not contact.email or contact.email not in existing_emails:
+                        merged_contacts.add(contact)
+
+            # Create merged supplier
+            merged_supplier = OrganizationalEntity(
+                name=merged_name,
+                urls=list(merged_urls),
+                contacts=list(merged_contacts),
+            )
+
+            bom.metadata.supplier = merged_supplier
+        else:
+            # Use backend supplier (either no existing supplier or override_sbom_metadata=True)
+            bom.metadata.supplier = backend_supplier
 
     # Add authors if present
     if "authors" in augmentation_data:
@@ -623,7 +669,12 @@ def _enrich_cyclonedx_sbom(original_json: dict, bom: Bom, config: "Config") -> t
                 bom.metadata.licenses.add(license_obj)
 
     # Apply enrichment back to JSON with intelligent merging
-    updated_json = _apply_cyclonedx_metadata_to_json(original_json, bom)
+    # Use override_sbom_metadata to control merging preference
+    prefer_backend = config.override_sbom_metadata  # If True, backend data takes precedence
+    updated_json = _apply_cyclonedx_metadata_to_json(original_json, bom, prefer_backend)
+
+    # Apply local SBOM overrides (component name, version)
+    bom, updated_json = _apply_local_sbom_overrides(bom, updated_json, config, augmentation_data)
 
     logger.info("Successfully enriched CycloneDX SBOM with backend metadata")
     return bom, updated_json
@@ -660,12 +711,8 @@ def _fetch_backend_metadata(config: "Config") -> dict:
     }
 
     query_params = {}
-    if config.sbom_version:
-        query_params["sbom_version"] = config.sbom_version
-    if config.override_name:
-        query_params["override_name"] = True
-    if config.override_sbom_metadata:
-        query_params["override_metadata"] = True
+    # Note: sbom_version, override_name, and override_sbom_metadata are for local SBOM modification,
+    # not server-side query parameters. The API only returns supplier, authors, and licenses metadata.
 
     try:
         response = requests.get(
@@ -716,7 +763,53 @@ def save_sbom_to_file(original_json: dict, file_path: str) -> None:
         raise SBOMGenerationError(f"Failed to save SBOM to {file_path}: {e}")
 
 
-def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom) -> dict:
+def _apply_local_sbom_overrides(
+    bom: Bom, original_json: dict, config: "Config", augmentation_data: dict = None
+) -> tuple[Bom, dict]:
+    """
+    Apply local SBOM overrides based on configuration.
+
+    Args:
+        bom: The Bom object to modify
+        original_json: Original JSON dict
+        config: Configuration with override settings
+        augmentation_data: Backend metadata to apply
+
+    Returns:
+        Tuple of (modified Bom, updated JSON)
+    """
+    # Apply component name override if specified
+    if config.override_name and hasattr(bom.metadata, "component") and bom.metadata.component:
+        # Use component name from backend metadata if available
+        if augmentation_data and "name" in augmentation_data:
+            backend_component_name = augmentation_data["name"]
+            bom.metadata.component.name = backend_component_name
+            logger.info(f"Overrode component name to: {backend_component_name}")
+        else:
+            logger.warning("OVERRIDE_NAME requested but component name not available in backend metadata")
+
+    # Apply component version override if specified
+    if config.sbom_version and hasattr(bom.metadata, "component") and bom.metadata.component:
+        from cyclonedx.model.component import Component, ComponentType
+
+        # Update the component version
+        if bom.metadata.component:
+            bom.metadata.component.version = config.sbom_version
+        else:
+            # Create component if it doesn't exist
+            component_name = original_json.get("metadata", {}).get("component", {}).get("name", "unknown")
+            bom.metadata.component = Component(
+                name=component_name, type=ComponentType.APPLICATION, version=config.sbom_version
+            )
+        logger.info(f"Set component version to {config.sbom_version}")
+
+    # Apply changes back to JSON
+    updated_json = _apply_cyclonedx_metadata_to_json(original_json, bom, True)
+
+    return bom, updated_json
+
+
+def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_backend: bool = True) -> dict:
     """
     Apply enriched CycloneDX metadata from Bom object back to original JSON with intelligent merging.
     Preserves existing metadata while adding/updating backend data.
@@ -724,6 +817,7 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom) -> dict:
     Args:
         original_json: Original SBOM JSON dict
         bom: Enriched Bom object
+        prefer_backend: Whether to prefer backend data over existing data
 
     Returns:
         Updated JSON dict with enriched metadata
@@ -736,6 +830,25 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom) -> dict:
         updated_json["metadata"] = {}
 
     metadata = updated_json["metadata"]
+
+    # Apply component metadata (name and version) if present
+    if bom.metadata.component:
+        if "component" not in metadata:
+            metadata["component"] = {}
+
+        component_metadata = metadata["component"]
+
+        # Apply component name if present
+        if hasattr(bom.metadata.component, "name") and bom.metadata.component.name:
+            component_metadata["name"] = bom.metadata.component.name
+
+        # Apply component version if present
+        if hasattr(bom.metadata.component, "version") and bom.metadata.component.version:
+            component_metadata["version"] = bom.metadata.component.version
+
+        # Apply component type if present
+        if hasattr(bom.metadata.component, "type") and bom.metadata.component.type:
+            component_metadata["type"] = str(bom.metadata.component.type).lower()
 
     # Add tools metadata (including sbomify)
     if bom.metadata.tools and bom.metadata.tools.tools:
@@ -787,8 +900,12 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom) -> dict:
         existing_supplier = metadata.get("supplier", {})
         supplier_dict = {}
 
-        # Preserve existing name unless backend provides one
-        if bom.metadata.supplier.name:
+        # Merge name based on preference
+        if prefer_backend and bom.metadata.supplier.name:
+            supplier_dict["name"] = bom.metadata.supplier.name
+        elif not prefer_backend and existing_supplier.get("name"):
+            supplier_dict["name"] = existing_supplier["name"]
+        elif bom.metadata.supplier.name:
             supplier_dict["name"] = bom.metadata.supplier.name
         elif existing_supplier.get("name"):
             supplier_dict["name"] = existing_supplier["name"]
@@ -1435,39 +1552,51 @@ def _process_license_data(license_data: Any) -> Optional[Any]:
     return None
 
 
-def _validate_cyclonedx_sbom(file_path: str) -> bool:
+def _validate_cyclonedx_sbom(sbom_json: dict) -> bool | None:
     """
-    Validate a CycloneDX SBOM using the cyclonedx-py tool.
+    Validate CycloneDX SBOM using cyclonedx-py tool.
 
     Args:
-        file_path: Path to the SBOM file to validate
+        sbom_json: SBOM JSON dict to validate
 
     Returns:
-        True if validation passes, False otherwise
-
-    Raises:
-        CommandExecutionError: If validation command fails
+        True if valid, False if invalid, None if validation tool not available
     """
+    import json
+    import os
+    import subprocess
+    import tempfile
+
     try:
-        # Use cyclonedx-py validate command
-        result = subprocess.run(
-            ["cyclonedx-py", "validate", "--input-file", file_path], capture_output=True, text=True, timeout=30
-        )
+        # Write SBOM to temporary file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(sbom_json, f)
+            temp_file = f.name
 
-        if result.returncode == 0:
-            logger.info(f"CycloneDX SBOM validation passed for {file_path}")
-            return True
-        else:
-            logger.warning(f"CycloneDX SBOM validation failed for {file_path}: {result.stderr}")
-            return False
+        try:
+            # Run cyclonedx-py validate command
+            result = subprocess.run(["cyclonedx-py", "validate", temp_file], capture_output=True, text=True, timeout=30)
 
-    except subprocess.TimeoutExpired:
-        raise CommandExecutionError("CycloneDX validation timed out after 30 seconds")
+            if result.returncode == 0:
+                logger.info("SBOM validation successful")
+                return True
+            else:
+                logger.warning(f"SBOM validation failed: {result.stderr}")
+                return False
+
+        finally:
+            # Clean up temporary file
+            os.unlink(temp_file)
+
     except FileNotFoundError:
-        logger.warning("cyclonedx-py tool not found, skipping validation")
-        return True  # Don't fail if tool is not available
+        logger.info("cyclonedx-py tool not available, skipping validation")
+        return None
+    except subprocess.TimeoutExpired:
+        logger.warning("SBOM validation timed out")
+        return False
     except Exception as e:
-        raise CommandExecutionError(f"Failed to validate CycloneDX SBOM: {e}")
+        logger.warning(f"SBOM validation error: {e}")
+        return False
 
 
 if __name__ == "__main__":

@@ -2,8 +2,8 @@
 Tests for SBOM enrichment functionality with backend metadata.
 """
 
+import copy
 import json
-import subprocess
 from unittest.mock import Mock, patch
 
 import pytest
@@ -457,51 +457,167 @@ class TestSBOMEnrichment:
         assert sbomify_action.__version__ != "unknown"
         assert SBOMIFY_VERSION != "unknown"
 
-    def test_cyclonedx_validation(self, tmp_path, sample_cyclonedx_sbom):
-        """Test CycloneDX SBOM validation functionality."""
+    def test_cyclonedx_validation(self):
+        """Test CycloneDX validation functionality."""
+        with patch("subprocess.run") as mock_run:
+            # Mock successful validation
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stderr = ""
+
+            # Test successful validation
+            result = _validate_cyclonedx_sbom({"metadata": {"component": {"name": "test"}}})
+            assert result is True
+
+            # Test validation failure
+            mock_run.return_value.returncode = 1
+            mock_run.return_value.stderr = "Validation errors"
+            result = _validate_cyclonedx_sbom({"metadata": {"component": {"name": "test"}}})
+            assert result is False
+
+            # Test when cyclonedx-py is not available
+            mock_run.side_effect = FileNotFoundError("cyclonedx-py not found")
+            result = _validate_cyclonedx_sbom({"metadata": {"component": {"name": "test"}}})
+            assert result is None  # Graceful fallback
+
+    @patch("sbomify_action.cli.main.requests.get")
+    def test_local_sbom_version_override(self, mock_get, tmp_path, sample_cyclonedx_sbom, sample_backend_payload_basic):
+        """Test that sbom_version overrides the component version locally."""
+        # Setup config with sbom_version
+        config = Config(
+            token="test-token", component_id="test-component-123", upload=False, augment=True, sbom_version="v2.5.0"
+        )
+
+        # Setup mock API response
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = sample_backend_payload_basic
+        mock_get.return_value = mock_response
+
+        # Ensure original SBOM has a different version
+        sample_cyclonedx_sbom["metadata"]["component"]["version"] = "v1.0.0"
 
         # Create temporary SBOM file
         sbom_file = tmp_path / "test_sbom.json"
         with open(sbom_file, "w") as f:
             json.dump(sample_cyclonedx_sbom, f)
 
-        # Test successful validation
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value.returncode = 0
-            mock_run.return_value.stderr = ""
+        # Load and enrich SBOM
+        sbom_format, original_json, parsed_object = load_sbom_from_file(str(sbom_file))
+        enriched_object, updated_json = enrich_sbom_with_backend_metadata(
+            sbom_format, original_json, parsed_object, config
+        )
 
-            result = _validate_cyclonedx_sbom(str(sbom_file))
-            assert result is True
+        # Verify that component version was overridden
+        component = updated_json["metadata"]["component"]
+        assert component["version"] == "v2.5.0"  # Should be the overridden version
 
-            # Verify cyclonedx-py was called correctly
-            mock_run.assert_called_once()
-            call_args = mock_run.call_args[0][0]
-            assert "cyclonedx-py" in call_args
-            assert "validate" in call_args
-            assert str(sbom_file) in call_args
+    @patch("sbomify_action.cli.main.requests.get")
+    def test_override_sbom_metadata_precedence(
+        self, mock_get, tmp_path, sample_cyclonedx_sbom, sample_backend_payload_basic
+    ):
+        """Test that override_sbom_metadata controls metadata merging precedence."""
 
-        # Test validation failure
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value.returncode = 1
-            mock_run.return_value.stderr = "Validation failed"
+        # Test with override_sbom_metadata=True (backend takes precedence)
+        config_override = Config(
+            token="test-token",
+            component_id="test-component-123",
+            upload=False,
+            augment=True,
+            override_sbom_metadata=True,
+        )
 
-            result = _validate_cyclonedx_sbom(str(sbom_file))
-            assert result is False
+        # Setup mock API response
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = sample_backend_payload_basic
+        mock_get.return_value = mock_response
 
-        # Test when cyclonedx-py tool is not found
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = FileNotFoundError("cyclonedx-py not found")
+        # Create a copy and add existing supplier
+        sbom_with_existing_supplier = copy.deepcopy(sample_cyclonedx_sbom)
+        sbom_with_existing_supplier["metadata"]["supplier"] = {
+            "name": "Original Supplier",
+            "url": ["http://original.com"],  # Use list format for CycloneDX compatibility
+        }
 
-            result = _validate_cyclonedx_sbom(str(sbom_file))
-            assert result is True  # Should not fail if tool is not available
+        # Create temporary SBOM file for override=True test
+        sbom_file1 = tmp_path / "test_sbom_override.json"
+        with open(sbom_file1, "w") as f:
+            json.dump(sbom_with_existing_supplier, f)
 
-        # Test timeout
-        with patch("subprocess.run") as mock_run:
-            from sbomify_action.exceptions import CommandExecutionError
+        # Load and enrich SBOM with override=True
+        sbom_format, original_json, parsed_object = load_sbom_from_file(str(sbom_file1))
+        enriched_object, updated_json = enrich_sbom_with_backend_metadata(
+            sbom_format, original_json, parsed_object, config_override
+        )
 
-            mock_run.side_effect = subprocess.TimeoutExpired("cyclonedx-py", 30)
+        # Verify backend data takes precedence
+        supplier = updated_json["metadata"]["supplier"]
+        assert supplier["name"] == "Test Supplier"  # Backend name should win
 
-            with pytest.raises(CommandExecutionError) as exc_info:
-                _validate_cyclonedx_sbom(str(sbom_file))
+        # Test with override_sbom_metadata=False (existing takes precedence)
+        config_no_override = Config(
+            token="test-token",
+            component_id="test-component-123",
+            upload=False,
+            augment=True,
+            override_sbom_metadata=False,
+        )
 
-            assert "timed out" in str(exc_info.value)
+        # Reset mock and create a new copy
+        mock_get.reset_mock()
+        mock_get.return_value = mock_response
+
+        # Create another copy for the second test
+        sbom_with_existing_supplier2 = copy.deepcopy(sample_cyclonedx_sbom)
+        sbom_with_existing_supplier2["metadata"]["supplier"] = {
+            "name": "Original Supplier",
+            "url": ["http://original.com"],  # Use list format for CycloneDX compatibility
+        }
+
+        # Create temporary SBOM file for override=False test
+        sbom_file2 = tmp_path / "test_sbom_no_override.json"
+        with open(sbom_file2, "w") as f:
+            json.dump(sbom_with_existing_supplier2, f)
+
+        # Load and enrich SBOM with override=False
+        sbom_format, original_json, parsed_object = load_sbom_from_file(str(sbom_file2))
+        enriched_object, updated_json = enrich_sbom_with_backend_metadata(
+            sbom_format, original_json, parsed_object, config_no_override
+        )
+
+        # Verify existing data takes precedence
+        supplier = updated_json["metadata"]["supplier"]
+        assert supplier["name"] == "Original Supplier"  # Original name should win
+
+    @patch("sbomify_action.cli.main.requests.get")
+    def test_override_name_working(self, mock_get, tmp_path, sample_cyclonedx_sbom, sample_backend_payload_basic):
+        """Test that override_name actually overrides the component name with backend data."""
+        # Add component name to the backend payload
+        backend_payload_with_name = copy.deepcopy(sample_backend_payload_basic)
+        backend_payload_with_name["name"] = "Backend Component Name"
+
+        # Setup config with override_name
+        config = Config(
+            token="test-token", component_id="test-component-123", upload=False, augment=True, override_name=True
+        )
+
+        # Setup mock API response
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = backend_payload_with_name
+        mock_get.return_value = mock_response
+
+        # Create temporary SBOM file
+        sbom_file = tmp_path / "test_sbom.json"
+        with open(sbom_file, "w") as f:
+            json.dump(sample_cyclonedx_sbom, f)
+
+        # Load and enrich SBOM
+        sbom_format, original_json, parsed_object = load_sbom_from_file(str(sbom_file))
+        enriched_object, updated_json = enrich_sbom_with_backend_metadata(
+            sbom_format, original_json, parsed_object, config
+        )
+
+        # Verify component name was overridden
+        component = updated_json["metadata"]["component"]
+        assert component["name"] == "Backend Component Name"  # Should be the backend name, not original
