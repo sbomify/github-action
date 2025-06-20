@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import shutil
@@ -5,19 +6,80 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 import requests
 import sentry_sdk
 
+# Add cyclonedx imports for proper SBOM handling
+from cyclonedx.model.bom import Bom
+
 from ..exceptions import (
     APIError,
+    CommandExecutionError,
     ConfigurationError,
     FileProcessingError,
     SBOMGenerationError,
     SBOMValidationError,
 )
 from ..logging_config import logger
+
+
+# Import version for tool metadata with multiple fallback mechanisms
+def _get_package_version() -> str:
+    """Get the package version using multiple fallback methods."""
+    # Method 1: Try importlib.metadata (preferred for installed packages)
+    try:
+        from importlib.metadata import version
+
+        return version("sbomify-github-action")
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # Method 2: Try reading from pyproject.toml directly
+    try:
+        import tomllib
+
+        pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
+        if pyproject_path.exists():
+            with open(pyproject_path, "rb") as f:
+                pyproject_data = tomllib.load(f)
+            return pyproject_data.get("tool", {}).get("poetry", {}).get("version", "unknown")
+    except ImportError:
+        # Python < 3.11 doesn't have tomllib
+        pass
+    except Exception:
+        pass
+
+    # Method 3: Try toml library as fallback for older Python
+    try:
+        import toml
+
+        pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
+        if pyproject_path.exists():
+            with open(pyproject_path, "r") as f:
+                pyproject_data = toml.load(f)
+            return pyproject_data.get("tool", {}).get("poetry", {}).get("version", "unknown")
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # Method 4: Try package __version__ attribute
+    try:
+        from sbomify_action import __version__
+
+        return __version__
+    except (ImportError, AttributeError):
+        pass
+
+    # Final fallback
+    return "unknown"
+
+
+SBOMIFY_VERSION = _get_package_version()
 
 """
 
@@ -387,6 +449,50 @@ def get_metadata(file_format: Literal["cyclonedx", "spdx"], json_data: dict) -> 
         return json_data.get("creationInfo")
 
 
+def merge_metadata(existing_metadata: dict, augmentation_data: dict) -> dict:
+    """
+    Merge augmentation data from the backend with existing SBOM metadata.
+
+    Args:
+        existing_metadata: Current metadata from the SBOM
+        augmentation_data: Augmentation data retrieved from the backend
+
+    Returns:
+        Merged metadata with augmentation data applied
+    """
+    if not existing_metadata:
+        return augmentation_data
+
+    if not augmentation_data:
+        return existing_metadata
+
+    # Create a deep copy to avoid modifying the original
+    merged = copy.deepcopy(existing_metadata)
+
+    # Merge top-level fields from augmentation data
+    for key, value in augmentation_data.items():
+        if key in ["supplier", "vendor", "licenses", "properties"]:
+            # These fields should be replaced/augmented from backend
+            merged[key] = value
+        elif key == "component" and isinstance(value, dict):
+            # For component, merge selectively
+            if "component" not in merged:
+                merged["component"] = {}
+
+            # Merge component fields, preserving existing values unless overridden
+            for comp_key, comp_value in value.items():
+                if comp_key in ["supplier", "vendor", "licenses", "properties"]:
+                    merged["component"][comp_key] = comp_value
+                elif comp_key not in merged["component"]:
+                    # Only add if not already present
+                    merged["component"][comp_key] = comp_value
+        elif key not in merged:
+            # Add new fields that don't exist
+            merged[key] = value
+
+    return merged
+
+
 def set_metadata(file_format: Literal["cyclonedx", "spdx"], json_data: dict, metadata: dict) -> dict:
     if file_format == "cyclonedx":
         json_data["metadata"] = metadata
@@ -395,6 +501,452 @@ def set_metadata(file_format: Literal["cyclonedx", "spdx"], json_data: dict, met
         json_data["creationInfo"] = metadata
 
     return json_data
+
+
+def load_sbom_from_file(file_path: str) -> tuple[str, dict, object]:
+    """
+    Load SBOM from JSON file using appropriate library based on format.
+
+    Args:
+        file_path: Path to the SBOM JSON file
+
+    Returns:
+        Tuple of (format, original_json, parsed_object)
+        - format: 'cyclonedx' or 'spdx'
+        - original_json: Original JSON dict
+        - parsed_object: Parsed object (Bom for CycloneDX, future SPDX object)
+
+    Raises:
+        SBOMValidationError: If SBOM cannot be parsed
+    """
+    try:
+        with Path(file_path).open("r") as f:
+            sbom_json = json.load(f)
+
+        # Detect format first
+        if sbom_json.get("bomFormat") == "CycloneDX":
+            sbom_format = "cyclonedx"
+            # Use cyclonedx deserializer
+            parsed_object = Bom.from_json(sbom_json)
+            logger.info(f"Successfully loaded CycloneDX SBOM from {file_path}")
+        elif sbom_json.get("spdxVersion") is not None:
+            sbom_format = "spdx"
+            # For now, just return the JSON - we'll add SPDX library later
+            parsed_object = sbom_json  # Placeholder for future SPDX object
+            logger.info(f"Successfully loaded SPDX SBOM from {file_path}")
+        else:
+            raise SBOMValidationError("Neither CycloneDX nor SPDX format found in JSON file")
+
+        return sbom_format, sbom_json, parsed_object
+
+    except Exception as e:
+        raise SBOMValidationError(f"Failed to load SBOM from {file_path}: {e}")
+
+
+def enrich_sbom_with_backend_metadata(
+    sbom_format: str, original_json: dict, parsed_object: object, config: "Config"
+) -> tuple[object, dict]:
+    """
+    Enrich SBOM with metadata retrieved from the backend (format-agnostic).
+
+    Args:
+        sbom_format: 'cyclonedx' or 'spdx'
+        original_json: Original SBOM JSON dict
+        parsed_object: Parsed SBOM object
+        config: Configuration object with API details
+
+    Returns:
+        Tuple of (enriched_object, updated_json)
+
+    Raises:
+        APIError: If backend API call fails
+        SBOMValidationError: If format is not supported
+    """
+    if sbom_format == "cyclonedx":
+        return _enrich_cyclonedx_sbom(original_json, parsed_object, config)
+    elif sbom_format == "spdx":
+        return _enrich_spdx_sbom(original_json, parsed_object, config)
+    else:
+        raise SBOMValidationError(f"Unsupported SBOM format for enrichment: {sbom_format}")
+
+
+def _enrich_cyclonedx_sbom(original_json: dict, bom: Bom, config: "Config") -> tuple[Bom, dict]:
+    """
+    Enrich CycloneDX SBOM with backend metadata.
+    """
+    # Get backend metadata
+    augmentation_data = _fetch_backend_metadata(config)
+
+    # Add sbomify as a processing tool
+    _add_sbomify_tool_metadata(bom)
+
+    # Apply to CycloneDX BOM object
+    if "supplier" in augmentation_data:
+        from cyclonedx.model.bom import OrganizationalContact, OrganizationalEntity
+
+        supplier_data = augmentation_data["supplier"]
+
+        # Create supplier entity
+        supplier = OrganizationalEntity(
+            name=supplier_data.get("name"),
+            urls=supplier_data.get("url", [])
+            if isinstance(supplier_data.get("url"), list)
+            else ([supplier_data.get("url")] if supplier_data.get("url") else []),
+            contacts=[],
+        )
+
+        # Add contacts if present
+        if "contacts" in supplier_data:
+            for contact_data in supplier_data["contacts"]:
+                contact = OrganizationalContact(
+                    name=contact_data.get("name"), email=contact_data.get("email"), phone=contact_data.get("phone")
+                )
+                supplier.contacts.add(contact)
+
+        bom.metadata.supplier = supplier
+
+    # Add authors if present
+    if "authors" in augmentation_data:
+        from cyclonedx.model.bom import OrganizationalContact
+
+        for author_data in augmentation_data["authors"]:
+            author = OrganizationalContact(
+                name=author_data.get("name"), email=author_data.get("email"), phone=author_data.get("phone")
+            )
+            bom.metadata.authors.add(author)
+
+    # Add licenses if present - now supporting advanced formats
+    if "licenses" in augmentation_data:
+        for license_data in augmentation_data["licenses"]:
+            license_obj = _process_license_data(license_data)
+            if license_obj:
+                bom.metadata.licenses.add(license_obj)
+
+    # Apply enrichment back to JSON with intelligent merging
+    updated_json = _apply_cyclonedx_metadata_to_json(original_json, bom)
+
+    logger.info("Successfully enriched CycloneDX SBOM with backend metadata")
+    return bom, updated_json
+
+
+def _enrich_spdx_sbom(original_json: dict, spdx_obj: object, config: "Config") -> tuple[object, dict]:
+    """
+    Enrich SPDX SBOM with backend metadata (placeholder for future implementation).
+    """
+    # Get backend metadata
+    augmentation_data = _fetch_backend_metadata(config)
+
+    # TODO: Implement SPDX enrichment using SPDX libraries
+    # For now, apply directly to JSON
+    updated_json = _apply_spdx_metadata_to_json(original_json, augmentation_data)
+
+    logger.info("Successfully enriched SPDX SBOM with backend metadata")
+    return spdx_obj, updated_json
+
+
+def _fetch_backend_metadata(config: "Config") -> dict:
+    """
+    Fetch metadata from backend API.
+
+    Returns:
+        Backend metadata dict
+
+    Raises:
+        APIError: If API call fails
+    """
+    url = SBOMIFY_API_BASE + f"/sboms/component/{config.component_id}/meta"
+    headers = {
+        "Authorization": f"Bearer {config.token}",
+    }
+
+    query_params = {}
+    if config.sbom_version:
+        query_params["sbom_version"] = config.sbom_version
+    if config.override_name:
+        query_params["override_name"] = True
+    if config.override_sbom_metadata:
+        query_params["override_metadata"] = True
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            params=query_params,
+            timeout=60,  # Security: add timeout
+        )
+    except requests.exceptions.ConnectionError:
+        raise APIError("Failed to connect to sbomify API")
+    except requests.exceptions.Timeout:
+        raise APIError("API request timed out")
+    except ConnectionError:
+        raise APIError("Failed to connect to sbomify API")
+
+    if not response.ok:
+        err_msg = f"Failed to retrieve component metadata from sbomify. [{response.status_code}]"
+        if response.headers.get("content-type") == "application/json":
+            try:
+                error_data = response.json()
+                if "detail" in error_data:
+                    err_msg += f" - {error_data['detail']}"
+            except (ValueError, KeyError):
+                pass
+        raise APIError(err_msg)
+
+    return response.json()
+
+
+def save_sbom_to_file(original_json: dict, file_path: str) -> None:
+    """
+    Save SBOM JSON dict to file.
+
+    Args:
+        original_json: The JSON dict to save
+        file_path: Path where to save the SBOM JSON file
+
+    Raises:
+        SBOMGenerationError: If SBOM cannot be serialized
+    """
+    try:
+        with Path(file_path).open("w") as f:
+            json.dump(original_json, f, indent=2)
+
+        logger.info(f"Successfully saved SBOM to {file_path}")
+
+    except Exception as e:
+        raise SBOMGenerationError(f"Failed to save SBOM to {file_path}: {e}")
+
+
+def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom) -> dict:
+    """
+    Apply enriched CycloneDX metadata from Bom object back to original JSON with intelligent merging.
+    Preserves existing metadata while adding/updating backend data.
+
+    Args:
+        original_json: Original SBOM JSON dict
+        bom: Enriched Bom object
+
+    Returns:
+        Updated JSON dict with enriched metadata
+    """
+    # Create a copy to avoid modifying original
+    updated_json = copy.deepcopy(original_json)
+
+    # Ensure metadata exists
+    if "metadata" not in updated_json:
+        updated_json["metadata"] = {}
+
+    metadata = updated_json["metadata"]
+
+    # Add tools metadata (including sbomify)
+    if bom.metadata.tools and bom.metadata.tools.tools:
+        tools_list = metadata.get("tools", [])
+
+        for tool in bom.metadata.tools.tools:
+            tool_dict = {}
+            if hasattr(tool, "vendor") and tool.vendor:
+                tool_dict["vendor"] = tool.vendor
+            if hasattr(tool, "name") and tool.name:
+                tool_dict["name"] = tool.name
+            if hasattr(tool, "version") and tool.version:
+                tool_dict["version"] = tool.version
+
+            # Add external references if present
+            if hasattr(tool, "external_references") and tool.external_references:
+                external_refs = []
+                for ref in tool.external_references:
+                    ref_dict = {}
+                    if hasattr(ref, "reference_type") and ref.reference_type:
+                        ref_dict["type"] = str(ref.reference_type)
+                    if hasattr(ref, "url") and ref.url:
+                        ref_dict["url"] = str(ref.url)
+                    if ref_dict:
+                        external_refs.append(ref_dict)
+                if external_refs:
+                    tool_dict["externalReferences"] = external_refs
+
+            if tool_dict:
+                # Check if tool already exists (avoid duplicates)
+                existing_tool = None
+                for existing in tools_list:
+                    if (
+                        isinstance(existing, dict)
+                        and existing.get("name") == tool_dict.get("name")
+                        and existing.get("vendor") == tool_dict.get("vendor")
+                    ):
+                        existing_tool = existing
+                        break
+
+                if not existing_tool:
+                    tools_list.append(tool_dict)
+
+        if tools_list:
+            metadata["tools"] = tools_list
+
+    # Intelligently merge supplier information (preserve existing, add new)
+    if bom.metadata.supplier:
+        existing_supplier = metadata.get("supplier", {})
+        supplier_dict = {}
+
+        # Preserve existing name unless backend provides one
+        if bom.metadata.supplier.name:
+            supplier_dict["name"] = bom.metadata.supplier.name
+        elif existing_supplier.get("name"):
+            supplier_dict["name"] = existing_supplier["name"]
+
+        # Merge URLs (backend + existing)
+        urls = set()
+        if bom.metadata.supplier.urls:
+            urls.update(bom.metadata.supplier.urls)
+        if existing_supplier.get("url"):
+            if isinstance(existing_supplier["url"], list):
+                urls.update(existing_supplier["url"])
+            else:
+                urls.add(existing_supplier["url"])
+        if urls:
+            supplier_dict["url"] = list(urls)
+
+        # Merge contacts (backend + existing)
+        contacts_list = []
+
+        # Add backend contacts
+        if bom.metadata.supplier.contacts:
+            for contact in bom.metadata.supplier.contacts:
+                contact_dict = {}
+                if contact.name:
+                    contact_dict["name"] = contact.name
+                if contact.email:
+                    contact_dict["email"] = contact.email
+                if contact.phone:
+                    contact_dict["phone"] = contact.phone
+                if contact_dict:
+                    contacts_list.append(contact_dict)
+
+        # Add existing contacts (avoid duplicates by email)
+        existing_contacts = existing_supplier.get("contacts", [])
+        existing_emails = {c.get("email") for c in contacts_list if c.get("email")}
+        for existing_contact in existing_contacts:
+            if not existing_contact.get("email") or existing_contact["email"] not in existing_emails:
+                contacts_list.append(existing_contact)
+
+        if contacts_list:
+            supplier_dict["contacts"] = contacts_list
+
+        metadata["supplier"] = supplier_dict
+
+    # Intelligently merge authors information
+    if bom.metadata.authors:
+        existing_authors = metadata.get("authors", [])
+        authors_list = []
+
+        # Add backend authors
+        for author in bom.metadata.authors:
+            author_dict = {}
+            if author.name:
+                author_dict["name"] = author.name
+            if author.email:
+                author_dict["email"] = author.email
+            if author.phone:
+                author_dict["phone"] = author.phone
+            if author_dict:
+                authors_list.append(author_dict)
+
+        # Add existing authors (avoid duplicates by email)
+        existing_emails = {a.get("email") for a in authors_list if a.get("email")}
+        for existing_author in existing_authors:
+            if not existing_author.get("email") or existing_author["email"] not in existing_emails:
+                authors_list.append(existing_author)
+
+        if authors_list:
+            metadata["authors"] = authors_list
+
+    # Intelligently merge licenses information
+    if bom.metadata.licenses:
+        existing_licenses = metadata.get("licenses", [])
+        licenses_list = []
+
+        # Add backend licenses with enhanced format support
+        for license_obj in bom.metadata.licenses:
+            if hasattr(license_obj, "value") and license_obj.value:
+                # License expression (SPDX expressions like "MIT OR GPL-3.0")
+                licenses_list.append({"expression": license_obj.value})
+            elif hasattr(license_obj, "name") and license_obj.name:
+                # Named license (simple or complex)
+                license_entry = {"license": {"name": license_obj.name}}
+
+                # Add URL if present
+                if hasattr(license_obj, "url") and license_obj.url:
+                    license_entry["license"]["url"] = str(license_obj.url)
+
+                # Add text if present
+                if hasattr(license_obj, "text") and license_obj.text:
+                    license_entry["license"]["text"] = {"content": license_obj.text.content}
+
+                licenses_list.append(license_entry)
+
+        # Add existing licenses (avoid duplicates)
+        existing_values = set()
+        for license_item in licenses_list:
+            if "expression" in license_item:
+                existing_values.add(license_item["expression"])
+            elif "license" in license_item and "name" in license_item["license"]:
+                existing_values.add(license_item["license"]["name"])
+
+        for existing_license in existing_licenses:
+            license_value = None
+            if isinstance(existing_license, dict):
+                if "expression" in existing_license:
+                    license_value = existing_license["expression"]
+                elif "license" in existing_license and "name" in existing_license["license"]:
+                    license_value = existing_license["license"]["name"]
+                elif "name" in existing_license:  # Handle legacy format
+                    license_value = existing_license["name"]
+
+            if license_value and license_value not in existing_values:
+                licenses_list.append(existing_license)
+
+        if licenses_list:
+            metadata["licenses"] = licenses_list
+
+    return updated_json
+
+
+def _apply_spdx_metadata_to_json(original_json: dict, augmentation_data: dict) -> dict:
+    """
+    Apply backend metadata to SPDX JSON with intelligent merging.
+    Preserves existing metadata while adding/updating backend data.
+
+    Args:
+        original_json: Original SPDX JSON dict
+        augmentation_data: Backend metadata to apply
+
+    Returns:
+        Updated JSON dict with enriched metadata
+    """
+    # Create a copy to avoid modifying original
+    updated_json = copy.deepcopy(original_json)
+
+    # SPDX metadata is typically in creationInfo
+    if "creationInfo" not in updated_json:
+        updated_json["creationInfo"] = {}
+
+    creation_info = updated_json["creationInfo"]
+
+    # Apply supplier as creator if available
+    if "supplier" in augmentation_data:
+        supplier_data = augmentation_data["supplier"]
+
+        # Add to creators list (preserve existing)
+        creators = creation_info.get("creators", [])
+        if supplier_data.get("name"):
+            creator_entry = f"Organization: {supplier_data['name']}"
+            if creator_entry not in creators:
+                creators.append(creator_entry)
+        creation_info["creators"] = creators
+
+    # TODO: Add more SPDX-specific metadata mapping as needed
+    # This is a placeholder for future SPDX library integration
+
+    return updated_json
 
 
 def log_command_error(command_name, stderr):
@@ -662,77 +1214,42 @@ def main() -> None:
 
             # Check if format is supported for augmentation
             if FORMAT == "spdx":
-                logger.warning("SBOM augmentation is not supported for SPDX format. Skipping augmentation.")
-                logger.info("Only CycloneDX format is supported for metadata augmentation.")
+                logger.info("Starting SPDX SBOM augmentation")
+                # Load SPDX SBOM (currently using JSON fallback)
+                sbom_format, original_json, parsed_object = load_sbom_from_file(sbom_input_file)
+
+                # Enrich with backend metadata
+                parsed_object, updated_json = enrich_sbom_with_backend_metadata(
+                    sbom_format, original_json, parsed_object, config
+                )
+
+                # Save enriched SBOM
+                save_sbom_to_file(updated_json, "step_2.json")
+
+                logger.info("SPDX SBOM file augmented successfully.")
             elif FORMAT == "cyclonedx":
-                # Make sure we have the mandatory fields
-                # Ensure 'metadata' and 'component' keys exist in sbom_data
-                metadata = sbom_data.get("metadata", {})
-                component = metadata.get("component", {})
+                logger.info("Starting CycloneDX SBOM augmentation")
+                # Use format-agnostic loading
+                sbom_format, original_json, parsed_object = load_sbom_from_file(sbom_input_file)
 
-                # Check if 'name' and 'type' are missing, and add them if necessary
-                if "name" not in component:
-                    component["name"] = Path(FILE).name if FILE else "unknown"
+                # Ensure we have the mandatory component metadata for CycloneDX
+                if not parsed_object.metadata.component:
+                    from cyclonedx.model.component import Component, ComponentType
 
-                # Default this to "application" if nothing is set
-                if "type" not in component:
-                    component["type"] = "application"
+                    component_name = Path(FILE).name if FILE else "unknown"
+                    parsed_object.metadata.component = Component(name=component_name, type=ComponentType.APPLICATION)
+                elif not parsed_object.metadata.component.name:
+                    parsed_object.metadata.component.name = Path(FILE).name if FILE else "unknown"
 
-                # Update the main sbom_data dictionary
-                sbom_data["metadata"]["component"] = component
+                # Enrich with backend metadata
+                parsed_object, updated_json = enrich_sbom_with_backend_metadata(
+                    sbom_format, original_json, parsed_object, config
+                )
 
-                # Get format version from sbom_file
-                SPEC_VERSION = get_spec_version(FORMAT, sbom_data)
-                sbom_metadata = get_metadata(FORMAT, sbom_data)
+                # Save enriched SBOM
+                save_sbom_to_file(updated_json, "step_2.json")
 
-                # Updated URL structure for v0.12+
-                url = SBOMIFY_API_BASE + f"/sboms/artifact/cyclonedx/{SPEC_VERSION}/{config.component_id}/metadata"
-                headers = {
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {config.token}",
-                }
-
-                query_params = {}
-
-                if config.sbom_version:
-                    query_params["sbom_version"] = config.sbom_version
-
-                if config.override_name:
-                    query_params["override_name"] = True
-
-                if config.override_sbom_metadata:
-                    query_params["override_metadata"] = True
-
-                try:
-                    response = requests.post(
-                        url,
-                        headers=headers,
-                        json=sbom_metadata,
-                        params=query_params,
-                        timeout=60,  # Security: add timeout
-                    )
-                except requests.exceptions.ConnectionError:
-                    raise APIError("Failed to connect to sbomify API")
-                except requests.exceptions.Timeout:
-                    raise APIError("API request timed out")
-
-                if not response.ok:
-                    err_msg = f"Failed to augment SBOM file via sbomify. [{response.status_code}]"
-                    if response.headers.get("content-type") == "application/json":
-                        try:
-                            error_data = response.json()
-                            if "detail" in error_data:
-                                err_msg += f" - {error_data['detail']}"
-                        except (ValueError, KeyError):
-                            pass
-
-                    raise APIError(err_msg)
-
-                set_metadata(FORMAT, sbom_data, response.json())
-                with Path("step_2.json").open("w") as f:
-                    json.dump(sbom_data, f)
-
-                logger.info("SBOM file augmented successfully.")
+                logger.info("CycloneDX SBOM file augmented successfully.")
             else:
                 raise SBOMValidationError(f"Unsupported format '{FORMAT}' for augmentation")
 
@@ -781,10 +1298,19 @@ def main() -> None:
         logger.error(f"Failed to finalize output: {e}")
         sys.exit(1)
 
-    # Upload if requested
+    # Upload SBOM via API
     if config.upload:
         logger.info("Starting SBOM upload")
         try:
+            # Validate SBOM before uploading (for CycloneDX)
+            if FORMAT == "cyclonedx":
+                try:
+                    validation_passed = _validate_cyclonedx_sbom(config.output_file)
+                    if not validation_passed:
+                        logger.warning("SBOM validation failed, but proceeding with upload")
+                except CommandExecutionError as e:
+                    logger.warning(f"SBOM validation error: {e}, proceeding with upload")
+
             # Execute the POST request to upload the SBOM file
             url = SBOMIFY_API_BASE + f"/sboms/artifact/{FORMAT}/{config.component_id}"
             headers = {
@@ -820,8 +1346,128 @@ def main() -> None:
                 logger.info("SBOM file uploaded successfully.")
 
         except (APIError, FileProcessingError) as e:
-            logger.error(f"Upload failed: {e}")
+            logger.error(f"Error uploading SBOM: {e}")
             sys.exit(1)
+
+
+def _add_sbomify_tool_metadata(bom: Bom) -> None:
+    """
+    Add sbomify as a tool in the SBOM metadata to track processing.
+
+    Args:
+        bom: The Bom object to update with tool metadata
+    """
+    from cyclonedx.model import ExternalReference, ExternalReferenceType, XsUri
+    from cyclonedx.model.bom import Tool
+
+    # Create sbomify tool entry
+    sbomify_tool = Tool(vendor="sbomify", name="sbomify-github-action", version=SBOMIFY_VERSION)
+
+    # Add external references for the tool
+    try:
+        sbomify_tool.external_references.add(
+            ExternalReference(
+                reference_type=ExternalReferenceType.WEBSITE, url=XsUri("https://github.com/sbomify/github-action")
+            )
+        )
+    except Exception:
+        # If external references fail, continue without them
+        pass
+
+    # Add the tool to the metadata
+    bom.metadata.tools.tools.add(sbomify_tool)
+
+
+def _process_license_data(license_data: Any) -> Optional[Any]:
+    """
+    Process license data from backend, supporting various formats:
+    - String: SPDX expression (e.g., "MIT OR GPL-3.0", "Apache-2.0 WITH Commons-Clause")
+    - Dict: Custom license with name, url, text
+
+    Args:
+        license_data: License data from backend (string or dict)
+
+    Returns:
+        License object for CycloneDX or None if invalid
+    """
+    from cyclonedx.model import AttachedText, XsUri
+    from cyclonedx.model.license import DisjunctiveLicense, LicenseExpression
+
+    if isinstance(license_data, str):
+        # Handle SPDX license expressions
+        if any(op in license_data for op in [" OR ", " AND ", " WITH "]):
+            # Complex SPDX expression
+            try:
+                return LicenseExpression(value=license_data)
+            except Exception:
+                # If expression parsing fails, treat as simple name
+                return DisjunctiveLicense(name=license_data)
+        else:
+            # Simple license name
+            return DisjunctiveLicense(name=license_data)
+
+    elif isinstance(license_data, dict):
+        # Custom license object with name, url, text
+        license_name = license_data.get("name", "")
+        license_url = license_data.get("url")
+        license_text = license_data.get("text")
+
+        if not license_name:
+            return None
+
+        # Create DisjunctiveLicense with additional details
+        license_obj = DisjunctiveLicense(name=license_name)
+
+        if license_url:
+            try:
+                license_obj.url = XsUri(license_url)
+            except Exception:
+                pass  # Skip invalid URLs
+
+        if license_text:
+            try:
+                license_obj.text = AttachedText(content=license_text)
+            except Exception:
+                pass  # Skip if text attachment fails
+
+        return license_obj
+
+    return None
+
+
+def _validate_cyclonedx_sbom(file_path: str) -> bool:
+    """
+    Validate a CycloneDX SBOM using the cyclonedx-py tool.
+
+    Args:
+        file_path: Path to the SBOM file to validate
+
+    Returns:
+        True if validation passes, False otherwise
+
+    Raises:
+        CommandExecutionError: If validation command fails
+    """
+    try:
+        # Use cyclonedx-py validate command
+        result = subprocess.run(
+            ["cyclonedx-py", "validate", "--input-file", file_path], capture_output=True, text=True, timeout=30
+        )
+
+        if result.returncode == 0:
+            logger.info(f"CycloneDX SBOM validation passed for {file_path}")
+            return True
+        else:
+            logger.warning(f"CycloneDX SBOM validation failed for {file_path}: {result.stderr}")
+            return False
+
+    except subprocess.TimeoutExpired:
+        raise CommandExecutionError("CycloneDX validation timed out after 30 seconds")
+    except FileNotFoundError:
+        logger.warning("cyclonedx-py tool not found, skipping validation")
+        return True  # Don't fail if tool is not available
+    except Exception as e:
+        raise CommandExecutionError(f"Failed to validate CycloneDX SBOM: {e}")
 
 
 if __name__ == "__main__":

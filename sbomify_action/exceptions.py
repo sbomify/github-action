@@ -23,3 +23,7 @@ class APIError(SbomifyError):
 
 class FileProcessingError(SbomifyError):
     """Raised when file operations fail."""
+
+
+class CommandExecutionError(SbomifyError):
+    """Raised when external command execution fails."""
