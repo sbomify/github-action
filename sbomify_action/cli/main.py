@@ -81,6 +81,13 @@ def _get_package_version() -> str:
 
 SBOMIFY_VERSION = _get_package_version()
 
+# Constants for magic strings/numbers
+SPDX_LOGICAL_OPERATORS = [" OR ", " AND ", " WITH "]
+SBOMIFY_PRODUCTION_API = "https://app.sbomify.com/api/v1"
+SBOMIFY_TOOL_NAME = "sbomify-github-action"
+SBOMIFY_VENDOR_NAME = "sbomify"
+LOCALHOST_PATTERNS = ["127.0.0.1", "localhost", "0.0.0.0"]
+
 """
 
 There are three steps in our SBOM generation.
@@ -234,7 +241,7 @@ class Config:
     override_sbom_metadata: bool = False
     override_name: bool = False
     sbom_version: Optional[str] = None
-    api_base_url: str = "https://app.sbomify.com/api/v1"
+    api_base_url: str = SBOMIFY_PRODUCTION_API
 
     def validate(self) -> None:
         """
@@ -254,9 +261,35 @@ class Config:
         if not any(inputs):
             raise ConfigurationError("Please provide one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
 
-        # Validate API base URL format
-        if not self.api_base_url.startswith(("http://", "https://")):
+        # Validate API base URL format with proper parsing
+        self._validate_api_url()
+
+    def _validate_api_url(self) -> None:
+        """
+        Validate and normalize the API base URL.
+
+        Raises:
+            ConfigurationError: If URL format is invalid
+        """
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(self.api_base_url)
+        except Exception as e:
+            raise ConfigurationError(f"Invalid API base URL format: {e}")
+
+        # Validate scheme
+        if not parsed.scheme or parsed.scheme not in ("http", "https"):
             raise ConfigurationError("API base URL must start with http:// or https://")
+
+        # Validate hostname
+        if not parsed.netloc:
+            raise ConfigurationError("API base URL must include a valid hostname")
+
+        # Security warning for HTTP on non-localhost
+        if parsed.scheme == "http" and not any(localhost in parsed.netloc for localhost in LOCALHOST_PATTERNS):
+            logger.warning("⚠️  Using HTTP (not HTTPS) for API communication - consider using HTTPS in production")
+
         # Remove trailing slash if present for consistency
         if self.api_base_url.endswith("/"):
             self.api_base_url = self.api_base_url.rstrip("/")
@@ -285,7 +318,7 @@ def load_config() -> Config:
         override_sbom_metadata=evaluate_boolean(os.getenv("OVERRIDE_SBOM_METADATA", "False")),
         override_name=evaluate_boolean(os.getenv("OVERRIDE_NAME", "False")),
         sbom_version=os.getenv("SBOM_VERSION"),
-        api_base_url=os.getenv("API_BASE_URL", "https://app.sbomify.com/api/v1"),
+        api_base_url=os.getenv("API_BASE_URL", SBOMIFY_PRODUCTION_API),
     )
 
     try:
@@ -295,6 +328,30 @@ def load_config() -> Config:
         sys.exit(1)
 
     return config
+
+
+def _ensure_tools_structure(metadata: dict, spec_version: str) -> None:
+    """
+    Ensure tools structure is properly initialized for the given CycloneDX version.
+
+    Args:
+        metadata: Metadata dictionary to update
+        spec_version: CycloneDX version
+    """
+    existing_tools = metadata.get("tools", [])
+    is_components_format = isinstance(existing_tools, dict) and "components" in existing_tools
+
+    if spec_version == "1.5" and not is_components_format:
+        # True CycloneDX 1.5 format: tools = [{ vendor: "...", name: "...", version: "..." }]
+        if "tools" not in metadata:
+            metadata["tools"] = []
+    else:
+        # CycloneDX 1.6 format OR hybrid 1.5 format with components structure
+        if "tools" not in metadata:
+            metadata["tools"] = {"components": []}
+        elif isinstance(metadata["tools"], list):
+            # Convert from pure 1.5 format to 1.6 format
+            metadata["tools"] = {"components": metadata["tools"]}
 
 
 def setup_dependencies() -> None:
@@ -1574,7 +1631,7 @@ def main() -> None:
     config = load_config()
 
     # Log the API base URL being used for transparency
-    if config.api_base_url != "https://app.sbomify.com/api/v1":
+    if config.api_base_url != SBOMIFY_PRODUCTION_API:
         logger.info(f"Using custom API base URL: {config.api_base_url}")
     else:
         logger.info(f"Using production API: {config.api_base_url}")
@@ -1828,9 +1885,9 @@ def _add_sbomify_tool_metadata(bom: Bom) -> None:
                 reference_type=ExternalReferenceType.WEBSITE, url=XsUri("https://github.com/sbomify/github-action")
             )
         )
-    except Exception:
+    except Exception as e:
         # If external references fail, continue without them
-        pass
+        logger.debug(f"Failed to add external references to sbomify tool: {e}")
 
     # Add the tool to the metadata
     bom.metadata.tools.tools.add(sbomify_tool)
@@ -1853,7 +1910,7 @@ def _process_license_data(license_data: Any) -> Optional[Any]:
 
     if isinstance(license_data, str):
         # Handle SPDX license expressions
-        if any(op in license_data for op in [" OR ", " AND ", " WITH "]):
+        if any(op in license_data for op in SPDX_LOGICAL_OPERATORS):
             # Complex SPDX expression
             try:
                 return LicenseExpression(value=license_data)
@@ -2016,7 +2073,7 @@ def _apply_cyclonedx_augmentation_to_json(sbom_json: dict, augmentation_data: di
         for license_data in augmentation_data["licenses"]:
             if isinstance(license_data, str):
                 # Simple license name or SPDX expression
-                if any(op in license_data for op in [" OR ", " AND ", " WITH "]):
+                if any(op in license_data for op in SPDX_LOGICAL_OPERATORS):
                     metadata["licenses"].append({"expression": license_data})
                 else:
                     metadata["licenses"].append({"license": {"name": license_data}})
@@ -2069,32 +2126,26 @@ def _add_sbomify_tool_to_json(metadata: dict, spec_version: str) -> None:
     """
     logger.info("Added sbomify as processing tool to SBOM metadata")
 
+    # Use helper function to ensure proper tools structure
+    _ensure_tools_structure(metadata, spec_version)
+
     # Detect actual tools format (some 1.5 SBOMs use 1.6 tools structure)
     existing_tools = metadata.get("tools", [])
     is_components_format = isinstance(existing_tools, dict) and "components" in existing_tools
 
     if spec_version == "1.5" and not is_components_format:
         # True CycloneDX 1.5 format: tools = [{ vendor: "...", name: "...", version: "..." }]
-        if "tools" not in metadata:
-            metadata["tools"] = []
-
-        tool_entry = {"vendor": "sbomify", "name": "sbomify-github-action", "version": SBOMIFY_VERSION}
+        tool_entry = {"vendor": SBOMIFY_VENDOR_NAME, "name": SBOMIFY_TOOL_NAME, "version": SBOMIFY_VERSION}
 
         # Avoid duplicates
-        if not any(t.get("name") == "sbomify-github-action" for t in metadata["tools"]):
+        if not any(t.get("name") == SBOMIFY_TOOL_NAME for t in metadata["tools"]):
             metadata["tools"].append(tool_entry)
     else:
         # CycloneDX 1.6 format OR hybrid 1.5 format with components structure
-        if "tools" not in metadata:
-            metadata["tools"] = {"components": []}
-        elif isinstance(metadata["tools"], list):
-            # Convert from pure 1.5 format to 1.6 format
-            metadata["tools"] = {"components": metadata["tools"]}
-
         tool_entry = {
             "type": "application",
-            "manufacturer": {"name": "sbomify"},  # Proper organizational entity format
-            "name": "sbomify-github-action",
+            "manufacturer": {"name": SBOMIFY_VENDOR_NAME},  # Proper organizational entity format
+            "name": SBOMIFY_TOOL_NAME,
             "version": SBOMIFY_VERSION,
             "externalReferences": [
                 {"type": "website", "url": "https://sbomify.com"},
@@ -2103,7 +2154,7 @@ def _add_sbomify_tool_to_json(metadata: dict, spec_version: str) -> None:
         }
 
         # Avoid duplicates
-        if not any(t.get("name") == "sbomify-github-action" for t in metadata["tools"]["components"]):
+        if not any(t.get("name") == SBOMIFY_TOOL_NAME for t in metadata["tools"]["components"]):
             metadata["tools"]["components"].append(tool_entry)
 
 
