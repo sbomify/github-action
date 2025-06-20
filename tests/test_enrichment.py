@@ -475,7 +475,14 @@ class TestSBOMEnrichment:
 
             assert sbomify_tool is not None
             assert sbomify_tool["type"] == "application"
-            assert sbomify_tool["manufacturer"] == "sbomify"
+            # Check manufacturer - could be string or OrganizationalEntity object
+            manufacturer = sbomify_tool["manufacturer"]
+            if hasattr(manufacturer, "name"):
+                # OrganizationalEntity object
+                assert manufacturer.name == "sbomify"
+            else:
+                # String value
+                assert manufacturer == "sbomify"
             assert sbomify_tool["name"] == "sbomify-github-action"
             # Version should be present and match the package version
             assert "version" in sbomify_tool
@@ -724,7 +731,14 @@ class TestSBOMEnrichment:
                 break
 
         assert sbomify_tool_v15 is not None
-        assert sbomify_tool_v15["vendor"] == "sbomify"  # Uses 'vendor' in 1.5
+        # Check vendor - could be string or OrganizationalEntity object
+        vendor = sbomify_tool_v15["vendor"]
+        if hasattr(vendor, "name"):
+            # OrganizationalEntity object
+            assert vendor.name == "sbomify"
+        else:
+            # String value
+            assert vendor == "sbomify"
         assert sbomify_tool_v15["name"] == "sbomify-github-action"
         assert "version" in sbomify_tool_v15
         assert "type" not in sbomify_tool_v15  # No type field in 1.5
@@ -786,7 +800,14 @@ class TestSBOMEnrichment:
 
         assert sbomify_tool_v16 is not None
         assert sbomify_tool_v16["type"] == "application"  # Required in 1.6
-        assert sbomify_tool_v16["manufacturer"] == "sbomify"  # Uses 'manufacturer' in 1.6
+        # Check manufacturer - could be string or OrganizationalEntity object
+        manufacturer = sbomify_tool_v16["manufacturer"]
+        if hasattr(manufacturer, "name"):
+            # OrganizationalEntity object
+            assert manufacturer.name == "sbomify"
+        else:
+            # String value
+            assert manufacturer == "sbomify"
         assert sbomify_tool_v16["name"] == "sbomify-github-action"
         assert "version" in sbomify_tool_v16
         assert "vendor" not in sbomify_tool_v16  # No vendor field in 1.6

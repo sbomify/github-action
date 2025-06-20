@@ -81,6 +81,13 @@ def _get_package_version() -> str:
 
 SBOMIFY_VERSION = _get_package_version()
 
+# Constants for magic strings/numbers
+SPDX_LOGICAL_OPERATORS = [" OR ", " AND ", " WITH "]
+SBOMIFY_PRODUCTION_API = "https://app.sbomify.com/api/v1"
+SBOMIFY_TOOL_NAME = "sbomify-github-action"
+SBOMIFY_VENDOR_NAME = "sbomify"
+LOCALHOST_PATTERNS = ["127.0.0.1", "localhost", "0.0.0.0"]
+
 """
 
 There are three steps in our SBOM generation.
@@ -113,9 +120,12 @@ The output of this step is `step_3.json`.
 Since both step 2 and 3 are optional, we will only
 write `OUTPUT_FILE` at the end of the run.
 
-"""
+# Configuration
+The tool can be configured via environment variables:
+- API_BASE_URL: Override the sbomify API base URL (default: https://app.sbomify.com/api/v1)
+  Useful for testing against development instances (e.g., http://127.0.0.1:8000/api/v1)
 
-SBOMIFY_API_BASE = "https://app.sbomify.com/api/v1"
+"""
 
 # Lock file constants for better maintainability
 COMMON_PYTHON_LOCK_FILES = [
@@ -231,6 +241,7 @@ class Config:
     override_sbom_metadata: bool = False
     override_name: bool = False
     sbom_version: Optional[str] = None
+    api_base_url: str = SBOMIFY_PRODUCTION_API
 
     def validate(self) -> None:
         """
@@ -249,6 +260,39 @@ class Config:
             raise ConfigurationError("Please provide only one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
         if not any(inputs):
             raise ConfigurationError("Please provide one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
+
+        # Validate API base URL format with proper parsing
+        self._validate_api_url()
+
+    def _validate_api_url(self) -> None:
+        """
+        Validate and normalize the API base URL.
+
+        Raises:
+            ConfigurationError: If URL format is invalid
+        """
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(self.api_base_url)
+        except Exception as e:
+            raise ConfigurationError(f"Invalid API base URL format: {e}")
+
+        # Validate scheme
+        if not parsed.scheme or parsed.scheme not in ("http", "https"):
+            raise ConfigurationError("API base URL must start with http:// or https://")
+
+        # Validate hostname
+        if not parsed.netloc:
+            raise ConfigurationError("API base URL must include a valid hostname")
+
+        # Security warning for HTTP on non-localhost
+        if parsed.scheme == "http" and not any(localhost in parsed.netloc for localhost in LOCALHOST_PATTERNS):
+            logger.warning("⚠️  Using HTTP (not HTTPS) for API communication - consider using HTTPS in production")
+
+        # Remove trailing slash if present for consistency
+        if self.api_base_url.endswith("/"):
+            self.api_base_url = self.api_base_url.rstrip("/")
 
 
 def load_config() -> Config:
@@ -274,6 +318,7 @@ def load_config() -> Config:
         override_sbom_metadata=evaluate_boolean(os.getenv("OVERRIDE_SBOM_METADATA", "False")),
         override_name=evaluate_boolean(os.getenv("OVERRIDE_NAME", "False")),
         sbom_version=os.getenv("SBOM_VERSION"),
+        api_base_url=os.getenv("API_BASE_URL", SBOMIFY_PRODUCTION_API),
     )
 
     try:
@@ -283,6 +328,30 @@ def load_config() -> Config:
         sys.exit(1)
 
     return config
+
+
+def _ensure_tools_structure(metadata: dict, spec_version: str) -> None:
+    """
+    Ensure tools structure is properly initialized for the given CycloneDX version.
+
+    Args:
+        metadata: Metadata dictionary to update
+        spec_version: CycloneDX version
+    """
+    existing_tools = metadata.get("tools", [])
+    is_components_format = isinstance(existing_tools, dict) and "components" in existing_tools
+
+    if spec_version == "1.5" and not is_components_format:
+        # True CycloneDX 1.5 format: tools = [{ vendor: "...", name: "...", version: "..." }]
+        if "tools" not in metadata:
+            metadata["tools"] = []
+    else:
+        # CycloneDX 1.6 format OR hybrid 1.5 format with components structure
+        if "tools" not in metadata:
+            metadata["tools"] = {"components": []}
+        elif isinstance(metadata["tools"], list):
+            # Convert from pure 1.5 format to 1.6 format
+            metadata["tools"] = {"components": metadata["tools"]}
 
 
 def setup_dependencies() -> None:
@@ -774,7 +843,7 @@ def _fetch_backend_metadata(config: "Config") -> dict:
     Raises:
         APIError: If API call fails
     """
-    url = SBOMIFY_API_BASE + f"/sboms/component/{config.component_id}/meta"
+    url = config.api_base_url + f"/sboms/component/{config.component_id}/meta"
     headers = {
         "Authorization": f"Bearer {config.token}",
     }
@@ -811,18 +880,35 @@ def _fetch_backend_metadata(config: "Config") -> dict:
     return response.json()
 
 
-def save_sbom_to_file(original_json: dict, file_path: str) -> None:
+def save_sbom_to_file(
+    original_json: dict, file_path: str, parsed_object: object = None, sbom_format: str = None
+) -> None:
     """
-    Save SBOM JSON dict to file.
+    Save SBOM JSON dict to file, with proper serialization for complex objects.
 
     Args:
         original_json: The JSON dict to save
         file_path: Path where to save the SBOM JSON file
+        parsed_object: Optional parsed SBOM object for proper serialization
+        sbom_format: Optional SBOM format ('cyclonedx' or 'spdx')
 
     Raises:
         SBOMGenerationError: If SBOM cannot be serialized
     """
     try:
+        # For CycloneDX, always use the library's built-in serialization if we have the parsed object
+        if sbom_format == "cyclonedx" and parsed_object is not None:
+            # Use cyclonedx library's JSON serialization to avoid format issues
+            from cyclonedx.model.bom import Bom
+
+            if isinstance(parsed_object, Bom):
+                logger.debug("Using CycloneDX native JSON serialization")
+                with Path(file_path).open("w") as f:
+                    f.write(parsed_object.to_json().decode("utf-8"))
+                logger.info(f"Successfully saved SBOM to {file_path}")
+                return
+
+        # Fallback to JSON dict serialization (for SPDX or when no parsed object)
         with Path(file_path).open("w") as f:
             json.dump(original_json, f, indent=2)
 
@@ -949,7 +1035,7 @@ def _apply_version_specific_metadata(metadata: dict, bom: Bom, spec_version: str
 
     # Add tools metadata (version-specific format)
     if bom.metadata.tools and bom.metadata.tools.tools:
-        _apply_tools_metadata(metadata, bom, spec_version)
+        _apply_tools_metadata_to_json(metadata, bom, spec_version)
 
     # Add supplier information (same format for both versions)
     if bom.metadata.supplier:
@@ -962,6 +1048,105 @@ def _apply_version_specific_metadata(metadata: dict, bom: Bom, spec_version: str
     # Add licenses information (same format for both versions)
     if bom.metadata.licenses:
         _apply_licenses_metadata(metadata, bom)
+
+
+def _apply_tools_metadata_to_json(metadata: dict, bom: Bom, spec_version: str):
+    """Apply tools metadata with version-specific format to JSON only."""
+    existing_tools = metadata.get("tools", [])
+
+    if spec_version == "1.5":
+        # CycloneDX 1.5: tools = [{ vendor: "...", name: "...", version: "..." }]
+        tools_list = []
+
+        # First, handle existing tools from original JSON (including hybrid format)
+        if isinstance(existing_tools, list):
+            # Already in correct 1.5 format
+            tools_list.extend(existing_tools)
+        elif isinstance(existing_tools, dict) and "components" in existing_tools:
+            # Convert from hybrid 1.6 format to 1.5 format
+            for tool_component in existing_tools["components"]:
+                tool_dict = {}
+                if tool_component.get("author"):
+                    tool_dict["vendor"] = tool_component["author"]  # author -> vendor for 1.5
+                elif tool_component.get("manufacturer"):
+                    # Handle manufacturer field properly
+                    manufacturer = tool_component.get("manufacturer")
+                    if isinstance(manufacturer, dict) and manufacturer.get("name"):
+                        tool_dict["vendor"] = manufacturer["name"]
+                    elif isinstance(manufacturer, str):
+                        tool_dict["vendor"] = manufacturer
+                if tool_component.get("name"):
+                    tool_dict["name"] = tool_component["name"]
+                if tool_component.get("version"):
+                    tool_dict["version"] = tool_component["version"]
+
+                if tool_dict.get("name"):
+                    tools_list.append(tool_dict)
+
+        # Then, add new tools from BOM object (avoid duplicates)
+        if bom.metadata.tools and bom.metadata.tools.tools:
+            for tool in bom.metadata.tools.tools:
+                tool_dict = {}
+                if hasattr(tool, "vendor") and tool.vendor:
+                    tool_dict["vendor"] = tool.vendor
+                if hasattr(tool, "name") and tool.name:
+                    tool_dict["name"] = tool.name
+                if hasattr(tool, "version") and tool.version:
+                    tool_dict["version"] = tool.version
+
+                if tool_dict.get("name") and not any(t.get("name") == tool_dict["name"] for t in tools_list):
+                    tools_list.append(tool_dict)
+
+        if tools_list:
+            metadata["tools"] = tools_list
+
+    elif spec_version == "1.6":
+        # CycloneDX 1.6: tools = { components: [{ type: "application", manufacturer: "sbomify", name: "...", version: "..." }] }
+        if isinstance(existing_tools, dict) and "components" in existing_tools:
+            tools_list = existing_tools["components"]
+        else:
+            tools_list = []
+
+        # Add new tools from BOM object
+        if bom.metadata.tools and bom.metadata.tools.tools:
+            for tool in bom.metadata.tools.tools:
+                tool_dict = {"type": "application"}
+                if hasattr(tool, "vendor") and tool.vendor:
+                    tool_dict["manufacturer"] = tool.vendor  # Keep as string for JSON
+                if hasattr(tool, "name") and tool.name:
+                    tool_dict["name"] = tool.name
+                if hasattr(tool, "version") and tool.version:
+                    tool_dict["version"] = tool.version
+
+                if tool_dict.get("name") and not any(t.get("name") == tool_dict["name"] for t in tools_list):
+                    tools_list.append(tool_dict)
+
+        if tools_list:
+            metadata["tools"] = {"components": tools_list}
+
+    else:
+        # Default to 1.5 format for unknown versions
+        logger.warning(f"Unknown CycloneDX version {spec_version}, using 1.5 format")
+        if isinstance(existing_tools, list):
+            tools_list = existing_tools
+        else:
+            tools_list = []
+
+        if bom.metadata.tools and bom.metadata.tools.tools:
+            for tool in bom.metadata.tools.tools:
+                tool_dict = {}
+                if hasattr(tool, "vendor") and tool.vendor:
+                    tool_dict["vendor"] = tool.vendor
+                if hasattr(tool, "name") and tool.name:
+                    tool_dict["name"] = tool.name
+                if hasattr(tool, "version") and tool.version:
+                    tool_dict["version"] = tool.version
+
+                if tool_dict.get("name") and not any(t.get("name") == tool_dict["name"] for t in tools_list):
+                    tools_list.append(tool_dict)
+
+        if tools_list:
+            metadata["tools"] = tools_list
 
 
 def _apply_supplier_metadata(metadata: dict, bom: Bom, prefer_backend: bool):
@@ -1019,97 +1204,6 @@ def _apply_supplier_metadata(metadata: dict, bom: Bom, prefer_backend: bool):
 
     if supplier_dict:
         metadata["supplier"] = supplier_dict
-
-
-def _apply_tools_metadata(metadata: dict, bom: Bom, spec_version: str):
-    """Apply tools metadata with version-specific format."""
-    existing_tools = metadata.get("tools", [])
-
-    if spec_version == "1.5":
-        # CycloneDX 1.5: tools = [{ vendor: "...", name: "...", version: "..." }]
-        tools_list = []
-
-        # First, handle existing tools from original JSON (including hybrid format)
-        if isinstance(existing_tools, list):
-            # Already in correct 1.5 format
-            tools_list.extend(existing_tools)
-        elif isinstance(existing_tools, dict) and "components" in existing_tools:
-            # Convert from hybrid 1.6 format to 1.5 format
-            for tool_component in existing_tools["components"]:
-                tool_dict = {}
-                if tool_component.get("author"):
-                    tool_dict["vendor"] = tool_component["author"]  # author -> vendor for 1.5
-                elif tool_component.get("manufacturer"):
-                    tool_dict["vendor"] = tool_component["manufacturer"]  # manufacturer -> vendor for 1.5
-                if tool_component.get("name"):
-                    tool_dict["name"] = tool_component["name"]
-                if tool_component.get("version"):
-                    tool_dict["version"] = tool_component["version"]
-
-                if tool_dict.get("name"):
-                    tools_list.append(tool_dict)
-
-        # Then, add new tools from BOM object (avoid duplicates)
-        if bom.metadata.tools and bom.metadata.tools.tools:
-            for tool in bom.metadata.tools.tools:
-                tool_dict = {}
-                if hasattr(tool, "vendor") and tool.vendor:
-                    tool_dict["vendor"] = tool.vendor
-                if hasattr(tool, "name") and tool.name:
-                    tool_dict["name"] = tool.name
-                if hasattr(tool, "version") and tool.version:
-                    tool_dict["version"] = tool.version
-
-                if tool_dict.get("name") and not any(t.get("name") == tool_dict["name"] for t in tools_list):
-                    tools_list.append(tool_dict)
-
-        if tools_list:
-            metadata["tools"] = tools_list
-
-    elif spec_version == "1.6":
-        # CycloneDX 1.6: tools = { components: [{ type: "application", manufacturer: "sbomify", name: "...", version: "..." }] }
-        if isinstance(existing_tools, dict) and "components" in existing_tools:
-            tools_list = existing_tools["components"]
-        else:
-            tools_list = []
-
-        for tool in bom.metadata.tools.tools:
-            tool_dict = {"type": "application"}
-            if hasattr(tool, "vendor") and tool.vendor:
-                tool_dict["manufacturer"] = tool.vendor  # Use manufacturer instead of vendor for 1.6
-            if hasattr(tool, "name") and tool.name:
-                tool_dict["name"] = tool.name
-            if hasattr(tool, "version") and tool.version:
-                tool_dict["version"] = tool.version
-
-            if tool_dict.get("name") and not any(t.get("name") == tool_dict["name"] for t in tools_list):
-                tools_list.append(tool_dict)
-
-        if tools_list:
-            metadata["tools"] = {"components": tools_list}
-
-    else:
-        # Default to 1.5 format for unknown versions
-        logger.warning(f"Unknown CycloneDX version {spec_version}, using 1.5 format")
-        if isinstance(existing_tools, list):
-            tools_list = existing_tools
-        else:
-            tools_list = []
-
-        for tool in bom.metadata.tools.tools:
-            tool_dict = {}
-            if hasattr(tool, "vendor") and tool.vendor:
-                tool_dict["vendor"] = tool.vendor
-            if hasattr(tool, "name") and tool.name:
-                tool_dict["name"] = tool.name
-            if hasattr(tool, "version") and tool.version:
-                tool_dict["version"] = tool.version
-
-            if tool_dict.get("name") and not any(t.get("name") == tool_dict["name"] for t in tools_list):
-                tools_list.append(tool_dict)
-
-        if tools_list:
-            metadata["tools"] = tools_list
 
 
 def _apply_authors_metadata(metadata: dict, bom: Bom, spec_version: str):
@@ -1536,6 +1630,12 @@ def main() -> None:
 
     config = load_config()
 
+    # Log the API base URL being used for transparency
+    if config.api_base_url != SBOMIFY_PRODUCTION_API:
+        logger.info(f"Using custom API base URL: {config.api_base_url}")
+    else:
+        logger.info(f"Using production API: {config.api_base_url}")
+
     # Step 1: SBOM Generation/Validation
     _log_step_header(1, "SBOM Generation/Input Processing")
 
@@ -1593,50 +1693,37 @@ def main() -> None:
             if not sbom_input_file:
                 raise FileProcessingError("No SBOM file found from previous step")
 
-            with Path(sbom_input_file).open() as f:
-                sbom_data = json.load(f)
+            logger.info("Augmenting SBOM with backend metadata")
 
-            # Check if format is supported for augmentation
-            if FORMAT == "spdx":
-                logger.info("Augmenting SPDX SBOM with supplier, author, and license information")
-                # Load SPDX SBOM (currently using JSON fallback)
-                sbom_format, original_json, parsed_object = load_sbom_from_file(sbom_input_file)
+            # Load SBOM as JSON to avoid CycloneDX library round-trip issues
+            with Path(sbom_input_file).open("r") as f:
+                sbom_json = json.load(f)
 
-                # Enrich with backend metadata
-                parsed_object, updated_json = enrich_sbom_with_backend_metadata(
-                    sbom_format, original_json, parsed_object, config
-                )
-
-                # Save enriched SBOM
-                save_sbom_to_file(updated_json, "step_2.json")
-
-                logger.info("SPDX SBOM augmentation completed")
-            elif FORMAT == "cyclonedx":
-                logger.info("Augmenting CycloneDX SBOM with supplier, author, and license information")
-                # Use format-agnostic loading
-                sbom_format, original_json, parsed_object = load_sbom_from_file(sbom_input_file)
-
-                # Ensure we have the mandatory component metadata for CycloneDX
-                if not parsed_object.metadata.component:
-                    from cyclonedx.model.component import Component, ComponentType
-
-                    component_name = Path(FILE).name if FILE else "unknown"
-                    parsed_object.metadata.component = Component(name=component_name, type=ComponentType.APPLICATION)
-                elif not parsed_object.metadata.component.name:
-                    parsed_object.metadata.component.name = Path(FILE).name if FILE else "unknown"
-
-                # Enrich with backend metadata
-                parsed_object, updated_json = enrich_sbom_with_backend_metadata(
-                    sbom_format, original_json, parsed_object, config
-                )
-
-                # Save enriched SBOM
-                save_sbom_to_file(updated_json, "step_2.json")
-
-                logger.info("CycloneDX SBOM augmentation completed")
+            # Detect format
+            if sbom_json.get("bomFormat") == "CycloneDX":
+                sbom_format = "cyclonedx"
+                logger.info("Processing CycloneDX SBOM")
+            elif sbom_json.get("spdxVersion") is not None:
+                sbom_format = "spdx"
+                logger.info("Processing SPDX SBOM")
             else:
-                raise SBOMValidationError(f"Unsupported format '{FORMAT}' for augmentation")
+                raise SBOMValidationError("Neither CycloneDX nor SPDX format found in JSON file")
 
+            # Get backend metadata
+            logger.info("Fetching component metadata from sbomify API")
+            augmentation_data = _fetch_backend_metadata(config)
+
+            # Apply augmentation directly to JSON
+            if sbom_format == "cyclonedx":
+                _apply_cyclonedx_augmentation_to_json(sbom_json, augmentation_data, config)
+            elif sbom_format == "spdx":
+                _apply_spdx_augmentation_to_json(sbom_json, augmentation_data, config)
+
+            # Save augmented SBOM
+            with Path("step_2.json").open("w") as f:
+                json.dump(sbom_json, f, indent=2)
+
+            logger.info(f"{sbom_format.upper()} SBOM augmentation completed")
             _log_step_end(2)
 
         except (FileProcessingError, APIError, SBOMValidationError) as e:
@@ -1713,7 +1800,7 @@ def main() -> None:
                     logger.warning(f"SBOM validation error: {e}, proceeding with upload")
 
             # Execute the POST request to upload the SBOM file
-            url = SBOMIFY_API_BASE + f"/sboms/artifact/{FORMAT}/{config.component_id}"
+            url = config.api_base_url + f"/sboms/artifact/{FORMAT}/{config.component_id}"
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {config.token}",
@@ -1785,9 +1872,11 @@ def _add_sbomify_tool_metadata(bom: Bom) -> None:
     """
     from cyclonedx.model import ExternalReference, ExternalReferenceType, XsUri
     from cyclonedx.model.bom import Tool
+    from cyclonedx.model.contact import OrganizationalEntity
 
-    # Create sbomify tool entry
-    sbomify_tool = Tool(vendor="sbomify", name="sbomify-github-action", version=SBOMIFY_VERSION)
+    # Create sbomify tool entry with proper OrganizationalEntity for vendor
+    sbomify_vendor = OrganizationalEntity(name="sbomify")
+    sbomify_tool = Tool(vendor=sbomify_vendor, name="sbomify-github-action", version=SBOMIFY_VERSION)
 
     # Add external references for the tool
     try:
@@ -1796,9 +1885,9 @@ def _add_sbomify_tool_metadata(bom: Bom) -> None:
                 reference_type=ExternalReferenceType.WEBSITE, url=XsUri("https://github.com/sbomify/github-action")
             )
         )
-    except Exception:
+    except Exception as e:
         # If external references fail, continue without them
-        pass
+        logger.debug(f"Failed to add external references to sbomify tool: {e}")
 
     # Add the tool to the metadata
     bom.metadata.tools.tools.add(sbomify_tool)
@@ -1821,7 +1910,7 @@ def _process_license_data(license_data: Any) -> Optional[Any]:
 
     if isinstance(license_data, str):
         # Handle SPDX license expressions
-        if any(op in license_data for op in [" OR ", " AND ", " WITH "]):
+        if any(op in license_data for op in SPDX_LOGICAL_OPERATORS):
             # Complex SPDX expression
             try:
                 return LicenseExpression(value=license_data)
@@ -1895,6 +1984,178 @@ def _validate_cyclonedx_sbom(sbom_file_path: str) -> bool | None:
     except Exception as e:
         logger.warning(f"SBOM validation error: {e}")
         return False
+
+
+def _apply_cyclonedx_augmentation_to_json(sbom_json: dict, augmentation_data: dict, config: "Config") -> None:
+    """
+    Apply augmentation directly to CycloneDX JSON to avoid library round-trip issues.
+
+    Args:
+        sbom_json: The SBOM JSON dict to modify
+        augmentation_data: Backend metadata to apply
+        config: Configuration object
+    """
+    # Ensure metadata exists
+    if "metadata" not in sbom_json:
+        sbom_json["metadata"] = {}
+
+    metadata = sbom_json["metadata"]
+
+    # Add sbomify tool - fix manufacturer field format for CycloneDX 1.6
+    spec_version = sbom_json.get("specVersion", "1.6")
+    _add_sbomify_tool_to_json(metadata, spec_version)
+
+    # Also fix any existing tools that might have manufacturer field issues
+    if "tools" in metadata and isinstance(metadata["tools"], dict) and "components" in metadata["tools"]:
+        for tool in metadata["tools"]["components"]:
+            # Fix manufacturer field format if it's a string (should be organizational entity)
+            if "manufacturer" in tool and isinstance(tool["manufacturer"], str):
+                manufacturer_name = tool["manufacturer"]
+                tool["manufacturer"] = {"name": manufacturer_name}
+
+    # Add supplier if available
+    if "supplier" in augmentation_data:
+        supplier_data = augmentation_data["supplier"]
+        logger.info(f"Adding supplier information: {supplier_data.get('name', 'Unknown')}")
+
+        metadata["supplier"] = {
+            "name": supplier_data.get("name", ""),
+            "url": supplier_data.get("url", [])
+            if isinstance(supplier_data.get("url"), list)
+            else [supplier_data.get("url")]
+            if supplier_data.get("url")
+            else [],
+        }
+
+        # Add contacts if present
+        if "contacts" in supplier_data and supplier_data["contacts"]:
+            metadata["supplier"]["contacts"] = []
+            for contact_data in supplier_data["contacts"]:
+                contact = {}
+                if contact_data.get("name"):
+                    contact["name"] = contact_data["name"]
+                if contact_data.get("email"):
+                    contact["email"] = contact_data["email"]
+                if contact_data.get("phone"):
+                    contact["phone"] = contact_data["phone"]
+                if contact:
+                    metadata["supplier"]["contacts"].append(contact)
+
+    # Add authors if available
+    if "authors" in augmentation_data:
+        spec_version = sbom_json.get("specVersion", "1.6")
+        authors_data = augmentation_data["authors"]
+        logger.info(f"Adding {len(authors_data)} author(s) from sbomify")
+
+        if spec_version == "1.5":
+            # CycloneDX 1.5: author = "string"
+            author_names = [author.get("name", "") for author in authors_data if author.get("name")]
+            if author_names:
+                metadata["author"] = ", ".join(author_names)
+        else:
+            # CycloneDX 1.6: authors = [{ name: "...", email: "..." }]
+            metadata["authors"] = []
+            for author_data in authors_data:
+                author = {}
+                if author_data.get("name"):
+                    author["name"] = author_data["name"]
+                if author_data.get("email"):
+                    author["email"] = author_data["email"]
+                if author_data.get("phone"):
+                    author["phone"] = author_data["phone"]
+                if author:
+                    metadata["authors"].append(author)
+
+    # Add licenses if available
+    if "licenses" in augmentation_data and augmentation_data["licenses"]:
+        logger.info(f"Adding {len(augmentation_data['licenses'])} license(s) from sbomify")
+        metadata["licenses"] = []
+        for license_data in augmentation_data["licenses"]:
+            if isinstance(license_data, str):
+                # Simple license name or SPDX expression
+                if any(op in license_data for op in SPDX_LOGICAL_OPERATORS):
+                    metadata["licenses"].append({"expression": license_data})
+                else:
+                    metadata["licenses"].append({"license": {"name": license_data}})
+            elif isinstance(license_data, dict) and license_data.get("name"):
+                # Complex license object
+                license_entry = {"license": {"name": license_data["name"]}}
+                if license_data.get("url"):
+                    license_entry["license"]["url"] = license_data["url"]
+                if license_data.get("text"):
+                    license_entry["license"]["text"] = {"content": license_data["text"]}
+                metadata["licenses"].append(license_entry)
+
+
+def _apply_spdx_augmentation_to_json(sbom_json: dict, augmentation_data: dict, config: "Config") -> None:
+    """
+    Apply augmentation directly to SPDX JSON.
+
+    Args:
+        sbom_json: The SBOM JSON dict to modify
+        augmentation_data: Backend metadata to apply
+        config: Configuration object
+    """
+    # SPDX metadata is typically in creationInfo
+    if "creationInfo" not in sbom_json:
+        sbom_json["creationInfo"] = {}
+
+    creation_info = sbom_json["creationInfo"]
+
+    # Apply supplier as creator if available
+    if "supplier" in augmentation_data:
+        supplier_data = augmentation_data["supplier"]
+        logger.info(f"Adding supplier information: {supplier_data.get('name', 'Unknown')}")
+
+        # Add to creators list (preserve existing)
+        creators = creation_info.get("creators", [])
+        if supplier_data.get("name"):
+            creator_entry = f"Organization: {supplier_data['name']}"
+            if creator_entry not in creators:
+                creators.append(creator_entry)
+        creation_info["creators"] = creators
+
+
+def _add_sbomify_tool_to_json(metadata: dict, spec_version: str) -> None:
+    """
+    Add sbomify tool information directly to JSON metadata.
+
+    Args:
+        metadata: Metadata dictionary to update
+        spec_version: CycloneDX version
+    """
+    logger.info("Added sbomify as processing tool to SBOM metadata")
+
+    # Use helper function to ensure proper tools structure
+    _ensure_tools_structure(metadata, spec_version)
+
+    # Detect actual tools format (some 1.5 SBOMs use 1.6 tools structure)
+    existing_tools = metadata.get("tools", [])
+    is_components_format = isinstance(existing_tools, dict) and "components" in existing_tools
+
+    if spec_version == "1.5" and not is_components_format:
+        # True CycloneDX 1.5 format: tools = [{ vendor: "...", name: "...", version: "..." }]
+        tool_entry = {"vendor": SBOMIFY_VENDOR_NAME, "name": SBOMIFY_TOOL_NAME, "version": SBOMIFY_VERSION}
+
+        # Avoid duplicates
+        if not any(t.get("name") == SBOMIFY_TOOL_NAME for t in metadata["tools"]):
+            metadata["tools"].append(tool_entry)
+    else:
+        # CycloneDX 1.6 format OR hybrid 1.5 format with components structure
+        tool_entry = {
+            "type": "application",
+            "manufacturer": {"name": SBOMIFY_VENDOR_NAME},  # Proper organizational entity format
+            "name": SBOMIFY_TOOL_NAME,
+            "version": SBOMIFY_VERSION,
+            "externalReferences": [
+                {"type": "website", "url": "https://sbomify.com"},
+                {"type": "vcs", "url": "https://github.com/sbomify/github-action"},
+            ],
+        }
+
+        # Avoid duplicates
+        if not any(t.get("name") == SBOMIFY_TOOL_NAME for t in metadata["tools"]["components"]):
+            metadata["tools"]["components"].append(tool_entry)
 
 
 if __name__ == "__main__":
