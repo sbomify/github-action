@@ -811,7 +811,7 @@ def main() -> None:
                 err_msg = f"Failed to upload SBOM file. [{response.status_code}]"
                 try:
                     if response.json() and "detail" in response.json():
-                        err_msg += f"-[{response.json()['detail']}]"
+                        err_msg += f" - {response.json()['detail']}"
                 except (ValueError, json.JSONDecodeError):
                     pass
 
