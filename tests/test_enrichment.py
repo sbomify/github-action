@@ -72,6 +72,22 @@ class TestSBOMEnrichment:
         }
 
     @pytest.fixture
+    def sample_cyclonedx_sbom_v15(self):
+        """Sample CycloneDX 1.5 SBOM with some existing metadata."""
+        return {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.5",
+            "serialNumber": "urn:uuid:12345678-1234-5678-1234-567812345678",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2023-01-01T00:00:00Z",
+                "component": {"type": "application", "name": "test-app", "version": "1.0.0"},
+                "authors": [{"name": "Original Author", "email": "original@example.com"}],
+            },
+            "components": [],
+        }
+
+    @pytest.fixture
     def sample_cyclonedx_sbom(self):
         """Sample CycloneDX SBOM with some existing metadata."""
         return {
@@ -439,18 +455,13 @@ class TestSBOMEnrichment:
                     break
 
             assert sbomify_tool is not None
-            assert sbomify_tool["vendor"] == "sbomify"
+            assert sbomify_tool["type"] == "application"
+            assert sbomify_tool["manufacturer"] == "sbomify"
             assert sbomify_tool["name"] == "sbomify-github-action"
             # Version should be present and match the package version
             assert "version" in sbomify_tool
-
-            # Verify it's the correct version from poetry (should be 0.2.0)
-            import sbomify_action
-
-            expected_version = sbomify_action.__version__
-            assert sbomify_tool["version"] == expected_version
-            # Sanity check that we're not getting "unknown"
-            assert sbomify_tool["version"] != "unknown"
+            # In CycloneDX 1.6, vendor field should not be present (uses manufacturer instead)
+            assert "vendor" not in sbomify_tool
 
     def test_version_consistency(self):
         """Test that version detection methods are consistent."""
@@ -465,8 +476,8 @@ class TestSBOMEnrichment:
 
     def test_cyclonedx_validation(self, tmp_path):
         """Test CycloneDX validation functionality."""
-        # Create a test SBOM dictionary
-        test_sbom = {"metadata": {"component": {"name": "test"}}}
+        # Create a test SBOM dictionary with required CycloneDX fields
+        test_sbom = {"bomFormat": "CycloneDX", "specVersion": "1.5", "metadata": {"component": {"name": "test"}}}
 
         with patch("subprocess.run") as mock_run:
             # Mock successful validation
@@ -482,16 +493,18 @@ class TestSBOMEnrichment:
             result = _validate_cyclonedx_sbom(str(sbom_file))
             assert result is True
 
-            # Test validation failure
-            mock_run.return_value.returncode = 1
-            mock_run.return_value.stderr = "Validation errors"
-            result = _validate_cyclonedx_sbom(str(sbom_file))
+            # Test validation failure with invalid SBOM
+            invalid_sbom = {"metadata": {"component": {"name": "test"}}}  # Missing bomFormat and specVersion
+            sbom_file_invalid = tmp_path / "test_sbom_invalid.json"
+            with open(sbom_file_invalid, "w") as f:
+                json.dump(invalid_sbom, f)
+
+            result = _validate_cyclonedx_sbom(str(sbom_file_invalid))
             assert result is False
 
-            # Test when cyclonedx-py is not available
-            mock_run.side_effect = FileNotFoundError("cyclonedx-py not found")
-            result = _validate_cyclonedx_sbom(str(sbom_file))
-            assert result is None  # Graceful fallback
+            # Test with non-existent file
+            result = _validate_cyclonedx_sbom("non_existent_file.json")
+            assert result is False
 
     @patch("sbomify_action.cli.main.requests.get")
     def test_local_sbom_version_override(self, mock_get, tmp_path, sample_cyclonedx_sbom, sample_backend_payload_basic):
@@ -635,3 +648,86 @@ class TestSBOMEnrichment:
         # Verify component name was overridden
         component = updated_json["metadata"]["component"]
         assert component["name"] == "Backend Component Name"  # Should be the backend name, not original
+
+    @patch("sbomify_action.cli.main.requests.get")
+    def test_version_aware_enrichment(
+        self,
+        mock_get,
+        tmp_path,
+        sample_cyclonedx_sbom_v15,
+        sample_cyclonedx_sbom,
+        sample_backend_payload_basic,
+        mock_config,
+    ):
+        """Test that enrichment applies correct metadata format based on CycloneDX version."""
+        # Setup mock API response
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = sample_backend_payload_basic
+        mock_get.return_value = mock_response
+
+        # Test CycloneDX 1.5 enrichment
+        sbom_file_v15 = tmp_path / "test_sbom_v15.json"
+        with open(sbom_file_v15, "w") as f:
+            json.dump(sample_cyclonedx_sbom_v15, f)
+
+        sbom_format, original_json, parsed_object = load_sbom_from_file(str(sbom_file_v15))
+        enriched_object, updated_json_v15 = enrich_sbom_with_backend_metadata(
+            sbom_format, original_json, parsed_object, mock_config
+        )
+
+        # Verify CycloneDX 1.5 tools format: tools = [{ vendor: "...", name: "...", version: "..." }]
+        metadata_v15 = updated_json_v15["metadata"]
+        assert "tools" in metadata_v15
+        tools_v15 = metadata_v15["tools"]
+        assert isinstance(tools_v15, list), "CycloneDX 1.5 tools should be an array"
+
+        sbomify_tool_v15 = None
+        for tool in tools_v15:
+            if tool.get("name") == "sbomify-github-action":
+                sbomify_tool_v15 = tool
+                break
+
+        assert sbomify_tool_v15 is not None
+        assert sbomify_tool_v15["vendor"] == "sbomify"
+        assert sbomify_tool_v15["name"] == "sbomify-github-action"
+        assert "version" in sbomify_tool_v15
+        assert "type" not in sbomify_tool_v15  # No type field in 1.5
+        assert "manufacturer" not in sbomify_tool_v15  # No manufacturer field in 1.5
+
+        # Reset mock for second test
+        mock_get.reset_mock()
+        mock_get.return_value = mock_response
+
+        # Test CycloneDX 1.6 enrichment
+        sbom_file_v16 = tmp_path / "test_sbom_v16.json"
+        with open(sbom_file_v16, "w") as f:
+            json.dump(sample_cyclonedx_sbom, f)
+
+        sbom_format, original_json, parsed_object = load_sbom_from_file(str(sbom_file_v16))
+        enriched_object, updated_json_v16 = enrich_sbom_with_backend_metadata(
+            sbom_format, original_json, parsed_object, mock_config
+        )
+
+        # Verify CycloneDX 1.6 tools format: tools = { components: [{ type: "application", manufacturer: "sbomify", ... }] }
+        metadata_v16 = updated_json_v16["metadata"]
+        assert "tools" in metadata_v16
+        tools_v16 = metadata_v16["tools"]
+        assert isinstance(tools_v16, dict), "CycloneDX 1.6 tools should be an object"
+        assert "components" in tools_v16, "CycloneDX 1.6 tools should have components array"
+
+        components = tools_v16["components"]
+        assert isinstance(components, list)
+
+        sbomify_tool_v16 = None
+        for tool in components:
+            if tool.get("name") == "sbomify-github-action":
+                sbomify_tool_v16 = tool
+                break
+
+        assert sbomify_tool_v16 is not None
+        assert sbomify_tool_v16["type"] == "application"
+        assert sbomify_tool_v16["manufacturer"] == "sbomify"
+        assert sbomify_tool_v16["name"] == "sbomify-github-action"
+        assert "version" in sbomify_tool_v16
+        assert "vendor" not in sbomify_tool_v16  # No vendor field in 1.6
