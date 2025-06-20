@@ -82,6 +82,7 @@ class TestSBOMEnrichment:
             "metadata": {
                 "timestamp": "2023-01-01T00:00:00Z",
                 "component": {"type": "application", "name": "test-app", "version": "1.0.0"},
+                # Use authors array for loading (library compatibility), but test will verify correct output format
                 "authors": [{"name": "Original Author", "email": "original@example.com"}],
             },
             "components": [],
@@ -119,6 +120,24 @@ class TestSBOMEnrichment:
     def mock_config(self):
         """Mock configuration for testing."""
         return Config(token="test-token", component_id="test-component-123", upload=False, augment=True)
+
+    @pytest.fixture
+    def sample_backend_payload_with_manufacturer(self):
+        """Sample backend payload for comprehensive version testing."""
+        return {
+            "name": "Test Component",
+            "supplier": {
+                "name": "Test Supplier",
+                "url": ["http://supply.org"],
+                "contacts": [{"name": "C1", "email": "c1@contacts.org", "phone": "555-0101"}],
+            },
+            "authors": [
+                {"name": "A1", "email": "a1@example.org"},
+                {"name": "A2", "email": "a2@example.com", "phone": "555-0103"},
+            ],
+            "licenses": [{"name": "GPL-1.0", "url": "https://www.gnu.org/licenses/gpl-1.0.html"}],
+            "lifecycle_phase": "operations",
+        }
 
     def test_load_cyclonedx_sbom(self, tmp_path, sample_cyclonedx_sbom):
         """Test loading CycloneDX SBOM with format detection."""
@@ -650,20 +669,26 @@ class TestSBOMEnrichment:
         assert component["name"] == "Backend Component Name"  # Should be the backend name, not original
 
     @patch("sbomify_action.cli.main.requests.get")
-    def test_version_aware_enrichment(
+    def test_comprehensive_version_aware_enrichment(
         self,
         mock_get,
         tmp_path,
         sample_cyclonedx_sbom_v15,
         sample_cyclonedx_sbom,
-        sample_backend_payload_basic,
+        sample_backend_payload_with_manufacturer,
         mock_config,
     ):
-        """Test that enrichment applies correct metadata format based on CycloneDX version."""
+        """Test comprehensive version-aware enrichment between CycloneDX 1.5 and 1.6.
+
+        Tools and authors metadata are version-specific:
+        - CycloneDX 1.5: tools as array, author as string
+        - CycloneDX 1.6: tools as object with components, authors as array
+        Supplier and licenses have the same format in both versions.
+        """
         # Setup mock API response
         mock_response = Mock()
         mock_response.ok = True
-        mock_response.json.return_value = sample_backend_payload_basic
+        mock_response.json.return_value = sample_backend_payload_with_manufacturer
         mock_get.return_value = mock_response
 
         # Test CycloneDX 1.5 enrichment
@@ -672,12 +697,22 @@ class TestSBOMEnrichment:
             json.dump(sample_cyclonedx_sbom_v15, f)
 
         sbom_format, original_json, parsed_object = load_sbom_from_file(str(sbom_file_v15))
+
+        # Simulate 1.5 format in the original JSON (convert authors array to author string)
+        # This simulates what a real 1.5 SBOM would look like
+        if "authors" in original_json["metadata"]:
+            original_authors = original_json["metadata"]["authors"]
+            original_json["metadata"]["author"] = original_authors[0]["name"] if original_authors else ""
+            del original_json["metadata"]["authors"]
+
         enriched_object, updated_json_v15 = enrich_sbom_with_backend_metadata(
             sbom_format, original_json, parsed_object, mock_config
         )
 
-        # Verify CycloneDX 1.5 tools format: tools = [{ vendor: "...", name: "...", version: "..." }]
+        # ===== CycloneDX 1.5 VERIFICATION =====
         metadata_v15 = updated_json_v15["metadata"]
+
+        # 1. Tools format verification (version-specific)
         assert "tools" in metadata_v15
         tools_v15 = metadata_v15["tools"]
         assert isinstance(tools_v15, list), "CycloneDX 1.5 tools should be an array"
@@ -689,11 +724,33 @@ class TestSBOMEnrichment:
                 break
 
         assert sbomify_tool_v15 is not None
-        assert sbomify_tool_v15["vendor"] == "sbomify"
+        assert sbomify_tool_v15["vendor"] == "sbomify"  # Uses 'vendor' in 1.5
         assert sbomify_tool_v15["name"] == "sbomify-github-action"
         assert "version" in sbomify_tool_v15
         assert "type" not in sbomify_tool_v15  # No type field in 1.5
         assert "manufacturer" not in sbomify_tool_v15  # No manufacturer field in 1.5
+
+        # 2. Common metadata fields (same format in both versions)
+        # Supplier
+        assert "supplier" in metadata_v15
+        supplier_v15 = metadata_v15["supplier"]
+        assert supplier_v15["name"] == "Test Supplier"
+
+        # Authors (CycloneDX 1.5 format: author as string)
+        assert "author" in metadata_v15
+        author_v15 = metadata_v15["author"]
+        assert isinstance(author_v15, str), "CycloneDX 1.5 author should be a string"
+        # Should combine backend authors with existing author
+        assert "A1" in author_v15 and "A2" in author_v15 and "Original Author" in author_v15
+
+        # Licenses
+        assert "licenses" in metadata_v15
+        licenses_v15 = metadata_v15["licenses"]
+        license_names = set()
+        for license_item in licenses_v15:
+            if isinstance(license_item, dict) and "license" in license_item:
+                license_names.add(license_item["license"]["name"])
+        assert "GPL-1.0" in license_names
 
         # Reset mock for second test
         mock_get.reset_mock()
@@ -709,8 +766,10 @@ class TestSBOMEnrichment:
             sbom_format, original_json, parsed_object, mock_config
         )
 
-        # Verify CycloneDX 1.6 tools format: tools = { components: [{ type: "application", manufacturer: "sbomify", ... }] }
+        # ===== CycloneDX 1.6 VERIFICATION =====
         metadata_v16 = updated_json_v16["metadata"]
+
+        # 1. Tools format verification (version-specific)
         assert "tools" in metadata_v16
         tools_v16 = metadata_v16["tools"]
         assert isinstance(tools_v16, dict), "CycloneDX 1.6 tools should be an object"
@@ -726,8 +785,123 @@ class TestSBOMEnrichment:
                 break
 
         assert sbomify_tool_v16 is not None
-        assert sbomify_tool_v16["type"] == "application"
-        assert sbomify_tool_v16["manufacturer"] == "sbomify"
+        assert sbomify_tool_v16["type"] == "application"  # Required in 1.6
+        assert sbomify_tool_v16["manufacturer"] == "sbomify"  # Uses 'manufacturer' in 1.6
         assert sbomify_tool_v16["name"] == "sbomify-github-action"
         assert "version" in sbomify_tool_v16
         assert "vendor" not in sbomify_tool_v16  # No vendor field in 1.6
+
+        # 2. Common metadata fields verification (should be identical to 1.5)
+        # Supplier
+        assert "supplier" in metadata_v16
+        supplier_v16 = metadata_v16["supplier"]
+        assert supplier_v16["name"] == "Test Supplier"
+
+        # Authors (CycloneDX 1.6 format: authors as array)
+        assert "authors" in metadata_v16
+        authors_v16 = metadata_v16["authors"]
+        assert isinstance(authors_v16, list), "CycloneDX 1.6 authors should be an array"
+        author_emails_v16 = {a["email"] for a in authors_v16}
+        assert "a1@example.org" in author_emails_v16
+        assert "a2@example.com" in author_emails_v16
+        # Should preserve existing author from 1.6 format
+        existing_author_v16 = next((a for a in authors_v16 if a.get("email") == "original@example.com"), None)
+        assert existing_author_v16 is not None
+        assert existing_author_v16["name"] == "Original Author"
+
+        # Licenses
+        assert "licenses" in metadata_v16
+        licenses_v16 = metadata_v16["licenses"]
+        license_names_v16 = set()
+        for license_item in licenses_v16:
+            if isinstance(license_item, dict) and "license" in license_item:
+                license_names_v16.add(license_item["license"]["name"])
+        assert "GPL-1.0" in license_names_v16
+
+        # ===== CROSS-VERSION CONSISTENCY VERIFICATION =====
+        # Verify that common metadata fields produce identical results
+        assert supplier_v15 == supplier_v16, "Supplier metadata should be identical between versions"
+
+        # Authors have different formats but should contain same information:
+        # 1.5: author string contains all author names
+        # 1.6: authors array contains author objects with emails
+        assert "A1" in author_v15 and "A2" in author_v15, "1.5 author string should contain backend authors"
+        assert author_emails_v16 == {"a1@example.org", "a2@example.com", "original@example.com"}, (
+            "1.6 should have all author emails"
+        )
+
+        assert license_names == license_names_v16, "License names should be identical between versions"
+
+    @patch("sbomify_action.cli.main.requests.get")
+    def test_version_edge_cases_and_fallbacks(
+        self, mock_get, tmp_path, sample_backend_payload_with_manufacturer, mock_config
+    ):
+        """Test version detection edge cases and fallback behavior."""
+        # Setup mock API response
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = sample_backend_payload_with_manufacturer
+        mock_get.return_value = mock_response
+
+        # Test 1: Unknown version should fallback to 1.5 format
+        sbom_unknown_version = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "2.0",  # Future version
+            "serialNumber": "urn:uuid:12345678-1234-5678-1234-567812345678",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2023-01-01T00:00:00Z",
+                "component": {"type": "application", "name": "test-app", "version": "1.0.0"},
+            },
+            "components": [],
+        }
+
+        sbom_file_unknown = tmp_path / "test_sbom_unknown.json"
+        with open(sbom_file_unknown, "w") as f:
+            json.dump(sbom_unknown_version, f)
+
+        sbom_format, original_json, parsed_object = load_sbom_from_file(str(sbom_file_unknown))
+        enriched_object, updated_json_unknown = enrich_sbom_with_backend_metadata(
+            sbom_format, original_json, parsed_object, mock_config
+        )
+
+        # Should fallback to 1.5 format (array tools, vendor field, manufacture field)
+        metadata_unknown = updated_json_unknown["metadata"]
+        tools_unknown = metadata_unknown["tools"]
+        assert isinstance(tools_unknown, list), "Unknown version should fallback to 1.5 format (array tools)"
+
+        # Find sbomify tool
+        sbomify_tool = next((t for t in tools_unknown if t.get("name") == "sbomify-github-action"), None)
+        assert sbomify_tool is not None
+        assert "vendor" in sbomify_tool, "Unknown version should fallback to 1.5 format (vendor field)"
+        assert "manufacturer" not in sbomify_tool, "Unknown version should not have 1.6 manufacturer field"
+
+        # Test 2: Missing specVersion should fallback to 1.5
+        mock_get.reset_mock()
+        mock_get.return_value = mock_response
+
+        sbom_no_version = {
+            "bomFormat": "CycloneDX",
+            # No specVersion field
+            "serialNumber": "urn:uuid:12345678-1234-5678-1234-567812345678",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2023-01-01T00:00:00Z",
+                "component": {"type": "application", "name": "test-app", "version": "1.0.0"},
+            },
+            "components": [],
+        }
+
+        sbom_file_no_version = tmp_path / "test_sbom_no_version.json"
+        with open(sbom_file_no_version, "w") as f:
+            json.dump(sbom_no_version, f)
+
+        sbom_format, original_json, parsed_object = load_sbom_from_file(str(sbom_file_no_version))
+        enriched_object, updated_json_no_version = enrich_sbom_with_backend_metadata(
+            sbom_format, original_json, parsed_object, mock_config
+        )
+
+        # Should fallback to 1.5 format
+        metadata_no_version = updated_json_no_version["metadata"]
+        tools_no_version = metadata_no_version["tools"]
+        assert isinstance(tools_no_version, list), "Missing specVersion should fallback to 1.5 format"

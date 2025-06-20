@@ -924,7 +924,7 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
         if hasattr(bom.metadata.component, "type") and bom.metadata.component.type:
             component_metadata["type"] = str(bom.metadata.component.type).lower()
 
-    # Apply version-specific metadata handling
+    # Apply version-specific metadata handling (tools are version-specific, others are same format)
     _apply_version_specific_metadata(metadata, bom, spec_version, prefer_backend)
 
     return updated_json
@@ -933,6 +933,9 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
 def _apply_version_specific_metadata(metadata: dict, bom: Bom, spec_version: str, prefer_backend: bool):
     """
     Apply metadata based on CycloneDX version-specific requirements.
+
+    Note: Tools and authors metadata are version-specific. Supplier and licenses
+    have the same format in both CycloneDX 1.5 and 1.6.
 
     Args:
         metadata: Metadata dictionary to update
@@ -949,13 +952,70 @@ def _apply_version_specific_metadata(metadata: dict, bom: Bom, spec_version: str
     if bom.metadata.supplier:
         _apply_supplier_metadata(metadata, bom, prefer_backend)
 
-    # Add authors information (same format for both versions)
+    # Add authors information (version-specific format)
     if bom.metadata.authors:
-        _apply_authors_metadata(metadata, bom)
+        _apply_authors_metadata(metadata, bom, spec_version)
 
     # Add licenses information (same format for both versions)
     if bom.metadata.licenses:
         _apply_licenses_metadata(metadata, bom)
+
+
+def _apply_supplier_metadata(metadata: dict, bom: Bom, prefer_backend: bool):
+    """Apply supplier metadata (same format for 1.5 and 1.6)."""
+    existing_supplier = metadata.get("supplier", {})
+    supplier_dict = {}
+
+    # Merge name based on preference
+    if prefer_backend and bom.metadata.supplier.name:
+        supplier_dict["name"] = bom.metadata.supplier.name
+    elif not prefer_backend and existing_supplier.get("name"):
+        supplier_dict["name"] = existing_supplier["name"]
+    elif bom.metadata.supplier.name:
+        supplier_dict["name"] = bom.metadata.supplier.name
+    elif existing_supplier.get("name"):
+        supplier_dict["name"] = existing_supplier["name"]
+
+    # Merge URLs (backend + existing)
+    urls = set()
+    if bom.metadata.supplier.urls:
+        urls.update(bom.metadata.supplier.urls)
+    if existing_supplier.get("url"):
+        if isinstance(existing_supplier["url"], list):
+            urls.update(existing_supplier["url"])
+        else:
+            urls.add(existing_supplier["url"])
+    if urls:
+        supplier_dict["url"] = list(urls)
+
+    # Merge contacts (backend + existing)
+    contacts_list = []
+
+    # Add backend contacts
+    if bom.metadata.supplier.contacts:
+        for contact in bom.metadata.supplier.contacts:
+            contact_dict = {}
+            if contact.name:
+                contact_dict["name"] = contact.name
+            if contact.email:
+                contact_dict["email"] = contact.email
+            if contact.phone:
+                contact_dict["phone"] = contact.phone
+            if contact_dict:
+                contacts_list.append(contact_dict)
+
+    # Add existing contacts (avoid duplicates by email)
+    existing_contacts = existing_supplier.get("contacts", [])
+    existing_emails = {c.get("email") for c in contacts_list if c.get("email")}
+    for existing_contact in existing_contacts:
+        if not existing_contact.get("email") or existing_contact["email"] not in existing_emails:
+            contacts_list.append(existing_contact)
+
+    if contacts_list:
+        supplier_dict["contacts"] = contacts_list
+
+    if supplier_dict:
+        metadata["supplier"] = supplier_dict
 
 
 def _apply_tools_metadata(metadata: dict, bom: Bom, spec_version: str):
@@ -1030,69 +1090,11 @@ def _apply_tools_metadata(metadata: dict, bom: Bom, spec_version: str):
             metadata["tools"] = tools_list
 
 
-def _apply_supplier_metadata(metadata: dict, bom: Bom, prefer_backend: bool):
-    """Apply supplier metadata (same format for 1.5 and 1.6)."""
-    existing_supplier = metadata.get("supplier", {})
-    supplier_dict = {}
+def _apply_authors_metadata(metadata: dict, bom: Bom, spec_version: str):
+    """Apply authors metadata (version-specific format)."""
 
-    # Merge name based on preference
-    if prefer_backend and bom.metadata.supplier.name:
-        supplier_dict["name"] = bom.metadata.supplier.name
-    elif not prefer_backend and existing_supplier.get("name"):
-        supplier_dict["name"] = existing_supplier["name"]
-    elif bom.metadata.supplier.name:
-        supplier_dict["name"] = bom.metadata.supplier.name
-    elif existing_supplier.get("name"):
-        supplier_dict["name"] = existing_supplier["name"]
-
-    # Merge URLs (backend + existing)
-    urls = set()
-    if bom.metadata.supplier.urls:
-        urls.update(bom.metadata.supplier.urls)
-    if existing_supplier.get("url"):
-        if isinstance(existing_supplier["url"], list):
-            urls.update(existing_supplier["url"])
-        else:
-            urls.add(existing_supplier["url"])
-    if urls:
-        supplier_dict["url"] = list(urls)
-
-    # Merge contacts (backend + existing)
-    contacts_list = []
-
-    # Add backend contacts
-    if bom.metadata.supplier.contacts:
-        for contact in bom.metadata.supplier.contacts:
-            contact_dict = {}
-            if contact.name:
-                contact_dict["name"] = contact.name
-            if contact.email:
-                contact_dict["email"] = contact.email
-            if contact.phone:
-                contact_dict["phone"] = contact.phone
-            if contact_dict:
-                contacts_list.append(contact_dict)
-
-    # Add existing contacts (avoid duplicates by email)
-    existing_contacts = existing_supplier.get("contacts", [])
-    existing_emails = {c.get("email") for c in contacts_list if c.get("email")}
-    for existing_contact in existing_contacts:
-        if not existing_contact.get("email") or existing_contact["email"] not in existing_emails:
-            contacts_list.append(existing_contact)
-
-    if contacts_list:
-        supplier_dict["contacts"] = contacts_list
-
-    if supplier_dict:
-        metadata["supplier"] = supplier_dict
-
-
-def _apply_authors_metadata(metadata: dict, bom: Bom):
-    """Apply authors metadata (same format for 1.5 and 1.6)."""
-    existing_authors = metadata.get("authors", [])
-    authors_list = []
-
-    # Add backend authors
+    # Get backend authors from BOM object
+    backend_authors = []
     for author in bom.metadata.authors:
         author_dict = {}
         if author.name:
@@ -1102,16 +1104,50 @@ def _apply_authors_metadata(metadata: dict, bom: Bom):
         if author.phone:
             author_dict["phone"] = author.phone
         if author_dict:
-            authors_list.append(author_dict)
+            backend_authors.append(author_dict)
 
-    # Add existing authors (avoid duplicates by email)
-    existing_emails = {a.get("email") for a in authors_list if a.get("email")}
-    for existing_author in existing_authors:
-        if not existing_author.get("email") or existing_author["email"] not in existing_emails:
-            authors_list.append(existing_author)
+    if spec_version == "1.5":
+        # CycloneDX 1.5: author = "string"
+        existing_author = metadata.get("author", "")
 
-    if authors_list:
-        metadata["authors"] = authors_list
+        # Combine all authors into a single string (comma-separated)
+        author_names = []
+
+        # Add existing author if present
+        if existing_author:
+            author_names.append(existing_author)
+
+        # Add backend authors (just names)
+        for author in backend_authors:
+            if author.get("name"):
+                author_names.append(author["name"])
+
+        # Set the combined author string (remove duplicates while preserving order)
+        if author_names:
+            unique_authors = []
+            seen = set()
+            for name in author_names:
+                if name not in seen:
+                    unique_authors.append(name)
+                    seen.add(name)
+            metadata["author"] = ", ".join(unique_authors)
+
+    else:  # spec_version == "1.6" or unknown (default to 1.6)
+        # CycloneDX 1.6: authors = [{ name: "...", email: "..." }]
+        existing_authors = metadata.get("authors", [])
+        authors_list = []
+
+        # Add backend authors
+        authors_list.extend(backend_authors)
+
+        # Add existing authors (avoid duplicates by email)
+        existing_emails = {a.get("email") for a in authors_list if a.get("email")}
+        for existing_author in existing_authors:
+            if not existing_author.get("email") or existing_author["email"] not in existing_emails:
+                authors_list.append(existing_author)
+
+        if authors_list:
+            metadata["authors"] = authors_list
 
 
 def _apply_licenses_metadata(metadata: dict, bom: Bom):
