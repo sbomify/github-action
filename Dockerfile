@@ -64,7 +64,7 @@ ENV POETRY_NO_INTERACTION=1
 WORKDIR /app
 COPY . /app/
 
-RUN poetry build
+RUN rm -rf dist/ && poetry build
 
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
