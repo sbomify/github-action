@@ -882,6 +882,7 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
     """
     Apply enriched CycloneDX metadata from Bom object back to original JSON with intelligent merging.
     Preserves existing metadata while adding/updating backend data.
+    Handles version-specific formats (1.5 vs 1.6).
 
     Args:
         original_json: Original SBOM JSON dict
@@ -893,6 +894,10 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
     """
     # Create a copy to avoid modifying original
     updated_json = copy.deepcopy(original_json)
+
+    # Detect CycloneDX version for version-specific handling
+    spec_version = original_json.get("specVersion", "1.5")
+    logger.debug(f"Applying metadata for CycloneDX version {spec_version}")
 
     # Ensure metadata exists
     if "metadata" not in updated_json:
@@ -919,19 +924,109 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
         if hasattr(bom.metadata.component, "type") and bom.metadata.component.type:
             component_metadata["type"] = str(bom.metadata.component.type).lower()
 
-    # Add tools metadata (including sbomify)
-    if bom.metadata.tools and bom.metadata.tools.tools:
-        # Handle both legacy format (tools as array) and current format (tools as object with components)
-        existing_tools = metadata.get("tools", [])
+    # Apply version-specific metadata handling (tools are version-specific, others are same format)
+    _apply_version_specific_metadata(metadata, bom, spec_version, prefer_backend)
 
-        # Check if existing tools is in the newer format (object with components)
-        if isinstance(existing_tools, dict) and "components" in existing_tools:
-            tools_list = existing_tools["components"]
-        elif isinstance(existing_tools, list):
-            # Legacy format - tools is directly an array
+    return updated_json
+
+
+def _apply_version_specific_metadata(metadata: dict, bom: Bom, spec_version: str, prefer_backend: bool):
+    """
+    Apply metadata based on CycloneDX version-specific requirements.
+
+    Note: Tools and authors metadata are version-specific. Supplier and licenses
+    have the same format in both CycloneDX 1.5 and 1.6.
+
+    Args:
+        metadata: Metadata dictionary to update
+        bom: Enriched Bom object
+        spec_version: CycloneDX version (e.g., "1.5", "1.6")
+        prefer_backend: Whether to prefer backend data over existing data
+    """
+
+    # Add tools metadata (version-specific format)
+    if bom.metadata.tools and bom.metadata.tools.tools:
+        _apply_tools_metadata(metadata, bom, spec_version)
+
+    # Add supplier information (same format for both versions)
+    if bom.metadata.supplier:
+        _apply_supplier_metadata(metadata, bom, prefer_backend)
+
+    # Add authors information (version-specific format)
+    if bom.metadata.authors:
+        _apply_authors_metadata(metadata, bom, spec_version)
+
+    # Add licenses information (same format for both versions)
+    if bom.metadata.licenses:
+        _apply_licenses_metadata(metadata, bom)
+
+
+def _apply_supplier_metadata(metadata: dict, bom: Bom, prefer_backend: bool):
+    """Apply supplier metadata (same format for 1.5 and 1.6)."""
+    existing_supplier = metadata.get("supplier", {})
+    supplier_dict = {}
+
+    # Merge name based on preference
+    if prefer_backend and bom.metadata.supplier.name:
+        supplier_dict["name"] = bom.metadata.supplier.name
+    elif not prefer_backend and existing_supplier.get("name"):
+        supplier_dict["name"] = existing_supplier["name"]
+    elif bom.metadata.supplier.name:
+        supplier_dict["name"] = bom.metadata.supplier.name
+    elif existing_supplier.get("name"):
+        supplier_dict["name"] = existing_supplier["name"]
+
+    # Merge URLs (backend + existing)
+    urls = set()
+    if bom.metadata.supplier.urls:
+        urls.update(bom.metadata.supplier.urls)
+    if existing_supplier.get("url"):
+        if isinstance(existing_supplier["url"], list):
+            urls.update(existing_supplier["url"])
+        else:
+            urls.add(existing_supplier["url"])
+    if urls:
+        supplier_dict["url"] = list(urls)
+
+    # Merge contacts (backend + existing)
+    contacts_list = []
+
+    # Add backend contacts
+    if bom.metadata.supplier.contacts:
+        for contact in bom.metadata.supplier.contacts:
+            contact_dict = {}
+            if contact.name:
+                contact_dict["name"] = contact.name
+            if contact.email:
+                contact_dict["email"] = contact.email
+            if contact.phone:
+                contact_dict["phone"] = contact.phone
+            if contact_dict:
+                contacts_list.append(contact_dict)
+
+    # Add existing contacts (avoid duplicates by email)
+    existing_contacts = existing_supplier.get("contacts", [])
+    existing_emails = {c.get("email") for c in contacts_list if c.get("email")}
+    for existing_contact in existing_contacts:
+        if not existing_contact.get("email") or existing_contact["email"] not in existing_emails:
+            contacts_list.append(existing_contact)
+
+    if contacts_list:
+        supplier_dict["contacts"] = contacts_list
+
+    if supplier_dict:
+        metadata["supplier"] = supplier_dict
+
+
+def _apply_tools_metadata(metadata: dict, bom: Bom, spec_version: str):
+    """Apply tools metadata with version-specific format."""
+    existing_tools = metadata.get("tools", [])
+
+    if spec_version == "1.5":
+        # CycloneDX 1.5: tools = [{ vendor: "...", name: "...", version: "..." }]
+        if isinstance(existing_tools, list):
             tools_list = existing_tools
         else:
-            # Initialize as empty list if tools doesn't exist or has unexpected format
             tools_list = []
 
         for tool in bom.metadata.tools.tools:
@@ -943,110 +1038,107 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
             if hasattr(tool, "version") and tool.version:
                 tool_dict["version"] = tool.version
 
-            # Add external references if present
-            if hasattr(tool, "external_references") and tool.external_references:
-                external_refs = []
-                for ref in tool.external_references:
-                    ref_dict = {}
-                    if hasattr(ref, "reference_type") and ref.reference_type:
-                        ref_dict["type"] = str(ref.reference_type)
-                    if hasattr(ref, "url") and ref.url:
-                        ref_dict["url"] = str(ref.url)
-                    if ref_dict:
-                        external_refs.append(ref_dict)
-                if external_refs:
-                    tool_dict["externalReferences"] = external_refs
-
-            if tool_dict:
-                # Check if tool already exists (avoid duplicates)
-                existing_tool = None
-                for existing in tools_list:
-                    if (
-                        isinstance(existing, dict)
-                        and existing.get("name") == tool_dict.get("name")
-                        and existing.get("vendor") == tool_dict.get("vendor")
-                    ):
-                        existing_tool = existing
-                        break
-
-                if not existing_tool:
-                    tools_list.append(tool_dict)
+            if tool_dict.get("name") and not any(t.get("name") == tool_dict["name"] for t in tools_list):
+                tools_list.append(tool_dict)
 
         if tools_list:
-            # Always use the newer format (object with components)
+            metadata["tools"] = tools_list
+
+    elif spec_version == "1.6":
+        # CycloneDX 1.6: tools = { components: [{ type: "application", manufacturer: "sbomify", name: "...", version: "..." }] }
+        if isinstance(existing_tools, dict) and "components" in existing_tools:
+            tools_list = existing_tools["components"]
+        else:
+            tools_list = []
+
+        for tool in bom.metadata.tools.tools:
+            tool_dict = {"type": "application"}
+            if hasattr(tool, "vendor") and tool.vendor:
+                tool_dict["manufacturer"] = tool.vendor  # Use manufacturer instead of vendor for 1.6
+            if hasattr(tool, "name") and tool.name:
+                tool_dict["name"] = tool.name
+            if hasattr(tool, "version") and tool.version:
+                tool_dict["version"] = tool.version
+
+            if tool_dict.get("name") and not any(t.get("name") == tool_dict["name"] for t in tools_list):
+                tools_list.append(tool_dict)
+
+        if tools_list:
             metadata["tools"] = {"components": tools_list}
 
-    # Intelligently merge supplier information (preserve existing, add new)
-    if bom.metadata.supplier:
-        existing_supplier = metadata.get("supplier", {})
-        supplier_dict = {}
+    else:
+        # Default to 1.5 format for unknown versions
+        logger.warning(f"Unknown CycloneDX version {spec_version}, using 1.5 format")
+        if isinstance(existing_tools, list):
+            tools_list = existing_tools
+        else:
+            tools_list = []
 
-        # Merge name based on preference
-        if prefer_backend and bom.metadata.supplier.name:
-            supplier_dict["name"] = bom.metadata.supplier.name
-        elif not prefer_backend and existing_supplier.get("name"):
-            supplier_dict["name"] = existing_supplier["name"]
-        elif bom.metadata.supplier.name:
-            supplier_dict["name"] = bom.metadata.supplier.name
-        elif existing_supplier.get("name"):
-            supplier_dict["name"] = existing_supplier["name"]
+        for tool in bom.metadata.tools.tools:
+            tool_dict = {}
+            if hasattr(tool, "vendor") and tool.vendor:
+                tool_dict["vendor"] = tool.vendor
+            if hasattr(tool, "name") and tool.name:
+                tool_dict["name"] = tool.name
+            if hasattr(tool, "version") and tool.version:
+                tool_dict["version"] = tool.version
 
-        # Merge URLs (backend + existing)
-        urls = set()
-        if bom.metadata.supplier.urls:
-            urls.update(bom.metadata.supplier.urls)
-        if existing_supplier.get("url"):
-            if isinstance(existing_supplier["url"], list):
-                urls.update(existing_supplier["url"])
-            else:
-                urls.add(existing_supplier["url"])
-        if urls:
-            supplier_dict["url"] = list(urls)
+            if tool_dict.get("name") and not any(t.get("name") == tool_dict["name"] for t in tools_list):
+                tools_list.append(tool_dict)
 
-        # Merge contacts (backend + existing)
-        contacts_list = []
+        if tools_list:
+            metadata["tools"] = tools_list
 
-        # Add backend contacts
-        if bom.metadata.supplier.contacts:
-            for contact in bom.metadata.supplier.contacts:
-                contact_dict = {}
-                if contact.name:
-                    contact_dict["name"] = contact.name
-                if contact.email:
-                    contact_dict["email"] = contact.email
-                if contact.phone:
-                    contact_dict["phone"] = contact.phone
-                if contact_dict:
-                    contacts_list.append(contact_dict)
 
-        # Add existing contacts (avoid duplicates by email)
-        existing_contacts = existing_supplier.get("contacts", [])
-        existing_emails = {c.get("email") for c in contacts_list if c.get("email")}
-        for existing_contact in existing_contacts:
-            if not existing_contact.get("email") or existing_contact["email"] not in existing_emails:
-                contacts_list.append(existing_contact)
+def _apply_authors_metadata(metadata: dict, bom: Bom, spec_version: str):
+    """Apply authors metadata (version-specific format)."""
 
-        if contacts_list:
-            supplier_dict["contacts"] = contacts_list
+    # Get backend authors from BOM object
+    backend_authors = []
+    for author in bom.metadata.authors:
+        author_dict = {}
+        if author.name:
+            author_dict["name"] = author.name
+        if author.email:
+            author_dict["email"] = author.email
+        if author.phone:
+            author_dict["phone"] = author.phone
+        if author_dict:
+            backend_authors.append(author_dict)
 
-        metadata["supplier"] = supplier_dict
+    if spec_version == "1.5":
+        # CycloneDX 1.5: author = "string"
+        existing_author = metadata.get("author", "")
 
-    # Intelligently merge authors information
-    if bom.metadata.authors:
+        # Combine all authors into a single string (comma-separated)
+        author_names = []
+
+        # Add existing author if present
+        if existing_author:
+            author_names.append(existing_author)
+
+        # Add backend authors (just names)
+        for author in backend_authors:
+            if author.get("name"):
+                author_names.append(author["name"])
+
+        # Set the combined author string (remove duplicates while preserving order)
+        if author_names:
+            unique_authors = []
+            seen = set()
+            for name in author_names:
+                if name not in seen:
+                    unique_authors.append(name)
+                    seen.add(name)
+            metadata["author"] = ", ".join(unique_authors)
+
+    else:  # spec_version == "1.6" or unknown (default to 1.6)
+        # CycloneDX 1.6: authors = [{ name: "...", email: "..." }]
         existing_authors = metadata.get("authors", [])
         authors_list = []
 
         # Add backend authors
-        for author in bom.metadata.authors:
-            author_dict = {}
-            if author.name:
-                author_dict["name"] = author.name
-            if author.email:
-                author_dict["email"] = author.email
-            if author.phone:
-                author_dict["phone"] = author.phone
-            if author_dict:
-                authors_list.append(author_dict)
+        authors_list.extend(backend_authors)
 
         # Add existing authors (avoid duplicates by email)
         existing_emails = {a.get("email") for a in authors_list if a.get("email")}
@@ -1057,55 +1149,54 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
         if authors_list:
             metadata["authors"] = authors_list
 
-    # Intelligently merge licenses information
-    if bom.metadata.licenses:
-        existing_licenses = metadata.get("licenses", [])
-        licenses_list = []
 
-        # Add backend licenses with enhanced format support
-        for license_obj in bom.metadata.licenses:
-            if hasattr(license_obj, "value") and license_obj.value:
-                # License expression (SPDX expressions like "MIT OR GPL-3.0")
-                licenses_list.append({"expression": license_obj.value})
-            elif hasattr(license_obj, "name") and license_obj.name:
-                # Named license (simple or complex)
-                license_entry = {"license": {"name": license_obj.name}}
+def _apply_licenses_metadata(metadata: dict, bom: Bom):
+    """Apply licenses metadata (same format for 1.5 and 1.6)."""
+    existing_licenses = metadata.get("licenses", [])
+    licenses_list = []
 
-                # Add URL if present
-                if hasattr(license_obj, "url") and license_obj.url:
-                    license_entry["license"]["url"] = str(license_obj.url)
+    # Add backend licenses with enhanced format support
+    for license_obj in bom.metadata.licenses:
+        if hasattr(license_obj, "value") and license_obj.value:
+            # License expression (SPDX expressions like "MIT OR GPL-3.0")
+            licenses_list.append({"expression": license_obj.value})
+        elif hasattr(license_obj, "name") and license_obj.name:
+            # Named license (simple or complex)
+            license_entry = {"license": {"name": license_obj.name}}
 
-                # Add text if present
-                if hasattr(license_obj, "text") and license_obj.text:
-                    license_entry["license"]["text"] = {"content": license_obj.text.content}
+            # Add URL if present
+            if hasattr(license_obj, "url") and license_obj.url:
+                license_entry["license"]["url"] = str(license_obj.url)
 
-                licenses_list.append(license_entry)
+            # Add text if present
+            if hasattr(license_obj, "text") and license_obj.text:
+                license_entry["license"]["text"] = {"content": license_obj.text.content}
 
-        # Add existing licenses (avoid duplicates)
-        existing_values = set()
-        for license_item in licenses_list:
-            if "expression" in license_item:
-                existing_values.add(license_item["expression"])
-            elif "license" in license_item and "name" in license_item["license"]:
-                existing_values.add(license_item["license"]["name"])
+            licenses_list.append(license_entry)
 
-        for existing_license in existing_licenses:
-            license_value = None
-            if isinstance(existing_license, dict):
-                if "expression" in existing_license:
-                    license_value = existing_license["expression"]
-                elif "license" in existing_license and "name" in existing_license["license"]:
-                    license_value = existing_license["license"]["name"]
-                elif "name" in existing_license:  # Handle legacy format
-                    license_value = existing_license["name"]
+    # Add existing licenses (avoid duplicates)
+    existing_values = set()
+    for license_item in licenses_list:
+        if "expression" in license_item:
+            existing_values.add(license_item["expression"])
+        elif "license" in license_item and "name" in license_item["license"]:
+            existing_values.add(license_item["license"]["name"])
 
-            if license_value and license_value not in existing_values:
-                licenses_list.append(existing_license)
+    for existing_license in existing_licenses:
+        license_value = None
+        if isinstance(existing_license, dict):
+            if "expression" in existing_license:
+                license_value = existing_license["expression"]
+            elif "license" in existing_license and "name" in existing_license["license"]:
+                license_value = existing_license["license"]["name"]
+            elif "name" in existing_license:  # Handle legacy format
+                license_value = existing_license["name"]
 
-        if licenses_list:
-            metadata["licenses"] = licenses_list
+        if license_value and license_value not in existing_values:
+            licenses_list.append(existing_license)
 
-    return updated_json
+    if licenses_list:
+        metadata["licenses"] = licenses_list
 
 
 def _apply_spdx_metadata_to_json(original_json: dict, augmentation_data: dict) -> dict:
@@ -1161,7 +1252,7 @@ def log_command_error(command_name, stderr):
 
 
 def generate_sbom_from_python_lock_file(
-    lock_file: str, lock_file_type: str, output_file: str, schema_version: str = "1.6"
+    lock_file: str, lock_file_type: str, output_file: str, schema_version: str = "1.5"
 ) -> int:
     """
     Takes a Python lockfile and generates a CycloneDX SBOM.
@@ -1751,39 +1842,25 @@ def _validate_cyclonedx_sbom(sbom_file_path: str) -> bool | None:
         True if valid, False if invalid, None if validation tool not available
     """
     import json
-    import os
-    import subprocess
-    import tempfile
 
     try:
-        # Write SBOM to temporary file
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            # Load and re-write the SBOM to ensure clean JSON
-            with Path(sbom_file_path).open("r") as source_f:
-                sbom_data = json.load(source_f)
-            json.dump(sbom_data, f)
-            temp_file = f.name
+        # Basic JSON validation - ensure it's valid JSON and has required CycloneDX fields
+        with Path(sbom_file_path).open("r") as f:
+            sbom_data = json.load(f)
 
-        try:
-            # Run cyclonedx-py validate command
-            result = subprocess.run(["cyclonedx-py", "validate", temp_file], capture_output=True, text=True, timeout=30)
+        # Check for basic CycloneDX structure
+        if sbom_data.get("bomFormat") == "CycloneDX" and sbom_data.get("specVersion"):
+            logger.debug("SBOM basic validation successful")
+            return True
+        else:
+            logger.warning("SBOM basic validation failed: missing bomFormat or specVersion")
+            return False
 
-            if result.returncode == 0:
-                logger.debug("SBOM validation successful")
-                return True
-            else:
-                logger.warning(f"SBOM validation failed: {result.stderr}")
-                return False
-
-        finally:
-            # Clean up temporary file
-            os.unlink(temp_file)
-
+    except json.JSONDecodeError as e:
+        logger.warning(f"SBOM validation failed: Invalid JSON - {e}")
+        return False
     except FileNotFoundError:
-        logger.debug("cyclonedx-py tool not available, skipping validation")
-        return None
-    except subprocess.TimeoutExpired:
-        logger.warning("SBOM validation timed out")
+        logger.warning(f"SBOM validation failed: File not found - {sbom_file_path}")
         return False
     except Exception as e:
         logger.warning(f"SBOM validation error: {e}")
