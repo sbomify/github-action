@@ -920,9 +920,12 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
         if hasattr(bom.metadata.component, "version") and bom.metadata.component.version:
             component_metadata["version"] = bom.metadata.component.version
 
-        # Apply component type if present
+        # Apply component type if present - preserve original JSON value since it's already correct
         if hasattr(bom.metadata.component, "type") and bom.metadata.component.type:
-            component_metadata["type"] = str(bom.metadata.component.type).lower()
+            # Just preserve the original JSON value instead of re-serializing the enum
+            original_type = original_json.get("metadata", {}).get("component", {}).get("type")
+            if original_type:
+                component_metadata["type"] = original_type
 
     # Apply version-specific metadata handling (tools are version-specific, others are same format)
     _apply_version_specific_metadata(metadata, bom, spec_version, prefer_backend)
@@ -1024,22 +1027,41 @@ def _apply_tools_metadata(metadata: dict, bom: Bom, spec_version: str):
 
     if spec_version == "1.5":
         # CycloneDX 1.5: tools = [{ vendor: "...", name: "...", version: "..." }]
+        tools_list = []
+
+        # First, handle existing tools from original JSON (including hybrid format)
         if isinstance(existing_tools, list):
-            tools_list = existing_tools
-        else:
-            tools_list = []
+            # Already in correct 1.5 format
+            tools_list.extend(existing_tools)
+        elif isinstance(existing_tools, dict) and "components" in existing_tools:
+            # Convert from hybrid 1.6 format to 1.5 format
+            for tool_component in existing_tools["components"]:
+                tool_dict = {}
+                if tool_component.get("author"):
+                    tool_dict["vendor"] = tool_component["author"]  # author -> vendor for 1.5
+                elif tool_component.get("manufacturer"):
+                    tool_dict["vendor"] = tool_component["manufacturer"]  # manufacturer -> vendor for 1.5
+                if tool_component.get("name"):
+                    tool_dict["name"] = tool_component["name"]
+                if tool_component.get("version"):
+                    tool_dict["version"] = tool_component["version"]
 
-        for tool in bom.metadata.tools.tools:
-            tool_dict = {}
-            if hasattr(tool, "vendor") and tool.vendor:
-                tool_dict["vendor"] = tool.vendor
-            if hasattr(tool, "name") and tool.name:
-                tool_dict["name"] = tool.name
-            if hasattr(tool, "version") and tool.version:
-                tool_dict["version"] = tool.version
+                if tool_dict.get("name"):
+                    tools_list.append(tool_dict)
 
-            if tool_dict.get("name") and not any(t.get("name") == tool_dict["name"] for t in tools_list):
-                tools_list.append(tool_dict)
+        # Then, add new tools from BOM object (avoid duplicates)
+        if bom.metadata.tools and bom.metadata.tools.tools:
+            for tool in bom.metadata.tools.tools:
+                tool_dict = {}
+                if hasattr(tool, "vendor") and tool.vendor:
+                    tool_dict["vendor"] = tool.vendor
+                if hasattr(tool, "name") and tool.name:
+                    tool_dict["name"] = tool.name
+                if hasattr(tool, "version") and tool.version:
+                    tool_dict["version"] = tool.version
+
+                if tool_dict.get("name") and not any(t.get("name") == tool_dict["name"] for t in tools_list):
+                    tools_list.append(tool_dict)
 
         if tools_list:
             metadata["tools"] = tools_list
@@ -1252,7 +1274,7 @@ def log_command_error(command_name, stderr):
 
 
 def generate_sbom_from_python_lock_file(
-    lock_file: str, lock_file_type: str, output_file: str, schema_version: str = "1.5"
+    lock_file: str, lock_file_type: str, output_file: str, schema_version: str = "1.6"
 ) -> int:
     """
     Takes a Python lockfile and generates a CycloneDX SBOM.
@@ -1273,10 +1295,16 @@ def generate_sbom_from_python_lock_file(
         "cyclonedx-py",
         lock_file_type,
         lock_file,
-        "--schema-version",
+        "--spec-version",  # Use modern parameter instead of deprecated --schema-version
         schema_version,
-        "--outfile",
+        "--output-file",  # Use modern parameter instead of deprecated --outfile
         output_file,
+        "--mc-type",  # Set main component type
+        "application",  # Default to application type
+        "--validate",  # Enable validation during generation
+        "--output-reproducible",  # Ensure reproducible output
+        "--output-format",
+        "JSON",  # Explicitly set JSON format
     ]
 
     if lock_file_type == "poetry":
@@ -1294,6 +1322,8 @@ def generate_sbom_from_python_lock_file(
             timeout=300,  # Security: 5 minute timeout for SBOM generation
         )
         logger.info(f"Command completed successfully with return code {result.returncode}")
+        if result.stdout:
+            logger.debug(f"Command stdout: {result.stdout}")
         return result.returncode
     except subprocess.CalledProcessError as e:
         logger.error(f"Command failed with return code {e.returncode}")
