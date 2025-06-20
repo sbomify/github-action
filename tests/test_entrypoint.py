@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 import unittest
 
 from sbomify_action.cli.main import (
@@ -163,7 +162,7 @@ class TestRustSBOMGeneration(unittest.TestCase):
 
         output_file = "test_cargo_generation.json"
 
-        generation_return_code = run_trivy_fs(
+        run_trivy_fs(
             lock_file="tests/test-data/Cargo.lock",
             output_file=output_file,
         )
@@ -178,18 +177,15 @@ class TestDockerImageSBOMGeneration(unittest.TestCase):
 
         output_file = "test_docker_image_generation.json"
 
-        generation_return_code = run_trivy_docker_image(
+        run_trivy_docker_image(
             docker_image="nginx:latest",
             output_file=output_file,
         )
 
-        with open(output_file, "r") as f:
+        with open(output_file) as f:
             json_data = json.load(f)
 
-        nginx_component_exists = any(
-            component.get("name") == "nginx"
-            for component in json_data.get("components", [])
-        )
+        nginx_component_exists = any(component.get("name") == "nginx" for component in json_data.get("components", []))
         self.assertTrue(
             nginx_component_exists,
             "The component with 'name': 'nginx' was not found in 'components'.",
@@ -205,8 +201,8 @@ class TestEnrichment(unittest.TestCase):
         input_file = "tests/test-data/syft.cdx.json"
         output_file = "enriched_sbom.cdx.json"
 
-        enrich = enrich_sbom_with_parley(input_file, output_file)
-        sbom_type = validate_sbom(output_file)
+        enrich_sbom_with_parley(input_file, output_file)
+        validate_sbom(output_file)
 
     def test_failed_json_file(self):
         """
@@ -217,7 +213,7 @@ class TestEnrichment(unittest.TestCase):
         output_file = "enriched_sbom.cdx.json"
 
         with self.assertRaises(SystemExit) as cm:
-            enrich = enrich_sbom_with_parley(input_file, output_file)
+            enrich_sbom_with_parley(input_file, output_file)
 
         # Assert that the exit code is 1
         self.assertEqual(cm.exception.code, 1)

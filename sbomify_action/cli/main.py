@@ -55,13 +55,13 @@ def path_expansion(path):
     workspace_relative_path = os.path.join("/github/workspace", path)
 
     if os.path.isfile(path):
-        print("[Info] Using input file '{}'.".format(path))
+        print(f"[Info] Using input file '{path}'.")
         return os.path.join(os.getcwd(), path)
     elif os.path.isfile(relative_path):
-        print("[Info] Using input file '{}'.".format(relative_path))
+        print(f"[Info] Using input file '{relative_path}'.")
         return relative_path
     elif os.path.isfile(workspace_relative_path):
-        print("[Info] Using input file '{}'.".format(workspace_relative_path))
+        print(f"[Info] Using input file '{workspace_relative_path}'.")
         return workspace_relative_path
     else:
         print("[Error] Specified input file not found.")
@@ -85,7 +85,7 @@ def evaluate_boolean(value):
 
 def validate_sbom(file_path):
     try:
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             data = json.load(f)
     except json.JSONDecodeError:
         print("[Error] Invalid JSON.")
@@ -118,9 +118,7 @@ def get_metadata(file_format: Literal["cyclonedx", "spdx"], json_data: dict) -> 
         return json_data.get("creationInfo")
 
 
-def set_metadata(
-    file_format: Literal["cyclonedx", "spdx"], json_data: dict, metadata: dict
-) -> dict:
+def set_metadata(file_format: Literal["cyclonedx", "spdx"], json_data: dict, metadata: dict) -> dict:
     if file_format == "cyclonedx":
         json_data["metadata"] = metadata
 
@@ -130,9 +128,20 @@ def set_metadata(
     return json_data
 
 
-def generate_sbom_from_python_lock_file(
-    lock_file, lock_file_type, output_file, schema_version="1.6"
-):
+def log_command_error(command_name, stderr):
+    """
+    Logs command errors with a standardized format.
+
+    Args:
+        command_name: The name of the command that failed (e.g., 'cyclonedx-py',
+            'trivy')
+        stderr: The stderr output from the command
+    """
+    if stderr:
+        print(f"[{command_name}] error: {stderr.strip()}")
+
+
+def generate_sbom_from_python_lock_file(lock_file, lock_file_type, output_file, schema_version="1.6"):
     """
     Takes a Python lockfile and generates a CycloneDX SBOM.
     """
@@ -149,11 +158,17 @@ def generate_sbom_from_python_lock_file(
     if lock_file_type == "poetry":
         cmd += ["--no-dev"]
 
-    result = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
-    )
+    print(f"[Info] Running command: {' '.join(cmd)}")
 
-    return result.returncode
+    try:
+        result = subprocess.run(cmd, capture_output=True, check=True, text=True)
+        print(f"[Info] Command completed successfully with return code {result.returncode}")
+        return result.returncode
+    except subprocess.CalledProcessError as e:
+        print(f"[Error] Command failed with return code {e.returncode}")
+        print(f"[Error] Command output: {e.stdout}")
+        log_command_error("cyclonedx-py", e.stderr)
+        raise
 
 
 def run_trivy_fs(lock_file, output_file):
@@ -171,11 +186,10 @@ def run_trivy_fs(lock_file, output_file):
     ]
 
     try:
-        result = subprocess.run(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
-        )
+        result = subprocess.run(cmd, capture_output=True, check=True, text=True)
     except subprocess.CalledProcessError as e:
         print(f"[Error] Command failed with error: {e}")
+        log_command_error("trivy", e.stderr)
         sys.exit(1)
 
     # Check if returncode is zero
@@ -185,18 +199,17 @@ def run_trivy_fs(lock_file, output_file):
 
         # Validate JSON
         try:
-            json_data = json.loads(
-                output
-            )  # This will raise a ValueError if it's not valid JSON
+            json_data = json.loads(output)  # This will raise a ValueError if it's not valid JSON
 
             # Write the output to a file if it's valid JSON
             with open(output_file, "w") as f:
-                json.dump(
-                    json_data, f, indent=4
-                )  # Write it as formatted JSON to the file
+                json.dump(json_data, f, indent=4)  # Write it as formatted JSON to the file
 
         except json.JSONDecodeError as e:
             print(f"[Error] Invalid JSON: {e}")
+    else:
+        # If the command didn't fail with an exception but returned non-zero
+        log_command_error("trivy", result.stderr)
 
     return result.returncode
 
@@ -218,11 +231,10 @@ def run_trivy_docker_image(docker_image, output_file):
     ]
 
     try:
-        result = subprocess.run(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
-        )
+        result = subprocess.run(cmd, capture_output=True, check=True, text=True)
     except subprocess.CalledProcessError as e:
         print(f"[Error] Command failed with error: {e}")
+        log_command_error("trivy", e.stderr)
         sys.exit(1)
 
     # Check if returncode is zero
@@ -232,18 +244,17 @@ def run_trivy_docker_image(docker_image, output_file):
 
         # Validate JSON
         try:
-            json_data = json.loads(
-                output
-            )  # This will raise a ValueError if it's not valid JSON
+            json_data = json.loads(output)  # This will raise a ValueError if it's not valid JSON
 
             # Write the output to a file if it's valid JSON
             with open(output_file, "w") as f:
-                json.dump(
-                    json_data, f, indent=4
-                )  # Write it as formatted JSON to the file
+                json.dump(json_data, f, indent=4)  # Write it as formatted JSON to the file
 
         except json.JSONDecodeError as e:
             print(f"[Error] Invalid JSON: {e}")
+    else:
+        # If the command didn't fail with an exception but returned non-zero
+        log_command_error("trivy", result.stderr)
 
     return result.returncode
 
@@ -257,12 +268,11 @@ def enrich_sbom_with_parley(input_file, output_file):
     cmd = ["parlay", "ecosystems", "enrich", input_file]
 
     try:
-        result = subprocess.run(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
-        )
+        result = subprocess.run(cmd, capture_output=True, check=True, text=True)
 
     except subprocess.CalledProcessError as e:
         print(f"[Error] Command failed with error: {e}")
+        log_command_error("parlay", e.stderr)
         sys.exit(1)
 
     # Check if returncode is zero
@@ -272,23 +282,18 @@ def enrich_sbom_with_parley(input_file, output_file):
 
         # Validate JSON
         try:
-            json_data = json.loads(
-                output
-            )  # This will raise a ValueError if it's not valid JSON
+            json_data = json.loads(output)  # This will raise a ValueError if it's not valid JSON
 
             # Write the output to a file if it's valid JSON
             with open(output_file, "w") as f:
-                json.dump(
-                    json_data, f, indent=4
-                )  # Write it as formatted JSON to the file
+                json.dump(json_data, f, indent=4)  # Write it as formatted JSON to the file
 
         except json.JSONDecodeError as e:
             print(f"[Error] Invalid JSON: {e}")
 
     else:
-        print(
-            f"[Error] Enrichment command failed with return code {result.returncode}."
-        )
+        print(f"[Error] Enrichment command failed with return code {result.returncode}.")
+        log_command_error("parlay", result.stderr)
         sys.exit(1)
 
     return result.returncode
@@ -312,6 +317,35 @@ def print_banner():
 
 def main():
     print_banner()
+
+    # Check if cyclonedx-py is available
+    try:
+        result = subprocess.run(
+            ["cyclonedx-py", "--version"],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+        print(f"[Info] cyclonedx-py version: {result.stdout.strip()}")
+    except subprocess.CalledProcessError as e:
+        print(f"[Error] cyclonedx-py command failed: {e}")
+        print(f"[Error] Command output: {e.stdout if hasattr(e, 'stdout') else 'No output'}")
+        log_command_error("cyclonedx-py", e.stderr if hasattr(e, "stderr") else "No error")
+    except FileNotFoundError:
+        print("[Error] cyclonedx-py command not found. Make sure it's installed.")
+        # Try to install it
+        try:
+            print("[Info] Attempting to install cyclonedx-py...")
+            result = subprocess.run(
+                ["pip", "install", "cyclonedx-bom"],
+                check=True,
+                capture_output=True,
+            )
+            print("[Info] cyclonedx-py installed successfully.")
+        except subprocess.CalledProcessError as e:
+            print(f"[Error] Failed to install cyclonedx-py: {e}")
+            log_command_error("pip", e.stderr if hasattr(e, "stderr") else "No error")
+            sys.exit(1)
 
     # Make sure required variables are defined
     TOKEN = os.getenv("TOKEN")
@@ -349,9 +383,7 @@ def main():
     UPLOAD = evaluate_boolean(os.getenv("UPLOAD", "True"))
     AUGMENT = evaluate_boolean(os.getenv("AUGMENT", "False"))
     ENRICH = evaluate_boolean(os.getenv("ENRICH", "False"))
-    OVERRIDE_SBOM_METADATA = evaluate_boolean(
-        os.getenv("OVERRIDE_SBOM_METADATA", "False")
-    )
+    OVERRIDE_SBOM_METADATA = evaluate_boolean(os.getenv("OVERRIDE_SBOM_METADATA", "False"))
     OVERRIDE_NAME = evaluate_boolean(os.getenv("OVERRIDE_NAME", "False"))
     SBOM_VERSION = os.getenv("SBOM_VERSION", None)
 
@@ -359,7 +391,8 @@ def main():
     sentry_sdk.init(
         dsn="https://df0bcb2d9d6ae6f7564e1568a1a4625c@o4508342753230848.ingest.us.sentry.io/4508834660155392",
         # Add data like request headers and IP for users,
-        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+        # see https://docs.sentry.io/platforms/python/data-management/data-collected/
+        # for more info
         send_default_pii=True,
         # Set traces_sample_rate to 1.0 to capture 100%
         # of transactions for tracing.
@@ -415,6 +448,7 @@ def main():
             "package-lock.json",
             "yarn.lock",
             "pnpm-lock.yaml",
+            "bun.lock",
         ]
 
         # Common Ruby lock file names
@@ -444,11 +478,19 @@ def main():
                 )
             elif LOCK_FILE_NAME == "poetry.lock" or LOCK_FILE_NAME == "pyproject.toml":
                 # Poetry doesn't actually take the lock file, but rather the folder
-                sbom_generation = generate_sbom_from_python_lock_file(
-                    lock_file=os.path.dirname(LOCK_FILE),
-                    lock_file_type="poetry",
-                    output_file="step_1.json",
-                )
+                project_dir = os.path.dirname(LOCK_FILE)
+                print(f"[Info] Using Poetry project directory: {project_dir}")
+                try:
+                    sbom_generation = generate_sbom_from_python_lock_file(
+                        lock_file=project_dir,
+                        lock_file_type="poetry",
+                        output_file="step_1.json",
+                    )
+                except subprocess.CalledProcessError as e:
+                    print(f"[Error] SBOM Generation failed: {str(e)}")
+                    print(f"[Error] Command output: {e.stdout if hasattr(e, 'stdout') else 'No output'}")
+                    log_command_error("cyclonedx-py", e.stderr if hasattr(e, "stderr") else "No error")
+                    sys.exit(1)
             elif LOCK_FILE_NAME == "Pipfile.lock":
                 sbom_generation = generate_sbom_from_python_lock_file(
                     lock_file=LOCK_FILE,
@@ -505,10 +547,14 @@ def main():
         from sbomify's backend.
         """
         sbom_input_file = get_last_sbom_from_last_step()
-        sbom_data = json.loads(open(sbom_input_file, "r").read())
+        sbom_data = json.loads(open(sbom_input_file).read())
 
-        # Make sure we have the mandatory fields
-        if FORMAT == "cyclonedx":
+        # Check if format is supported for augmentation
+        if FORMAT == "spdx":
+            print("[Warning] SBOM augmentation is not supported for SPDX format. Skipping augmentation.")
+            print("[Info] Only CycloneDX format is supported for metadata augmentation.")
+        elif FORMAT == "cyclonedx":
+            # Make sure we have the mandatory fields
             # Ensure 'metadata' and 'component' keys exist in sbom_data
             metadata = sbom_data.get("metadata", {})
             component = metadata.get("component", {})
@@ -524,59 +570,63 @@ def main():
             # Update the main sbom_data dictionary
             sbom_data["metadata"]["component"] = component
 
-        # Get format version from sbom_file
-        SPEC_VERSION = get_spec_version(FORMAT, sbom_data)
-        sbom_metadata = get_metadata(FORMAT, sbom_data)
+            # Get format version from sbom_file
+            SPEC_VERSION = get_spec_version(FORMAT, sbom_data)
+            sbom_metadata = get_metadata(FORMAT, sbom_data)
 
-        url = (
-            SBOMIFY_API_BASE
-            + f"/sboms/artifact/{FORMAT}/{SPEC_VERSION}/{COMPONENT_ID}/metadata"
-        )
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {TOKEN}",
-        }
+            # Updated URL structure for v0.12+
+            url = SBOMIFY_API_BASE + f"/sboms/artifact/cyclonedx/{SPEC_VERSION}/{COMPONENT_ID}/metadata"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {TOKEN}",
+            }
 
-        query_params = {}
+            query_params = {}
 
-        if SBOM_VERSION:
-            query_params["sbom_version"] = SBOM_VERSION
+            if SBOM_VERSION:
+                query_params["sbom_version"] = SBOM_VERSION
 
-        if OVERRIDE_NAME:
-            query_params["override_name"] = True
+            if OVERRIDE_NAME:
+                query_params["override_name"] = True
 
-        if OVERRIDE_SBOM_METADATA:
-            query_params["override_metadata"] = True
+            if OVERRIDE_SBOM_METADATA:
+                query_params["override_metadata"] = True
 
-        try:
-            response = requests.post(
-                url, headers=headers, json=sbom_metadata, params=query_params
-            )
-        except requests.exceptions.ConnectionError:
-            print("[Error] Connection error: Failed to connect to sbomify.")
+            try:
+                response = requests.post(url, headers=headers, json=sbom_metadata, params=query_params)
+            except requests.exceptions.ConnectionError:
+                print("[Error] Connection error: Failed to connect to sbomify.")
+                sys.exit(1)
+
+            if not response.ok:
+                err_msg = f"[Error] Failed to augment SBOM file via sbomify. [{response.status_code}]"
+                if response.headers.get("content-type") == "application/json":
+                    try:
+                        error_data = response.json()
+                        if "detail" in error_data:
+                            err_msg += f" - {error_data['detail']}"
+                    except (ValueError, KeyError):
+                        pass
+
+                print(err_msg)
+                sys.exit(1)
+
+            set_metadata(FORMAT, sbom_data, response.json())
+            with open("step_2.json", "w") as f:
+                json.dump(sbom_data, f)
+
+            print("[Info] SBOM file augmented successfully.")
+        else:
+            print(f"[Error] Unsupported format '{FORMAT}' for augmentation.")
             sys.exit(1)
-
-        if not response.ok:
-            err_msg = f"[Error] Failed to augment SBOM file via sbomify. [{response.status_code}]"
-            if response.json() and "detail" in response.json():
-                err_msg += f"-[{response.json()['detail']}]"
-
-            print(err_msg)
-            sys.exit(1)
-
-        set_metadata(FORMAT, sbom_data, response.json())
-        with open("step_2.json", "w") as f:
-            json.dump(sbom_data, f)
-
-        print("[Info] SBOM file augmented successfully.")
 
     # Step 3
     if ENRICH:
         """
         Enrich SBOM using Snyk's Parlay
         """
-        enrich = enrich_sbom_with_parley(get_last_sbom_from_last_step(), "step_3.json")
-        sbom_type = validate_sbom("step_3.json")
+        enrich_sbom_with_parley(get_last_sbom_from_last_step(), "step_3.json")
+        validate_sbom("step_3.json")
 
     # Get the parent directory of the file path
     parent_dir = os.path.dirname(OUTPUT_FILE)
@@ -598,7 +648,7 @@ def main():
             "Authorization": f"Bearer {TOKEN}",
         }
 
-        with open(OUTPUT_FILE, "r") as f:
+        with open(OUTPUT_FILE) as f:
             sbom_data = f.read()
 
         try:

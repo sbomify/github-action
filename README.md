@@ -50,6 +50,8 @@ Note that this will only generate the system packages from the Docker image. Sep
 
 **Optional** Set this option to enrich your SBOM with author, vendor and license metadata provided for your component in sbomify's platform. Most SBOM generation tools will not provide this information for you.
 
+**Note:** Metadata augmentation is only supported for CycloneDX format SBOMs. SPDX format SBOMs will skip the augmentation step with a warning message.
+
 ### `OVERRIDE_SBOM_METADATA` (true/false)
 
 **Optional** Set this option when augmenting the SBOM to allow overwriting sbom metadata with metadata for your component. It is useful when metadata in the SBOM and metadata for your component contain the same items. By default, metadata present in the SBOM takes precedence. If you want component metadata to overwrite SBOM metadata then set this to True.
@@ -71,6 +73,25 @@ If you are releasing using GitHub releases, you might want to set `SBOM_VERSION`
 ### `UPLOAD` (true/false)
 
 You can use this tool in standalone mode, where you don't upload the final SBOM to sbomify.
+
+## Compatibility Notes
+
+### Format Support
+
+The following format-specific behaviors apply:
+
+* **Metadata Augmentation**: Only CycloneDX format is supported for metadata augmentation (`AUGMENT=true`). SPDX format SBOMs will skip augmentation with a warning.
+* **SBOM Upload**: Both CycloneDX and SPDX formats are supported for upload.
+* **Enrichment**: The enrichment process (`ENRICH=true`) works with both formats.
+
+### Supported Operations by Format
+
+| Operation | CycloneDX | SPDX | Notes |
+|-----------|-----------|------|-------|
+| **Generation** | ✅ | ✅ | All supported lockfile formats work with both formats |
+| **Upload** | ✅ | ✅ | Both formats supported for upload to sbomify |
+| **Augmentation** | ✅ | ❌ | Metadata augmentation only available for CycloneDX |
+| **Enrichment** | ✅ | ✅ | Enrichment process works with both formats |
 
 ## Opinions
 

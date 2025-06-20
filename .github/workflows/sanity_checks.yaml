@@ -25,14 +25,11 @@ jobs:
         run: |
           poetry install
 
-      - name: Run isort
+      - name: Run ruff linter
         run: |
-            poetry run isort \
-              --profile black \
-              -c sbomify_action tests
+            poetry run ruff check sbomify_action tests
 
-      - name: Run black
+      - name: Run ruff formatter
         run: |
-            poetry run black \
-              --check sbomify_action tests
+            poetry run ruff format --check sbomify_action tests
 

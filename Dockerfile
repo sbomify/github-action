@@ -4,8 +4,8 @@ WORKDIR /tmp
 
 # Define tool versions
 ENV PARLAY_VERSION=0.8.0 \
-    BOMCTL_VERSION=0.4.2 \
-    TRIVY_VERSION=0.59.1
+    BOMCTL_VERSION=0.4.3 \
+    TRIVY_VERSION=0.63.0
 
 RUN apt-get update && \
     apt-get install -y curl
@@ -64,7 +64,7 @@ ENV POETRY_NO_INTERACTION=1
 WORKDIR /app
 COPY . /app/
 
-RUN poetry build
+RUN rm -rf dist/ && poetry build
 
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
