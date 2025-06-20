@@ -426,8 +426,14 @@ class TestSBOMEnrichment:
             assert "tools" in metadata
 
             tools = metadata["tools"]
+            # Handle the newer CycloneDX format where tools is {"components": [...]}
+            if isinstance(tools, dict) and "components" in tools:
+                tools_list = tools["components"]
+            else:
+                tools_list = tools if isinstance(tools, list) else []
+
             sbomify_tool = None
-            for tool in tools:
+            for tool in tools_list:
                 if isinstance(tool, dict) and tool.get("name") == "sbomify-github-action":
                     sbomify_tool = tool
                     break

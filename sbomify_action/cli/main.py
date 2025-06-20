@@ -852,7 +852,18 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
 
     # Add tools metadata (including sbomify)
     if bom.metadata.tools and bom.metadata.tools.tools:
-        tools_list = metadata.get("tools", [])
+        # Handle both legacy format (tools as array) and current format (tools as object with components)
+        existing_tools = metadata.get("tools", [])
+
+        # Check if existing tools is in the newer format (object with components)
+        if isinstance(existing_tools, dict) and "components" in existing_tools:
+            tools_list = existing_tools["components"]
+        elif isinstance(existing_tools, list):
+            # Legacy format - tools is directly an array
+            tools_list = existing_tools
+        else:
+            # Initialize as empty list if tools doesn't exist or has unexpected format
+            tools_list = []
 
         for tool in bom.metadata.tools.tools:
             tool_dict = {}
@@ -893,7 +904,8 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
                     tools_list.append(tool_dict)
 
         if tools_list:
-            metadata["tools"] = tools_list
+            # Always use the newer format (object with components)
+            metadata["tools"] = {"components": tools_list}
 
     # Intelligently merge supplier information (preserve existing, add new)
     if bom.metadata.supplier:
