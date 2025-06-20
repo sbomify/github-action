@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sbomify-github-action"
-version = "0.1.0"
+version = "0.2.0"
 description = "GitHub Actions module for generating, augmenting and distributing SBOMs"
 authors = ["sbomify <hello@sbomify.com>"]
 readme = "README.md"

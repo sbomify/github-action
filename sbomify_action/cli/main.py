@@ -130,6 +130,18 @@ def set_metadata(
     return json_data
 
 
+def log_command_error(command_name, stderr):
+    """
+    Logs command errors with a standardized format.
+
+    Args:
+        command_name: The name of the command that failed (e.g., 'cyclonedx-py', 'trivy')
+        stderr: The stderr output from the command
+    """
+    if stderr:
+        print(f"[{command_name}] error: {stderr.strip()}")
+
+
 def generate_sbom_from_python_lock_file(
     lock_file, lock_file_type, output_file, schema_version="1.6"
 ):
@@ -149,11 +161,19 @@ def generate_sbom_from_python_lock_file(
     if lock_file_type == "poetry":
         cmd += ["--no-dev"]
 
-    result = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
-    )
+    print(f"[Info] Running command: {' '.join(cmd)}")
 
-    return result.returncode
+    try:
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True
+        )
+        print(f"[Info] Command completed successfully with return code {result.returncode}")
+        return result.returncode
+    except subprocess.CalledProcessError as e:
+        print(f"[Error] Command failed with return code {e.returncode}")
+        print(f"[Error] Command output: {e.stdout}")
+        log_command_error("cyclonedx-py", e.stderr)
+        raise
 
 
 def run_trivy_fs(lock_file, output_file):
@@ -176,6 +196,7 @@ def run_trivy_fs(lock_file, output_file):
         )
     except subprocess.CalledProcessError as e:
         print(f"[Error] Command failed with error: {e}")
+        log_command_error("trivy", e.stderr)
         sys.exit(1)
 
     # Check if returncode is zero
@@ -197,6 +218,9 @@ def run_trivy_fs(lock_file, output_file):
 
         except json.JSONDecodeError as e:
             print(f"[Error] Invalid JSON: {e}")
+    else:
+        # If the command didn't fail with an exception but returned non-zero
+        log_command_error("trivy", result.stderr)
 
     return result.returncode
 
@@ -223,6 +247,7 @@ def run_trivy_docker_image(docker_image, output_file):
         )
     except subprocess.CalledProcessError as e:
         print(f"[Error] Command failed with error: {e}")
+        log_command_error("trivy", e.stderr)
         sys.exit(1)
 
     # Check if returncode is zero
@@ -244,6 +269,9 @@ def run_trivy_docker_image(docker_image, output_file):
 
         except json.JSONDecodeError as e:
             print(f"[Error] Invalid JSON: {e}")
+    else:
+        # If the command didn't fail with an exception but returned non-zero
+        log_command_error("trivy", result.stderr)
 
     return result.returncode
 
@@ -263,6 +291,7 @@ def enrich_sbom_with_parley(input_file, output_file):
 
     except subprocess.CalledProcessError as e:
         print(f"[Error] Command failed with error: {e}")
+        log_command_error("parlay", e.stderr)
         sys.exit(1)
 
     # Check if returncode is zero
@@ -289,6 +318,7 @@ def enrich_sbom_with_parley(input_file, output_file):
         print(
             f"[Error] Enrichment command failed with return code {result.returncode}."
         )
+        log_command_error("parlay", result.stderr)
         sys.exit(1)
 
     return result.returncode
@@ -312,6 +342,37 @@ def print_banner():
 
 def main():
     print_banner()
+
+    # Check if cyclonedx-py is available
+    try:
+        result = subprocess.run(
+            ["cyclonedx-py", "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            text=True
+        )
+        print(f"[Info] cyclonedx-py version: {result.stdout.strip()}")
+    except subprocess.CalledProcessError as e:
+        print(f"[Error] cyclonedx-py command failed: {e}")
+        print(f"[Error] Command output: {e.stdout if hasattr(e, 'stdout') else 'No output'}")
+        log_command_error("cyclonedx-py", e.stderr if hasattr(e, 'stderr') else 'No error')
+    except FileNotFoundError:
+        print("[Error] cyclonedx-py command not found. Make sure it's installed.")
+        # Try to install it
+        try:
+            print("[Info] Attempting to install cyclonedx-py...")
+            result = subprocess.run(
+                ["pip", "install", "cyclonedx-bom"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            print("[Info] cyclonedx-py installed successfully.")
+        except subprocess.CalledProcessError as e:
+            print(f"[Error] Failed to install cyclonedx-py: {e}")
+            log_command_error("pip", e.stderr if hasattr(e, 'stderr') else 'No error')
+            sys.exit(1)
 
     # Make sure required variables are defined
     TOKEN = os.getenv("TOKEN")
@@ -415,6 +476,7 @@ def main():
             "package-lock.json",
             "yarn.lock",
             "pnpm-lock.yaml",
+            "bun.lock",
         ]
 
         # Common Ruby lock file names
@@ -444,11 +506,19 @@ def main():
                 )
             elif LOCK_FILE_NAME == "poetry.lock" or LOCK_FILE_NAME == "pyproject.toml":
                 # Poetry doesn't actually take the lock file, but rather the folder
-                sbom_generation = generate_sbom_from_python_lock_file(
-                    lock_file=os.path.dirname(LOCK_FILE),
-                    lock_file_type="poetry",
-                    output_file="step_1.json",
-                )
+                project_dir = os.path.dirname(LOCK_FILE)
+                print(f"[Info] Using Poetry project directory: {project_dir}")
+                try:
+                    sbom_generation = generate_sbom_from_python_lock_file(
+                        lock_file=project_dir,
+                        lock_file_type="poetry",
+                        output_file="step_1.json",
+                    )
+                except subprocess.CalledProcessError as e:
+                    print(f"[Error] SBOM Generation failed: {str(e)}")
+                    print(f"[Error] Command output: {e.stdout if hasattr(e, 'stdout') else 'No output'}")
+                    log_command_error("cyclonedx-py", e.stderr if hasattr(e, 'stderr') else 'No error')
+                    sys.exit(1)
             elif LOCK_FILE_NAME == "Pipfile.lock":
                 sbom_generation = generate_sbom_from_python_lock_file(
                     lock_file=LOCK_FILE,
