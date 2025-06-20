@@ -659,8 +659,13 @@ def main():
 
         if not response.ok:
             err_msg = f"[Error] Failed to upload SBOM file. [{response.status_code}]"
-            if response.json() and "detail" in response.json():
-                err_msg += f"-[{response.json()['detail']}]"
+            if response.headers.get("content-type") == "application/json":
+                try:
+                    error_data = response.json()
+                    if "detail" in error_data:
+                        err_msg += f" - {error_data['detail']}"
+                except (ValueError, KeyError):
+                    pass
 
             print(err_msg)
             sys.exit(1)
