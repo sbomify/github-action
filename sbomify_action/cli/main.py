@@ -240,7 +240,7 @@ class Config:
     enrich: bool = False
     override_sbom_metadata: bool = False
     override_name: bool = False
-    sbom_version: Optional[str] = None
+    component_version: Optional[str] = None
     api_base_url: str = SBOMIFY_PRODUCTION_API
 
     def validate(self) -> None:
@@ -305,6 +305,24 @@ def load_config() -> Config:
     Raises:
         ConfigurationError: If configuration is invalid
     """
+    # Handle component version with deprecation support
+    component_version = os.getenv("COMPONENT_VERSION")
+    sbom_version = os.getenv("SBOM_VERSION")  # Deprecated
+
+    # Determine which version to use and show appropriate warnings
+    final_component_version = None
+    if component_version and sbom_version:
+        logger.warning(
+            "⚠️  Both COMPONENT_VERSION and SBOM_VERSION are set. Using COMPONENT_VERSION and ignoring SBOM_VERSION."
+        )
+        logger.warning("⚠️  SBOM_VERSION is deprecated. Please use COMPONENT_VERSION instead.")
+        final_component_version = component_version
+    elif sbom_version:
+        logger.warning("⚠️  SBOM_VERSION is deprecated. Please use COMPONENT_VERSION instead.")
+        final_component_version = sbom_version
+    elif component_version:
+        final_component_version = component_version
+
     config = Config(
         token=os.getenv("TOKEN", ""),
         component_id=os.getenv("COMPONENT_ID", ""),
@@ -317,7 +335,7 @@ def load_config() -> Config:
         enrich=evaluate_boolean(os.getenv("ENRICH", "False")),
         override_sbom_metadata=evaluate_boolean(os.getenv("OVERRIDE_SBOM_METADATA", "False")),
         override_name=evaluate_boolean(os.getenv("OVERRIDE_NAME", "False")),
-        sbom_version=os.getenv("SBOM_VERSION"),
+        component_version=final_component_version,
         api_base_url=os.getenv("API_BASE_URL", SBOMIFY_PRODUCTION_API),
     )
 
@@ -849,7 +867,7 @@ def _fetch_backend_metadata(config: "Config") -> dict:
     }
 
     query_params = {}
-    # Note: sbom_version, override_name, and override_sbom_metadata are for local SBOM modification,
+    # Note: component_version, override_name, and override_sbom_metadata are for local SBOM modification,
     # not server-side query parameters. The API only returns supplier, authors, and licenses metadata.
 
     try:
@@ -944,19 +962,19 @@ def _apply_local_sbom_overrides(
             logger.warning("OVERRIDE_NAME requested but component name not available in backend metadata")
 
     # Apply component version override if specified
-    if config.sbom_version and hasattr(bom.metadata, "component") and bom.metadata.component:
+    if config.component_version and hasattr(bom.metadata, "component") and bom.metadata.component:
         from cyclonedx.model.component import Component, ComponentType
 
         # Update the component version
         if bom.metadata.component:
-            bom.metadata.component.version = config.sbom_version
+            bom.metadata.component.version = config.component_version
         else:
             # Create component if it doesn't exist
             component_name = original_json.get("metadata", {}).get("component", {}).get("name", "unknown")
             bom.metadata.component = Component(
-                name=component_name, type=ComponentType.APPLICATION, version=config.sbom_version
+                name=component_name, type=ComponentType.APPLICATION, version=config.component_version
             )
-        logger.info(f"Set component version from configuration: {config.sbom_version}")
+        logger.info(f"Set component version from configuration: {config.component_version}")
 
     # Apply changes back to JSON
     updated_json = _apply_cyclonedx_metadata_to_json(original_json, bom, True)
@@ -1685,6 +1703,11 @@ def main() -> None:
 
     _log_step_end(1)
 
+    # Apply component version override if specified (regardless of augmentation settings)
+    if config.component_version:
+        logger.info(f"Applying component version override: {config.component_version}")
+        _apply_sbom_version_override("step_1.json", config)
+
     # Step 2: Augmentation
     if config.augment:
         _log_step_header(2, "SBOM Augmentation with Backend Metadata")
@@ -2156,6 +2179,66 @@ def _add_sbomify_tool_to_json(metadata: dict, spec_version: str) -> None:
         # Avoid duplicates
         if not any(t.get("name") == SBOMIFY_TOOL_NAME for t in metadata["tools"]["components"]):
             metadata["tools"]["components"].append(tool_entry)
+
+
+def _apply_sbom_version_override(sbom_file: str, config: "Config") -> None:
+    """
+    Apply component version override based on configuration.
+    This function ensures that COMPONENT_VERSION (or deprecated SBOM_VERSION) is applied regardless of augmentation settings.
+
+    Args:
+        sbom_file: Path to the SBOM file to modify
+        config: Configuration with version override settings
+
+    Raises:
+        SBOMValidationError: If SBOM cannot be processed
+        FileProcessingError: If file operations fail
+    """
+    if not config.component_version:
+        return  # No version override specified
+
+    try:
+        # Load SBOM from file
+        sbom_format, original_json, parsed_object = load_sbom_from_file(sbom_file)
+
+        if sbom_format == "cyclonedx":
+            from cyclonedx.model.bom import Bom
+            from cyclonedx.model.component import Component, ComponentType
+
+            if isinstance(parsed_object, Bom):
+                # Apply version override to CycloneDX BOM object
+                if hasattr(parsed_object.metadata, "component") and parsed_object.metadata.component:
+                    parsed_object.metadata.component.version = config.component_version
+                else:
+                    # Create component if it doesn't exist
+                    component_name = original_json.get("metadata", {}).get("component", {}).get("name", "unknown")
+                    parsed_object.metadata.component = Component(
+                        name=component_name, type=ComponentType.APPLICATION, version=config.component_version
+                    )
+
+                logger.info(f"Set component version from configuration: {config.component_version}")
+
+                # Apply changes back to JSON and save using JSON serialization
+                updated_json = _apply_cyclonedx_metadata_to_json(original_json, parsed_object, prefer_backend=True)
+                with Path(sbom_file).open("w") as f:
+                    json.dump(updated_json, f, indent=2)
+
+        elif sbom_format == "spdx":
+            # For SPDX, apply version override directly to JSON
+            if "metadata" not in original_json:
+                original_json["metadata"] = {}
+            if "component" not in original_json["metadata"]:
+                original_json["metadata"]["component"] = {}
+
+            original_json["metadata"]["component"]["version"] = config.component_version
+            logger.info(f"Set SPDX component version from configuration: {config.component_version}")
+
+            with Path(sbom_file).open("w") as f:
+                json.dump(original_json, f, indent=2)
+
+    except Exception as e:
+        logger.warning(f"Failed to apply component version override: {e}")
+        # Don't fail the entire process for version override issues
 
 
 if __name__ == "__main__":

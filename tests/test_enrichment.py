@@ -11,6 +11,7 @@ import pytest
 from sbomify_action.cli.main import (
     Config,
     _apply_cyclonedx_metadata_to_json,
+    _apply_sbom_version_override,
     _validate_cyclonedx_sbom,
     enrich_sbom_with_backend_metadata,
     load_sbom_from_file,
@@ -534,10 +535,14 @@ class TestSBOMEnrichment:
 
     @patch("sbomify_action.cli.main.requests.get")
     def test_local_sbom_version_override(self, mock_get, tmp_path, sample_cyclonedx_sbom, sample_backend_payload_basic):
-        """Test that sbom_version overrides the component version locally."""
-        # Setup config with sbom_version
+        """Test that component_version overrides the component version locally."""
+        # Setup config with component_version
         config = Config(
-            token="test-token", component_id="test-component-123", upload=False, augment=True, sbom_version="v2.5.0"
+            token="test-token",
+            component_id="test-component-123",
+            upload=False,
+            augment=True,
+            component_version="v2.5.0",
         )
 
         # Setup mock API response
@@ -563,6 +568,137 @@ class TestSBOMEnrichment:
         # Verify that component version was overridden
         component = updated_json["metadata"]["component"]
         assert component["version"] == "v2.5.0"  # Should be the overridden version
+
+    def test_sbom_version_override_without_augmentation(self, tmp_path, sample_cyclonedx_sbom):
+        """Test that component_version overrides the component version even when augmentation is disabled."""
+        # Setup config with component_version but augment=False
+        config = Config(
+            token="test-token",
+            component_id="test-component-123",
+            upload=False,
+            augment=False,
+            component_version="v3.0.0",
+        )
+
+        # Ensure original SBOM has a different version
+        sample_cyclonedx_sbom["metadata"]["component"]["version"] = "v1.0.0"
+
+        # Create temporary SBOM file
+        sbom_file = tmp_path / "test_sbom.json"
+        with open(sbom_file, "w") as f:
+            json.dump(sample_cyclonedx_sbom, f)
+
+        # Apply version override directly (simulating what happens after Step 1)
+        _apply_sbom_version_override(str(sbom_file), config)
+
+        # Load the modified SBOM and verify version was overridden
+        with open(sbom_file, "r") as f:
+            updated_json = json.load(f)
+
+        # Verify that component version was overridden
+        component = updated_json["metadata"]["component"]
+        assert component["version"] == "v3.0.0"  # Should be the overridden version
+
+        # Verify that the original version is no longer there
+        assert component["version"] != "v1.0.0"
+
+    def test_deprecated_sbom_version_still_works(self, tmp_path, sample_cyclonedx_sbom, caplog):
+        """Test that deprecated SBOM_VERSION still works but shows deprecation warning."""
+        import os
+        from unittest.mock import patch
+
+        # Create a dummy lock file for validation
+        lock_file = tmp_path / "test.lock"
+        lock_file.write_text("dummy content")
+
+        # Mock environment variables to simulate SBOM_VERSION usage
+        env_vars = {
+            "TOKEN": "test-token",
+            "COMPONENT_ID": "test-component",
+            "SBOM_VERSION": "v4.0.0",
+            "LOCK_FILE": str(lock_file),
+        }
+        with patch.dict(os.environ, env_vars, clear=False):
+            # Remove any conflicting env vars
+            for key in ["COMPONENT_VERSION"]:
+                if key in os.environ:
+                    del os.environ[key]
+
+            # Load config which should detect the deprecated variable
+            from sbomify_action.cli.main import load_config
+
+            config = load_config()
+
+            # Should have set component_version from SBOM_VERSION
+            assert config.component_version == "v4.0.0"
+
+            # Should have logged deprecation warning
+            assert "SBOM_VERSION is deprecated" in caplog.text
+            assert "Please use COMPONENT_VERSION instead" in caplog.text
+
+    def test_component_version_takes_precedence_over_deprecated(self, tmp_path, sample_cyclonedx_sbom, caplog):
+        """Test that COMPONENT_VERSION takes precedence over deprecated SBOM_VERSION."""
+        import os
+        from unittest.mock import patch
+
+        # Create a dummy lock file for validation
+        lock_file = tmp_path / "test.lock"
+        lock_file.write_text("dummy content")
+
+        # Mock environment variables with both set
+        env_vars = {
+            "TOKEN": "test-token",
+            "COMPONENT_ID": "test-component",
+            "COMPONENT_VERSION": "v5.0.0",
+            "SBOM_VERSION": "v4.0.0",
+            "LOCK_FILE": str(lock_file),
+        }
+        with patch.dict(os.environ, env_vars, clear=False):
+            # Load config which should prefer COMPONENT_VERSION
+            from sbomify_action.cli.main import load_config
+
+            config = load_config()
+
+            # Should use COMPONENT_VERSION value
+            assert config.component_version == "v5.0.0"
+
+            # Should have logged warnings
+            assert "Both COMPONENT_VERSION and SBOM_VERSION are set" in caplog.text
+            assert "Using COMPONENT_VERSION and ignoring SBOM_VERSION" in caplog.text
+            assert "SBOM_VERSION is deprecated" in caplog.text
+
+    def test_component_version_no_warning(self, tmp_path, sample_cyclonedx_sbom, caplog):
+        """Test that using COMPONENT_VERSION alone produces no deprecation warnings."""
+        import os
+        from unittest.mock import patch
+
+        # Create a dummy lock file for validation
+        lock_file = tmp_path / "test.lock"
+        lock_file.write_text("dummy content")
+
+        # Mock environment variables with only COMPONENT_VERSION
+        env_vars = {
+            "TOKEN": "test-token",
+            "COMPONENT_ID": "test-component",
+            "COMPONENT_VERSION": "v6.0.0",
+            "LOCK_FILE": str(lock_file),
+        }
+        with patch.dict(os.environ, env_vars, clear=False):
+            # Clear any existing env var
+            for key in ["SBOM_VERSION"]:
+                if key in os.environ:
+                    del os.environ[key]
+
+            # Load config
+            from sbomify_action.cli.main import load_config
+
+            config = load_config()
+
+            # Should use COMPONENT_VERSION value
+            assert config.component_version == "v6.0.0"
+
+            # Should not have any deprecation warnings
+            assert "deprecated" not in caplog.text
 
     @patch("sbomify_action.cli.main.requests.get")
     def test_override_sbom_metadata_precedence(
