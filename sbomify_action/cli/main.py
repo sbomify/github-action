@@ -241,6 +241,7 @@ class Config:
     override_sbom_metadata: bool = False
     override_name: bool = False
     component_version: Optional[str] = None
+    component_name: Optional[str] = None
     api_base_url: str = SBOMIFY_PRODUCTION_API
 
     def validate(self) -> None:
@@ -288,7 +289,7 @@ class Config:
 
         # Security warning for HTTP on non-localhost
         if parsed.scheme == "http" and not any(localhost in parsed.netloc for localhost in LOCALHOST_PATTERNS):
-            logger.warning("⚠️  Using HTTP (not HTTPS) for API communication - consider using HTTPS in production")
+            logger.warning("Using HTTP (not HTTPS) for API communication - consider using HTTPS in production")
 
         # Remove trailing slash if present for consistency
         if self.api_base_url.endswith("/"):
@@ -313,15 +314,51 @@ def load_config() -> Config:
     final_component_version = None
     if component_version and sbom_version:
         logger.warning(
-            "⚠️  Both COMPONENT_VERSION and SBOM_VERSION are set. Using COMPONENT_VERSION and ignoring SBOM_VERSION."
+            "Both COMPONENT_VERSION and SBOM_VERSION are set. Using COMPONENT_VERSION and ignoring SBOM_VERSION."
         )
-        logger.warning("⚠️  SBOM_VERSION is deprecated. Please use COMPONENT_VERSION instead.")
+        logger.warning("SBOM_VERSION is deprecated. Please use COMPONENT_VERSION instead.")
         final_component_version = component_version
     elif sbom_version:
-        logger.warning("⚠️  SBOM_VERSION is deprecated. Please use COMPONENT_VERSION instead.")
+        logger.warning("SBOM_VERSION is deprecated. Please use COMPONENT_VERSION instead.")
         final_component_version = sbom_version
     elif component_version:
         final_component_version = component_version
+
+    # Log the determined component version for user visibility
+    if final_component_version:
+        logger.info(f"Using component version: {final_component_version}")
+    else:
+        logger.info("No component version specified (COMPONENT_VERSION not set)")
+
+    # Handle component name with deprecation support
+    component_name = os.getenv("COMPONENT_NAME")
+    override_name = evaluate_boolean(os.getenv("OVERRIDE_NAME", "False"))  # Deprecated
+
+    # Determine which name approach to use and show appropriate warnings
+    final_component_name = None
+    final_override_name = False
+    if component_name and override_name:
+        logger.warning(
+            "Both COMPONENT_NAME and OVERRIDE_NAME are set. Using COMPONENT_NAME and ignoring OVERRIDE_NAME."
+        )
+        logger.warning("OVERRIDE_NAME is deprecated. Please use COMPONENT_NAME instead.")
+        final_component_name = component_name
+        final_override_name = False
+    elif override_name:
+        logger.warning("OVERRIDE_NAME is deprecated. Please use COMPONENT_NAME instead.")
+        final_component_name = None
+        final_override_name = True
+    elif component_name:
+        final_component_name = component_name
+        final_override_name = False
+
+    # Log the determined component name for user visibility
+    if final_component_name:
+        logger.info(f"Using component name: {final_component_name}")
+    elif final_override_name:
+        logger.info("Using OVERRIDE_NAME mode (deprecated) - will use name from backend metadata")
+    else:
+        logger.info("No component name specified")
 
     config = Config(
         token=os.getenv("TOKEN", ""),
@@ -334,8 +371,9 @@ def load_config() -> Config:
         augment=evaluate_boolean(os.getenv("AUGMENT", "False")),
         enrich=evaluate_boolean(os.getenv("ENRICH", "False")),
         override_sbom_metadata=evaluate_boolean(os.getenv("OVERRIDE_SBOM_METADATA", "False")),
-        override_name=evaluate_boolean(os.getenv("OVERRIDE_NAME", "False")),
+        override_name=final_override_name,
         component_version=final_component_version,
+        component_name=final_component_name,
         api_base_url=os.getenv("API_BASE_URL", SBOMIFY_PRODUCTION_API),
     )
 
@@ -952,12 +990,39 @@ def _apply_local_sbom_overrides(
         Tuple of (modified Bom, updated JSON)
     """
     # Apply component name override if specified
-    if config.override_name and hasattr(bom.metadata, "component") and bom.metadata.component:
-        # Use component name from backend metadata if available
+    if config.component_name:
+        # Use standalone component name (new approach)
+        if hasattr(bom.metadata, "component") and bom.metadata.component:
+            existing_component_name = bom.metadata.component.name or "unknown"
+            bom.metadata.component.name = config.component_name
+        else:
+            # Create component if it doesn't exist
+            from cyclonedx.model.component import Component, ComponentType
+
+            existing_component_name = "none (creating new component)"
+            component_version = original_json.get("metadata", {}).get("component", {}).get("version", "unknown")
+            bom.metadata.component = Component(
+                name=config.component_name, type=ComponentType.APPLICATION, version=component_version
+            )
+        logger.info(f"Overriding component name: '{existing_component_name}' -> '{config.component_name}'")
+    elif config.override_name:
+        # Use component name from backend metadata if available (deprecated approach)
         if augmentation_data and "name" in augmentation_data:
-            backend_component_name = augmentation_data["name"]
-            bom.metadata.component.name = backend_component_name
-            logger.info(f"Overrode component name with sbomify data: {backend_component_name}")
+            if hasattr(bom.metadata, "component") and bom.metadata.component:
+                existing_component_name = bom.metadata.component.name or "unknown"
+                bom.metadata.component.name = augmentation_data["name"]
+            else:
+                # Create component if it doesn't exist
+                from cyclonedx.model.component import Component, ComponentType
+
+                existing_component_name = "none (creating new component)"
+                component_version = original_json.get("metadata", {}).get("component", {}).get("version", "unknown")
+                bom.metadata.component = Component(
+                    name=augmentation_data["name"], type=ComponentType.APPLICATION, version=component_version
+                )
+            logger.info(
+                f"Overriding component name: '{existing_component_name}' -> '{augmentation_data['name']}' (using deprecated OVERRIDE_NAME)"
+            )
         else:
             logger.warning("OVERRIDE_NAME requested but component name not available in backend metadata")
 
@@ -1708,6 +1773,11 @@ def main() -> None:
         logger.info(f"Applying component version override: {config.component_version}")
         _apply_sbom_version_override("step_1.json", config)
 
+    # Apply component name override if specified (regardless of augmentation settings)
+    if config.component_name:
+        logger.info(f"Applying component name override: {config.component_name}")
+        _apply_sbom_name_override("step_1.json", config)
+
     # Step 2: Augmentation
     if config.augment:
         _log_step_header(2, "SBOM Augmentation with Backend Metadata")
@@ -2239,6 +2309,69 @@ def _apply_sbom_version_override(sbom_file: str, config: "Config") -> None:
     except Exception as e:
         logger.warning(f"Failed to apply component version override: {e}")
         # Don't fail the entire process for version override issues
+
+
+def _apply_sbom_name_override(sbom_file: str, config: "Config") -> None:
+    """
+    Apply component name override based on configuration.
+    This function ensures that COMPONENT_NAME is applied regardless of augmentation settings.
+
+    Args:
+        sbom_file: Path to the SBOM file to modify
+        config: Configuration with name override settings
+
+    Raises:
+        SBOMValidationError: If SBOM cannot be processed
+        FileProcessingError: If file operations fail
+    """
+    if not config.component_name:
+        return  # No name override specified
+
+    try:
+        # Load SBOM from file
+        sbom_format, original_json, parsed_object = load_sbom_from_file(sbom_file)
+
+        if sbom_format == "cyclonedx":
+            from cyclonedx.model.bom import Bom
+            from cyclonedx.model.component import Component, ComponentType
+
+            if isinstance(parsed_object, Bom):
+                # Apply name override to CycloneDX BOM object
+                if hasattr(parsed_object.metadata, "component") and parsed_object.metadata.component:
+                    existing_name = parsed_object.metadata.component.name or "unknown"
+                    parsed_object.metadata.component.name = config.component_name
+                else:
+                    # Create component if it doesn't exist
+                    existing_name = "none (creating new component)"
+                    component_version = original_json.get("metadata", {}).get("component", {}).get("version", "unknown")
+                    parsed_object.metadata.component = Component(
+                        name=config.component_name, type=ComponentType.APPLICATION, version=component_version
+                    )
+
+                logger.info(f"Overriding component name: '{existing_name}' -> '{config.component_name}'")
+
+                # Apply changes back to JSON and save using JSON serialization
+                updated_json = _apply_cyclonedx_metadata_to_json(original_json, parsed_object, prefer_backend=True)
+                with Path(sbom_file).open("w") as f:
+                    json.dump(updated_json, f, indent=2)
+
+        elif sbom_format == "spdx":
+            # For SPDX, apply name override directly to JSON
+            if "metadata" not in original_json:
+                original_json["metadata"] = {}
+            if "component" not in original_json["metadata"]:
+                original_json["metadata"]["component"] = {}
+
+            existing_name = original_json["metadata"]["component"].get("name", "unknown")
+            original_json["metadata"]["component"]["name"] = config.component_name
+            logger.info(f"Overriding SPDX component name: '{existing_name}' -> '{config.component_name}'")
+
+            with Path(sbom_file).open("w") as f:
+                json.dump(original_json, f, indent=2)
+
+    except Exception as e:
+        logger.warning(f"Failed to apply component name override: {e}")
+        # Don't fail the entire process for name override issues
 
 
 if __name__ == "__main__":

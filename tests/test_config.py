@@ -105,7 +105,7 @@ class TestConfig(unittest.TestCase):
 
         config.validate()
         mock_logger.warning.assert_called_with(
-            "⚠️  Using HTTP (not HTTPS) for API communication - consider using HTTPS in production"
+            "Using HTTP (not HTTPS) for API communication - consider using HTTPS in production"
         )
 
     @patch("sbomify_action.cli.main.logger")
@@ -168,6 +168,111 @@ class TestConfig(unittest.TestCase):
         ):
             config = load_config()
             self.assertEqual(config.api_base_url, SBOMIFY_PRODUCTION_API)
+
+    def test_component_name_no_warning(self):
+        """Test that using COMPONENT_NAME alone produces no deprecation warnings."""
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        # Create a dummy lock file for validation
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock_file = Path(tmp_dir) / "test.lock"
+            lock_file.write_text("dummy content")
+
+            # Mock environment variables with only COMPONENT_NAME
+            env_vars = {
+                "TOKEN": "test-token",
+                "COMPONENT_ID": "test-component",
+                "COMPONENT_NAME": "my-custom-component",
+                "LOCK_FILE": str(lock_file),
+            }
+            with patch.dict(os.environ, env_vars, clear=False):
+                # Clear any existing env var
+                for key in ["OVERRIDE_NAME"]:
+                    if key in os.environ:
+                        del os.environ[key]
+
+                # Load config
+                config = load_config()
+
+                # Should use COMPONENT_NAME value
+                self.assertEqual(config.component_name, "my-custom-component")
+                self.assertFalse(config.override_name)
+
+    def test_override_name_deprecated_warning(self):
+        """Test that OVERRIDE_NAME shows deprecation warning."""
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        with self.assertLogs("sbomify_action", level="WARNING") as log:
+            # Create a dummy lock file for validation
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                lock_file = Path(tmp_dir) / "test.lock"
+                lock_file.write_text("dummy content")
+
+                # Mock environment variables with only deprecated OVERRIDE_NAME
+                env_vars = {
+                    "TOKEN": "test-token",
+                    "COMPONENT_ID": "test-component",
+                    "OVERRIDE_NAME": "true",
+                    "LOCK_FILE": str(lock_file),
+                }
+                with patch.dict(os.environ, env_vars, clear=False):
+                    # Clear any existing env var
+                    for key in ["COMPONENT_NAME"]:
+                        if key in os.environ:
+                            del os.environ[key]
+
+                    # Load config
+                    config = load_config()
+
+                    # Should have deprecation warning
+                    self.assertTrue(config.override_name)
+                    self.assertIsNone(config.component_name)
+
+                    # Should have logged deprecation warning
+                    log_output = "\n".join(log.output)
+                    self.assertIn("OVERRIDE_NAME is deprecated", log_output)
+                    self.assertIn("Please use COMPONENT_NAME instead", log_output)
+
+    def test_component_name_takes_precedence_over_deprecated(self):
+        """Test that COMPONENT_NAME takes precedence over deprecated OVERRIDE_NAME."""
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        with self.assertLogs("sbomify_action", level="WARNING") as log:
+            # Create a dummy lock file for validation
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                lock_file = Path(tmp_dir) / "test.lock"
+                lock_file.write_text("dummy content")
+
+                # Mock environment variables with both set
+                env_vars = {
+                    "TOKEN": "test-token",
+                    "COMPONENT_ID": "test-component",
+                    "COMPONENT_NAME": "my-custom-component",
+                    "OVERRIDE_NAME": "true",
+                    "LOCK_FILE": str(lock_file),
+                }
+                with patch.dict(os.environ, env_vars, clear=False):
+                    # Load config which should prefer COMPONENT_NAME
+                    config = load_config()
+
+                    # Should use COMPONENT_NAME value and ignore OVERRIDE_NAME
+                    self.assertEqual(config.component_name, "my-custom-component")
+                    self.assertFalse(config.override_name)
+
+                    # Should have logged warnings
+                    log_output = "\n".join(log.output)
+                    self.assertIn("Both COMPONENT_NAME and OVERRIDE_NAME are set", log_output)
+                    self.assertIn("Using COMPONENT_NAME and ignoring OVERRIDE_NAME", log_output)
+                    self.assertIn("OVERRIDE_NAME is deprecated", log_output)
 
 
 class TestHelperFunctions(unittest.TestCase):

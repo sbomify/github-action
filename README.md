@@ -63,14 +63,24 @@ Note that this will only generate the system packages from the Docker image. Sep
 
 **When to use `true`**: You want to standardize all SBOMs using your sbomify component definitions.
 
+### `COMPONENT_NAME` (string)
+
+**Optional** Set the component name in your SBOM metadata. This allows you to directly specify the name you want for your component.
+
+**When to use**: Useful when you want to set a specific component name regardless of what your SBOM generation tool produces, or when standardizing component names across different SBOMs.
+
+**Example**: `COMPONENT_NAME: 'my-awesome-app'`
+
 ### `OVERRIDE_NAME` (true/false)
 
-**Optional** Sets the component name in your SBOM to match the component name from your sbomify configuration.
+> **⚠️ Deprecation Notice**: The `OVERRIDE_NAME` environment variable is deprecated. Please use `COMPONENT_NAME` instead. `OVERRIDE_NAME` will continue to work but will show deprecation warnings.
+
+**Optional** (Deprecated) Sets the component name in your SBOM to match the component name from your sbomify configuration.
 
 - **`false` (default)**: Keep the component name as set by your SBOM generation tool
 - **`true`**: Replace the component name with the name from your sbomify component
 
-**When to use**: Useful for standardizing component names across all SBOMs when your SBOM generation tools use different naming conventions than your sbomify component definitions.
+**When to use**: This approach is deprecated. Use `COMPONENT_NAME` instead for direct control over the component name.
 
 ### `COMPONENT_VERSION` (string)
 
@@ -152,6 +162,7 @@ jobs:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'my-component-id'
           LOCK_FILE: 'requirements.txt'
+          COMPONENT_NAME: 'my-awesome-app'
           COMPONENT_VERSION: ${{ github.ref_name }}
           AUGMENT: true
           ENRICH: true
@@ -166,6 +177,7 @@ jobs:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'Your Component ID'
           LOCK_FILE: 'Cargo.lock'
+          COMPONENT_NAME: 'my-rust-app'
           OUTPUT_FILE: 'my-sbom.cdx.json'
           AUGMENT: true
           ENRICH: true
@@ -182,6 +194,7 @@ More sophisticated users may also want to use GitHub's built-in [build provenanc
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'Your Component ID'
           LOCK_FILE: 'poetry.lock'
+          COMPONENT_NAME: 'my-python-app'
           COMPONENT_VERSION: ${{ github.ref_name }}-${{ github.sha }}
           AUGMENT: true
           ENRICH: true
@@ -210,6 +223,7 @@ generate-sbom:
     UPLOAD: true
     AUGMENT: true
     ENRICH: true
+    COMPONENT_NAME: 'my-python-app'
     COMPONENT_VERSION: $CI_COMMIT_SHA
     LOCK_FILE: 'poetry.lock'
     OUTPUT_FILE: test-sbom.cdx.json"
@@ -254,6 +268,7 @@ pipelines:
               UPLOAD: "true"
               AUGMENT: "true"
               ENRICH: "true"
+              COMPONENT_NAME: "my-python-app"
               COMPONENT_VERSION: $BITBUCKET_COMMIT
               LOCK_FILE: "poetry.lock"
               OUTPUT_FILE: "bitbucket-sbom.cdx.json"
@@ -269,5 +284,6 @@ $ docker run --rm \
    -e TOKEN=<my token> \
    -e COMPONENT_ID=<my component id> \
    -e LOCK_FILE=/code/requirements.txt \
+   -e COMPONENT_NAME=my-app \
    sbomifyhub/sbomify-action
 ```
