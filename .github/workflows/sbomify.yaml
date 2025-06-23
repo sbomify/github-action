@@ -24,7 +24,7 @@ jobs:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'Gu9wem8mkX'
           LOCK_FILE: 'poetry.lock'
-          SBOM_VERSION: ${{ github.ref_name }}-${{ github.sha }}
+          COMPONENT_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('{0}-{1}', github.ref_name, github.sha) }}
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
