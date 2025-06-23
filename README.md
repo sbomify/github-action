@@ -72,11 +72,13 @@ Note that this will only generate the system packages from the Docker image. Sep
 
 **When to use**: Useful for standardizing component names across all SBOMs when your SBOM generation tools use different naming conventions than your sbomify component definitions.
 
-### `SBOM_VERSION` (string)
+### `COMPONENT_VERSION` (string)
 
 **Optional** Set this option when augmenting the SBOM to overwrite the component version within the sbom metadata with the version provided. Useful if the tool generating the sbom is not setting the correct version for your software component.
 
-If you are releasing using GitHub releases, you might want to set `SBOM_VERSION` to `${{ github.ref_name }}`, and if you're using rolling releases, you might want to set it to `${{ github.sha }}`.
+If you are releasing using GitHub releases, you might want to set `COMPONENT_VERSION` to `${{ github.ref_name }}`, and if you're using rolling releases, you might want to set it to `${{ github.sha }}`.
+
+> **⚠️ Deprecation Notice**: The `SBOM_VERSION` environment variable is deprecated. Please use `COMPONENT_VERSION` instead. `SBOM_VERSION` will continue to work but will show deprecation warnings.
 
 ### `ENRICH` (true/false)
 
@@ -150,7 +152,7 @@ jobs:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'my-component-id'
           LOCK_FILE: 'requirements.txt'
-          SBOM_VERSION: ${{ github.ref_name }}
+          COMPONENT_VERSION: ${{ github.ref_name }}
           AUGMENT: true
           ENRICH: true
 ```
@@ -180,7 +182,7 @@ More sophisticated users may also want to use GitHub's built-in [build provenanc
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'Your Component ID'
           LOCK_FILE: 'poetry.lock'
-          SBOM_VERSION: ${{ github.ref_name }}-${{ github.sha }}
+          COMPONENT_VERSION: ${{ github.ref_name }}-${{ github.sha }}
           AUGMENT: true
           ENRICH: true
           OUTPUT_FILE: github-action.cdx.json
@@ -208,7 +210,7 @@ generate-sbom:
     UPLOAD: true
     AUGMENT: true
     ENRICH: true
-    SBOM_VERSION: $CI_COMMIT_SHA
+    COMPONENT_VERSION: $CI_COMMIT_SHA
     LOCK_FILE: 'poetry.lock'
     OUTPUT_FILE: test-sbom.cdx.json"
   script:
@@ -252,7 +254,7 @@ pipelines:
               UPLOAD: "true"
               AUGMENT: "true"
               ENRICH: "true"
-              SBOM_VERSION: $BITBUCKET_COMMIT
+              COMPONENT_VERSION: $BITBUCKET_COMMIT
               LOCK_FILE: "poetry.lock"
               OUTPUT_FILE: "bitbucket-sbom.cdx.json"
 ```
