@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, Optional
 
@@ -87,6 +88,17 @@ SBOMIFY_PRODUCTION_API = "https://app.sbomify.com/api/v1"
 SBOMIFY_TOOL_NAME = "sbomify-github-action"
 SBOMIFY_VENDOR_NAME = "sbomify"
 LOCALHOST_PATTERNS = ["127.0.0.1", "localhost", "0.0.0.0"]
+
+
+def _get_current_utc_timestamp() -> str:
+    """
+    Generate current UTC timestamp in ISO-8601 format.
+
+    Returns:
+        Current UTC timestamp as ISO-8601 string (e.g., "2024-12-19T14:30:00Z")
+    """
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 """
 
@@ -1074,6 +1086,13 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
 
     metadata = updated_json["metadata"]
 
+    # Set current UTC timestamp only if missing (meet NTIA requirements without overriding existing)
+    if "timestamp" not in metadata:
+        metadata["timestamp"] = _get_current_utc_timestamp()
+        logger.debug(f"Added SBOM timestamp: {metadata['timestamp']}")
+    else:
+        logger.debug(f"Preserving existing timestamp: {metadata['timestamp']}")
+
     # Apply component metadata (name and version) if present
     if bom.metadata.component:
         if "component" not in metadata:
@@ -1418,6 +1437,13 @@ def _apply_spdx_metadata_to_json(original_json: dict, augmentation_data: dict) -
         updated_json["creationInfo"] = {}
 
     creation_info = updated_json["creationInfo"]
+
+    # Set current UTC timestamp only if missing (meet NTIA requirements without overriding existing)
+    if "created" not in creation_info:
+        creation_info["created"] = _get_current_utc_timestamp()
+        logger.debug(f"Added SPDX creation timestamp: {creation_info['created']}")
+    else:
+        logger.debug(f"Preserving existing SPDX creation timestamp: {creation_info['created']}")
 
     # Apply supplier as creator if available
     if "supplier" in augmentation_data:
@@ -2094,6 +2120,13 @@ def _apply_cyclonedx_augmentation_to_json(sbom_json: dict, augmentation_data: di
 
     metadata = sbom_json["metadata"]
 
+    # Set current UTC timestamp only if missing (meet NTIA requirements without overriding existing)
+    if "timestamp" not in metadata:
+        metadata["timestamp"] = _get_current_utc_timestamp()
+        logger.debug(f"Added SBOM timestamp: {metadata['timestamp']}")
+    else:
+        logger.debug(f"Preserving existing timestamp: {metadata['timestamp']}")
+
     # Add sbomify tool - fix manufacturer field format for CycloneDX 1.6
     spec_version = sbom_json.get("specVersion", "1.6")
     _add_sbomify_tool_to_json(metadata, spec_version)
@@ -2194,6 +2227,13 @@ def _apply_spdx_augmentation_to_json(sbom_json: dict, augmentation_data: dict, c
         sbom_json["creationInfo"] = {}
 
     creation_info = sbom_json["creationInfo"]
+
+    # Set current UTC timestamp only if missing (meet NTIA requirements without overriding existing)
+    if "created" not in creation_info:
+        creation_info["created"] = _get_current_utc_timestamp()
+        logger.debug(f"Added SPDX creation timestamp: {creation_info['created']}")
+    else:
+        logger.debug(f"Preserving existing SPDX creation timestamp: {creation_info['created']}")
 
     # Apply supplier as creator if available
     if "supplier" in augmentation_data:
