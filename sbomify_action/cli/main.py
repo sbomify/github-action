@@ -254,6 +254,7 @@ class Config:
     override_name: bool = False
     component_version: Optional[str] = None
     component_name: Optional[str] = None
+    product_releases: Optional[str | list[str]] = None
     api_base_url: str = SBOMIFY_PRODUCTION_API
 
     def validate(self) -> None:
@@ -273,6 +274,42 @@ class Config:
             raise ConfigurationError("Please provide only one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
         if not any(inputs):
             raise ConfigurationError("Please provide one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
+
+        # Validate product releases format
+        if self.product_releases:
+            try:
+                # Parse JSON list format like ["product_id:v1.2.3"]
+                product_releases_list = json.loads(self.product_releases)
+                if not isinstance(product_releases_list, list):
+                    raise ConfigurationError('PRODUCT_RELEASE must be a JSON list like ["product_id:v1.2.3"]')
+
+                for release in product_releases_list:
+                    if not isinstance(release, str) or ":" not in release:
+                        raise ConfigurationError(
+                            f"Invalid PRODUCT_RELEASE format: '{release}'. Expected format: 'product_id:version'"
+                        )
+
+                    product_id, version = release.split(":", 1)
+                    # Validate that product_id looks like a proper ID (not empty)
+                    if not product_id.strip():
+                        raise ConfigurationError(
+                            f"Invalid product_id in PRODUCT_RELEASE: '{release}'. Product ID cannot be empty."
+                        )
+                    if not version.strip():
+                        raise ConfigurationError(
+                            f"Invalid version in PRODUCT_RELEASE: '{release}'. Version cannot be empty."
+                        )
+
+                # Store the parsed list back for later use
+                self.product_releases = product_releases_list
+                logger.info(f"Validated product releases: {self.product_releases}")
+
+            except json.JSONDecodeError as e:
+                raise ConfigurationError(f"Invalid JSON format for PRODUCT_RELEASE: {e}")
+            except Exception as e:
+                if "ConfigurationError" in str(type(e)):
+                    raise  # Re-raise ConfigurationError as-is
+                raise ConfigurationError(f"Error parsing PRODUCT_RELEASE: {e}")
 
         # Validate API base URL format with proper parsing
         self._validate_api_url()
@@ -372,6 +409,14 @@ def load_config() -> Config:
     else:
         logger.info("No component name specified")
 
+    # Handle product releases
+    product_releases = None
+    product_release_env = os.getenv("PRODUCT_RELEASE")
+    if product_release_env:
+        logger.info(f"Raw product release input: {product_release_env}")
+        # Store the raw value for validation later in Config.validate()
+        product_releases = product_release_env
+
     config = Config(
         token=os.getenv("TOKEN", ""),
         component_id=os.getenv("COMPONENT_ID", ""),
@@ -386,6 +431,7 @@ def load_config() -> Config:
         override_name=final_override_name,
         component_version=final_component_version,
         component_name=final_component_name,
+        product_releases=product_releases,
         api_base_url=os.getenv("API_BASE_URL", SBOMIFY_PRODUCTION_API),
     )
 
@@ -1723,6 +1769,278 @@ def _log_step_end(step_num: int, success: bool = True) -> None:
         logger.info("")  # Add spacing for local runs
 
 
+def _check_release_exists(config: "Config", product_id: str, version: str) -> bool:
+    """
+    Check if a release exists for a product.
+
+    Args:
+        config: Configuration object with API details
+        product_id: The product ID
+        version: The release version
+
+    Returns:
+        True if release exists, False otherwise
+
+    Raises:
+        APIError: If API call fails
+    """
+    url = config.api_base_url + "/releases"
+    headers = {
+        "Authorization": f"Bearer {config.token}",
+    }
+
+    params = {"product_id": product_id, "version": version}
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params,
+            timeout=60,
+        )
+    except requests.exceptions.ConnectionError:
+        raise APIError("Failed to connect to sbomify API")
+    except requests.exceptions.Timeout:
+        raise APIError("API request timed out")
+
+    if response.status_code == 404:
+        return False
+    elif response.ok:
+        # Check if any releases match our criteria
+        try:
+            releases = response.json().get("items", [])
+            for release in releases:
+                if release.get("version") == version:
+                    return True
+            return False
+        except (ValueError, KeyError):
+            return False
+    else:
+        err_msg = f"Failed to check release existence. [{response.status_code}]"
+        if response.headers.get("content-type") == "application/json":
+            try:
+                error_data = response.json()
+                if "detail" in error_data:
+                    err_msg += f" - {error_data['detail']}"
+            except (ValueError, KeyError):
+                pass
+        raise APIError(err_msg)
+
+
+def _create_release(config: "Config", product_id: str, version: str) -> str:
+    """
+    Create a release for a product.
+
+    Args:
+        config: Configuration object with API details
+        product_id: The product ID
+        version: The release version
+
+    Returns:
+        The created release ID
+
+    Raises:
+        APIError: If API call fails
+    """
+    url = config.api_base_url + "/releases"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {config.token}",
+    }
+
+    payload = {
+        "product_id": product_id,
+        "version": version,
+        "name": f"Release {version}",
+        "description": f"Release {version} created by sbomify-github-action",
+    }
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=60,
+        )
+    except requests.exceptions.ConnectionError:
+        raise APIError("Failed to connect to sbomify API")
+    except requests.exceptions.Timeout:
+        raise APIError("API request timed out")
+
+    if not response.ok:
+        err_msg = f"Failed to create release. [{response.status_code}]"
+        if response.headers.get("content-type") == "application/json":
+            try:
+                error_data = response.json()
+                if "detail" in error_data:
+                    err_msg += f" - {error_data['detail']}"
+            except (ValueError, KeyError):
+                pass
+        raise APIError(err_msg)
+
+    try:
+        return response.json().get("id")
+    except (ValueError, KeyError):
+        raise APIError("Invalid response format when creating release")
+
+
+def _tag_sbom_with_release(config: "Config", sbom_id: str, release_id: str) -> None:
+    """
+    Associate/tag an SBOM with a release.
+
+    Args:
+        config: Configuration object with API details
+        sbom_id: The SBOM ID from upload response
+        release_id: The release ID to associate with
+
+    Raises:
+        APIError: If API call fails
+    """
+    url = config.api_base_url + f"/releases/{release_id}/artifacts"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {config.token}",
+    }
+
+    payload = {"artifact_id": sbom_id, "artifact_type": "sbom"}
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=60,
+        )
+    except requests.exceptions.ConnectionError:
+        raise APIError("Failed to connect to sbomify API")
+    except requests.exceptions.Timeout:
+        raise APIError("API request timed out")
+
+    if not response.ok:
+        err_msg = f"Failed to tag SBOM with release. [{response.status_code}]"
+        if response.headers.get("content-type") == "application/json":
+            try:
+                error_data = response.json()
+                if "detail" in error_data:
+                    err_msg += f" - {error_data['detail']}"
+            except (ValueError, KeyError):
+                pass
+        raise APIError(err_msg)
+
+
+def _get_release_id(config: "Config", product_id: str, version: str) -> Optional[str]:
+    """
+    Get the release ID for a product and version.
+
+    Args:
+        config: Configuration object with API details
+        product_id: The product ID
+        version: The release version
+
+    Returns:
+        The release ID if found, None otherwise
+
+    Raises:
+        APIError: If API call fails
+    """
+    url = config.api_base_url + "/releases"
+    headers = {
+        "Authorization": f"Bearer {config.token}",
+    }
+
+    params = {"product_id": product_id, "version": version}
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params,
+            timeout=60,
+        )
+    except requests.exceptions.ConnectionError:
+        raise APIError("Failed to connect to sbomify API")
+    except requests.exceptions.Timeout:
+        raise APIError("API request timed out")
+
+    if response.ok:
+        try:
+            releases = response.json().get("items", [])
+            for release in releases:
+                if release.get("version") == version:
+                    return release.get("id")
+            return None
+        except (ValueError, KeyError):
+            return None
+    else:
+        err_msg = f"Failed to get release ID. [{response.status_code}]"
+        if response.headers.get("content-type") == "application/json":
+            try:
+                error_data = response.json()
+                if "detail" in error_data:
+                    err_msg += f" - {error_data['detail']}"
+            except (ValueError, KeyError):
+                pass
+        raise APIError(err_msg)
+
+
+def _process_product_releases(config: "Config", sbom_id: str) -> None:
+    """
+    Process product releases by checking if they exist, creating them if needed,
+    and tagging the SBOM with the releases.
+
+    Args:
+        config: Configuration object with product releases to process
+        sbom_id: The SBOM ID to tag with releases
+    """
+    if not config.product_releases:
+        return
+
+    # Ensure we have a list (should be converted during validation)
+    if isinstance(config.product_releases, str):
+        logger.error("Product releases not properly validated - still in string format")
+        return
+
+    for release in config.product_releases:
+        product_id, version = release.split(":", 1)
+
+        logger.info(f"Processing release {version} for product {product_id}")
+
+        # Check if release exists and get details for better logging
+        release_exists = _check_release_exists(config, product_id, version)
+        release_details = None
+
+        if release_exists:
+            # Get release details for user-friendly logging
+            try:
+                release_details = _get_release_details(config, product_id, version)
+                friendly_name = _get_release_friendly_name(release_details, product_id, version)
+                logger.info(f"{friendly_name} already exists for product {product_id}")
+            except APIError as e:
+                logger.warning(f"Could not get release details for logging: {e}")
+                logger.info(f"Release {version} already exists for product {product_id}")
+        else:
+            logger.info(f"Creating release {version} for product {product_id}")
+            _create_release(config, product_id, version)
+            # Get details after creation for consistent logging
+            try:
+                release_details = _get_release_details(config, product_id, version)
+            except APIError as e:
+                logger.warning(f"Could not get release details after creation: {e}")
+
+        # Get the release ID and tag the SBOM
+        release_id = _get_release_id(config, product_id, version)
+        if release_id:
+            # Use friendly name if we have release details
+            if release_details:
+                friendly_name = _get_release_friendly_name(release_details, product_id, version)
+                logger.info(f"Tagging SBOM {sbom_id} with {friendly_name} (ID: {release_id})")
+            else:
+                logger.info(f"Tagging SBOM {sbom_id} with release {version} (ID: {release_id})")
+            _tag_sbom_with_release(config, sbom_id, release_id)
+        else:
+            logger.error(f"Could not get release ID for {product_id}:{version}")
+
+
 def main() -> None:
     """Main entry point for the sbomify action."""
     print_banner()
@@ -1906,6 +2224,7 @@ def main() -> None:
         sys.exit(1)
 
     # Step 5: Upload SBOM via API
+    sbom_id = None  # Store SBOM ID for potential release tagging
     if config.upload:
         _log_step_header(5, "Uploading SBOM to sbomify")
         try:
@@ -1954,6 +2273,15 @@ def main() -> None:
             else:
                 logger.info("SBOM uploaded successfully to sbomify")
 
+                # Extract SBOM ID from response for potential release tagging
+                try:
+                    response_data = response.json()
+                    sbom_id = response_data.get("sbom_id") or response_data.get("id")
+                    if sbom_id:
+                        logger.info(f"SBOM ID: {sbom_id}")
+                except (ValueError, json.JSONDecodeError):
+                    logger.warning("Could not extract SBOM ID from upload response")
+
             _log_step_end(5)
 
         except (APIError, FileProcessingError) as e:
@@ -1964,6 +2292,25 @@ def main() -> None:
         _log_step_header(5, "SBOM Upload - SKIPPED")
         logger.info("SBOM upload disabled (UPLOAD=false)")
         _log_step_end(5)
+
+    # Step 6: Process Product Releases
+    if config.product_releases and sbom_id:
+        _log_step_header(6, "Processing Product Releases")
+        try:
+            _process_product_releases(config, sbom_id)
+            _log_step_end(6)
+        except (APIError, Exception) as e:
+            logger.error(f"Step 6 (product releases) failed: {e}")
+            _log_step_end(6, success=False)
+            # Don't exit here - releases are optional, continue with success message
+    elif config.product_releases and not sbom_id:
+        _log_step_header(6, "Processing Product Releases - SKIPPED")
+        logger.warning("Product releases specified but no SBOM ID available (upload may have been disabled or failed)")
+        _log_step_end(6, success=False)
+    elif config.product_releases:
+        _log_step_header(6, "Processing Product Releases - SKIPPED")
+        logger.info("No product releases specified")
+        _log_step_end(6)
 
     # Final success message optimized for both local and GitHub Actions
     import os
@@ -2412,6 +2759,86 @@ def _apply_sbom_name_override(sbom_file: str, config: "Config") -> None:
     except Exception as e:
         logger.warning(f"Failed to apply component name override: {e}")
         # Don't fail the entire process for name override issues
+
+
+def _get_release_details(config: "Config", product_id: str, version: str) -> Optional[dict]:
+    """
+    Get full release details for a product and version.
+
+    Args:
+        config: Configuration object with API details
+        product_id: The product ID
+        version: The release version
+
+    Returns:
+        Full release details dict if found, None otherwise
+
+    Raises:
+        APIError: If API call fails
+    """
+    url = config.api_base_url + "/releases"
+    headers = {
+        "Authorization": f"Bearer {config.token}",
+    }
+
+    params = {"product_id": product_id, "version": version}
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params,
+            timeout=60,
+        )
+    except requests.exceptions.ConnectionError:
+        raise APIError("Failed to connect to sbomify API")
+    except requests.exceptions.Timeout:
+        raise APIError("API request timed out")
+
+    if response.ok:
+        try:
+            releases = response.json().get("items", [])
+            for release in releases:
+                if release.get("version") == version:
+                    return release
+            return None
+        except (ValueError, KeyError):
+            return None
+    else:
+        err_msg = f"Failed to get release details. [{response.status_code}]"
+        if response.headers.get("content-type") == "application/json":
+            try:
+                error_data = response.json()
+                if "detail" in error_data:
+                    err_msg += f" - {error_data['detail']}"
+            except (ValueError, KeyError):
+                pass
+        raise APIError(err_msg)
+
+
+def _get_release_friendly_name(release_details: dict, product_id: str, version: str) -> str:
+    """
+    Get a user-friendly name for a release.
+
+    Args:
+        release_details: Full release details from the API
+        product_id: The product ID (fallback)
+        version: The release version (fallback)
+
+    Returns:
+        User-friendly release name
+    """
+    if not release_details:
+        return f"Release {version}"
+
+    # Try to get the release name from the API response
+    release_name = release_details.get("name")
+    if release_name and release_name != f"Release {version}":
+        # Custom release name
+        return f"'{release_name}' ({version})"
+    else:
+        # Default release name format
+        return f"Release {version}"
 
 
 if __name__ == "__main__":

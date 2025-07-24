@@ -3,9 +3,9 @@
 
 ![SBOM lifecycle](https://sbomify.com/assets/images/site/lifecycle.svg)
 
-This is an opinionated tool for helping with the SBOM life cycle, namely [generating, augmenting and enriching](https://sbomify.com/features/generate-collaborate-analyze/).
+This is an opinionated tool for helping with the SBOM life cycle, namely [generating, augmenting and enriching](https://sbomify.com/features/generate-collaborate-analyze/), plus automatic release management and SBOM tagging.
 
-The goal is to help users generate NTIA Minimum Elements compliant SBOMs by stitching together various tools, along with metadata augmentation from sbomify.
+The goal is to help users generate NTIA Minimum Elements compliant SBOMs by stitching together various tools, along with metadata augmentation from sbomify, and seamlessly associate them with product releases.
 
 This tool can be used both with an SBOM, as well as with a lock-file from various software packages (see `LOCK_FILE`).
 
@@ -94,6 +94,29 @@ If you are releasing using GitHub releases, you might want to set `COMPONENT_VER
 
 **Optional** Set this option to enrich your SBOM using [Ecosyste.ms](https://github.com/ecosyste-ms). This can help with improving your NTIA Minimum Elements Compliance.
 
+### `PRODUCT_RELEASE` (JSON array)
+
+**Optional** Set this to associate your SBOM with one or more product releases. The value should be a JSON array of strings in the format `["product_id:version"]`.
+
+- The `product_id` should be the actual product ID from your sbomify account (e.g., "Gu9wem8mkX")
+- The `version` is the release version (e.g., "v1.2.3")
+
+**Example**: `PRODUCT_RELEASE: '["Gu9wem8mkX:v1.2.3", "GFcFpn8q4h:v2.0.0"]'`
+
+When specified, the action will:
+1. Check if the specified release exists for each product
+2. Create the release if it doesn't exist
+3. Tag the uploaded SBOM with the specified release(s)
+
+The action provides user-friendly logging output. For example:
+```
+[INFO] Processing release v1.2.3 for product Gu9wem8mkX
+[INFO] 'Major Feature Release' (v1.2.3) already exists for product Gu9wem8mkX
+[INFO] Tagging SBOM sbom_abc123 with 'Major Feature Release' (v1.2.3) (ID: rel_456)
+```
+
+**When to use**: Use this when you want to associate your SBOM with specific product releases for better organization and tracking in sbomify.
+
 ### `UPLOAD` (true/false)
 
 You can use this tool in standalone mode, where you don't upload the final SBOM to sbomify.
@@ -116,6 +139,7 @@ The following format-specific behaviors apply:
 | **Upload** | ✅ | ✅ | Both formats supported for upload to sbomify |
 | **Augmentation** | ✅ | ❌ | Metadata augmentation only available for CycloneDX |
 | **Enrichment** | ✅ | ✅ | Enrichment process works with both formats |
+| **Release Management** | ✅ | ✅ | Automatic release creation and SBOM tagging works with both formats |
 
 ## Opinions
 
@@ -182,6 +206,45 @@ jobs:
           AUGMENT: true
           ENRICH: true
 ```
+
+### Associate SBOM with Product Releases
+
+Use `PRODUCT_RELEASE` to automatically tag your SBOMs with product releases:
+
+```yaml
+---
+name: Release with SBOM Tagging
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-tag-sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate and Tag SBOM with Release
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'Gu9wem8mkX'
+          LOCK_FILE: 'requirements.txt'
+          COMPONENT_NAME: 'my-awesome-app'
+          COMPONENT_VERSION: ${{ github.ref_name }}
+          # Associate with multiple product releases
+          PRODUCT_RELEASE: '["Gu9wem8mkX:${{ github.ref_name }}", "GFcFpn8q4h:${{ github.ref_name }}"]'
+          AUGMENT: true
+          ENRICH: true
+```
+
+This will:
+- Generate an SBOM from your `requirements.txt`
+- Create releases (if they don't exist) for the specified products
+- Tag the uploaded SBOM with those releases
+- Provide clear logging like: `"Tagging SBOM sbom_123 with 'v2.1.0 Release' (v2.1.0) (ID: rel_456)"`
 
 ### Attesting your SBOMs
 
