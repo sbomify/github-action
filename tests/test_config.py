@@ -139,8 +139,9 @@ class TestConfig(unittest.TestCase):
             "TOKEN": "test-token",
             "COMPONENT_ID": "test-component",
             "SBOM_FILE": "tests/test-data/valid_json.json",
-            "UPLOAD": "false",
-            "AUGMENT": "true",
+            "UPLOAD": "False",
+            "AUGMENT": "True",
+            "PRODUCT_RELEASE": '["Gu9wem8mkX:v1.0.0", "GFcFpn8q4h:v2.1.0"]',
         },
     )
     def test_load_config_from_environment(self):
@@ -168,6 +169,98 @@ class TestConfig(unittest.TestCase):
         ):
             config = load_config()
             self.assertEqual(config.api_base_url, SBOMIFY_PRODUCTION_API)
+
+    @patch.dict(
+        os.environ,
+        {
+            "TOKEN": "test-token",
+            "COMPONENT_ID": "test-component",
+            "SBOM_FILE": "tests/test-data/valid_json.json",
+            "PRODUCT_RELEASE": '["Gu9wem8mkX:v1.0.0", "GFcFpn8q4h:v2.1.0"]',
+        },
+    )
+    def test_load_config_with_product_releases(self):
+        """Test loading configuration with valid product releases."""
+        config = load_config()
+
+        # After validation, should be converted to a list
+        self.assertEqual(config.product_releases, ["Gu9wem8mkX:v1.0.0", "GFcFpn8q4h:v2.1.0"])
+
+    @patch.dict(
+        os.environ,
+        {
+            "TOKEN": "test-token",
+            "COMPONENT_ID": "test-component",
+            "SBOM_FILE": "tests/test-data/valid_json.json",
+            "PRODUCT_RELEASE": '["Gu9wem8mkX:v1.0.0"]',
+        },
+    )
+    def test_load_config_with_single_product_release(self):
+        """Test loading configuration with single product release."""
+        config = load_config()
+
+        # After validation, should be converted to a list
+        self.assertEqual(config.product_releases, ["Gu9wem8mkX:v1.0.0"])
+
+    @patch.dict(
+        os.environ,
+        {
+            "TOKEN": "test-token",
+            "COMPONENT_ID": "test-component",
+            "SBOM_FILE": "tests/test-data/valid_json.json",
+            "PRODUCT_RELEASE": "not-json",
+        },
+    )
+    @patch("sys.exit")
+    def test_load_config_invalid_product_release_json(self, mock_exit):
+        """Test that invalid JSON for PRODUCT_RELEASE causes exit."""
+        load_config()
+        mock_exit.assert_called_once_with(1)
+
+    @patch.dict(
+        os.environ,
+        {
+            "TOKEN": "test-token",
+            "COMPONENT_ID": "test-component",
+            "SBOM_FILE": "tests/test-data/valid_json.json",
+            "PRODUCT_RELEASE": '"not-a-list"',
+        },
+    )
+    @patch("sys.exit")
+    def test_load_config_product_release_not_list(self, mock_exit):
+        """Test that non-list PRODUCT_RELEASE causes exit."""
+        load_config()
+        mock_exit.assert_called_once_with(1)
+
+    @patch.dict(
+        os.environ,
+        {
+            "TOKEN": "test-token",
+            "COMPONENT_ID": "test-component",
+            "SBOM_FILE": "tests/test-data/valid_json.json",
+            "PRODUCT_RELEASE": '["invalid-format"]',
+        },
+    )
+    @patch("sys.exit")
+    def test_load_config_invalid_product_release_format(self, mock_exit):
+        """Test that invalid format in PRODUCT_RELEASE causes exit."""
+        load_config()
+        mock_exit.assert_called_once_with(1)
+
+    @patch.dict(
+        os.environ,
+        {
+            "TOKEN": "test-token",
+            "COMPONENT_ID": "test-component",
+            "SBOM_FILE": "tests/test-data/valid_json.json",
+            "PRODUCT_RELEASE": '["ab:v1.0.0"]',
+        },
+    )
+    def test_load_config_short_product_id_allowed(self):
+        """Test that short product IDs are now allowed."""
+        config = load_config()
+        # Should pass validation and be converted to list
+        self.assertEqual(config.product_releases, ["ab:v1.0.0"])
 
     def test_component_name_no_warning(self):
         """Test that using COMPONENT_NAME alone produces no deprecation warnings."""
