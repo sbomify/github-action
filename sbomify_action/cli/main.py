@@ -2743,14 +2743,9 @@ def _apply_sbom_name_override(sbom_file: str, config: "Config") -> None:
                     json.dump(updated_json, f, indent=2)
 
         elif sbom_format == "spdx":
-            # For SPDX, apply name override directly to JSON
-            if "metadata" not in original_json:
-                original_json["metadata"] = {}
-            if "component" not in original_json["metadata"]:
-                original_json["metadata"]["component"] = {}
-
-            existing_name = original_json["metadata"]["component"].get("name", "unknown")
-            original_json["metadata"]["component"]["name"] = config.component_name
+            # For SPDX, apply name override to the top-level "name" field
+            existing_name = original_json.get("name", "unknown")
+            original_json["name"] = config.component_name
             logger.info(f"Overriding SPDX component name: '{existing_name}' -> '{config.component_name}'")
 
             with Path(sbom_file).open("w") as f:

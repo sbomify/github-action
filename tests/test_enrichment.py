@@ -11,6 +11,7 @@ import pytest
 from sbomify_action.cli.main import (
     Config,
     _apply_cyclonedx_metadata_to_json,
+    _apply_sbom_name_override,
     _apply_sbom_version_override,
     _validate_cyclonedx_sbom,
     enrich_sbom_with_backend_metadata,
@@ -1062,3 +1063,35 @@ class TestSBOMEnrichment:
         metadata_no_version = updated_json_no_version["metadata"]
         tools_no_version = metadata_no_version["tools"]
         assert isinstance(tools_no_version, list), "Missing specVersion should fallback to 1.5 format"
+
+    def test_spdx_name_override(self, tmp_path):
+        """Test that _apply_sbom_name_override correctly updates SPDX document name."""
+        # Create sample SPDX SBOM with SHA-based name (similar to user's issue)
+        spdx_sbom = {
+            "spdxVersion": "SPDX-2.3",
+            "dataLicense": "CC0-1.0",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "sbom-sha256:d0eb2eb0a6a7637d34238eb5736fbb069ed1d65f443b007841ef02b7ba4126fa",
+            "documentNamespace": "https://example.com/test-namespace",
+            "creationInfo": {"creators": ["Tool: test-tool"], "created": "2023-01-01T00:00:00Z"},
+            "packages": [],
+        }
+
+        # Create config with component name override
+        config = Config(token="test-token", component_id="test-component", component_name="mariadb")
+
+        # Create temporary SBOM file
+        sbom_file = tmp_path / "test_spdx_sbom.json"
+        with open(sbom_file, "w") as f:
+            json.dump(spdx_sbom, f)
+
+        # Apply name override
+        _apply_sbom_name_override(str(sbom_file), config)
+
+        # Load the modified file and verify
+        with open(sbom_file, "r") as f:
+            updated_sbom = json.load(f)
+
+        # Verify the name was changed from SHA-based to the configured name
+        assert updated_sbom["name"] == "mariadb"
+        assert updated_sbom["name"] != "sbom-sha256:d0eb2eb0a6a7637d34238eb5736fbb069ed1d65f443b007841ef02b7ba4126fa"
