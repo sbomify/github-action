@@ -169,7 +169,7 @@ class TestJSONAugmentation(unittest.TestCase):
             "authors": [
                 {"name": "John Doe", "email": "john@example.com"},
                 {"name": "Jane Smith", "email": "jane@example.com"},
-                {"name": "Bob Wilson"}  # No email
+                {"name": "Bob Wilson"},  # No email
             ]
         }
 
@@ -186,8 +186,8 @@ class TestJSONAugmentation(unittest.TestCase):
             "spdxVersion": "SPDX-2.3",
             "packages": [
                 {"name": "test-package", "SPDXID": "SPDXRef-Package-test"},
-                {"name": "other-package", "SPDXID": "SPDXRef-Package-other"}
-            ]
+                {"name": "other-package", "SPDXID": "SPDXRef-Package-other"},
+            ],
         }
         augmentation_data = {"supplier": {"name": "Test Supplier"}}
 
@@ -200,13 +200,10 @@ class TestJSONAugmentation(unittest.TestCase):
         """Test that SPDX augmentation adds homepage to packages from supplier URLs."""
         sbom_json = {
             "spdxVersion": "SPDX-2.3",
-            "packages": [{"name": "test-package", "SPDXID": "SPDXRef-Package-test"}]
+            "packages": [{"name": "test-package", "SPDXID": "SPDXRef-Package-test"}],
         }
         augmentation_data = {
-            "supplier": {
-                "name": "Test Supplier",
-                "url": ["https://example.com", "https://support.example.com"]
-            }
+            "supplier": {"name": "Test Supplier", "url": ["https://example.com", "https://support.example.com"]}
         }
 
         _apply_spdx_augmentation_to_json(sbom_json, augmentation_data, self.config)
@@ -218,13 +215,10 @@ class TestJSONAugmentation(unittest.TestCase):
         """Test that SPDX augmentation adds external references to packages."""
         sbom_json = {
             "spdxVersion": "SPDX-2.3",
-            "packages": [{"name": "test-package", "SPDXID": "SPDXRef-Package-test"}]
+            "packages": [{"name": "test-package", "SPDXID": "SPDXRef-Package-test"}],
         }
         augmentation_data = {
-            "supplier": {
-                "name": "Test Supplier",
-                "url": ["https://example.com", "https://support.example.com"]
-            }
+            "supplier": {"name": "Test Supplier", "url": ["https://example.com", "https://support.example.com"]}
         }
 
         _apply_spdx_augmentation_to_json(sbom_json, augmentation_data, self.config)
@@ -247,13 +241,13 @@ class TestJSONAugmentation(unittest.TestCase):
             "spdxVersion": "SPDX-2.3",
             "packages": [
                 {"name": "test-package", "SPDXID": "SPDXRef-Package-test"},
-                {"name": "other-package", "SPDXID": "SPDXRef-Package-other"}
-            ]
+                {"name": "other-package", "SPDXID": "SPDXRef-Package-other"},
+            ],
         }
         augmentation_data = {
             "authors": [
                 {"name": "John Doe", "email": "john@example.com"},
-                {"name": "Jane Smith", "email": "jane@example.com"}
+                {"name": "Jane Smith", "email": "jane@example.com"},
             ]
         }
 
@@ -271,13 +265,11 @@ class TestJSONAugmentation(unittest.TestCase):
                     "name": "test-package",
                     "SPDXID": "SPDXRef-Package-test",
                     "licenseConcluded": "NOASSERTION",
-                    "licenseDeclared": "NOASSERTION"
+                    "licenseDeclared": "NOASSERTION",
                 }
-            ]
+            ],
         }
-        augmentation_data = {
-            "licenses": ["MIT", "Apache-2.0"]
-        }
+        augmentation_data = {"licenses": ["MIT", "Apache-2.0"]}
 
         _apply_spdx_augmentation_to_json(sbom_json, augmentation_data, self.config)
 
@@ -295,18 +287,18 @@ class TestJSONAugmentation(unittest.TestCase):
                     "name": "test-package",
                     "SPDXID": "SPDXRef-Package-test",
                     "licenseConcluded": "NOASSERTION",
-                    "licenseDeclared": "NOASSERTION"
+                    "licenseDeclared": "NOASSERTION",
                 }
-            ]
+            ],
         }
         augmentation_data = {
             "licenses": [
                 {
                     "name": "Custom License",
                     "url": "https://example.com/license",
-                    "text": "This is a custom license text."
+                    "text": "This is a custom license text.",
                 },
-                "MIT"
+                "MIT",
             ]
         }
 
@@ -334,19 +326,10 @@ class TestJSONAugmentation(unittest.TestCase):
         sbom_json = {
             "spdxVersion": "SPDX-2.3",
             "packages": [
-                {
-                    "name": "test-package",
-                    "SPDXID": "SPDXRef-Package-test",
-                    "homePage": "https://existing.com"
-                }
-            ]
+                {"name": "test-package", "SPDXID": "SPDXRef-Package-test", "homePage": "https://existing.com"}
+            ],
         }
-        augmentation_data = {
-            "supplier": {
-                "name": "Test Supplier",
-                "url": ["https://example.com"]
-            }
-        }
+        augmentation_data = {"supplier": {"name": "Test Supplier", "url": ["https://example.com"]}}
 
         _apply_spdx_augmentation_to_json(sbom_json, augmentation_data, self.config)
 
@@ -358,16 +341,10 @@ class TestJSONAugmentation(unittest.TestCase):
         sbom_json = {
             "spdxVersion": "SPDX-2.3",
             "packages": [
-                {
-                    "name": "test-package",
-                    "SPDXID": "SPDXRef-Package-test",
-                    "originator": "Person: Existing Author"
-                }
-            ]
+                {"name": "test-package", "SPDXID": "SPDXRef-Package-test", "originator": "Person: Existing Author"}
+            ],
         }
-        augmentation_data = {
-            "authors": [{"name": "New Author", "email": "new@example.com"}]
-        }
+        augmentation_data = {"authors": [{"name": "New Author", "email": "new@example.com"}]}
 
         _apply_spdx_augmentation_to_json(sbom_json, augmentation_data, self.config)
 
@@ -386,17 +363,14 @@ class TestJSONAugmentation(unittest.TestCase):
                         {
                             "referenceCategory": "OTHER",
                             "referenceType": "website",
-                            "referenceLocator": "https://example.com"
+                            "referenceLocator": "https://example.com",
                         }
-                    ]
+                    ],
                 }
-            ]
+            ],
         }
         augmentation_data = {
-            "supplier": {
-                "name": "Test Supplier",
-                "url": ["https://example.com", "https://support.example.com"]
-            }
+            "supplier": {"name": "Test Supplier", "url": ["https://example.com", "https://support.example.com"]}
         }
 
         _apply_spdx_augmentation_to_json(sbom_json, augmentation_data, self.config)
@@ -421,27 +395,18 @@ class TestJSONAugmentation(unittest.TestCase):
                 {
                     "licenseId": "LicenseRef-Existing-License",
                     "name": "Existing License",
-                    "extractedText": "Existing license text"
+                    "extractedText": "Existing license text",
                 }
             ],
-            "packages": [
-                {
-                    "name": "test-package",
-                    "SPDXID": "SPDXRef-Package-test",
-                    "licenseConcluded": "NOASSERTION"
-                }
-            ]
+            "packages": [{"name": "test-package", "SPDXID": "SPDXRef-Package-test", "licenseConcluded": "NOASSERTION"}],
         }
         augmentation_data = {
             "licenses": [
                 {
                     "name": "Existing License",  # Same as existing
-                    "text": "Duplicate license text"
+                    "text": "Duplicate license text",
                 },
-                {
-                    "name": "New License",
-                    "text": "New license text"
-                }
+                {"name": "New License", "text": "New license text"},
             ]
         }
 
@@ -472,7 +437,7 @@ class TestJSONAugmentation(unittest.TestCase):
         licenses = [
             {"name": "Custom License", "url": "https://example.com", "text": "Custom text"},
             "MIT",
-            {"name": "Another Custom License", "text": "Another text"}
+            {"name": "Another Custom License", "text": "Another text"},
         ]
         result = _convert_backend_licenses_to_spdx_expression(licenses)
         self.assertEqual(result, "LicenseRef-Custom-License AND MIT AND LicenseRef-Another-Custom-License")
@@ -492,11 +457,7 @@ class TestJSONAugmentation(unittest.TestCase):
     def test_extract_custom_licenses_for_spdx_complete_license(self):
         """Test extracting custom licenses with all fields."""
         licenses = [
-            {
-                "name": "Custom License",
-                "url": "https://example.com/license",
-                "text": "This is the custom license text."
-            }
+            {"name": "Custom License", "url": "https://example.com/license", "text": "This is the custom license text."}
         ]
         result = _extract_custom_licenses_for_spdx(licenses)
 
@@ -521,11 +482,7 @@ class TestJSONAugmentation(unittest.TestCase):
 
     def test_extract_custom_licenses_for_spdx_ignores_strings(self):
         """Test that string licenses are ignored in extraction."""
-        licenses = [
-            "MIT",
-            {"name": "Custom License", "text": "Custom text"},
-            "Apache-2.0"
-        ]
+        licenses = ["MIT", {"name": "Custom License", "text": "Custom text"}, "Apache-2.0"]
         result = _extract_custom_licenses_for_spdx(licenses)
 
         self.assertEqual(len(result), 1)
@@ -536,7 +493,7 @@ class TestJSONAugmentation(unittest.TestCase):
         licenses = [
             {"url": "https://example.com", "text": "Text without name"},
             {"name": "Valid License", "text": "Valid text"},
-            {"text": "Another incomplete license"}
+            {"text": "Another incomplete license"},
         ]
         result = _extract_custom_licenses_for_spdx(licenses)
 

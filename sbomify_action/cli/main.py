@@ -2608,7 +2608,7 @@ def _extract_custom_licenses_for_spdx(licenses: list) -> list:
             extracted_license = {
                 "licenseId": license_ref,
                 "name": license_item["name"],
-                "extractedText": license_item.get("text", "Custom license text not provided")
+                "extractedText": license_item.get("text", "Custom license text not provided"),
             }
 
             if license_item.get("url"):
@@ -2684,12 +2684,14 @@ def _apply_spdx_augmentation_to_json(sbom_json: dict, augmentation_data: dict, c
                         # Check if this URL already exists
                         existing_refs = [ref["referenceLocator"] for ref in package["externalRefs"]]
                         if url not in existing_refs:
-                            package["externalRefs"].append({
-                                "referenceCategory": "OTHER",
-                                "referenceType": "website",
-                                "referenceLocator": url,
-                                "comment": "Supplier website"
-                            })
+                            package["externalRefs"].append(
+                                {
+                                    "referenceCategory": "OTHER",
+                                    "referenceType": "website",
+                                    "referenceLocator": url,
+                                    "comment": "Supplier website",
+                                }
+                            )
 
     # Apply authors information
     if "authors" in augmentation_data and augmentation_data["authors"]:
