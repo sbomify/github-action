@@ -50,7 +50,7 @@ Note that this will only generate the system packages from the Docker image. Sep
 
 **Optional** Adds supplier, author, and license information from your sbomify component to your SBOM. Most SBOM generation tools don't include this business metadata.
 
-**Note:** Only works with CycloneDX format SBOMs. SPDX format SBOMs will skip augmentation with a warning message.
+**Note:** Works with both CycloneDX and SPDX format SBOMs. The action will intelligently apply metadata according to each format's specifications.
 
 ### `OVERRIDE_SBOM_METADATA` (true/false)
 
@@ -127,7 +127,7 @@ You can use this tool in standalone mode, where you don't upload the final SBOM 
 
 The following format-specific behaviors apply:
 
-* **Metadata Augmentation**: Only CycloneDX format is supported for metadata augmentation (`AUGMENT=true`). SPDX format SBOMs will skip augmentation with a warning.
+* **Metadata Augmentation**: Both CycloneDX and SPDX formats are supported for metadata augmentation (`AUGMENT=true`).
 * **SBOM Upload**: Both CycloneDX and SPDX formats are supported for upload.
 * **Enrichment**: The enrichment process (`ENRICH=true`) works with both formats.
 
@@ -137,7 +137,7 @@ The following format-specific behaviors apply:
 |-----------|-----------|------|-------|
 | **Generation** | ✅ | ✅ | All supported lockfile formats work with both formats |
 | **Upload** | ✅ | ✅ | Both formats supported for upload to sbomify |
-| **Augmentation** | ✅ | ❌ | Metadata augmentation only available for CycloneDX |
+| **Augmentation** | ✅ | ✅ | Full metadata augmentation support for both formats |
 | **Enrichment** | ✅ | ✅ | Enrichment process works with both formats |
 | **Release Management** | ✅ | ✅ | Automatic release creation and SBOM tagging works with both formats |
 
