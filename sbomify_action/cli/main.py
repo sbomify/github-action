@@ -1784,7 +1784,7 @@ def _check_release_exists(config: "Config", product_id: str, version: str) -> bo
     Raises:
         APIError: If API call fails
     """
-    url = config.api_base_url + "/releases"
+    url = config.api_base_url + "/api/v1/releases"
     headers = {
         "Authorization": f"Bearer {config.token}",
     }
@@ -1842,7 +1842,7 @@ def _create_release(config: "Config", product_id: str, version: str) -> str:
     Raises:
         APIError: If API call fails
     """
-    url = config.api_base_url + "/releases"
+    url = config.api_base_url + "/api/v1/releases"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {config.token}",
@@ -1874,7 +1874,18 @@ def _create_release(config: "Config", product_id: str, version: str) -> str:
                 error_data = response.json()
                 if "detail" in error_data:
                     err_msg += f" - {error_data['detail']}"
+                else:
+                    # Log full error response for debugging when detail is missing
+                    err_msg += f" - {error_data}"
             except (ValueError, KeyError):
+                pass
+        else:
+            # Log response text for non-JSON responses
+            try:
+                response_text = response.text[:500]  # Limit to first 500 chars
+                if response_text:
+                    err_msg += f" - Response: {response_text}"
+            except Exception:
                 pass
         raise APIError(err_msg)
 
@@ -1896,7 +1907,7 @@ def _tag_sbom_with_release(config: "Config", sbom_id: str, release_id: str) -> N
     Raises:
         APIError: If API call fails
     """
-    url = config.api_base_url + f"/releases/{release_id}/artifacts"
+    url = config.api_base_url + f"/api/v1/releases/{release_id}/artifacts"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {config.token}",
@@ -1943,7 +1954,7 @@ def _get_release_id(config: "Config", product_id: str, version: str) -> Optional
     Raises:
         APIError: If API call fails
     """
-    url = config.api_base_url + "/releases"
+    url = config.api_base_url + "/api/v1/releases"
     headers = {
         "Authorization": f"Bearer {config.token}",
     }
@@ -2771,7 +2782,7 @@ def _get_release_details(config: "Config", product_id: str, version: str) -> Opt
     Raises:
         APIError: If API call fails
     """
-    url = config.api_base_url + "/releases"
+    url = config.api_base_url + "/api/v1/releases"
     headers = {
         "Authorization": f"Bearer {config.token}",
     }
