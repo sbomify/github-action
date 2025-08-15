@@ -145,6 +145,7 @@ COMMON_PYTHON_LOCK_FILES = [
     "poetry.lock",
     "pyproject.toml",
     "requirements.txt",
+    "uv.lock",
 ]
 
 COMMON_RUST_LOCK_FILES = ["Cargo.lock"]
@@ -229,6 +230,10 @@ def _process_python_lock_file(file_path: str, lock_file_name: str) -> None:
             lock_file_type="pipenv",
             output_file="step_1.json",
         )
+    elif lock_file_name == "uv.lock":
+        logger.info("Processing uv.lock file with Trivy")
+        run_trivy_fs(lock_file=file_path, output_file="step_1.json")
+        return  # Trivy doesn't return a code we need to check
     else:
         raise FileProcessingError(f"{lock_file_name} is not a recognized Python lock file")
 

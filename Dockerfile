@@ -3,9 +3,9 @@ FROM python:3-slim-bullseye AS fetcher
 WORKDIR /tmp
 
 # Define tool versions
-ENV PARLAY_VERSION=0.8.0 \
+ENV PARLAY_VERSION=0.9.0 \
     BOMCTL_VERSION=0.4.3 \
-    TRIVY_VERSION=0.63.0
+    TRIVY_VERSION=0.65.0
 
 RUN apt-get update && \
     apt-get install -y curl

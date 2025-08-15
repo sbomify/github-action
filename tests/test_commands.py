@@ -78,6 +78,15 @@ class TestLockFileProcessing(unittest.TestCase):
 
         mock_process_python.assert_called_once_with(test_file, "requirements.txt")
 
+    @patch("sbomify_action.cli.main._process_python_lock_file")
+    def test_process_lock_file_python_uv_lock(self, mock_process_python):
+        """Test processing Python uv.lock file."""
+        test_file = "/path/to/uv.lock"
+
+        process_lock_file(test_file)
+
+        mock_process_python.assert_called_once_with(test_file, "uv.lock")
+
     @patch("sbomify_action.cli.main.run_trivy_fs")
     def test_process_lock_file_rust_cargo(self, mock_trivy):
         """Test processing Rust Cargo.lock file."""
@@ -119,6 +128,16 @@ class TestLockFileProcessing(unittest.TestCase):
         mock_generate.assert_called_once_with(
             lock_file="/path/to",  # Directory path for poetry
             lock_file_type="poetry",
+            output_file="step_1.json",
+        )
+
+    @patch("sbomify_action.cli.main.run_trivy_fs")
+    def test_process_python_lock_file_uv_lock(self, mock_trivy):
+        """Test processing Python uv.lock with Trivy."""
+        _process_python_lock_file("/path/to/uv.lock", "uv.lock")
+
+        mock_trivy.assert_called_once_with(
+            lock_file="/path/to/uv.lock",
             output_file="step_1.json",
         )
 

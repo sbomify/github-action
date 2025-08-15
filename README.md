@@ -35,7 +35,7 @@ Note that this will only generate the system packages from the Docker image. Sep
 
 | Language | Tool Used | Supported Lockfile(s) |
 |---|---|---|
-| Python | [cyclonedx-python](https://github.com/CycloneDX/cyclonedx-python) | Pipfile (`Pipfile.lock`), Poetry (`poetry.lock` and/or `pyproject.toml`), Pip (`requirements.txt`) |
+| Python | [cyclonedx-python](https://github.com/CycloneDX/cyclonedx-python) / [trivy](https://github.com/aquasecurity/trivy) | Pipfile (`Pipfile.lock`), Poetry (`poetry.lock` and/or `pyproject.toml`), Pip (`requirements.txt`), uv (`uv.lock`) |
 | Rust | [trivy](https://github.com/aquasecurity/trivy) | `Cargo.lock` |
 | JavaScript (Node.js) | [trivy](https://github.com/aquasecurity/trivy) | `package.json`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml` |
 | Ruby | [trivy](https://github.com/aquasecurity/trivy) | `Gemfile.lock` |
@@ -251,12 +251,25 @@ This will:
 More sophisticated users may also want to use GitHub's built-in [build provenance attestations](https://github.com/actions/attest-build-provenance). Behind the scenes, this will help you provide a SLSA build provenance predicate using the in-toto format. You can find a fully example [here](https://github.com/sbomify/github-action/blob/master/.github/workflows/sbomify.yaml), but here is a non-complete example:
 
 ```yaml
-      - name: Upload SBOM
+      - name: Upload SBOM (Poetry)
         uses: sbomify/github-action@master
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'Your Component ID'
           LOCK_FILE: 'poetry.lock'
+          COMPONENT_NAME: 'my-python-app'
+          COMPONENT_VERSION: ${{ github.ref_name }}-${{ github.sha }}
+          AUGMENT: true
+          ENRICH: true
+          OUTPUT_FILE: github-action.cdx.json
+
+      # Alternative example for uv.lock
+      - name: Upload SBOM (uv)
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'Your Component ID'
+          LOCK_FILE: 'uv.lock'
           COMPONENT_NAME: 'my-python-app'
           COMPONENT_VERSION: ${{ github.ref_name }}-${{ github.sha }}
           AUGMENT: true
