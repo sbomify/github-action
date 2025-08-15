@@ -294,6 +294,101 @@ class TestProductReleases(unittest.TestCase):
 
         self.assertEqual(result, "Release v1.0.0")
 
+    @patch("sbomify_action.cli.main.requests.post")
+    def test_create_release_url_construction_no_double_api_prefix(self, mock_post):
+        """Test that create_release doesn't create URLs with double /api/v1 prefix."""
+        # Use production API URL which contains /api/v1
+        from sbomify_action.cli.main import SBOMIFY_PRODUCTION_API
+
+        prod_config = Config(
+            token="test-token",
+            component_id="test-component",
+            sbom_file="test.json",
+            api_base_url=SBOMIFY_PRODUCTION_API,
+        )
+
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"id": "new-release-id"}
+        mock_post.return_value = mock_response
+
+        _create_release(prod_config, "Gu9wem8mkX", "v1.0.0")
+
+        # Verify the URL was constructed correctly
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        actual_url = call_args[0][0]
+
+        # Should be exactly this URL (no double /api/v1)
+        expected_url = "https://app.sbomify.com/api/v1/releases"
+        self.assertEqual(actual_url, expected_url, f"URL construction error: got {actual_url}, expected {expected_url}")
+
+        # Should not contain double /api/v1
+        self.assertNotIn("/api/v1/api/v1", actual_url, f"URL contains double /api/v1 prefix: {actual_url}")
+
+    @patch("sbomify_action.cli.main.requests.get")
+    def test_check_release_exists_url_construction_no_double_api_prefix(self, mock_get):
+        """Test that check_release_exists doesn't create URLs with double /api/v1 prefix."""
+        # Use production API URL which contains /api/v1
+        from sbomify_action.cli.main import SBOMIFY_PRODUCTION_API
+
+        prod_config = Config(
+            token="test-token",
+            component_id="test-component",
+            sbom_file="test.json",
+            api_base_url=SBOMIFY_PRODUCTION_API,
+        )
+
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"items": []}
+        mock_get.return_value = mock_response
+
+        _check_release_exists(prod_config, "Gu9wem8mkX", "v1.0.0")
+
+        # Verify the URL was constructed correctly
+        mock_get.assert_called_once()
+        call_args = mock_get.call_args
+        actual_url = call_args[0][0]
+
+        # Should be exactly this URL (no double /api/v1)
+        expected_url = "https://app.sbomify.com/api/v1/releases"
+        self.assertEqual(actual_url, expected_url, f"URL construction error: got {actual_url}, expected {expected_url}")
+
+        # Should not contain double /api/v1
+        self.assertNotIn("/api/v1/api/v1", actual_url, f"URL contains double /api/v1 prefix: {actual_url}")
+
+    @patch("sbomify_action.cli.main.requests.post")
+    def test_tag_sbom_with_release_url_construction_no_double_api_prefix(self, mock_post):
+        """Test that tag_sbom_with_release doesn't create URLs with double /api/v1 prefix."""
+        # Use production API URL which contains /api/v1
+        from sbomify_action.cli.main import SBOMIFY_PRODUCTION_API
+
+        prod_config = Config(
+            token="test-token",
+            component_id="test-component",
+            sbom_file="test.json",
+            api_base_url=SBOMIFY_PRODUCTION_API,
+        )
+
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_post.return_value = mock_response
+
+        _tag_sbom_with_release(prod_config, "sbom123", "rel456")
+
+        # Verify the URL was constructed correctly
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        actual_url = call_args[0][0]
+
+        # Should be exactly this URL (no double /api/v1)
+        expected_url = "https://app.sbomify.com/api/v1/releases/rel456/artifacts"
+        self.assertEqual(actual_url, expected_url, f"URL construction error: got {actual_url}, expected {expected_url}")
+
+        # Should not contain double /api/v1
+        self.assertNotIn("/api/v1/api/v1", actual_url, f"URL contains double /api/v1 prefix: {actual_url}")
+
 
 if __name__ == "__main__":
     unittest.main()

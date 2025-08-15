@@ -84,7 +84,7 @@ SBOMIFY_VERSION = _get_package_version()
 
 # Constants for magic strings/numbers
 SPDX_LOGICAL_OPERATORS = [" OR ", " AND ", " WITH "]
-SBOMIFY_PRODUCTION_API = "https://app.sbomify.com/api/v1"
+SBOMIFY_PRODUCTION_API = "https://app.sbomify.com"
 SBOMIFY_TOOL_NAME = "sbomify-github-action"
 SBOMIFY_VENDOR_NAME = "sbomify"
 LOCALHOST_PATTERNS = ["127.0.0.1", "localhost", "0.0.0.0"]
@@ -134,8 +134,8 @@ write `OUTPUT_FILE` at the end of the run.
 
 # Configuration
 The tool can be configured via environment variables:
-- API_BASE_URL: Override the sbomify API base URL (default: https://app.sbomify.com/api/v1)
-  Useful for testing against development instances (e.g., http://127.0.0.1:8000/api/v1)
+- API_BASE_URL: Override the sbomify API base URL (default: https://app.sbomify.com)
+  Useful for testing against development instances (e.g., http://127.0.0.1:8000)
 
 """
 
@@ -962,7 +962,7 @@ def _fetch_backend_metadata(config: "Config") -> dict:
     Raises:
         APIError: If API call fails
     """
-    url = config.api_base_url + f"/sboms/component/{config.component_id}/meta"
+    url = config.api_base_url + f"/api/v1/sboms/component/{config.component_id}/meta"
     headers = {
         "Authorization": f"Bearer {config.token}",
     }
@@ -2254,7 +2254,7 @@ def main() -> None:
                     logger.warning(f"SBOM validation error: {e}, proceeding with upload")
 
             # Execute the POST request to upload the SBOM file
-            url = config.api_base_url + f"/sboms/artifact/{FORMAT}/{config.component_id}"
+            url = config.api_base_url + f"/api/v1/sboms/artifact/{FORMAT}/{config.component_id}"
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {config.token}",

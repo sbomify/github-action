@@ -121,6 +121,18 @@ The action provides user-friendly logging output. For example:
 
 You can use this tool in standalone mode, where you don't upload the final SBOM to sbomify.
 
+### `API_BASE_URL` (string)
+
+**Optional** Override the sbomify API base URL. Default: `https://app.sbomify.com`
+
+**When to use**: Useful for testing against development instances or when using a self-hosted sbomify instance.
+
+**Examples**:
+- Development instance: `API_BASE_URL: 'https://dev.sbomify.com'`
+- Local testing: `API_BASE_URL: 'http://127.0.0.1:8000'`
+
+**Note**: The API endpoints (`/api/v1/...`) are automatically appended to this base URL, so you should only provide the base domain.
+
 ## Compatibility Notes
 
 ### Format Support
