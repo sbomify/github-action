@@ -6,3 +6,4 @@ test_cargo_generation.json
 test_docker_image_generation.json
 sbom_output.json
 .coverage
+step_1.json
