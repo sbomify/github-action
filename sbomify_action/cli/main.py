@@ -2576,16 +2576,75 @@ def _apply_cyclonedx_augmentation_to_json(sbom_json: dict, augmentation_data: di
                 metadata["licenses"].append(license_entry)
 
 
+def _convert_backend_licenses_to_spdx_expression(licenses: list) -> str:
+    """
+    Convert backend license data to SPDX license expression.
+
+    Args:
+        licenses: List of license data from backend (strings or dicts)
+
+    Returns:
+        SPDX license expression string
+    """
+    spdx_parts = []
+
+    for license_item in licenses:
+        if isinstance(license_item, str):
+            # Already SPDX expression or simple license name
+            spdx_parts.append(license_item)
+        elif isinstance(license_item, dict) and license_item.get("name"):
+            # Custom license - create LicenseRef
+            name = license_item["name"].replace(" ", "-").replace("(", "").replace(")", "")
+            spdx_parts.append(f"LicenseRef-{name}")
+
+    if not spdx_parts:
+        return "NOASSERTION"
+
+    # Join with AND (most restrictive approach)
+    return " AND ".join(spdx_parts) if len(spdx_parts) > 1 else spdx_parts[0]
+
+
+def _extract_custom_licenses_for_spdx(licenses: list) -> list:
+    """
+    Extract custom licenses for SPDX hasExtractedLicensingInfo.
+
+    Args:
+        licenses: List of license data from backend
+
+    Returns:
+        List of extracted licensing info objects for SPDX
+    """
+    extracted = []
+
+    for license_item in licenses:
+        if isinstance(license_item, dict) and license_item.get("name"):
+            name = license_item["name"].replace(" ", "-").replace("(", "").replace(")", "")
+            license_ref = f"LicenseRef-{name}"
+
+            extracted_license = {
+                "licenseId": license_ref,
+                "name": license_item["name"],
+                "extractedText": license_item.get("text", "Custom license text not provided"),
+            }
+
+            if license_item.get("url"):
+                extracted_license["seeAlsos"] = [license_item["url"]]
+
+            extracted.append(extracted_license)
+
+    return extracted
+
+
 def _apply_spdx_augmentation_to_json(sbom_json: dict, augmentation_data: dict, config: "Config") -> None:
     """
-    Apply augmentation directly to SPDX JSON.
+    Apply augmentation directly to SPDX JSON with full feature parity to CycloneDX.
 
     Args:
         sbom_json: The SBOM JSON dict to modify
         augmentation_data: Backend metadata to apply
         config: Configuration object
     """
-    # SPDX metadata is typically in creationInfo
+    # Ensure creationInfo exists
     if "creationInfo" not in sbom_json:
         sbom_json["creationInfo"] = {}
 
@@ -2598,18 +2657,120 @@ def _apply_spdx_augmentation_to_json(sbom_json: dict, augmentation_data: dict, c
     else:
         logger.debug(f"Preserving existing SPDX creation timestamp: {creation_info['created']}")
 
-    # Apply supplier as creator if available
+    # Initialize creators list
+    creators = creation_info.get("creators", [])
+
+    # Add sbomify tool
+    sbomify_tool = f"Tool: {SBOMIFY_TOOL_NAME}"
+    if sbomify_tool not in creators:
+        creators.append(sbomify_tool)
+        logger.debug(f"Added sbomify tool to SPDX creators: {sbomify_tool}")
+
+    # Apply supplier information
     if "supplier" in augmentation_data:
         supplier_data = augmentation_data["supplier"]
-        logger.info(f"Adding supplier information: {supplier_data.get('name', 'Unknown')}")
+        supplier_name = supplier_data.get("name")
+        logger.info(f"Adding supplier information: {supplier_name or 'Unknown'}")
 
-        # Add to creators list (preserve existing)
-        creators = creation_info.get("creators", [])
-        if supplier_data.get("name"):
-            creator_entry = f"Organization: {supplier_data['name']}"
+        # Add to document creators
+        if supplier_name:
+            creator_entry = f"Organization: {supplier_name}"
             if creator_entry not in creators:
                 creators.append(creator_entry)
-        creation_info["creators"] = creators
+
+        # Apply supplier to packages
+        for package in sbom_json.get("packages", []):
+            if supplier_name:
+                package["supplier"] = f"Organization: {supplier_name}"
+
+            # Add homepage from supplier URLs
+            if supplier_data.get("url") and "homePage" not in package:
+                urls = supplier_data["url"] if isinstance(supplier_data["url"], list) else [supplier_data["url"]]
+                if urls and urls[0]:
+                    package["homePage"] = urls[0]
+
+            # Add external references for supplier info
+            if supplier_data.get("url"):
+                if "externalRefs" not in package:
+                    package["externalRefs"] = []
+
+                urls = supplier_data["url"] if isinstance(supplier_data["url"], list) else [supplier_data["url"]]
+                for url in urls:
+                    if url:  # Skip empty URLs
+                        # Check if this URL already exists
+                        existing_refs = [ref["referenceLocator"] for ref in package["externalRefs"]]
+                        if url not in existing_refs:
+                            package["externalRefs"].append(
+                                {
+                                    "referenceCategory": "OTHER",
+                                    "referenceType": "website",
+                                    "referenceLocator": url,
+                                    "comment": "Supplier website",
+                                }
+                            )
+
+    # Apply authors information
+    if "authors" in augmentation_data and augmentation_data["authors"]:
+        authors_data = augmentation_data["authors"]
+        logger.info(f"Adding {len(authors_data)} author(s) from sbomify")
+
+        # Add authors to document creators
+        for author_data in authors_data:
+            author_name = author_data.get("name")
+            author_email = author_data.get("email", "")
+            if author_name:
+                person_creator = f"Person: {author_name}"
+                if author_email:
+                    person_creator += f" ({author_email})"
+                if person_creator not in creators:
+                    creators.append(person_creator)
+
+        # Add first author as package originator
+        if authors_data:
+            first_author = authors_data[0]
+            author_name = first_author.get("name")
+            author_email = first_author.get("email", "")
+
+            if author_name:
+                for package in sbom_json.get("packages", []):
+                    if "originator" not in package:
+                        originator = f"Person: {author_name}"
+                        if author_email:
+                            originator += f" ({author_email})"
+                        package["originator"] = originator
+
+    # Apply license information
+    if "licenses" in augmentation_data and augmentation_data["licenses"]:
+        licenses_data = augmentation_data["licenses"]
+        logger.info(f"Adding {len(licenses_data)} license(s) to SPDX packages")
+
+        # Convert backend licenses to SPDX format
+        spdx_license_expression = _convert_backend_licenses_to_spdx_expression(licenses_data)
+
+        # Add extracted licensing info for custom licenses
+        custom_licenses = _extract_custom_licenses_for_spdx(licenses_data)
+        if custom_licenses:
+            if "hasExtractedLicensingInfo" not in sbom_json:
+                sbom_json["hasExtractedLicensingInfo"] = []
+
+            # Avoid duplicates
+            existing_license_ids = {lic.get("licenseId") for lic in sbom_json["hasExtractedLicensingInfo"]}
+            for custom_license in custom_licenses:
+                if custom_license["licenseId"] not in existing_license_ids:
+                    sbom_json["hasExtractedLicensingInfo"].append(custom_license)
+
+        # Apply to packages
+        for package in sbom_json.get("packages", []):
+            # Update licenseConcluded if it's NOASSERTION
+            if package.get("licenseConcluded") == "NOASSERTION":
+                package["licenseConcluded"] = spdx_license_expression
+
+            # Update licenseDeclared if it's NOASSERTION
+            if package.get("licenseDeclared") == "NOASSERTION":
+                package["licenseDeclared"] = spdx_license_expression
+
+    # Update creators
+    creation_info["creators"] = creators
 
 
 def _add_sbomify_tool_to_json(metadata: dict, spec_version: str) -> None:
