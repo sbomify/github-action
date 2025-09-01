@@ -96,6 +96,15 @@ class TestLockFileProcessing(unittest.TestCase):
 
         mock_trivy.assert_called_once_with(lock_file=test_file, output_file="step_1.json")
 
+    @patch("sbomify_action.cli.main.run_trivy_fs")
+    def test_process_lock_file_cpp_conan(self, mock_trivy):
+        """Test processing C++ conan.lock file."""
+        test_file = "/path/to/conan.lock"
+
+        process_lock_file(test_file)
+
+        mock_trivy.assert_called_once_with(lock_file=test_file, output_file="step_1.json")
+
     def test_process_lock_file_unsupported_type(self):
         """Test processing unsupported lock file type."""
         test_file = "/path/to/unsupported.lock"

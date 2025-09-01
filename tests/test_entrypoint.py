@@ -164,6 +164,21 @@ class TestRustSBOMGeneration(unittest.TestCase):
         )
 
 
+class TestCppSBOMGeneration(unittest.TestCase):
+    def test_generation_conan_lock(self):
+        """
+        Test CycloneDX generation of SBOM
+        from a `conan.lock` file.
+        """
+
+        output_file = "test_conan_generation.json"
+
+        run_trivy_fs(
+            lock_file="tests/test-data/conan.lock",
+            output_file=output_file,
+        )
+
+
 class TestDockerImageSBOMGeneration(unittest.TestCase):
     def test_generation_docker_image(self):
         """

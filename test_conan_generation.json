@@ -1,0 +1,106 @@
+{
+    "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.6",
+    "serialNumber": "urn:uuid:751d39f7-1ae5-4d79-a4e5-34d40383f5ad",
+    "version": 1,
+    "metadata": {
+        "timestamp": "2025-09-01T08:27:46+00:00",
+        "tools": {
+            "components": [
+                {
+                    "type": "application",
+                    "group": "aquasecurity",
+                    "name": "trivy",
+                    "version": "0.62.1"
+                }
+            ]
+        },
+        "component": {
+            "bom-ref": "09ca77ec-4128-47e5-833d-045e8a9d0d20",
+            "type": "application",
+            "name": "tests/test-data/conan.lock",
+            "properties": [
+                {
+                    "name": "aquasecurity:trivy:SchemaVersion",
+                    "value": "2"
+                }
+            ]
+        }
+    },
+    "components": [
+        {
+            "bom-ref": "3821ffc2-f090-46b3-a6b6-7a362b3103e9",
+            "type": "application",
+            "name": "conan.lock",
+            "properties": [
+                {
+                    "name": "aquasecurity:trivy:Class",
+                    "value": "lang-pkgs"
+                },
+                {
+                    "name": "aquasecurity:trivy:Type",
+                    "value": "conan"
+                }
+            ]
+        },
+        {
+            "bom-ref": "pkg:conan/cjson@1.7.18",
+            "type": "library",
+            "name": "cjson",
+            "version": "1.7.18",
+            "purl": "pkg:conan/cjson@1.7.18",
+            "properties": [
+                {
+                    "name": "aquasecurity:trivy:PkgID",
+                    "value": "cjson/1.7.18"
+                },
+                {
+                    "name": "aquasecurity:trivy:PkgType",
+                    "value": "conan"
+                }
+            ]
+        },
+        {
+            "bom-ref": "pkg:conan/mbedtls@3.6.4",
+            "type": "library",
+            "name": "mbedtls",
+            "version": "3.6.4",
+            "purl": "pkg:conan/mbedtls@3.6.4",
+            "properties": [
+                {
+                    "name": "aquasecurity:trivy:PkgID",
+                    "value": "mbedtls/3.6.4"
+                },
+                {
+                    "name": "aquasecurity:trivy:PkgType",
+                    "value": "conan"
+                }
+            ]
+        }
+    ],
+    "dependencies": [
+        {
+            "ref": "09ca77ec-4128-47e5-833d-045e8a9d0d20",
+            "dependsOn": [
+                "3821ffc2-f090-46b3-a6b6-7a362b3103e9"
+            ]
+        },
+        {
+            "ref": "3821ffc2-f090-46b3-a6b6-7a362b3103e9",
+            "dependsOn": [
+                "pkg:conan/cjson@1.7.18",
+                "pkg:conan/mbedtls@3.6.4"
+            ]
+        },
+        {
+            "ref": "pkg:conan/cjson@1.7.18",
+            "dependsOn": []
+        },
+        {
+            "ref": "pkg:conan/mbedtls@3.6.4",
+            "dependsOn": []
+        }
+    ],
+    "vulnerabilities": []
+}

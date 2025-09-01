@@ -161,6 +161,7 @@ COMMON_JAVASCRIPT_LOCK_FILES = [
 COMMON_RUBY_LOCK_FILES = ["Gemfile.lock"]
 COMMON_GO_LOCK_FILES = ["go.mod"]
 COMMON_DART_LOCK_FILES = ["pubspec.lock"]
+COMMON_CPP_LOCK_FILES = ["conan.lock"]
 
 
 def process_lock_file(file_path: str) -> None:
@@ -193,6 +194,9 @@ def process_lock_file(file_path: str) -> None:
         run_trivy_fs(lock_file=file_path, output_file="step_1.json")
     elif lock_file_name in COMMON_DART_LOCK_FILES:
         logger.info("Detected Dart lockfile")
+        run_trivy_fs(lock_file=file_path, output_file="step_1.json")
+    elif lock_file_name in COMMON_CPP_LOCK_FILES:
+        logger.info("Detected C++ lockfile")
         run_trivy_fs(lock_file=file_path, output_file="step_1.json")
     else:
         raise FileProcessingError(f"{file_path} is not a recognized lock file type")
