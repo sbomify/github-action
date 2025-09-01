@@ -41,6 +41,7 @@ Note that this will only generate the system packages from the Docker image. Sep
 | Ruby | [trivy](https://github.com/aquasecurity/trivy) | `Gemfile.lock` |
 | Go | [trivy](https://github.com/aquasecurity/trivy) | `go.mod` |
 | Dart | [trivy](https://github.com/aquasecurity/trivy) | `pubspec.lock` |
+| C++ | [trivy](https://github.com/aquasecurity/trivy) | `conan.lock` |
 
 ### `OUTPUT_FILE` (path)
 
