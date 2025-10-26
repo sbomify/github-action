@@ -1166,9 +1166,9 @@ def _apply_cyclonedx_metadata_to_json(original_json: dict, bom: Bom, prefer_back
         # Apply component type if present - preserve original JSON value since it's already correct
         if hasattr(bom.metadata.component, "type") and bom.metadata.component.type:
             # Just preserve the original JSON value instead of re-serializing the enum
-            original_type = original_json.get("metadata", {}).get("component", {}).get("type")
-            if original_type:
-                component_metadata["type"] = original_type
+            component_metadata["type"] = (
+                original_json.get("metadata", {}).get("component", {}).get("type", bom.metadata.component.type)
+            )
 
     # Apply version-specific metadata handling (tools are version-specific, others are same format)
     _apply_version_specific_metadata(metadata, bom, spec_version, prefer_backend)

@@ -7,6 +7,8 @@ import json
 from unittest.mock import Mock, patch
 
 import pytest
+from cyclonedx.model.bom import Bom
+from cyclonedx.model.component import Component, ComponentType
 
 from sbomify_action.cli.main import (
     Config,
@@ -1095,3 +1097,25 @@ class TestSBOMEnrichment:
         # Verify the name was changed from SHA-based to the configured name
         assert updated_sbom["name"] == "mariadb"
         assert updated_sbom["name"] != "sbom-sha256:d0eb2eb0a6a7637d34238eb5736fbb069ed1d65f443b007841ef02b7ba4126fa"
+
+    def test_apply_cyclonedx_metadata_component_type_handling(self, sample_cyclonedx_sbom):
+        bom = Bom()
+        bom.metadata.component = Component(name="test-component", type=ComponentType.LIBRARY, version="1.0.0")
+
+        original_json_with_type = copy.deepcopy(sample_cyclonedx_sbom)
+        original_json_with_type["metadata"]["component"]["type"] = "application"
+
+        result = _apply_cyclonedx_metadata_to_json(original_json_with_type, bom, prefer_backend=True)
+
+        assert result["metadata"]["component"]["type"] == "application"
+
+    def test_apply_cyclonedx_metadata_component_type_fallback_behavior(self, sample_cyclonedx_sbom):
+        bom = Bom()
+        bom.metadata.component = Component(name="test-component", type=ComponentType.LIBRARY, version="1.0.0")
+
+        original_json_with_type = copy.deepcopy(sample_cyclonedx_sbom)
+        del original_json_with_type["metadata"]["component"]["type"]
+
+        result = _apply_cyclonedx_metadata_to_json(original_json_with_type, bom, prefer_backend=True)
+
+        assert result["metadata"]["component"]["type"] == "library"
