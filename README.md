@@ -1,5 +1,5 @@
 # sbomify SBOM Generation Tool
-[![sbomified](https://sbomify.com/assets/images/logo/badge.svg)](https://app.sbomify.com/component/Gu9wem8mkX)
+[![sbomified](https://sbomify.com/assets/images/logo/badge.svg)](hhttps://app.sbomify.com/public/component/Gu9wem8mkX)
 
 ![SBOM lifecycle](https://sbomify.com/assets/images/site/lifecycle.svg)
 
