@@ -67,6 +67,7 @@ ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 RUN uv venv /opt/venv
+RUN uv sync --locked
 RUN rm -rf dist/ && uv build
 RUN uv pip install dist/sbomify_github_action-*.whl
 
