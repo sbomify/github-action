@@ -23,7 +23,7 @@ jobs:
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'Gu9wem8mkX'
-          LOCK_FILE: 'poetry.lock'
+          LOCK_FILE: 'uv.lock'
           COMPONENT_NAME: 'sbomify-github-action'
           COMPONENT_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('{0}-{1}', github.ref_name, github.sha) }}
           AUGMENT: true

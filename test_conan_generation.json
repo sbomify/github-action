@@ -2,22 +2,25 @@
     "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
     "bomFormat": "CycloneDX",
     "specVersion": "1.6",
-    "serialNumber": "urn:uuid:751d39f7-1ae5-4d79-a4e5-34d40383f5ad",
+    "serialNumber": "urn:uuid:3f678c35-7e67-4d56-99cb-9a7f459cb11b",
     "version": 1,
     "metadata": {
-        "timestamp": "2025-09-01T08:27:46+00:00",
+        "timestamp": "2025-10-31T10:45:18+00:00",
         "tools": {
             "components": [
                 {
                     "type": "application",
+                    "manufacturer": {
+                        "name": "Aqua Security Software Ltd."
+                    },
                     "group": "aquasecurity",
                     "name": "trivy",
-                    "version": "0.62.1"
+                    "version": "0.67.2"
                 }
             ]
         },
         "component": {
-            "bom-ref": "09ca77ec-4128-47e5-833d-045e8a9d0d20",
+            "bom-ref": "d7aaae65-343c-440c-a0cb-00a7c14d5346",
             "type": "application",
             "name": "tests/test-data/conan.lock",
             "properties": [
@@ -30,7 +33,7 @@
     },
     "components": [
         {
-            "bom-ref": "3821ffc2-f090-46b3-a6b6-7a362b3103e9",
+            "bom-ref": "a7537d6b-4206-49e6-a19f-d4d99665a50a",
             "type": "application",
             "name": "conan.lock",
             "properties": [
@@ -81,16 +84,16 @@
     ],
     "dependencies": [
         {
-            "ref": "09ca77ec-4128-47e5-833d-045e8a9d0d20",
-            "dependsOn": [
-                "3821ffc2-f090-46b3-a6b6-7a362b3103e9"
-            ]
-        },
-        {
-            "ref": "3821ffc2-f090-46b3-a6b6-7a362b3103e9",
+            "ref": "a7537d6b-4206-49e6-a19f-d4d99665a50a",
             "dependsOn": [
                 "pkg:conan/cjson@1.7.18",
                 "pkg:conan/mbedtls@3.6.4"
+            ]
+        },
+        {
+            "ref": "d7aaae65-343c-440c-a0cb-00a7c14d5346",
+            "dependsOn": [
+                "a7537d6b-4206-49e6-a19f-d4d99665a50a"
             ]
         },
         {

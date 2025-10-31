@@ -276,7 +276,7 @@ More sophisticated users may also want to use GitHub's built-in [build provenanc
           ENRICH: true
           OUTPUT_FILE: github-action.cdx.json
 
-      # Alternative example for uv.lock
+      # Alternative example for uv
       - name: Upload SBOM (uv)
         uses: sbomify/github-action@master
         env:

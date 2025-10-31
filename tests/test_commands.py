@@ -128,15 +128,15 @@ class TestLockFileProcessing(unittest.TestCase):
         )
 
     @patch("sbomify_action.cli.main.generate_sbom_from_python_lock_file")
-    def test_process_python_lock_file_poetry(self, mock_generate):
-        """Test processing Python poetry.lock with mocking."""
+    def test_process_python_lock_file_requirements_legacy(self, mock_generate):
+        """Test processing Python requirements.txt with mocking (legacy test updated from poetry)."""
         mock_generate.return_value = 0
 
-        _process_python_lock_file("/path/to/poetry.lock", "poetry.lock")
+        _process_python_lock_file("/path/to/requirements.txt", "requirements.txt")
 
         mock_generate.assert_called_once_with(
-            lock_file="/path/to",  # Directory path for poetry
-            lock_file_type="poetry",
+            lock_file="/path/to/requirements.txt",
+            lock_file_type="requirements",
             output_file="step_1.json",
         )
 
