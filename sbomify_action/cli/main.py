@@ -522,9 +522,7 @@ def setup_dependencies() -> None:
 def initialize_sentry() -> None:
     """Initialize Sentry for error tracking."""
     # TODO: Make DSN configurable via environment variable
-    sentry_dsn = os.getenv(
-        "SENTRY_DSN", "https://df0bcb2d9d6ae6f7564e1568a1a4625c@o4508342753230848.ingest.us.sentry.io/4508834660155392"
-    )
+    sentry_dsn = os.getenv("SENTRY_DSN", "https://84e8d6d0a7d0872a4bba8add571a554c@sentry.vikpire.com/4")
 
     sentry_sdk.init(
         dsn=sentry_dsn,
