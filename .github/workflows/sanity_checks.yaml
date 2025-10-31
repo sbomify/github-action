@@ -15,21 +15,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Poetry
+      - name: Install UV
         run: |
-          python -m pip install pipx --no-cache
-          pipx install poetry --global
-          pipx ensurepath --global
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Install virtual environment
+      - name: Install dependencies
         run: |
-          poetry install
+          uv sync --dev
 
       - name: Run ruff linter
         run: |
-            poetry run ruff check sbomify_action tests
+            uv run ruff check sbomify_action tests
 
       - name: Run ruff formatter
         run: |
-            poetry run ruff format --check sbomify_action tests
+            uv run ruff format --check sbomify_action tests
 

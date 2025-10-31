@@ -57,7 +57,7 @@ RUN apt-get update && \
     apt-get install -y curl build-essential
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-ENV PATH="/root/.cargo/bin:${PATH}"
+ENV PATH="/root/.local/bin:${PATH}"
 
 WORKDIR /app
 COPY . /app/
@@ -67,7 +67,7 @@ ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 RUN uv venv /opt/venv
-RUN uv build
+RUN rm -rf dist/ && uv build
 RUN uv pip install dist/sbomify_github_action-*.whl
 
 # Final stage
