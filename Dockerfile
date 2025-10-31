@@ -5,7 +5,7 @@ WORKDIR /tmp
 # Define tool versions
 ENV PARLAY_VERSION=0.9.0 \
     BOMCTL_VERSION=0.4.3 \
-    TRIVY_VERSION=0.65.0
+    TRIVY_VERSION=0.67.2
 
 RUN apt-get update && \
     apt-get install -y curl
