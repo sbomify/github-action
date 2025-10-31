@@ -108,16 +108,16 @@ class TestPythonSBOMGeneration(unittest.TestCase):
 
         os.remove(output_file)
 
-    def test_generation_poetry(self):
+    def test_generation_requirements(self):
         """
         Test CycloneDX generation of SBOM
-        from a `poetry.lock` file.
+        from a `requirements.txt` file.
         """
 
-        output_file = "test_poetry_generation.json"
+        output_file = "test_requirements_generation.json"
         generation_return_code = generate_sbom_from_python_lock_file(
-            lock_file=os.path.dirname("poetry.lock"),
-            lock_file_type="poetry",
+            lock_file="tests/test-data/requirements.txt",
+            lock_file_type="requirements",
             output_file=output_file,
         )
 

@@ -264,25 +264,25 @@ This will:
 More sophisticated users may also want to use GitHub's built-in [build provenance attestations](https://github.com/actions/attest-build-provenance). Behind the scenes, this will help you provide a SLSA build provenance predicate using the in-toto format. You can find a fully example [here](https://github.com/sbomify/github-action/blob/master/.github/workflows/sbomify.yaml), but here is a non-complete example:
 
 ```yaml
-      - name: Upload SBOM (Poetry)
-        uses: sbomify/github-action@master
-        env:
-          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-          COMPONENT_ID: 'Your Component ID'
-          LOCK_FILE: 'poetry.lock'
-          COMPONENT_NAME: 'my-python-app'
-          COMPONENT_VERSION: ${{ github.ref_name }}-${{ github.sha }}
-          AUGMENT: true
-          ENRICH: true
-          OUTPUT_FILE: github-action.cdx.json
-
-      # Alternative example for uv.lock
       - name: Upload SBOM (uv)
         uses: sbomify/github-action@master
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'Your Component ID'
           LOCK_FILE: 'uv.lock'
+          COMPONENT_NAME: 'my-python-app'
+          COMPONENT_VERSION: ${{ github.ref_name }}-${{ github.sha }}
+          AUGMENT: true
+          ENRICH: true
+          OUTPUT_FILE: github-action.cdx.json
+
+      # Alternative example for Poetry (legacy)
+      - name: Upload SBOM (Poetry)
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'Your Component ID'
+          LOCK_FILE: 'poetry.lock'
           COMPONENT_NAME: 'my-python-app'
           COMPONENT_VERSION: ${{ github.ref_name }}-${{ github.sha }}
           AUGMENT: true
@@ -314,7 +314,7 @@ generate-sbom:
     ENRICH: true
     COMPONENT_NAME: 'my-python-app'
     COMPONENT_VERSION: $CI_COMMIT_SHA
-    LOCK_FILE: 'poetry.lock'
+    LOCK_FILE: 'uv.lock'
     OUTPUT_FILE: test-sbom.cdx.json"
   script:
     - /sbomify.sh
@@ -359,7 +359,7 @@ pipelines:
               ENRICH: "true"
               COMPONENT_NAME: "my-python-app"
               COMPONENT_VERSION: $BITBUCKET_COMMIT
-              LOCK_FILE: "poetry.lock"
+              LOCK_FILE: "uv.lock"
               OUTPUT_FILE: "bitbucket-sbom.cdx.json"
 ```
 

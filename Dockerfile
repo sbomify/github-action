@@ -52,24 +52,22 @@ RUN rm -rf /tmp/*
 # Python builder stage
 FROM python:3-slim-bullseye AS builder
 
-# Install build dependencies and Poetry
+# Install build dependencies and UV
 RUN apt-get update && \
     apt-get install -y curl build-essential
-RUN curl -sSL https://install.python-poetry.org | python3 -
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-ENV PATH="/root/.local/bin:${PATH}"
-ENV POETRY_NO_INTERACTION=1
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /app
 COPY . /app/
 
-RUN rm -rf dist/ && poetry build
-
+# Build and install using UV
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 RUN uv venv /opt/venv
+RUN uv build
 RUN uv pip install dist/sbomify_github_action-*.whl
 
 # Final stage
