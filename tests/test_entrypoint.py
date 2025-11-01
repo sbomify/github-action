@@ -86,6 +86,15 @@ class TestSBOMValidation(unittest.TestCase):
         result = validate_sbom("tests/test-data/syft.spdx.json")
         self.assertEqual(result, "spdx")
 
+    def test_lock_file_as_sbom(self):
+        """
+        Test that providing a lock file (e.g., Pipfile.lock) as an SBOM results in SBOMValidationError.
+        This simulates the common user mistake of setting SBOM_FILE to a lock file.
+        """
+        # Expect SBOMValidationError when calling the function with a lock file
+        with self.assertRaises(SBOMValidationError):
+            validate_sbom("tests/test-data/Pipfile.lock")
+
 
 class TestPythonSBOMGeneration(unittest.TestCase):
     def test_generation_requirements_txt(self):
