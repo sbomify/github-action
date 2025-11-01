@@ -376,3 +376,23 @@ $ docker run --rm \
    -e COMPONENT_NAME=my-app \
    sbomifyhub/sbomify-action
 ```
+
+## Development
+
+### Running Tests
+
+This project uses `uv` for dependency management and `pytest` for testing.
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run tests with coverage
+uv run pytest --cov=sbomify_action --cov-report=term-missing
+
+# Run specific test file
+uv run pytest tests/test_sentry_filtering.py -v
+
+# Run tests matching a pattern
+uv run pytest -k "test_validation"
+```

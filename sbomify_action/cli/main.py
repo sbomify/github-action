@@ -524,11 +524,25 @@ def initialize_sentry() -> None:
     # TODO: Make DSN configurable via environment variable
     sentry_dsn = os.getenv("SENTRY_DSN", "https://84e8d6d0a7d0872a4bba8add571a554c@sentry.vikpire.com/4")
 
+    def before_send(event, hint):
+        """
+        Filter events before sending to Sentry.
+        Don't send user input validation errors - these are expected user errors.
+        """
+        if "exc_info" in hint:
+            exc_type, exc_value, tb = hint["exc_info"]
+            # Don't send validation or configuration errors - these are user errors
+            # SBOMGenerationError and APIError should still be sent (tool/system bugs)
+            if isinstance(exc_value, (SBOMValidationError, ConfigurationError)):
+                return None
+        return event
+
     sentry_sdk.init(
         dsn=sentry_dsn,
         send_default_pii=True,
         traces_sample_rate=1.0,
         profiles_sample_rate=1.0,
+        before_send=before_send,
     )
 
 
@@ -2113,7 +2127,30 @@ def main() -> None:
         else:
             logger.error("Unrecognized FILE_TYPE.")
             sys.exit(1)
-    except (FileProcessingError, SBOMGenerationError, SBOMValidationError) as e:
+    except SBOMValidationError as e:
+        # User-provided SBOM validation errors - don't send to Sentry
+        logger.error(f"Step 1 failed: {e}")
+        if FILE_TYPE == "SBOM":
+            file_name = Path(FILE).name
+            logger.error(f"The provided SBOM file '{FILE}' appears to be invalid.")
+            logger.error("Please ensure the file is a valid CycloneDX or SPDX JSON document.")
+
+            # Check if user accidentally provided a lock file instead of an SBOM
+            all_lock_files = (
+                COMMON_PYTHON_LOCK_FILES
+                + COMMON_RUST_LOCK_FILES
+                + COMMON_JAVASCRIPT_LOCK_FILES
+                + COMMON_RUBY_LOCK_FILES
+                + COMMON_GO_LOCK_FILES
+                + COMMON_DART_LOCK_FILES
+                + COMMON_CPP_LOCK_FILES
+            )
+            if file_name in all_lock_files:
+                logger.error(f"'{file_name}' is a lock file, not an SBOM.")
+                logger.error(f"Please use LOCK_FILE instead of SBOM_FILE for '{file_name}'.")
+        _log_step_end(1, success=False)
+        sys.exit(1)
+    except (FileProcessingError, SBOMGenerationError) as e:
         logger.error(f"Step 1 failed: {e}")
         _log_step_end(1, success=False)
         sys.exit(1)
@@ -2125,8 +2162,20 @@ def main() -> None:
             logger.info(f"Generated SBOM format: {FORMAT.upper()}")
     except SBOMValidationError as e:
         logger.error(f"Generated SBOM validation failed: {e}")
-        _log_step_end(1, success=False)
-        sys.exit(1)
+        logger.error("The SBOM generation tool produced an invalid output file.")
+
+        # Re-raise with better context for Sentry (but don't include file contents for privacy)
+        if config.docker_image:
+            raise SBOMGenerationError(
+                f"Trivy generated invalid SBOM for Docker image '{config.docker_image}': {e}"
+            ) from e
+        elif FILE_TYPE == "LOCK_FILE":
+            lock_file_name = Path(FILE).name
+            raise SBOMGenerationError(
+                f"SBOM generation tool produced invalid output for lock file '{lock_file_name}': {e}"
+            ) from e
+        else:
+            raise SBOMGenerationError(f"Generated SBOM validation failed: {e}") from e
 
     _log_step_end(1)
 
