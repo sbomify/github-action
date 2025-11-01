@@ -19,13 +19,13 @@ class TestSentryFiltering(unittest.TestCase):
         This represents user input errors that shouldn't be tracked.
         """
         initialize_sentry()
-        
+
         # Get the before_send function that was registered (Sentry 2.x API)
         client = sentry_sdk.get_client()
-        
+
         if client and client.options.get("before_send"):
             before_send = client.options["before_send"]
-            
+
             # Create a mock event and hint with SBOMValidationError
             event = {"exception": {"values": [{"type": "SBOMValidationError"}]}}
             hint = {
@@ -35,23 +35,23 @@ class TestSentryFiltering(unittest.TestCase):
                     None,
                 )
             }
-            
+
             # Should return None (filtered out)
             result = before_send(event, hint)
             self.assertIsNone(result, "SBOMValidationError should be filtered from Sentry")
-    
+
     def test_sentry_filters_configuration_errors(self):
         """
         Test that ConfigurationError is filtered from Sentry.
         This represents user configuration errors.
         """
         initialize_sentry()
-        
+
         client = sentry_sdk.get_client()
-        
+
         if client and client.options.get("before_send"):
             before_send = client.options["before_send"]
-            
+
             event = {"exception": {"values": [{"type": "ConfigurationError"}]}}
             hint = {
                 "exc_info": (
@@ -60,22 +60,22 @@ class TestSentryFiltering(unittest.TestCase):
                     None,
                 )
             }
-            
+
             result = before_send(event, hint)
             self.assertIsNone(result, "ConfigurationError should be filtered from Sentry")
-    
+
     def test_sentry_allows_generation_errors(self):
         """
         Test that SBOMGenerationError is NOT filtered from Sentry.
         This represents tool/system bugs that should be tracked.
         """
         initialize_sentry()
-        
+
         client = sentry_sdk.get_client()
-        
+
         if client and client.options.get("before_send"):
             before_send = client.options["before_send"]
-            
+
             event = {"exception": {"values": [{"type": "SBOMGenerationError"}]}}
             hint = {
                 "exc_info": (
@@ -84,7 +84,7 @@ class TestSentryFiltering(unittest.TestCase):
                     None,
                 )
             }
-            
+
             result = before_send(event, hint)
             self.assertIsNotNone(result, "SBOMGenerationError should be sent to Sentry")
             self.assertEqual(result, event)
@@ -92,4 +92,3 @@ class TestSentryFiltering(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
