@@ -2027,7 +2027,7 @@ def _process_product_releases(config: "Config", sbom_id: str) -> None:
     """
     if not config.product_releases:
         return
-    
+
     logger.info(f"here is the ID of the sbom {sbom_id}")
 
     # Ensure we have a list (should be converted during validation)
