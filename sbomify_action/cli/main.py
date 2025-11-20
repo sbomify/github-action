@@ -522,7 +522,7 @@ def setup_dependencies() -> None:
 def initialize_sentry() -> None:
     """Initialize Sentry for error tracking."""
     # TODO: Make DSN configurable via environment variable
-    sentry_dsn = os.getenv("SENTRY_DSN", "")
+    sentry_dsn = os.getenv("SENTRY_DSN", "https://84e8d6d0a7d0872a4bba8add571a554c@sentry.vikpire.com/4")
 
     def before_send(event, hint):
         """
@@ -1830,7 +1830,6 @@ def _check_release_exists(config: "Config", product_id: str, version: str) -> bo
         # Check if any releases match our criteria
         try:
             releases = response.json().get("items", [])
-            logger.info(f"Found {len(releases)} releases for product ID {product_id}")
             for release in releases:
                 if release.get("version") == version:
                     return True
@@ -2027,8 +2026,6 @@ def _process_product_releases(config: "Config", sbom_id: str) -> None:
     """
     if not config.product_releases:
         return
-
-    logger.info(f"here is the ID of the sbom {sbom_id}")
 
     # Ensure we have a list (should be converted during validation)
     if isinstance(config.product_releases, str):
