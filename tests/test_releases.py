@@ -158,8 +158,7 @@ class TestProductReleases(unittest.TestCase):
 
         mock_post.assert_called_once()
         call_args = mock_post.call_args
-        self.assertEqual(call_args[1]["json"]["artifact_id"], "sbom123")
-        self.assertEqual(call_args[1]["json"]["artifact_type"], "sbom")
+        self.assertEqual(call_args[1]["json"]["sbom_id"], "sbom123")
 
     @patch("sbomify_action.cli.main.requests.post")
     def test_tag_sbom_with_release_api_error(self, mock_post):
@@ -187,17 +186,17 @@ class TestProductReleases(unittest.TestCase):
         self, mock_check, mock_create, mock_get_details, mock_get_friendly, mock_get_id, mock_tag
     ):
         """Test processing when release already exists."""
+        self.config.product_releases = ["Gu9wem8mkX:v1.0.0"]
         mock_check.return_value = True
-        mock_get_id.return_value = "existing-release-id"
-        mock_get_details.return_value = {"name": "Test Release", "version": "v1.0.0"}
+        mock_get_details.return_value = {"id": "existing-release-id", "name": "Test Release", "version": "v1.0.0"}
         mock_get_friendly.return_value = "Test Release (v1.0.0)"
 
         _process_product_releases(self.config, "sbom123")
 
-        mock_check.assert_called()
+        mock_check.assert_called_once()
         mock_create.assert_not_called()
-        mock_get_id.assert_called()
-        mock_tag.assert_called()
+        mock_get_id.assert_not_called()
+        mock_tag.assert_called_once_with(self.config, "sbom123", "existing-release-id")
 
     @patch("sbomify_action.cli.main._tag_sbom_with_release")
     @patch("sbomify_action.cli.main._get_release_id")
@@ -210,9 +209,12 @@ class TestProductReleases(unittest.TestCase):
     ):
         """Test processing when creating new release."""
         mock_check.return_value = False
-        mock_get_id.return_value = "new-release-id"
-        mock_get_details.return_value = {"name": "New Release", "version": "v2.1.0"}
-        mock_get_friendly.return_value = "New Release (v2.1.0)"
+        mock_create.side_effect = ["rel-a", "rel-b"]
+        mock_get_details.side_effect = [
+            {"id": "rel-a", "name": "New Release A", "version": "v1.0.0"},
+            {"id": "rel-b", "name": "New Release B", "version": "v2.1.0"},
+        ]
+        mock_get_friendly.side_effect = ["New Release A (v1.0.0)", "New Release B (v2.1.0)"]
 
         _process_product_releases(self.config, "sbom123")
 
@@ -220,10 +222,55 @@ class TestProductReleases(unittest.TestCase):
         self.assertEqual(mock_check.call_count, 2)
         # Should create the releases that don't exist
         self.assertEqual(mock_create.call_count, 2)
-        # Should get release IDs for tagging
-        self.assertEqual(mock_get_id.call_count, 2)
-        # Should tag SBOM with both releases
+        # Should not need to look up IDs again once create returns them
+        mock_get_id.assert_not_called()
+        # Should tag SBOM with both releases using the IDs from creation
         self.assertEqual(mock_tag.call_count, 2)
+
+    @patch("sbomify_action.cli.main._tag_sbom_with_release")
+    @patch("sbomify_action.cli.main._get_release_id")
+    @patch("sbomify_action.cli.main._get_release_friendly_name")
+    @patch("sbomify_action.cli.main._get_release_details")
+    @patch("sbomify_action.cli.main._create_release")
+    @patch("sbomify_action.cli.main._check_release_exists")
+    def test_process_product_releases_fallback_to_lookup_when_id_unknown(
+        self, mock_check, mock_create, mock_get_details, mock_get_friendly, mock_get_id, mock_tag
+    ):
+        """Test fallback to release ID lookup when creation response lacks ID."""
+        self.config.product_releases = ["Gu9wem8mkX:v1.0.0"]
+        mock_check.return_value = False
+        mock_create.return_value = None
+        mock_get_details.return_value = None
+        mock_get_id.return_value = "resolved-release-id"
+        mock_get_friendly.return_value = "Release v1.0.0"
+
+        _process_product_releases(self.config, "sbom123")
+
+        mock_create.assert_called_once()
+        mock_get_id.assert_called_once()
+        mock_tag.assert_called_once_with(self.config, "sbom123", "resolved-release-id")
+
+    @patch("sbomify_action.cli.main._tag_sbom_with_release")
+    @patch("sbomify_action.cli.main._get_release_id")
+    @patch("sbomify_action.cli.main._get_release_friendly_name")
+    @patch("sbomify_action.cli.main._get_release_details")
+    @patch("sbomify_action.cli.main._create_release")
+    @patch("sbomify_action.cli.main._check_release_exists")
+    def test_process_product_releases_existing_release_without_details(
+        self, mock_check, mock_create, mock_get_details, mock_get_friendly, mock_get_id, mock_tag
+    ):
+        """Test fallback when release exists but details API fails."""
+        self.config.product_releases = ["Gu9wem8mkX:v1.0.0"]
+        mock_check.return_value = True
+        mock_get_details.side_effect = APIError("details failed")
+        mock_get_id.return_value = "existing-release-id"
+        mock_get_friendly.return_value = "Release v1.0.0"
+
+        _process_product_releases(self.config, "sbom123")
+
+        mock_create.assert_not_called()
+        mock_get_id.assert_called_once()
+        mock_tag.assert_called_once_with(self.config, "sbom123", "existing-release-id")
 
     @patch("sbomify_action.cli.main.requests.get")
     def test_get_release_details_success(self, mock_get):

@@ -522,7 +522,7 @@ def setup_dependencies() -> None:
 def initialize_sentry() -> None:
     """Initialize Sentry for error tracking."""
     # TODO: Make DSN configurable via environment variable
-    sentry_dsn = os.getenv("SENTRY_DSN", "https://84e8d6d0a7d0872a4bba8add571a554c@sentry.vikpire.com/4")
+    sentry_dsn = os.getenv("SENTRY_DSN", "")
 
     def before_send(event, hint):
         """
@@ -1830,6 +1830,7 @@ def _check_release_exists(config: "Config", product_id: str, version: str) -> bo
         # Check if any releases match our criteria
         try:
             releases = response.json().get("items", [])
+            logger.info(f"Found {len(releases)} releases for product ID {product_id}")
             for release in releases:
                 if release.get("version") == version:
                     return True
@@ -1934,7 +1935,7 @@ def _tag_sbom_with_release(config: "Config", sbom_id: str, release_id: str) -> N
         "Authorization": f"Bearer {config.token}",
     }
 
-    payload = {"artifact_id": sbom_id, "artifact_type": "sbom"}
+    payload = {"sbom_id": sbom_id}
 
     try:
         response = requests.post(
@@ -2026,6 +2027,8 @@ def _process_product_releases(config: "Config", sbom_id: str) -> None:
     """
     if not config.product_releases:
         return
+    
+    logger.info(f"here is the ID of the sbom {sbom_id}")
 
     # Ensure we have a list (should be converted during validation)
     if isinstance(config.product_releases, str):
@@ -2037,9 +2040,10 @@ def _process_product_releases(config: "Config", sbom_id: str) -> None:
 
         logger.info(f"Processing release {version} for product {product_id}")
 
-        # Check if release exists and get details for better logging
+        # Track details and ID so we can tag without redundant lookups
         release_exists = _check_release_exists(config, product_id, version)
         release_details = None
+        release_id = None
 
         if release_exists:
             # Get release details for user-friendly logging
@@ -2047,20 +2051,27 @@ def _process_product_releases(config: "Config", sbom_id: str) -> None:
                 release_details = _get_release_details(config, product_id, version)
                 friendly_name = _get_release_friendly_name(release_details, product_id, version)
                 logger.info(f"{friendly_name} already exists for product {product_id}")
+                release_id = release_details.get("id")
             except APIError as e:
                 logger.warning(f"Could not get release details for logging: {e}")
                 logger.info(f"Release {version} already exists for product {product_id}")
         else:
             logger.info(f"Creating release {version} for product {product_id}")
-            _create_release(config, product_id, version)
+            created_release_id = _create_release(config, product_id, version)
+            if created_release_id:
+                release_id = created_release_id
             # Get details after creation for consistent logging
             try:
                 release_details = _get_release_details(config, product_id, version)
+                if not release_id and release_details:
+                    release_id = release_details.get("id")
             except APIError as e:
                 logger.warning(f"Could not get release details after creation: {e}")
 
-        # Get the release ID and tag the SBOM
-        release_id = _get_release_id(config, product_id, version)
+        # Fall back to explicit lookup if we still don't know the release ID
+        if not release_id:
+            release_id = _get_release_id(config, product_id, version)
+
         if release_id:
             # Use friendly name if we have release details
             if release_details:
