@@ -1,9 +1,10 @@
 import json
 import os
 import unittest
+from unittest.mock import Mock, patch
 
 from sbomify_action.cli.main import (
-    enrich_sbom_with_parley,
+    enrich_sbom_with_ecosystems,
     generate_sbom_from_python_lock_file,
     path_expansion,
     run_trivy_docker_image,
@@ -12,7 +13,6 @@ from sbomify_action.cli.main import (
 )
 from sbomify_action.exceptions import (
     FileProcessingError,
-    SBOMGenerationError,
     SBOMValidationError,
 )
 
@@ -213,28 +213,53 @@ class TestDockerImageSBOMGeneration(unittest.TestCase):
 
 
 class TestEnrichment(unittest.TestCase):
-    def test_enrichment(self):
+    @patch("sbomify_action.enrichment.requests.Session")
+    def test_enrichment(self, mock_session_class):
         """
-        Test the enrichment in Parlay
+        Test the enrichment with ecosyste.ms API
         """
+        # Mock the session and responses
+        mock_session = Mock()
+        # Make the mock session support context manager protocol
+        mock_session.__enter__ = Mock(return_value=mock_session)
+        mock_session.__exit__ = Mock(return_value=False)
+        mock_session_class.return_value = mock_session
+
+        # Mock API response for each package in the test SBOM (API returns array)
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                "description": "Test package description",
+                "licenses": "MIT",
+                "homepage": "https://example.com",
+                "repository_url": "https://github.com/example/repo",
+                "language": "Python",
+                "keywords_array": ["test", "package"],
+            }
+        ]
+        mock_session.get.return_value = mock_response
 
         input_file = "tests/test-data/syft.cdx.json"
         output_file = "enriched_sbom.cdx.json"
 
-        enrich_sbom_with_parley(input_file, output_file)
+        enrich_sbom_with_ecosystems(input_file, output_file)
         validate_sbom(output_file)
+
+        # Verify that the API was called
+        self.assertTrue(mock_session.get.called)
 
     def test_failed_json_file(self):
         """
-        Test the enrichment in Parlay with invalid input
+        Test the enrichment with invalid JSON input
         """
 
         input_file = "tests/test-data/invalid_json.json"
         output_file = "enriched_sbom.cdx.json"
 
-        # After refactoring, this should raise SBOMGenerationError instead of CalledProcessError
-        with self.assertRaises(SBOMGenerationError):
-            enrich_sbom_with_parley(input_file, output_file)
+        # Should raise SBOMValidationError for invalid JSON
+        with self.assertRaises(SBOMValidationError):
+            enrich_sbom_with_ecosystems(input_file, output_file)
 
 
 if __name__ == "__main__":
