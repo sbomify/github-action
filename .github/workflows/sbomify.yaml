@@ -60,24 +60,10 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Install Trivy and Parlay
+      - name: Install Trivy
         env:
-          PARLAY_VERSION: 0.9.0
           TRIVY_VERSION: 0.67.2
         run: |
-          # Install Parlay
-          curl -sL \
-            -o parlay_Linux_x86_64.tar.gz \
-            "https://github.com/snyk/parlay/releases/download/v${PARLAY_VERSION}/parlay_Linux_x86_64.tar.gz"
-          curl -sL \
-            -o parlay_checksum.txt \
-            "https://github.com/snyk/parlay/releases/download/v${PARLAY_VERSION}/checksums.txt"
-          sha256sum --ignore-missing -c parlay_checksum.txt
-          tar xvfz parlay_Linux_x86_64.tar.gz
-          chmod +x parlay
-          sudo mv parlay /usr/local/bin
-          rm -f parlay_Linux_x86_64.tar.gz parlay_checksum.txt
-
           # Install Trivy
           curl -sL \
             -o trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz \

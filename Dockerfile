@@ -3,25 +3,11 @@ FROM python:3-slim-bullseye AS fetcher
 WORKDIR /tmp
 
 # Define tool versions
-ENV PARLAY_VERSION=0.9.0 \
-    BOMCTL_VERSION=0.4.3 \
+ENV BOMCTL_VERSION=0.4.3 \
     TRIVY_VERSION=0.67.2
 
 RUN apt-get update && \
     apt-get install -y curl
-
-# Install Parlay
-RUN curl -sL \
-    -o parlay_Linux_x86_64.tar.gz \
-    "https://github.com/snyk/parlay/releases/download/v${PARLAY_VERSION}/parlay_Linux_x86_64.tar.gz"
-RUN curl -sL \
-    -o parlay_checksum.txt \
-    "https://github.com/snyk/parlay/releases/download/v${PARLAY_VERSION}/checksums.txt"
-RUN sha256sum --ignore-missing -c parlay_checksum.txt
-RUN tar xvfz parlay_Linux_x86_64.tar.gz
-RUN chmod +x parlay
-RUN mv parlay /usr/local/bin
-RUN rm -rf /tmp/*
 
 # Install Trivy
 RUN curl -sL \
@@ -80,7 +66,6 @@ LABEL org.opencontainers.image.description="sbomify Action"
 LABEL org.opencontainers.image.licenses=Apache-2.0
 
 # Copy tools from fetcher
-COPY --from=fetcher /usr/local/bin/parlay /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/trivy /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/bomctl /usr/local/bin/
 COPY --from=builder /opt/venv /opt/venv

@@ -123,7 +123,7 @@ The output of this `step_2.json`.
 # Step 3: Enrichment
 SBOMs will vary a lot in quality of the components.
 As we aspire to reach NTIA Minimum Elements compliants
-we will use an enrichment tool (Parlay) to ensure that
+we will enrich components using the ecosyste.ms API to ensure that
 as many of our components in the SBOM as possible have
 the required data.
 
@@ -1701,19 +1701,28 @@ def run_trivy_docker_image(docker_image: str, output_file: str) -> int:
     return run_command_with_json_output(cmd, "trivy", output_file)
 
 
-def enrich_sbom_with_parley(input_file: str, output_file: str) -> int:
+def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
     """
-    Takes a path to an SBOM as input and returns an enriched SBOM as the output.
+    Takes a path to an SBOM as input and returns an enriched SBOM as the output
+    using ecosyste.ms API.
 
     Args:
         input_file: Path to input SBOM file
         output_file: Path to save enriched SBOM
 
-    Returns:
-        Process return code
+    Raises:
+        SBOMGenerationError: If enrichment fails
     """
-    cmd = ["parlay", "ecosystems", "enrich", input_file]
-    return run_command_with_json_output(cmd, "parlay", output_file)
+    from ..enrichment import enrich_sbom_with_ecosystems as _enrich_impl
+
+    try:
+        _enrich_impl(input_file, output_file)
+    except FileNotFoundError as e:
+        raise SBOMGenerationError(f"Input file not found: {e}")
+    except ValueError as e:
+        raise SBOMValidationError(f"Invalid SBOM format: {e}")
+    except Exception as e:
+        raise SBOMGenerationError(f"Enrichment failed: {e}")
 
 
 def print_banner() -> None:
@@ -2256,7 +2265,7 @@ def main() -> None:
                 raise FileProcessingError("No SBOM file found from previous step")
 
             logger.info("Enriching SBOM components with ecosystem metadata from Ecosyste.ms")
-            enrich_sbom_with_parley(sbom_input_file, "step_3.json")
+            enrich_sbom_with_ecosystems(sbom_input_file, "step_3.json")
             _detect_sbom_format_silent("step_3.json")  # Silent validation
             _log_step_end(3)
         except (FileProcessingError, SBOMGenerationError, SBOMValidationError) as e:
