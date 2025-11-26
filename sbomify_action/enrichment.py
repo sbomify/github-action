@@ -133,6 +133,12 @@ def _fetch_package_metadata(purl: str, session: requests.Session) -> Optional[Di
                 logger.debug(f"No package data found for: {purl}")
         elif response.status_code == 404:
             logger.debug(f"Package not found in ecosyste.ms: {purl}")
+        elif response.status_code == 429:
+            logger.warning(
+                f"Rate limit exceeded for {purl}. "
+                "Consider using an API key for higher rate limits. "
+                "API keys will be available soon from ecosyste.ms."
+            )
         else:
             logger.warning(f"Failed to fetch metadata for {purl}: HTTP {response.status_code}")
 

@@ -161,6 +161,20 @@ class TestFetchMetadata(unittest.TestCase):
         self.assertIsNone(metadata)
 
     @patch("sbomify_action.enrichment.requests.Session")
+    def test_fetch_rate_limit(self, mock_session_class):
+        """Test handling 429 rate limit response."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 429
+        mock_session.get.return_value = mock_response
+
+        metadata = _fetch_package_metadata("pkg:pypi/test@1.0.0", mock_session)
+
+        self.assertIsNone(metadata)
+        # Verify the API was called
+        mock_session.get.assert_called_once()
+
+    @patch("sbomify_action.enrichment.requests.Session")
     def test_fetch_request_exception(self, mock_session_class):
         """Test handling request exceptions."""
         import requests
