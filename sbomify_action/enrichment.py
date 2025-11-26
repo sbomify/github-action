@@ -616,12 +616,7 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
     purls = [comp["purl"] for comp in components]
 
     # Fetch metadata sequentially
-    try:
-        metadata_map = _fetch_all_metadata_sequential(purls)
-    except Exception as e:
-        logger.error(f"Error fetching metadata: {e}")
-        # Continue with empty metadata map
-        metadata_map = {}
+    metadata_map = _fetch_all_metadata_sequential(purls)
 
     # Count successful fetches
     successful_fetches = sum(1 for v in metadata_map.values() if v is not None)
