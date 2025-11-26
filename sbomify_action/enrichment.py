@@ -1,7 +1,6 @@
 """SBOM enrichment using ecosyste.ms API."""
 
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -129,37 +128,30 @@ def _fetch_package_metadata(purl: str, session: requests.Session) -> Optional[Di
         return None
 
 
-def _fetch_all_metadata_concurrent(purls: List[str], max_workers: int = 10) -> Dict[str, Optional[Dict[str, Any]]]:
+def _fetch_all_metadata_sequential(purls: List[str]) -> Dict[str, Optional[Dict[str, Any]]]:
     """
-    Fetch metadata for all PURLs concurrently using ThreadPoolExecutor.
+    Fetch metadata for all PURLs sequentially.
 
     Args:
         purls: List of package URLs
-        max_workers: Maximum number of concurrent threads (default: 10)
 
     Returns:
         Dictionary mapping PURL to metadata
     """
     metadata_map = {}
 
-    # Use a single session with context manager for proper cleanup
+    # Use a single session for sequential requests
     with requests.Session() as session:
         session.headers.update({"User-Agent": USER_AGENT})
 
-        # Use ThreadPoolExecutor for concurrent fetching
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all fetch tasks
-            future_to_purl = {executor.submit(_fetch_package_metadata, purl, session): purl for purl in purls}
-
-            # Collect results as they complete
-            for future in as_completed(future_to_purl):
-                purl = future_to_purl[future]
-                try:
-                    metadata = future.result()
-                    metadata_map[purl] = metadata
-                except Exception as e:
-                    logger.error(f"Unexpected error fetching metadata for {purl}: {e}")
-                    metadata_map[purl] = None
+        # Fetch metadata sequentially
+        for purl in purls:
+            try:
+                metadata = _fetch_package_metadata(purl, session)
+                metadata_map[purl] = metadata
+            except Exception as e:
+                logger.error(f"Unexpected error fetching metadata for {purl}: {e}")
+                metadata_map[purl] = None
 
     return metadata_map
 
@@ -547,9 +539,9 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
     # Extract PURLs
     purls = [comp["purl"] for comp in components]
 
-    # Fetch metadata concurrently using ThreadPoolExecutor
+    # Fetch metadata sequentially
     try:
-        metadata_map = _fetch_all_metadata_concurrent(purls)
+        metadata_map = _fetch_all_metadata_sequential(purls)
     except Exception as e:
         logger.error(f"Error fetching metadata: {e}")
         # Continue with empty metadata map
