@@ -33,6 +33,22 @@ USER_AGENT = f"sbomify-github-action/{_get_package_version()} (hello@sbomify.com
 ECOSYSTEMS_API_BASE = "https://packages.ecosyste.ms/api/v1"
 
 
+# Simple in-memory cache for package metadata
+_metadata_cache: Dict[str, Optional[Dict[str, Any]]] = {}
+
+
+def clear_cache() -> None:
+    """Clear all cached metadata."""
+    global _metadata_cache
+    _metadata_cache.clear()
+    logger.debug("Metadata cache cleared")
+
+
+def get_cache_stats() -> Dict[str, int]:
+    """Get cache statistics."""
+    return {"entries": len(_metadata_cache)}
+
+
 def _extract_components_from_sbom(sbom_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Extract components from SBOM (supports both CycloneDX and SPDX formats).
@@ -83,7 +99,7 @@ def _extract_components_from_sbom(sbom_data: Dict[str, Any]) -> List[Dict[str, A
 
 def _fetch_package_metadata(purl: str, session: requests.Session) -> Optional[Dict[str, Any]]:
     """
-    Fetch package metadata from ecosyste.ms API.
+    Fetch package metadata from ecosyste.ms API with caching.
 
     Args:
         purl: Package URL
@@ -92,6 +108,11 @@ def _fetch_package_metadata(purl: str, session: requests.Session) -> Optional[Di
     Returns:
         Package metadata dict or None if fetch fails
     """
+    # Check cache first
+    if purl in _metadata_cache:
+        logger.debug(f"Cache hit: {purl}")
+        return _metadata_cache[purl]
+
     try:
         # The API endpoint expects PURL as a query parameter
         url = f"{ECOSYSTEMS_API_BASE}/packages/lookup"
@@ -100,31 +121,38 @@ def _fetch_package_metadata(purl: str, session: requests.Session) -> Optional[Di
         logger.debug(f"Fetching metadata for: {purl}")
         response = session.get(url, params=params, timeout=30)
 
+        metadata = None
         if response.status_code == 200:
             data = response.json()
             # The API returns an array, take the first result if available
             if isinstance(data, list) and len(data) > 0:
-                return data[0]
+                metadata = data[0]
             elif isinstance(data, dict):
-                return data
+                metadata = data
             else:
                 logger.debug(f"No package data found for: {purl}")
-                return None
         elif response.status_code == 404:
             logger.debug(f"Package not found in ecosyste.ms: {purl}")
-            return None
         else:
             logger.warning(f"Failed to fetch metadata for {purl}: HTTP {response.status_code}")
-            return None
+
+        # Cache the result (including None for negative caching)
+        _metadata_cache[purl] = metadata
+        return metadata
 
     except requests.exceptions.Timeout:
         logger.warning(f"Timeout fetching metadata for {purl}")
+        # Cache negative result for timeouts to avoid repeated timeouts
+        _metadata_cache[purl] = None
         return None
     except requests.exceptions.RequestException as e:
         logger.warning(f"Error fetching metadata for {purl}: {e}")
+        # Cache negative result for request errors
+        _metadata_cache[purl] = None
         return None
     except Exception as e:
         logger.error(f"Unexpected error fetching metadata for {purl}: {e}")
+        # Don't cache unexpected errors as they might be transient
         return None
 
 
@@ -188,20 +216,33 @@ def _enrich_cyclonedx_component(
             added_fields.append("description")
 
     # Add licenses (native CycloneDX field)
-    if metadata.get("licenses"):
+    # Prefer normalized_licenses (array of SPDX identifiers) over licenses (string)
+    if metadata.get("normalized_licenses"):
         if "licenses" not in enriched or not enriched.get("licenses"):
             licenses = []
-            licenses_str = metadata["licenses"]
+            # normalized_licenses is an array of SPDX identifiers
+            for license_id in metadata["normalized_licenses"]:
+                if license_id:
+                    licenses.append({"license": {"id": license_id}})
+            license_display = ", ".join(metadata["normalized_licenses"])
 
-            # Parse license string (could be comma-separated)
+            if licenses:
+                enriched["licenses"] = licenses
+                added_fields.append(f"licenses ({license_display})")
+    elif metadata.get("licenses"):
+        if "licenses" not in enriched or not enriched.get("licenses"):
+            licenses = []
+            # licenses is a string (could be comma-separated) - fallback
+            licenses_str = str(metadata["licenses"])
             for license_name in licenses_str.split(","):
                 license_name = license_name.strip()
                 if license_name:
                     licenses.append({"license": {"id": license_name}})
+            license_display = licenses_str
 
             if licenses:
                 enriched["licenses"] = licenses
-                added_fields.append(f"licenses ({licenses_str})")
+                added_fields.append(f"licenses ({license_display})")
 
     # Add publisher (native CycloneDX field) - use first maintainer if available
     if "publisher" not in enriched or not enriched.get("publisher"):
@@ -234,8 +275,8 @@ def _enrich_cyclonedx_component(
             added_fields.append("repository URL")
 
     # Distribution (use registry URL which points to the package manager like https://pypi.org)
-    if metadata.get("registry") and metadata["registry"].get("url"):
-        if _add_external_ref("distribution", metadata["registry"]["url"]):
+    if metadata.get("registry_url"):
+        if _add_external_ref("distribution", metadata["registry_url"]):
             added_fields.append("distribution URL")
 
     # Issue tracker (use repo_metadata.html_url + /issues for GitHub repos)
@@ -316,10 +357,16 @@ def _enrich_spdx_package(
 
     # Add download location (native SPDX field)
     if not enriched.get("downloadLocation") or enriched["downloadLocation"] == "NOASSERTION":
-        # Use registry URL or repository URL
+        # Priority order for download location:
+        # 1. registry_url (package manager page)
+        # 2. repo_metadata.download_url (direct download from repo)
+        # 3. repository_url (source repository)
         download_url = None
-        if metadata.get("registry") and metadata["registry"].get("url"):
-            download_url = metadata["registry"]["url"]
+
+        if metadata.get("registry_url"):
+            download_url = metadata["registry_url"]
+        elif metadata.get("repo_metadata") and metadata["repo_metadata"].get("download_url"):
+            download_url = metadata["repo_metadata"]["download_url"]
         elif metadata.get("repository_url"):
             download_url = metadata["repository_url"]
 
@@ -328,10 +375,24 @@ def _enrich_spdx_package(
             added_fields.append("downloadLocation")
 
     # Add licenses (native SPDX field)
-    if metadata.get("licenses"):
+    # Prefer normalized_licenses (array of SPDX identifiers) over licenses (string)
+    if metadata.get("normalized_licenses"):
         if not enriched.get("licenseDeclared") or enriched["licenseDeclared"] == "NOASSERTION":
-            enriched["licenseDeclared"] = metadata["licenses"]
-            added_fields.append(f"licenseDeclared ({metadata['licenses']})")
+            # normalized_licenses is an array of SPDX identifiers
+            # For SPDX, join multiple licenses with AND operator
+            license_declared = " AND ".join(metadata["normalized_licenses"])
+            license_display = ", ".join(metadata["normalized_licenses"])
+
+            enriched["licenseDeclared"] = license_declared
+            added_fields.append(f"licenseDeclared ({license_display})")
+    elif metadata.get("licenses"):
+        if not enriched.get("licenseDeclared") or enriched["licenseDeclared"] == "NOASSERTION":
+            # licenses is a string (fallback)
+            license_declared = str(metadata["licenses"])
+            license_display = license_declared
+
+            enriched["licenseDeclared"] = license_declared
+            added_fields.append(f"licenseDeclared ({license_display})")
 
     # Add source info (native SPDX field) - include repository URL
     if not enriched.get("sourceInfo") or enriched["sourceInfo"] == "NOASSERTION":
@@ -355,11 +416,26 @@ def _enrich_spdx_package(
 
     # Add supplier (native SPDX field) - can be organization or primary maintainer
     if not enriched.get("supplier") or enriched["supplier"] == "NOASSERTION":
-        # If we have a registry/ecosystem, use that as supplier
-        if metadata.get("registry", {}).get("name"):
-            registry_name = metadata["registry"]["name"]
-            enriched["supplier"] = f"Organization: {registry_name}"
-            added_fields.append(f"supplier ({registry_name})")
+        # Priority order for supplier:
+        # 1. ecosystem (ecosystem/registry name)
+        # 2. repo_metadata.owner (repository owner/organization)
+        # 3. maintainers (first maintainer as person)
+        if metadata.get("ecosystem"):
+            ecosystem_name = metadata["ecosystem"]
+            enriched["supplier"] = f"Organization: {ecosystem_name}"
+            added_fields.append(f"supplier ({ecosystem_name})")
+        elif metadata.get("repo_metadata") and metadata["repo_metadata"].get("owner"):
+            owner_info = metadata["repo_metadata"]["owner"]
+            # owner can be a dict with login/name or just a string
+            if isinstance(owner_info, dict):
+                owner_name = owner_info.get("name") or owner_info.get("login", "")
+                owner_type = owner_info.get("type", "Organization")  # GitHub API provides type
+                if owner_name:
+                    enriched["supplier"] = f"{owner_type}: {owner_name}"
+                    added_fields.append(f"supplier ({owner_name})")
+            elif isinstance(owner_info, str):
+                enriched["supplier"] = f"Organization: {owner_info}"
+                added_fields.append(f"supplier ({owner_info})")
         elif metadata.get("maintainers") and isinstance(metadata["maintainers"], list):
             # Otherwise use first maintainer
             if metadata["maintainers"]:
@@ -386,8 +462,8 @@ def _enrich_spdx_package(
         return False
 
     # Add registry URL (PACKAGE-MANAGER category)
-    if metadata.get("registry") and metadata["registry"].get("url"):
-        if _add_external_ref("PACKAGE-MANAGER", "url", metadata["registry"]["url"]):
+    if metadata.get("registry_url"):
+        if _add_external_ref("PACKAGE-MANAGER", "url", metadata["registry_url"]):
             added_fields.append("externalRef (registry)")
 
     # Add documentation URL (OTHER category)
@@ -550,6 +626,10 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
     # Count successful fetches
     successful_fetches = sum(1 for v in metadata_map.values() if v is not None)
     logger.info(f"Successfully fetched metadata for {successful_fetches}/{len(purls)} components")
+
+    # Log cache statistics
+    cache_stats = get_cache_stats()
+    logger.info(f"Cache statistics: {cache_stats['entries']} entries cached")
 
     # Enrich SBOM
     enriched_sbom, stats = _enrich_sbom_with_metadata(sbom_data, metadata_map)

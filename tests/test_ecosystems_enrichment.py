@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
+import requests
+
 from sbomify_action.enrichment import (
     USER_AGENT,
     _enrich_cyclonedx_component,
@@ -15,7 +17,9 @@ from sbomify_action.enrichment import (
     _enrich_spdx_package,
     _extract_components_from_sbom,
     _fetch_package_metadata,
+    clear_cache,
     enrich_sbom_with_ecosystems,
+    get_cache_stats,
 )
 
 
@@ -96,6 +100,14 @@ class TestComponentExtraction(unittest.TestCase):
 
 class TestFetchMetadata(unittest.TestCase):
     """Test fetching metadata from ecosyste.ms API."""
+
+    def setUp(self):
+        """Clear cache before each test."""
+        clear_cache()
+
+    def tearDown(self):
+        """Clear cache after each test."""
+        clear_cache()
 
     @patch("sbomify_action.enrichment.requests.Session")
     def test_fetch_successful(self, mock_session_class):
@@ -231,6 +243,52 @@ class TestCycloneDXEnrichment(unittest.TestCase):
         # Should keep existing license
         self.assertEqual(enriched["licenses"][0]["license"]["id"], "MIT")
 
+    def test_enrich_with_normalized_licenses(self):
+        """Test adding licenses using normalized_licenses field (array of SPDX identifiers)."""
+        component = {"name": "test", "version": "1.0", "purl": "pkg:pypi/test@1.0"}
+
+        metadata = {"normalized_licenses": ["MIT", "Apache-2.0"]}
+
+        enriched, added_fields = _enrich_cyclonedx_component(component, metadata)
+
+        self.assertIn("licenses", enriched)
+        self.assertEqual(len(enriched["licenses"]), 2)
+        self.assertEqual(enriched["licenses"][0]["license"]["id"], "MIT")
+        self.assertEqual(enriched["licenses"][1]["license"]["id"], "Apache-2.0")
+        self.assertIn("licenses (MIT, Apache-2.0)", added_fields)
+
+    def test_enrich_prefers_normalized_licenses_over_licenses(self):
+        """Test that normalized_licenses field is preferred over licenses field."""
+        component = {"name": "test", "version": "1.0", "purl": "pkg:pypi/test@1.0"}
+
+        metadata = {
+            "licenses": "GPL-3.0",  # This should be ignored
+            "normalized_licenses": ["MIT", "BSD-3-Clause"],  # This should be used
+        }
+
+        enriched, added_fields = _enrich_cyclonedx_component(component, metadata)
+
+        self.assertIn("licenses", enriched)
+        self.assertEqual(len(enriched["licenses"]), 2)
+        self.assertEqual(enriched["licenses"][0]["license"]["id"], "MIT")
+        self.assertEqual(enriched["licenses"][1]["license"]["id"], "BSD-3-Clause")
+        self.assertIn("licenses (MIT, BSD-3-Clause)", added_fields)
+
+    def test_enrich_fallback_to_licenses_when_normalized_missing_cyclonedx(self):
+        """Test that licenses field is used as fallback when normalized_licenses is not available for CycloneDX."""
+        component = {"name": "test", "version": "1.0", "purl": "pkg:pypi/test@1.0"}
+
+        metadata = {
+            "licenses": "Apache-2.0"  # Only licenses field available
+        }
+
+        enriched, added_fields = _enrich_cyclonedx_component(component, metadata)
+
+        self.assertIn("licenses", enriched)
+        self.assertEqual(len(enriched["licenses"]), 1)
+        self.assertEqual(enriched["licenses"][0]["license"]["id"], "Apache-2.0")
+        self.assertIn("licenses (Apache-2.0)", added_fields)
+
     def test_enrich_with_homepage(self):
         """Test adding homepage as external reference."""
         component = {"name": "django", "version": "5.1", "purl": "pkg:pypi/django@5.1"}
@@ -256,6 +314,20 @@ class TestCycloneDXEnrichment(unittest.TestCase):
         vcs_refs = [ref for ref in enriched["externalReferences"] if ref["type"] == "vcs"]
         self.assertEqual(len(vcs_refs), 1)
         self.assertEqual(vcs_refs[0]["url"], "https://github.com/django/django")
+
+    def test_enrich_with_registry_url(self):
+        """Test adding registry URL as distribution external reference."""
+        component = {"name": "django", "version": "5.1", "purl": "pkg:pypi/django@5.1"}
+
+        metadata = {"registry_url": "https://pypi.org/project/django/"}
+
+        enriched, added_fields = _enrich_cyclonedx_component(component, metadata)
+
+        self.assertIn("externalReferences", enriched)
+        dist_refs = [ref for ref in enriched["externalReferences"] if ref["type"] == "distribution"]
+        self.assertEqual(len(dist_refs), 1)
+        self.assertEqual(dist_refs[0]["url"], "https://pypi.org/project/django/")
+        self.assertIn("distribution URL", added_fields)
 
     def test_enrich_with_properties(self):
         """Test that properties (language, keywords) are NOT added (not in native CycloneDX spec)."""
@@ -321,6 +393,52 @@ class TestSPDXEnrichment(unittest.TestCase):
 
         self.assertEqual(enriched["downloadLocation"], "https://github.com/django/django")
 
+    def test_enrich_with_registry_url_spdx(self):
+        """Test adding download location from registry URL (preferred over repository URL)."""
+        package = {"name": "django", "versionInfo": "5.1", "downloadLocation": "NOASSERTION"}
+
+        metadata = {
+            "registry_url": "https://pypi.org/project/django/",
+            "repository_url": "https://github.com/django/django",  # This should be ignored
+        }
+
+        enriched, added_fields = _enrich_spdx_package(package, metadata)
+
+        # registry_url should be preferred over repository_url
+        self.assertEqual(enriched["downloadLocation"], "https://pypi.org/project/django/")
+        self.assertIn("downloadLocation", added_fields)
+
+    def test_enrich_with_repo_metadata_download_url_spdx(self):
+        """Test adding download location from repo_metadata.download_url (fallback after registry_url)."""
+        package = {"name": "test-package", "versionInfo": "1.0", "downloadLocation": "NOASSERTION"}
+
+        metadata = {
+            "repo_metadata": {"download_url": "https://github.com/owner/repo/archive/v1.0.tar.gz"},
+            "repository_url": "https://github.com/owner/repo",  # This should be ignored
+        }
+
+        enriched, added_fields = _enrich_spdx_package(package, metadata)
+
+        # repo_metadata.download_url should be used when registry_url is not available
+        self.assertEqual(enriched["downloadLocation"], "https://github.com/owner/repo/archive/v1.0.tar.gz")
+        self.assertIn("downloadLocation", added_fields)
+
+    def test_enrich_download_location_priority_spdx(self):
+        """Test download location priority: registry_url > repo_metadata.download_url > repository_url."""
+        package = {"name": "test-package", "versionInfo": "1.0", "downloadLocation": "NOASSERTION"}
+
+        metadata = {
+            "registry_url": "https://pypi.org/project/test-package/",
+            "repo_metadata": {"download_url": "https://github.com/owner/repo/archive/v1.0.tar.gz"},
+            "repository_url": "https://github.com/owner/repo",
+        }
+
+        enriched, added_fields = _enrich_spdx_package(package, metadata)
+
+        # registry_url should have highest priority
+        self.assertEqual(enriched["downloadLocation"], "https://pypi.org/project/test-package/")
+        self.assertIn("downloadLocation", added_fields)
+
     def test_enrich_with_licenses(self):
         """Test adding licenses to SPDX package."""
         package = {"name": "django", "versionInfo": "5.1", "licenseDeclared": "NOASSERTION"}
@@ -330,6 +448,100 @@ class TestSPDXEnrichment(unittest.TestCase):
         enriched, added_fields = _enrich_spdx_package(package, metadata)
 
         self.assertEqual(enriched["licenseDeclared"], "BSD-3-Clause")
+
+    def test_enrich_with_normalized_licenses_spdx(self):
+        """Test adding licenses using normalized_licenses field for SPDX package."""
+        package = {"name": "test", "versionInfo": "1.0", "licenseDeclared": "NOASSERTION"}
+
+        metadata = {"normalized_licenses": ["MIT", "Apache-2.0"]}
+
+        enriched, added_fields = _enrich_spdx_package(package, metadata)
+
+        # For SPDX, multiple licenses should be joined with AND
+        self.assertEqual(enriched["licenseDeclared"], "MIT AND Apache-2.0")
+        self.assertIn("licenseDeclared (MIT, Apache-2.0)", added_fields)
+
+    def test_enrich_prefers_normalized_licenses_over_licenses_spdx(self):
+        """Test that normalized_licenses field is preferred over licenses field for SPDX."""
+        package = {"name": "test", "versionInfo": "1.0", "licenseDeclared": "NOASSERTION"}
+
+        metadata = {
+            "licenses": "GPL-3.0",  # This should be ignored
+            "normalized_licenses": ["MIT", "BSD-3-Clause"],  # This should be used
+        }
+
+        enriched, added_fields = _enrich_spdx_package(package, metadata)
+
+        self.assertEqual(enriched["licenseDeclared"], "MIT AND BSD-3-Clause")
+        self.assertIn("licenseDeclared (MIT, BSD-3-Clause)", added_fields)
+
+    def test_enrich_fallback_to_licenses_when_normalized_missing_spdx(self):
+        """Test that licenses field is used as fallback when normalized_licenses is not available."""
+        package = {"name": "test", "versionInfo": "1.0", "licenseDeclared": "NOASSERTION"}
+
+        metadata = {
+            "licenses": "Apache-2.0"  # Only licenses field available
+        }
+
+        enriched, added_fields = _enrich_spdx_package(package, metadata)
+
+        self.assertEqual(enriched["licenseDeclared"], "Apache-2.0")
+        self.assertIn("licenseDeclared (Apache-2.0)", added_fields)
+
+    def test_enrich_with_ecosystem_supplier_spdx(self):
+        """Test adding supplier from ecosystem field."""
+        package = {"name": "test", "versionInfo": "1.0", "supplier": "NOASSERTION"}
+
+        metadata = {
+            "ecosystem": "npm",
+            "maintainers": [{"name": "John Doe", "login": "johndoe"}],  # Should be ignored
+        }
+
+        enriched, added_fields = _enrich_spdx_package(package, metadata)
+
+        self.assertEqual(enriched["supplier"], "Organization: npm")
+        self.assertIn("supplier (npm)", added_fields)
+
+    def test_enrich_with_repo_owner_supplier_spdx(self):
+        """Test adding supplier from repo_metadata.owner field."""
+        package = {"name": "test", "versionInfo": "1.0", "supplier": "NOASSERTION"}
+
+        metadata = {
+            "repo_metadata": {"owner": {"login": "microsoft", "name": "Microsoft", "type": "Organization"}},
+            "maintainers": [{"name": "John Doe", "login": "johndoe"}],  # Should be ignored
+        }
+
+        enriched, added_fields = _enrich_spdx_package(package, metadata)
+
+        self.assertEqual(enriched["supplier"], "Organization: Microsoft")
+        self.assertIn("supplier (Microsoft)", added_fields)
+
+    def test_enrich_with_repo_owner_string_supplier_spdx(self):
+        """Test adding supplier from repo_metadata.owner when it's a string."""
+        package = {"name": "test", "versionInfo": "1.0", "supplier": "NOASSERTION"}
+
+        metadata = {"repo_metadata": {"owner": "google"}}
+
+        enriched, added_fields = _enrich_spdx_package(package, metadata)
+
+        self.assertEqual(enriched["supplier"], "Organization: google")
+        self.assertIn("supplier (google)", added_fields)
+
+    def test_enrich_supplier_priority_order_spdx(self):
+        """Test supplier priority: ecosystem > repo_owner > maintainers."""
+        package = {"name": "test", "versionInfo": "1.0", "supplier": "NOASSERTION"}
+
+        metadata = {
+            "ecosystem": "pypi",
+            "repo_metadata": {"owner": {"login": "microsoft", "name": "Microsoft", "type": "Organization"}},
+            "maintainers": [{"name": "John Doe", "login": "johndoe"}],
+        }
+
+        enriched, added_fields = _enrich_spdx_package(package, metadata)
+
+        # ecosystem should have highest priority
+        self.assertEqual(enriched["supplier"], "Organization: pypi")
+        self.assertIn("supplier (pypi)", added_fields)
 
     def test_enrich_with_no_metadata(self):
         """Test that package is unchanged when metadata is None."""
@@ -546,6 +758,14 @@ class TestIssueTrackerValidation(unittest.TestCase):
 class TestEndToEndEnrichment(unittest.TestCase):
     """Test end-to-end enrichment workflow."""
 
+    def setUp(self):
+        """Clear cache before each test."""
+        clear_cache()
+
+    def tearDown(self):
+        """Clear cache after each test."""
+        clear_cache()
+
     @patch("sbomify_action.enrichment.requests.Session")
     def test_enrich_sbom_file(self, mock_session_class):
         """Test enriching an SBOM file end-to-end."""
@@ -650,6 +870,169 @@ class TestEndToEndEnrichment(unittest.TestCase):
         finally:
             os.unlink(input_file)
             os.unlink(output_file)
+
+
+class TestCaching(unittest.TestCase):
+    """Test metadata caching functionality."""
+
+    def setUp(self):
+        """Set up test environment."""
+        # Clear cache before each test
+        clear_cache()
+
+    def tearDown(self):
+        """Clean up after each test."""
+        # Clear cache after each test
+        clear_cache()
+
+    @patch("sbomify_action.enrichment.requests.Session")
+    def test_cache_hit(self, mock_session_class):
+        """Test cache hit functionality."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [{"name": "test-package", "description": "Test package"}]
+        mock_session.get.return_value = mock_response
+
+        purl = "pkg:pypi/test-package@1.0.0"
+
+        # First call should hit the API
+        result1 = _fetch_package_metadata(purl, mock_session)
+        self.assertIsNotNone(result1)
+        self.assertEqual(result1["name"], "test-package")
+        self.assertEqual(mock_session.get.call_count, 1)
+
+        # Second call should hit the cache
+        result2 = _fetch_package_metadata(purl, mock_session)
+        self.assertIsNotNone(result2)
+        self.assertEqual(result2["name"], "test-package")
+        # API should not be called again
+        self.assertEqual(mock_session.get.call_count, 1)
+
+        # Verify cache stats
+        stats = get_cache_stats()
+        self.assertEqual(stats["entries"], 1)
+
+    @patch("sbomify_action.enrichment.requests.Session")
+    def test_cache_negative_caching(self, mock_session_class):
+        """Test negative caching (caching None results)."""
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_session.get.return_value = mock_response
+
+        purl = "pkg:pypi/nonexistent-package@1.0.0"
+
+        # First call should hit the API and return None
+        result1 = _fetch_package_metadata(purl, mock_session)
+        self.assertIsNone(result1)
+        self.assertEqual(mock_session.get.call_count, 1)
+
+        # Second call should hit the cache and return None without API call
+        result2 = _fetch_package_metadata(purl, mock_session)
+        self.assertIsNone(result2)
+        # API should not be called again
+        self.assertEqual(mock_session.get.call_count, 1)
+
+        # Verify cache has the None entry
+        stats = get_cache_stats()
+        self.assertEqual(stats["entries"], 1)
+
+    @patch("sbomify_action.enrichment.requests.Session")
+    def test_cache_timeout_handling(self, mock_session_class):
+        """Test caching of timeout errors."""
+        mock_session = Mock()
+        mock_session.get.side_effect = requests.exceptions.Timeout("Request timed out")
+
+        purl = "pkg:pypi/timeout-package@1.0.0"
+
+        # First call should timeout and cache None
+        result1 = _fetch_package_metadata(purl, mock_session)
+        self.assertIsNone(result1)
+        self.assertEqual(mock_session.get.call_count, 1)
+
+        # Second call should hit cache and not call API again
+        result2 = _fetch_package_metadata(purl, mock_session)
+        self.assertIsNone(result2)
+        # API should not be called again due to cached negative result
+        self.assertEqual(mock_session.get.call_count, 1)
+
+    def test_cache_clear(self):
+        """Test cache clearing functionality."""
+        # Manually add some cache entries
+        from sbomify_action.enrichment import _metadata_cache
+
+        _metadata_cache["pkg:pypi/test1@1.0.0"] = {"name": "test1"}
+        _metadata_cache["pkg:pypi/test2@1.0.0"] = {"name": "test2"}
+
+        # Verify entries exist
+        stats = get_cache_stats()
+        self.assertEqual(stats["entries"], 2)
+
+        # Clear cache
+        clear_cache()
+
+        # Verify entries are cleared
+        stats = get_cache_stats()
+        self.assertEqual(stats["entries"], 0)
+
+    @patch("sbomify_action.enrichment.requests.Session")
+    def test_cache_with_enrichment_end_to_end(self, mock_session_class):
+        """Test caching integration with full enrichment process."""
+        # Create a temporary SBOM with duplicate packages
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.4",
+            "components": [
+                {"name": "test-pkg", "version": "1.0.0", "purl": "pkg:pypi/test-pkg@1.0.0"},
+                {"name": "test-pkg", "version": "1.0.0", "purl": "pkg:pypi/test-pkg@1.0.0"},  # Duplicate
+                {"name": "other-pkg", "version": "2.0.0", "purl": "pkg:pypi/other-pkg@2.0.0"},
+            ],
+        }
+
+        mock_session = Mock()
+        mock_session.__enter__ = Mock(return_value=mock_session)
+        mock_session.__exit__ = Mock(return_value=False)
+        mock_session_class.return_value = mock_session
+
+        # Mock responses for different packages
+        def mock_get_side_effect(url, params=None, timeout=None):
+            purl = params.get("purl", "")
+            mock_response = Mock()
+            mock_response.status_code = 200
+
+            if "test-pkg" in purl:
+                mock_response.json.return_value = [{"name": "test-pkg", "description": "Test package"}]
+            elif "other-pkg" in purl:
+                mock_response.json.return_value = [{"name": "other-pkg", "description": "Other package"}]
+            else:
+                mock_response.status_code = 404
+
+            return mock_response
+
+        mock_session.get.side_effect = mock_get_side_effect
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as input_file:
+            json.dump(sbom_data, input_file)
+            input_file.flush()
+
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as output_file:
+                try:
+                    # Run enrichment
+                    enrich_sbom_with_ecosystems(input_file.name, output_file.name)
+
+                    # Verify API was called only twice (once per unique package)
+                    # despite having 3 components (one duplicate)
+                    self.assertEqual(mock_session.get.call_count, 2)
+
+                    # Verify cache has entries
+                    stats = get_cache_stats()
+                    self.assertEqual(stats["entries"], 2)
+
+                finally:
+                    # Clean up temp files
+                    os.unlink(input_file.name)
+                    os.unlink(output_file.name)
 
 
 if __name__ == "__main__":
