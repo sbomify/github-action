@@ -386,6 +386,163 @@ class TestSBOMEnrichment(unittest.TestCase):
         self.assertEqual(enriched["packages"][0]["description"], "Django framework")
 
 
+class TestIssueTrackerValidation(unittest.TestCase):
+    """Test issue tracker validation for GitHub repositories."""
+
+    def test_issue_tracker_added_with_has_issues_true(self):
+        """Test issue tracker is added when repo_metadata has has_issues=True."""
+        component = {"name": "test-package", "version": "1.0.0", "purl": "pkg:npm/test@1.0.0"}
+
+        metadata = {
+            "repo_metadata": {
+                "html_url": "https://github.com/test-org/test-repo",
+                "has_issues": True,
+            }
+        }
+
+        enriched, added_fields = _enrich_cyclonedx_component(component, metadata)
+
+        # Should have issue-tracker external reference
+        self.assertIn("externalReferences", enriched)
+        issue_refs = [ref for ref in enriched["externalReferences"] if ref["type"] == "issue-tracker"]
+        self.assertEqual(len(issue_refs), 1)
+        self.assertEqual(issue_refs[0]["url"], "https://github.com/test-org/test-repo/issues")
+        self.assertIn("issue-tracker URL", added_fields)
+
+    def test_issue_tracker_not_added_with_has_issues_false(self):
+        """Test issue tracker is NOT added when repo_metadata has has_issues=False."""
+        component = {"name": "test-package", "version": "1.0.0", "purl": "pkg:npm/test@1.0.0"}
+
+        metadata = {
+            "repo_metadata": {
+                "html_url": "https://github.com/test-org/test-repo",
+                "has_issues": False,
+            }
+        }
+
+        enriched, added_fields = _enrich_cyclonedx_component(component, metadata)
+
+        # Should NOT have issue-tracker external reference
+        issue_refs = [ref for ref in enriched.get("externalReferences", []) if ref["type"] == "issue-tracker"]
+        self.assertEqual(len(issue_refs), 0)
+        self.assertNotIn("issue-tracker URL", added_fields)
+
+    @patch("sbomify_action.enrichment.requests.head")
+    def test_issue_tracker_verified_with_head_request_success(self, mock_head):
+        """Test issue tracker is added when HEAD request returns 200."""
+        component = {"name": "test-package", "version": "1.0.0", "purl": "pkg:npm/test@1.0.0"}
+
+        metadata = {
+            "repo_metadata": {
+                "html_url": "https://github.com/test-org/test-repo",
+                # No has_issues field - should fall back to HEAD request
+            }
+        }
+
+        # Mock HEAD request to return 200 (issues enabled)
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_head.return_value = mock_response
+
+        enriched, added_fields = _enrich_cyclonedx_component(component, metadata)
+
+        # Should have verified and added issue-tracker
+        issue_refs = [ref for ref in enriched["externalReferences"] if ref["type"] == "issue-tracker"]
+        self.assertEqual(len(issue_refs), 1)
+        self.assertEqual(issue_refs[0]["url"], "https://github.com/test-org/test-repo/issues")
+
+        # Verify HEAD request was made
+        mock_head.assert_called_once_with(
+            "https://github.com/test-org/test-repo/issues", timeout=5, allow_redirects=True
+        )
+
+    @patch("sbomify_action.enrichment.requests.head")
+    def test_issue_tracker_not_added_with_head_request_404(self, mock_head):
+        """Test issue tracker is NOT added when HEAD request returns 404."""
+        component = {"name": "test-package", "version": "1.0.0", "purl": "pkg:npm/test@1.0.0"}
+
+        metadata = {
+            "repo_metadata": {
+                "html_url": "https://github.com/test-org/test-repo",
+            }
+        }
+
+        # Mock HEAD request to return 404 (issues disabled)
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_head.return_value = mock_response
+
+        enriched, added_fields = _enrich_cyclonedx_component(component, metadata)
+
+        # Should NOT have added issue-tracker
+        issue_refs = [ref for ref in enriched.get("externalReferences", []) if ref["type"] == "issue-tracker"]
+        self.assertEqual(len(issue_refs), 0)
+        self.assertNotIn("issue-tracker URL", added_fields)
+
+    @patch("sbomify_action.enrichment.requests.head")
+    def test_issue_tracker_not_added_on_request_exception(self, mock_head):
+        """Test issue tracker is NOT added when HEAD request raises exception."""
+        import requests
+
+        component = {"name": "test-package", "version": "1.0.0", "purl": "pkg:npm/test@1.0.0"}
+
+        metadata = {
+            "repo_metadata": {
+                "html_url": "https://github.com/test-org/test-repo",
+            }
+        }
+
+        # Mock HEAD request to raise exception
+        mock_head.side_effect = requests.exceptions.RequestException("Connection error")
+
+        enriched, added_fields = _enrich_cyclonedx_component(component, metadata)
+
+        # Should NOT have added issue-tracker
+        issue_refs = [ref for ref in enriched.get("externalReferences", []) if ref["type"] == "issue-tracker"]
+        self.assertEqual(len(issue_refs), 0)
+        self.assertNotIn("issue-tracker URL", added_fields)
+
+    def test_issue_tracker_not_added_for_non_github_repos(self):
+        """Test issue tracker is NOT added for non-GitHub repositories."""
+        component = {"name": "test-package", "version": "1.0.0", "purl": "pkg:npm/test@1.0.0"}
+
+        metadata = {
+            "repo_metadata": {
+                "html_url": "https://gitlab.com/test-org/test-repo",
+                "has_issues": True,
+            }
+        }
+
+        enriched, added_fields = _enrich_cyclonedx_component(component, metadata)
+
+        # Should NOT have issue-tracker (not GitHub)
+        issue_refs = [ref for ref in enriched.get("externalReferences", []) if ref["type"] == "issue-tracker"]
+        self.assertEqual(len(issue_refs), 0)
+        self.assertNotIn("issue-tracker URL", added_fields)
+
+    @patch("sbomify_action.enrichment.requests.head")
+    def test_issue_tracker_timeout_handling(self, mock_head):
+        """Test issue tracker is NOT added when HEAD request times out."""
+        import requests
+
+        component = {"name": "test-package", "version": "1.0.0", "purl": "pkg:npm/test@1.0.0"}
+
+        metadata = {
+            "repo_metadata": {
+                "html_url": "https://github.com/test-org/test-repo",
+            }
+        }
+
+        # Mock HEAD request to timeout
+        mock_head.side_effect = requests.exceptions.Timeout("Request timed out")
+
+        enriched, added_fields = _enrich_cyclonedx_component(component, metadata)
+
+        # Should NOT have added issue-tracker on timeout
+        issue_refs = [ref for ref in enriched.get("externalReferences", []) if ref["type"] == "issue-tracker"]
+        self.assertEqual(len(issue_refs), 0)
+
+
 class TestEndToEndEnrichment(unittest.TestCase):
     """Test end-to-end enrichment workflow."""
 

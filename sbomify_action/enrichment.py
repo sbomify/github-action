@@ -223,7 +223,6 @@ def _enrich_cyclonedx_component(
 
     # Add external references (native CycloneDX field)
     external_refs = enriched.get("externalReferences", [])
-    original_refs_count = len(external_refs)
 
     def _add_external_ref(ref_type: str, url: str) -> bool:
         """Helper to add external reference if URL exists and not already present. Returns True if added."""
@@ -250,11 +249,31 @@ def _enrich_cyclonedx_component(
     # Issue tracker (use repo_metadata.html_url + /issues for GitHub repos)
     if metadata.get("repo_metadata") and metadata["repo_metadata"].get("html_url"):
         html_url = metadata["repo_metadata"]["html_url"]
-        # For GitHub repos, construct issues URL
+        repo_metadata = metadata["repo_metadata"]
+
+        # For GitHub repos, verify issues are enabled before adding
         if "github.com" in html_url:
-            issues_url = f"{html_url}/issues"
-            if _add_external_ref("issue-tracker", issues_url):
-                added_fields.append("issue-tracker URL")
+            issues_enabled = False
+
+            # First check if repo_metadata has has_issues field (from GitHub API)
+            if "has_issues" in repo_metadata:
+                issues_enabled = repo_metadata.get("has_issues", False)
+            else:
+                # Fall back to checking if issues URL is accessible
+                issues_url = f"{html_url}/issues"
+                try:
+                    # Use HEAD request to check if issues page exists (more efficient than GET)
+                    response = requests.head(issues_url, timeout=5, allow_redirects=True)
+                    # Consider 200 OK as issues enabled
+                    issues_enabled = response.status_code == 200
+                except (requests.exceptions.RequestException, Exception):
+                    # If we can't verify, don't add the issue tracker
+                    issues_enabled = False
+
+            if issues_enabled:
+                issues_url = f"{html_url}/issues"
+                if _add_external_ref("issue-tracker", issues_url):
+                    added_fields.append("issue-tracker URL")
 
     if external_refs:
         enriched["externalReferences"] = external_refs
