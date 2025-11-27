@@ -4,10 +4,7 @@ from unittest.mock import patch
 
 from sbomify_action.cli.main import (
     SBOMIFY_PRODUCTION_API,
-    SBOMIFY_TOOL_NAME,
     Config,
-    _add_sbomify_tool_to_json,
-    _ensure_tools_structure,
     load_config,
 )
 from sbomify_action.exceptions import ConfigurationError
@@ -366,98 +363,6 @@ class TestConfig(unittest.TestCase):
                     self.assertIn("Both COMPONENT_NAME and OVERRIDE_NAME are set", log_output)
                     self.assertIn("Using COMPONENT_NAME and ignoring OVERRIDE_NAME", log_output)
                     self.assertIn("OVERRIDE_NAME is deprecated", log_output)
-
-
-class TestHelperFunctions(unittest.TestCase):
-    """Test cases for helper functions."""
-
-    def test_ensure_tools_structure_cyclonedx_15_pure(self):
-        """Test tools structure initialization for pure CycloneDX 1.5 format."""
-        metadata = {}
-        _ensure_tools_structure(metadata, "1.5")
-
-        self.assertIn("tools", metadata)
-        self.assertIsInstance(metadata["tools"], list)
-
-    def test_ensure_tools_structure_cyclonedx_16(self):
-        """Test tools structure initialization for CycloneDX 1.6 format."""
-        metadata = {}
-        _ensure_tools_structure(metadata, "1.6")
-
-        self.assertIn("tools", metadata)
-        self.assertIsInstance(metadata["tools"], dict)
-        self.assertIn("components", metadata["tools"])
-        self.assertIsInstance(metadata["tools"]["components"], list)
-
-    def test_ensure_tools_structure_hybrid_15(self):
-        """Test tools structure with hybrid 1.5 format (using 1.6 structure)."""
-        metadata = {"tools": {"components": []}}
-        _ensure_tools_structure(metadata, "1.5")
-
-        # Should preserve existing 1.6-style structure even for 1.5
-        self.assertIsInstance(metadata["tools"], dict)
-        self.assertIn("components", metadata["tools"])
-
-    def test_ensure_tools_structure_converts_list_to_components(self):
-        """Test conversion from list format to components format."""
-        metadata = {"tools": [{"vendor": "test", "name": "test-tool"}]}
-        _ensure_tools_structure(metadata, "1.6")
-
-        self.assertIsInstance(metadata["tools"], dict)
-        self.assertIn("components", metadata["tools"])
-        self.assertEqual(len(metadata["tools"]["components"]), 1)
-
-    @patch("sbomify_action.cli.main.logger")
-    def test_add_sbomify_tool_to_json_cyclonedx_15(self, mock_logger):
-        """Test adding sbomify tool for CycloneDX 1.5 format."""
-        metadata = {}
-        _add_sbomify_tool_to_json(metadata, "1.5")
-
-        self.assertIn("tools", metadata)
-        self.assertIsInstance(metadata["tools"], list)
-        self.assertEqual(len(metadata["tools"]), 1)
-
-        tool = metadata["tools"][0]
-        self.assertEqual(tool["name"], SBOMIFY_TOOL_NAME)
-        self.assertIn("vendor", tool)
-        self.assertIn("version", tool)
-
-    @patch("sbomify_action.cli.main.logger")
-    def test_add_sbomify_tool_to_json_cyclonedx_16(self, mock_logger):
-        """Test adding sbomify tool for CycloneDX 1.6 format."""
-        metadata = {}
-        _add_sbomify_tool_to_json(metadata, "1.6")
-
-        self.assertIn("tools", metadata)
-        self.assertIsInstance(metadata["tools"], dict)
-        self.assertIn("components", metadata["tools"])
-        self.assertEqual(len(metadata["tools"]["components"]), 1)
-
-        tool = metadata["tools"]["components"][0]
-        self.assertEqual(tool["name"], SBOMIFY_TOOL_NAME)
-        self.assertEqual(tool["type"], "application")
-        self.assertIn("manufacturer", tool)
-        self.assertIn("externalReferences", tool)
-
-        # Check external references
-        refs = tool["externalReferences"]
-        self.assertEqual(len(refs), 2)
-        website_ref = next((ref for ref in refs if ref["type"] == "website"), None)
-        vcs_ref = next((ref for ref in refs if ref["type"] == "vcs"), None)
-
-        self.assertIsNotNone(website_ref)
-        self.assertIsNotNone(vcs_ref)
-        self.assertEqual(website_ref["url"], "https://sbomify.com")
-        self.assertIn("github.com", vcs_ref["url"])
-
-    @patch("sbomify_action.cli.main.logger")
-    def test_add_sbomify_tool_avoids_duplicates(self, mock_logger):
-        """Test that adding sbomify tool avoids duplicates."""
-        metadata = {"tools": {"components": [{"name": SBOMIFY_TOOL_NAME, "type": "application"}]}}
-        _add_sbomify_tool_to_json(metadata, "1.6")
-
-        # Should still have only one tool
-        self.assertEqual(len(metadata["tools"]["components"]), 1)
 
 
 if __name__ == "__main__":
