@@ -681,6 +681,8 @@ def augment_sbom_from_file(
     try:
         import json
 
+        from .exceptions import SBOMValidationError
+
         try:
             with open(input_path, "r") as f:
                 data = json.load(f)
@@ -694,6 +696,11 @@ def augment_sbom_from_file(
             raise OSError(f"Error reading SBOM file {input_file}: {e}")
 
         if data.get("bomFormat") == "CycloneDX":
+            # Validate required fields before processing
+            spec_version = data.get("specVersion")
+            if spec_version is None:
+                raise SBOMValidationError("CycloneDX SBOM is missing required 'specVersion' field")
+
             # Parse as CycloneDX
             bom = Bom.from_json(data)
             logger.info("Processing CycloneDX SBOM")
@@ -704,7 +711,6 @@ def augment_sbom_from_file(
             )
 
             # Write output using version-aware serialization
-            spec_version = data.get("specVersion", "1.6")
             serialized = serialize_cyclonedx_bom(bom, spec_version)
 
             output_path = Path(output_file)

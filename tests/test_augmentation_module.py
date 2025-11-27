@@ -792,6 +792,52 @@ class TestErrorHandling:
         assert "404" in str(exc_info.value)
         assert "Component not found" in str(exc_info.value)
 
+    @patch("requests.get")
+    def test_missing_spec_version_error(self, mock_get):
+        """Test handling of missing specVersion in CycloneDX SBOM."""
+        from sbomify_action.exceptions import SBOMValidationError
+
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"supplier": {}}
+        mock_get.return_value = mock_response
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_file = Path(tmpdir) / "sbom.json"
+            output_file = Path(tmpdir) / "output.json"
+
+            # Write CycloneDX SBOM without specVersion
+            sbom_data = {
+                "bomFormat": "CycloneDX",
+                # specVersion is intentionally missing
+                "serialNumber": "urn:uuid:12345678-1234-5678-1234-567812345678",
+                "version": 1,
+                "metadata": {
+                    "timestamp": "2024-01-01T00:00:00Z",
+                    "component": {
+                        "type": "application",
+                        "name": "test-app",
+                        "version": "1.0.0",
+                    },
+                },
+                "components": [],
+            }
+
+            with open(input_file, "w") as f:
+                json.dump(sbom_data, f)
+
+            with pytest.raises(SBOMValidationError) as exc_info:
+                augment_sbom_from_file(
+                    input_file=str(input_file),
+                    output_file=str(output_file),
+                    api_base_url="https://api.test.com",
+                    token="test-token",
+                    component_id="test-component",
+                )
+
+            assert "specVersion" in str(exc_info.value)
+            assert "missing" in str(exc_info.value).lower()
+
 
 class TestSupplierMerging:
     """Test supplier merging behavior."""
