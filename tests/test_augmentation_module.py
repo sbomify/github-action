@@ -796,3 +796,140 @@ class TestToolMetadataVersions:
         tool_names = [tool.name for tool in enriched_bom.metadata.tools.tools]
         sbomify_count = tool_names.count("sbomify-github-action")
         assert sbomify_count == 1, "Should not have duplicate sbomify tools"
+
+
+class TestLicenseRefSanitization:
+    """Test SPDX LicenseRef sanitization."""
+
+    def test_sanitize_basic_name(self):
+        """Test sanitizing a simple license name."""
+        from sbomify_action.augmentation import _sanitize_license_ref_id
+
+        assert _sanitize_license_ref_id("Custom License") == "Custom-License"
+        assert _sanitize_license_ref_id("MIT") == "MIT"
+        assert _sanitize_license_ref_id("Apache-2.0") == "Apache-2.0"
+
+    def test_sanitize_special_characters(self):
+        """Test sanitization removes invalid characters."""
+        from sbomify_action.augmentation import _sanitize_license_ref_id
+
+        # Remove parentheses, brackets, etc.
+        assert _sanitize_license_ref_id("License (v1.0)") == "License-v1.0"
+        assert _sanitize_license_ref_id("License [Beta]") == "License-Beta"
+        assert _sanitize_license_ref_id("License/Version") == "License-Version"
+        assert _sanitize_license_ref_id("License\\Path") == "License-Path"
+
+        # Remove other invalid chars
+        assert _sanitize_license_ref_id("License@Company") == "LicenseCompany"
+        assert _sanitize_license_ref_id("License#1") == "License1"
+        assert _sanitize_license_ref_id("License$Money") == "LicenseMoney"
+
+    def test_sanitize_multiple_spaces(self):
+        """Test multiple spaces collapse to single hyphen."""
+        from sbomify_action.augmentation import _sanitize_license_ref_id
+
+        assert _sanitize_license_ref_id("Custom   License") == "Custom-License"
+        assert _sanitize_license_ref_id("My  Custom  License") == "My-Custom-License"
+
+    def test_sanitize_underscores_and_slashes(self):
+        """Test underscores and slashes become hyphens."""
+        from sbomify_action.augmentation import _sanitize_license_ref_id
+
+        assert _sanitize_license_ref_id("Custom_License") == "Custom-License"
+        assert _sanitize_license_ref_id("BSD/MIT") == "BSD-MIT"
+        assert _sanitize_license_ref_id("Custom_License/v2") == "Custom-License-v2"
+
+    def test_sanitize_consecutive_hyphens(self):
+        """Test multiple consecutive hyphens collapse to one."""
+        from sbomify_action.augmentation import _sanitize_license_ref_id
+
+        assert _sanitize_license_ref_id("Custom---License") == "Custom-License"
+        assert _sanitize_license_ref_id("A-.-.B") == "A-B"
+
+    def test_sanitize_leading_trailing(self):
+        """Test leading/trailing hyphens and periods are removed."""
+        from sbomify_action.augmentation import _sanitize_license_ref_id
+
+        assert _sanitize_license_ref_id("  Custom License  ") == "Custom-License"
+        assert _sanitize_license_ref_id("-License-") == "License"
+        assert _sanitize_license_ref_id(".License.") == "License"
+
+    def test_sanitize_empty_name_raises(self):
+        """Test empty or whitespace-only names raise ValueError."""
+        from sbomify_action.augmentation import _sanitize_license_ref_id
+
+        with pytest.raises(ValueError, match="cannot be empty"):
+            _sanitize_license_ref_id("")
+
+        with pytest.raises(ValueError, match="cannot be empty"):
+            _sanitize_license_ref_id("   ")
+
+    def test_sanitize_all_special_chars_raises(self):
+        """Test name with only special characters raises ValueError."""
+        from sbomify_action.augmentation import _sanitize_license_ref_id
+
+        with pytest.raises(ValueError, match="cannot be sanitized"):
+            _sanitize_license_ref_id("@#$%^&*()")
+
+        with pytest.raises(ValueError, match="cannot be sanitized"):
+            _sanitize_license_ref_id("---...")
+
+    def test_sanitize_long_name_truncates(self):
+        """Test very long names are truncated with hash."""
+        from sbomify_action.augmentation import _sanitize_license_ref_id
+
+        long_name = "A" * 100 + " Very Long License Name"
+        result = _sanitize_license_ref_id(long_name)
+
+        # Should be truncated to reasonable length
+        assert len(result) <= 64
+        # Should contain a hash for uniqueness
+        assert "-" in result
+
+    def test_convert_expression_with_collision_handling(self):
+        """Test that duplicate custom licenses get unique refs."""
+        from sbomify_action.augmentation import _convert_backend_licenses_to_spdx_expression
+
+        # Two licenses that would sanitize to same thing
+        licenses = [
+            {"name": "Custom License"},
+            {"name": "Custom-License"},  # Would sanitize to same as above
+        ]
+
+        result = _convert_backend_licenses_to_spdx_expression(licenses)
+
+        # Should have two distinct LicenseRefs
+        assert "LicenseRef-Custom-License" in result
+        assert "LicenseRef-Custom-License-2" in result
+
+    def test_convert_expression_skips_invalid(self):
+        """Test that invalid license names are skipped with warning."""
+        from sbomify_action.augmentation import _convert_backend_licenses_to_spdx_expression
+
+        licenses = [
+            "MIT",
+            {"name": "@@@"},  # Invalid - all special chars
+            "Apache-2.0",
+        ]
+
+        result = _convert_backend_licenses_to_spdx_expression(licenses)
+
+        # Should only have the valid licenses
+        assert result == "MIT OR Apache-2.0"
+
+    def test_convert_expression_mixed_types(self):
+        """Test conversion with mixed string and dict licenses."""
+        from sbomify_action.augmentation import _convert_backend_licenses_to_spdx_expression
+
+        licenses = [
+            "MIT",
+            {"name": "Proprietary License (Company X)"},
+            "Apache-2.0",
+        ]
+
+        result = _convert_backend_licenses_to_spdx_expression(licenses)
+
+        assert "MIT" in result
+        assert "LicenseRef-Proprietary-License-Company-X" in result
+        assert "Apache-2.0" in result
+        assert " OR " in result

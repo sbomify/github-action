@@ -359,6 +359,58 @@ def augment_cyclonedx_sbom(
     return bom
 
 
+def _sanitize_license_ref_id(name: str) -> str:
+    """
+    Sanitize a license name to create a valid SPDX LicenseRef identifier.
+
+    SPDX spec requires LicenseRef-[idstring] where idstring contains only:
+    - Letters (a-z, A-Z)
+    - Numbers (0-9)
+    - Period (.)
+    - Hyphen (-)
+
+    Args:
+        name: Original license name
+
+    Returns:
+        Sanitized identifier suitable for LicenseRef
+
+    Raises:
+        ValueError: If name cannot be sanitized to valid identifier
+    """
+    import re
+
+    if not name or not name.strip():
+        raise ValueError("License name cannot be empty")
+
+    # Replace spaces and common separators with hyphens
+    sanitized = name.strip()
+    sanitized = re.sub(r"[\s_/\\]+", "-", sanitized)
+
+    # Remove all characters that aren't alphanumeric, period, or hyphen
+    sanitized = re.sub(r"[^a-zA-Z0-9.-]", "", sanitized)
+
+    # Replace multiple consecutive hyphens/periods with single hyphen
+    sanitized = re.sub(r"[-\.]{2,}", "-", sanitized)
+
+    # Remove leading/trailing hyphens or periods
+    sanitized = sanitized.strip("-.")
+
+    # Ensure we have something left
+    if not sanitized:
+        raise ValueError(f"License name '{name}' cannot be sanitized to valid SPDX identifier")
+
+    # Limit length to something reasonable (SPDX doesn't specify, but let's be practical)
+    if len(sanitized) > 64:
+        # Keep first part and add hash to ensure uniqueness
+        import hashlib
+
+        name_hash = hashlib.sha256(name.encode()).hexdigest()[:8]
+        sanitized = f"{sanitized[:50]}-{name_hash}"
+
+    return sanitized
+
+
 def _convert_backend_licenses_to_spdx_expression(licenses: list) -> str:
     """
     Convert backend license data to SPDX license expression.
@@ -373,15 +425,32 @@ def _convert_backend_licenses_to_spdx_expression(licenses: list) -> str:
         SPDX license expression string
     """
     spdx_parts = []
+    seen_refs = set()  # Track custom license refs to avoid duplicates
 
     for license_item in licenses:
         if isinstance(license_item, str):
             # Already SPDX expression or simple license name
             spdx_parts.append(license_item)
         elif isinstance(license_item, dict) and license_item.get("name"):
-            # Custom license - create LicenseRef
-            name = license_item["name"].replace(" ", "-").replace("(", "").replace(")", "")
-            spdx_parts.append(f"LicenseRef-{name}")
+            # Custom license - create LicenseRef with proper sanitization
+            original_name = license_item["name"]
+            try:
+                sanitized_id = _sanitize_license_ref_id(original_name)
+                license_ref = f"LicenseRef-{sanitized_id}"
+
+                # Handle collisions by appending counter
+                if license_ref in seen_refs:
+                    counter = 2
+                    while f"{license_ref}-{counter}" in seen_refs:
+                        counter += 1
+                    license_ref = f"{license_ref}-{counter}"
+
+                seen_refs.add(license_ref)
+                spdx_parts.append(license_ref)
+                logger.debug(f"Created SPDX license reference: {license_ref} for '{original_name}'")
+            except ValueError as e:
+                logger.warning(f"Skipping invalid license name '{original_name}': {e}")
+                continue
 
     if not spdx_parts:
         return "NOASSERTION"
