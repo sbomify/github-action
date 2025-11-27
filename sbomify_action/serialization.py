@@ -100,13 +100,13 @@ def serialize_cyclonedx_bom(bom: Bom, spec_version: Optional[str] = None) -> str
     Args:
         bom: The CycloneDX BOM object to serialize
         spec_version: The CycloneDX spec version (e.g., "1.5", "1.6", "1.7", "2.0").
-                     If None, will try to detect from BOM or default to 1.6
+                     If None, will try to detect from BOM object. Raises ValueError if not found.
 
     Returns:
         JSON string representation of the BOM
 
     Raises:
-        ValueError: If spec_version is unsupported
+        ValueError: If spec_version is unsupported or cannot be determined
 
     Examples:
         >>> bom = Bom.from_json(data)
@@ -122,9 +122,10 @@ def serialize_cyclonedx_bom(bom: Bom, spec_version: Optional[str] = None) -> str
         if hasattr(bom, "spec_version") and bom.spec_version:
             spec_version = str(bom.spec_version)
         else:
-            # Default version
-            spec_version = DEFAULT_CYCLONEDX_VERSION
-            logger.debug(f"No spec_version detected, defaulting to CycloneDX {DEFAULT_CYCLONEDX_VERSION}")
+            # Fail fast - do not default to a version
+            raise ValueError(
+                "spec_version is required for serialization. CycloneDX SBOM must have a valid specVersion field."
+            )
 
     # Get the appropriate outputter class
     outputter_class = _get_cyclonedx_outputter(spec_version)
