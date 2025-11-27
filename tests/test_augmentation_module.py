@@ -550,7 +550,7 @@ class TestSPDXAugmentation:
             "licenses": [
                 "MIT",
                 "Apache-2.0 OR GPL-3.0",
-                {"name": "Custom SPDX License", "url": "https://custom.com/license"},
+                {"name": "Custom SPDX License", "url": "https://custom.com/license", "text": "Custom license text"},
             ],
         }
 
@@ -559,13 +559,21 @@ class TestSPDXAugmentation:
             augmentation_data=backend_data,
         )
 
-        # Verify license information was added to package comments
+        # Verify license_declared was set with the full expression
         package = enriched_doc.packages[0]
-        assert package.license_comment is not None
-        assert "Backend licenses:" in package.license_comment
-        assert "MIT" in package.license_comment
-        # Custom licenses are converted to LicenseRef format by _convert_backend_licenses_to_spdx_expression
-        assert "LicenseRef" in package.license_comment
+        assert package.license_declared is not None
+        license_declared_str = str(package.license_declared)
+        assert "MIT" in license_declared_str
+        # Custom licenses are converted to LicenseRef format
+        assert "LicenseRef" in license_declared_str
+
+        # Verify ExtractedLicensingInfo objects were added to document
+        assert len(enriched_doc.extracted_licensing_info) > 0
+        custom_license = enriched_doc.extracted_licensing_info[0]
+        assert custom_license.license_id.startswith("LicenseRef-")
+        assert custom_license.extracted_text == "Custom license text"
+        assert custom_license.license_name == "Custom SPDX License"
+        assert "https://custom.com/license" in custom_license.cross_references
 
     def test_spdx_supplier_with_multiple_urls(self, spdx_document):
         """Test SPDX handling of supplier with multiple URLs."""
@@ -586,6 +594,94 @@ class TestSPDXAugmentation:
         ref_locators = [ref.locator for ref in package.external_references]
         assert "https://main.com" in ref_locators
         assert "https://support.com" in ref_locators
+
+    def test_spdx_extracted_licensing_info_multiple_custom_licenses(self, spdx_document):
+        """Test that multiple custom licenses create unique ExtractedLicensingInfo objects."""
+        backend_data = {
+            "licenses": [
+                {"name": "Custom License 1", "url": "https://custom1.com", "text": "License 1 text"},
+                {"name": "Custom License 2", "url": "https://custom2.com", "text": "License 2 text"},
+                "MIT",  # Standard license
+            ],
+        }
+
+        enriched_doc = augment_spdx_sbom(
+            document=spdx_document,
+            augmentation_data=backend_data,
+        )
+
+        # Should have 2 ExtractedLicensingInfo objects (for the 2 custom licenses)
+        assert len(enriched_doc.extracted_licensing_info) == 2
+
+        # Verify each custom license has proper fields
+        license_ids = [lic.license_id for lic in enriched_doc.extracted_licensing_info]
+        assert "LicenseRef-Custom-License-1" in license_ids
+        assert "LicenseRef-Custom-License-2" in license_ids
+
+        # Verify license_declared includes all licenses
+        package = enriched_doc.packages[0]
+        license_declared_str = str(package.license_declared)
+        assert "MIT" in license_declared_str
+        assert "LicenseRef-Custom-License-1" in license_declared_str
+        assert "LicenseRef-Custom-License-2" in license_declared_str
+        assert " OR " in license_declared_str
+
+    def test_spdx_extracted_licensing_info_without_text(self, spdx_document):
+        """Test that custom licenses without text field still work."""
+        backend_data = {
+            "licenses": [
+                {"name": "Custom License No Text", "url": "https://custom.com"},
+            ],
+        }
+
+        enriched_doc = augment_spdx_sbom(
+            document=spdx_document,
+            augmentation_data=backend_data,
+        )
+
+        # Should have 1 ExtractedLicensingInfo object
+        assert len(enriched_doc.extracted_licensing_info) == 1
+        custom_license = enriched_doc.extracted_licensing_info[0]
+
+        # Should have default text when not provided
+        assert custom_license.extracted_text == "License text not provided"
+        assert custom_license.license_name == "Custom License No Text"
+
+    def test_spdx_license_declared_override_behavior(self, spdx_document):
+        """Test that license_declared respects override_sbom_metadata flag."""
+        # Set existing license_declared (need to use the parser to create an Expression object)
+        from spdx_tools.spdx.parser.jsonlikedict.license_expression_parser import LicenseExpressionParser
+
+        license_parser = LicenseExpressionParser()
+        existing_license = license_parser.parse_license_expression("GPL-3.0")
+        spdx_document.packages[0].license_declared = existing_license
+
+        backend_data = {
+            "licenses": ["MIT"],
+        }
+
+        # Without override - should add to comment
+        enriched_doc = augment_spdx_sbom(
+            document=spdx_document,
+            augmentation_data=backend_data,
+            override_sbom_metadata=False,
+        )
+
+        # Original license should be preserved (parser normalizes GPL-3.0 to GPL-3.0-only)
+        assert "GPL-3.0" in str(enriched_doc.packages[0].license_declared)
+        # Backend license should be in comment
+        assert "MIT" in enriched_doc.packages[0].license_comment
+
+        # With override - should replace
+        spdx_document.packages[0].license_declared = existing_license
+        enriched_doc = augment_spdx_sbom(
+            document=spdx_document,
+            augmentation_data=backend_data,
+            override_sbom_metadata=True,
+        )
+
+        # Should be replaced with backend license
+        assert "MIT" in str(enriched_doc.packages[0].license_declared)
 
 
 class TestErrorHandling:
@@ -896,11 +992,13 @@ class TestLicenseRefSanitization:
             {"name": "Custom-License"},  # Would sanitize to same as above
         ]
 
-        result = _convert_backend_licenses_to_spdx_expression(licenses)
+        expression, extracted_infos = _convert_backend_licenses_to_spdx_expression(licenses)
 
         # Should have two distinct LicenseRefs
-        assert "LicenseRef-Custom-License" in result
-        assert "LicenseRef-Custom-License-2" in result
+        assert "LicenseRef-Custom-License" in expression
+        assert "LicenseRef-Custom-License-2" in expression
+        # Should have 2 ExtractedLicensingInfo objects
+        assert len(extracted_infos) == 2
 
     def test_convert_expression_skips_invalid(self):
         """Test that invalid license names are skipped with warning."""
@@ -912,10 +1010,12 @@ class TestLicenseRefSanitization:
             "Apache-2.0",
         ]
 
-        result = _convert_backend_licenses_to_spdx_expression(licenses)
+        expression, extracted_infos = _convert_backend_licenses_to_spdx_expression(licenses)
 
         # Should only have the valid licenses
-        assert result == "MIT OR Apache-2.0"
+        assert expression == "MIT OR Apache-2.0"
+        # No extracted infos since invalid license was skipped
+        assert len(extracted_infos) == 0
 
     def test_convert_expression_mixed_types(self):
         """Test conversion with mixed string and dict licenses."""
@@ -927,9 +1027,12 @@ class TestLicenseRefSanitization:
             "Apache-2.0",
         ]
 
-        result = _convert_backend_licenses_to_spdx_expression(licenses)
+        expression, extracted_infos = _convert_backend_licenses_to_spdx_expression(licenses)
 
-        assert "MIT" in result
-        assert "LicenseRef-Proprietary-License-Company-X" in result
-        assert "Apache-2.0" in result
-        assert " OR " in result
+        assert "MIT" in expression
+        assert "LicenseRef-Proprietary-License-Company-X" in expression
+        assert "Apache-2.0" in expression
+        assert " OR " in expression
+        # Should have 1 ExtractedLicensingInfo for the custom license
+        assert len(extracted_infos) == 1
+        assert extracted_infos[0].license_id == "LicenseRef-Proprietary-License-Company-X"

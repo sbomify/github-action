@@ -1,7 +1,7 @@
 """SBOM augmentation with backend metadata using native libraries."""
 
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import requests
 from cyclonedx.model import AttachedText, ExternalReference, ExternalReferenceType, XsUri
@@ -14,7 +14,9 @@ from spdx_tools.spdx.model import (
     Document,
     ExternalPackageRef,
     ExternalPackageRefCategory,
+    ExtractedLicensingInfo,
 )
+from spdx_tools.spdx.parser.jsonlikedict.license_expression_parser import LicenseExpressionParser
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
@@ -411,9 +413,9 @@ def _sanitize_license_ref_id(name: str) -> str:
     return sanitized
 
 
-def _convert_backend_licenses_to_spdx_expression(licenses: list) -> str:
+def _convert_backend_licenses_to_spdx_expression(licenses: list) -> Tuple[str, List[ExtractedLicensingInfo]]:
     """
-    Convert backend license data to SPDX license expression.
+    Convert backend license data to SPDX license expression and ExtractedLicensingInfo objects.
 
     When multiple licenses are provided, they are combined with OR to indicate
     alternatives (dual/multi-licensing), not requirements.
@@ -422,9 +424,10 @@ def _convert_backend_licenses_to_spdx_expression(licenses: list) -> str:
         licenses: List of license data from backend (strings or dicts)
 
     Returns:
-        SPDX license expression string
+        Tuple of (SPDX license expression string, list of ExtractedLicensingInfo objects for custom licenses)
     """
     spdx_parts = []
+    extracted_licensing_infos = []
     seen_refs = set()  # Track custom license refs to avoid duplicates
 
     for license_item in licenses:
@@ -448,15 +451,28 @@ def _convert_backend_licenses_to_spdx_expression(licenses: list) -> str:
                 seen_refs.add(license_ref)
                 spdx_parts.append(license_ref)
                 logger.debug(f"Created SPDX license reference: {license_ref} for '{original_name}'")
+
+                # Create ExtractedLicensingInfo object for this custom license
+                extracted_info = ExtractedLicensingInfo(
+                    license_id=license_ref,
+                    extracted_text=license_item.get("text", "License text not provided"),
+                    license_name=original_name,
+                    cross_references=[license_item["url"]] if license_item.get("url") else [],
+                    comment=license_item.get("comment"),
+                )
+                extracted_licensing_infos.append(extracted_info)
+                logger.debug(f"Created ExtractedLicensingInfo for {license_ref}")
+
             except ValueError as e:
                 logger.warning(f"Skipping invalid license name '{original_name}': {e}")
                 continue
 
     if not spdx_parts:
-        return "NOASSERTION"
+        return "NOASSERTION", []
 
     # Join with OR (common pattern for multi-licensing - user can choose any)
-    return " OR ".join(spdx_parts) if len(spdx_parts) > 1 else spdx_parts[0]
+    expression = " OR ".join(spdx_parts) if len(spdx_parts) > 1 else spdx_parts[0]
+    return expression, extracted_licensing_infos
 
 
 def augment_spdx_sbom(
@@ -562,23 +578,46 @@ def augment_spdx_sbom(
     # Apply license information
     if "licenses" in augmentation_data and augmentation_data["licenses"]:
         licenses_data = augmentation_data["licenses"]
-        logger.info(f"Adding {len(licenses_data)} license(s) to SPDX packages")
+        logger.info(f"Adding {len(licenses_data)} license(s) to SPDX main package")
 
-        # Convert backend licenses to SPDX format
-        spdx_license_expression = _convert_backend_licenses_to_spdx_expression(licenses_data)
+        # Convert backend licenses to SPDX format and get ExtractedLicensingInfo objects
+        spdx_license_expression, extracted_licensing_infos = _convert_backend_licenses_to_spdx_expression(licenses_data)
 
-        # TODO: Add extracted licensing info for custom licenses to document
-        # This requires proper handling of ExtractedLicensingInfo objects
+        # Add extracted licensing info for custom licenses to document
+        if extracted_licensing_infos:
+            # Add to document's extracted_licensing_info list
+            document.extracted_licensing_info.extend(extracted_licensing_infos)
+            logger.info(
+                f"Added {len(extracted_licensing_infos)} custom license(s) to document extracted_licensing_info"
+            )
 
         # Apply to main package only (dependencies have their own licenses)
         if document.packages:
             main_package = document.packages[0]
-            # Add license information to comments instead of trying to parse complex expressions
-            # TODO: Implement proper SPDX license expression parsing
-            if main_package.license_comment:
-                main_package.license_comment += f" | Backend licenses: {spdx_license_expression}"
+
+            # Set license_declared with the SPDX expression
+            # Use license_declared as this represents what the package declares in its metadata
+            if not main_package.license_declared or override_sbom_metadata:
+                # Parse the SPDX expression string into a proper Expression object
+                license_parser = LicenseExpressionParser()
+                try:
+                    parsed_expression = license_parser.parse_license_expression(spdx_license_expression)
+                    main_package.license_declared = parsed_expression
+                    logger.info(f"Set package license_declared: {spdx_license_expression}")
+                except Exception as e:
+                    # If parsing fails, add to comment instead
+                    logger.warning(f"Failed to parse license expression '{spdx_license_expression}': {e}")
+                    if main_package.license_comment:
+                        main_package.license_comment += f" | Backend licenses: {spdx_license_expression}"
+                    else:
+                        main_package.license_comment = f"Backend licenses: {spdx_license_expression}"
             else:
-                main_package.license_comment = f"Backend licenses: {spdx_license_expression}"
+                # If there's already a declared license and we're not overriding, add to comment
+                logger.info("Package already has license_declared, adding backend licenses to comment")
+                if main_package.license_comment:
+                    main_package.license_comment += f" | Backend licenses: {spdx_license_expression}"
+                else:
+                    main_package.license_comment = f"Backend licenses: {spdx_license_expression}"
 
     # Apply component name override
     if component_name:
