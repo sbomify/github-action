@@ -35,6 +35,7 @@ from ..generation import (
     process_lock_file,
     run_trivy_docker_image,
 )
+from ..http_client import get_default_headers
 from ..logging_config import logger
 from ..serialization import serialize_cyclonedx_bom
 
@@ -706,9 +707,7 @@ def _check_release_exists(config: "Config", product_id: str, version: str) -> bo
         APIError: If API call fails
     """
     url = config.api_base_url + "/api/v1/releases"
-    headers = {
-        "Authorization": f"Bearer {config.token}",
-    }
+    headers = get_default_headers(config.token)
 
     params = {"product_id": product_id, "version": version}
 
@@ -764,10 +763,7 @@ def _create_release(config: "Config", product_id: str, version: str) -> str:
         APIError: If API call fails
     """
     url = config.api_base_url + "/api/v1/releases"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {config.token}",
-    }
+    headers = get_default_headers(config.token, content_type="application/json")
 
     payload = {
         "product_id": product_id,
@@ -829,10 +825,7 @@ def _tag_sbom_with_release(config: "Config", sbom_id: str, release_id: str) -> N
         APIError: If API call fails
     """
     url = config.api_base_url + f"/api/v1/releases/{release_id}/artifacts"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {config.token}",
-    }
+    headers = get_default_headers(config.token, content_type="application/json")
 
     payload = {"sbom_id": sbom_id}
 
@@ -876,9 +869,7 @@ def _get_release_id(config: "Config", product_id: str, version: str) -> Optional
         APIError: If API call fails
     """
     url = config.api_base_url + "/api/v1/releases"
-    headers = {
-        "Authorization": f"Bearer {config.token}",
-    }
+    headers = get_default_headers(config.token)
 
     params = {"product_id": product_id, "version": version}
 
@@ -1198,10 +1189,7 @@ def main() -> None:
 
             # Execute the POST request to upload the SBOM file
             url = config.api_base_url + f"/api/v1/sboms/artifact/{FORMAT}/{config.component_id}"
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {config.token}",
-            }
+            headers = get_default_headers(config.token, content_type="application/json")
 
             with Path(config.output_file).open() as f:
                 sbom_data = f.read()
@@ -1464,9 +1452,7 @@ def _get_release_details(config: "Config", product_id: str, version: str) -> Opt
         APIError: If API call fails
     """
     url = config.api_base_url + "/api/v1/releases"
-    headers = {
-        "Authorization": f"Bearer {config.token}",
-    }
+    headers = get_default_headers(config.token)
 
     params = {"product_id": product_id, "version": version}
 

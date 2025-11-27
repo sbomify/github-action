@@ -19,7 +19,6 @@ from spdx_tools.spdx.model import (
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 
 from sbomify_action.enrichment import (
-    USER_AGENT,
     _enrich_cyclonedx_component,
     _enrich_spdx_package,
     _extract_components_from_cyclonedx,
@@ -28,6 +27,7 @@ from sbomify_action.enrichment import (
     enrich_sbom_with_ecosystems,
     get_cache_stats,
 )
+from sbomify_action.http_client import USER_AGENT
 
 
 class TestLibraryBasedEnrichment:

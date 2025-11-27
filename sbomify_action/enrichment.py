@@ -22,32 +22,10 @@ from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
 from .exceptions import SBOMValidationError
+from .http_client import USER_AGENT
 from .logging_config import logger
 from .serialization import serialize_cyclonedx_bom
 
-
-def _get_package_version() -> str:
-    """Get the package version for User-Agent header."""
-    try:
-        from importlib.metadata import version
-
-        return version("sbomify-github-action")
-    except Exception:
-        try:
-            from pathlib import Path
-
-            import tomllib
-
-            pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
-            if pyproject_path.exists():
-                with open(pyproject_path, "rb") as f:
-                    pyproject_data = tomllib.load(f)
-                return pyproject_data.get("project", {}).get("version", "unknown")
-        except Exception:
-            return "unknown"
-
-
-USER_AGENT = f"sbomify-github-action/{_get_package_version()} (hello@sbomify.com)"
 ECOSYSTEMS_API_BASE = "https://packages.ecosyste.ms/api/v1"
 
 
