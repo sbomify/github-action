@@ -181,6 +181,38 @@ def _add_sbomify_tool_to_cyclonedx(bom: Bom) -> None:
     for tool in normalized_tools:
         bom.metadata.tools.tools.add(tool)
 
+    # Also normalize components in metadata.tools
+    # During serialization, these get converted to Tools and must have consistent vendor types
+    existing_components = list(bom.metadata.tools.components)
+    normalized_components = []
+
+    for component in existing_components:
+        if component.supplier is not None and isinstance(component.supplier, str):
+            # Create new component with OrganizationalEntity supplier
+            normalized_component = Component(
+                type=component.type,
+                name=component.name,
+                version=component.version,
+                supplier=OrganizationalEntity(name=component.supplier),
+            )
+            # Copy other attributes
+            if component.external_references:
+                normalized_component.external_references = component.external_references
+            if component.licenses:
+                normalized_component.licenses = component.licenses
+            normalized_components.append(normalized_component)
+        else:
+            # Keep component as is if supplier is already OrganizationalEntity or None
+            normalized_components.append(component)
+
+    # Clear and rebuild the components set with normalized components
+    bom.metadata.tools.components.clear()
+    for component in normalized_components:
+        bom.metadata.tools.components.add(component)
+
+    # Note: services would also need normalization if they have string suppliers,
+    # but in practice, cyclonedx-py doesn't generate services in metadata.tools
+
     # Create sbomify tool entry
     sbomify_vendor = OrganizationalEntity(name=SBOMIFY_VENDOR_NAME)
     sbomify_tool = Tool(vendor=sbomify_vendor, name=SBOMIFY_TOOL_NAME, version=SBOMIFY_VERSION)
