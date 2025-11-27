@@ -182,10 +182,31 @@ class Config:
         Raises:
             ConfigurationError: If configuration is invalid
         """
-        if not self.token:
-            raise ConfigurationError("sbomify API token is not defined")
-        if not self.component_id:
-            raise ConfigurationError("Component ID is not defined")
+        # TOKEN and COMPONENT_ID are only required if uploading, augmenting, or managing releases
+        # (augmentation and release management require API access)
+        requires_api_access = self.upload or self.augment or self.product_releases
+
+        if requires_api_access:
+            if not self.token:
+                operations = []
+                if self.upload:
+                    operations.append("UPLOAD=true")
+                if self.augment:
+                    operations.append("AUGMENT=true")
+                if self.product_releases:
+                    operations.append("PRODUCT_RELEASE is set")
+                reason = " or ".join(operations)
+                raise ConfigurationError(f"sbomify API token is not defined (required when {reason})")
+            if not self.component_id:
+                operations = []
+                if self.upload:
+                    operations.append("UPLOAD=true")
+                if self.augment:
+                    operations.append("AUGMENT=true")
+                if self.product_releases:
+                    operations.append("PRODUCT_RELEASE is set")
+                reason = " or ".join(operations)
+                raise ConfigurationError(f"Component ID is not defined (required when {reason})")
 
         inputs = [self.sbom_file, self.lock_file, self.docker_image]
         if sum(bool(x) for x in inputs) > 1:
