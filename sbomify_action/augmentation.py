@@ -702,7 +702,10 @@ def augment_sbom_from_file(
                 raise SBOMValidationError("CycloneDX SBOM is missing required 'specVersion' field")
 
             # Parse as CycloneDX
-            bom = Bom.from_json(data)
+            try:
+                bom = Bom.from_json(data)
+            except Exception as e:
+                raise SBOMValidationError(f"Failed to parse CycloneDX SBOM: {e}")
             logger.info("Processing CycloneDX SBOM")
 
             # Augment

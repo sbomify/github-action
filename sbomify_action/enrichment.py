@@ -632,7 +632,10 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
             raise SBOMValidationError("CycloneDX SBOM is missing required 'specVersion' field")
 
         # Parse as CycloneDX
-        bom = Bom.from_json(data)
+        try:
+            bom = Bom.from_json(data)
+        except Exception as e:
+            raise SBOMValidationError(f"Failed to parse CycloneDX SBOM: {e}")
 
         # Extract components
         components = _extract_components_from_cyclonedx(bom)
