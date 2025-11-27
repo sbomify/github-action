@@ -14,6 +14,30 @@ from sbomify_action.exceptions import (
 )
 
 
+def clear_sentry_state():
+    """Helper to completely clear Sentry state between tests."""
+    # Close the current client
+    sentry_sdk.get_client().close()
+    # Initialize with minimal config to reset state
+    sentry_sdk.init()
+    # Clear all scopes
+    try:
+        # Try to clear global scope (SDK v2.0+)
+        sentry_sdk.get_global_scope().clear()
+    except (AttributeError, TypeError):
+        pass
+    try:
+        # Try to clear current scope
+        sentry_sdk.Scope.get_current_scope().clear()
+    except (AttributeError, TypeError):
+        pass
+    try:
+        # Try to clear isolation scope
+        sentry_sdk.get_isolation_scope().clear()
+    except (AttributeError, TypeError):
+        pass
+
+
 class TestSentryFiltering(unittest.TestCase):
     def test_sentry_filters_validation_errors(self):
         """
@@ -94,6 +118,7 @@ class TestSentryFiltering(unittest.TestCase):
     @patch.dict(
         os.environ,
         {
+            "GITHUB_ACTIONS": "true",
             "GITHUB_REPOSITORY": "owner/test-repo",
             "GITHUB_WORKFLOW": "Test Workflow",
             "GITHUB_ACTION": "test-action",
@@ -103,15 +128,14 @@ class TestSentryFiltering(unittest.TestCase):
             "GITHUB_RUN_NUMBER": "42",
             "GITHUB_REPOSITORY_VISIBILITY": "public",
         },
+        clear=True,
     )
     def test_sentry_github_context_public_repo(self):
         """
         Test that GitHub context is properly set in Sentry for public repos.
         This ensures we can track which repo and workflow triggered errors.
         """
-        # Clear any existing Sentry client
-        sentry_sdk.get_client().close()
-
+        clear_sentry_state()
         initialize_sentry()
 
         client = sentry_sdk.get_client()
@@ -166,6 +190,7 @@ class TestSentryFiltering(unittest.TestCase):
     @patch.dict(
         os.environ,
         {
+            "GITHUB_ACTIONS": "true",
             "GITHUB_REPOSITORY": "owner/private-repo",
             "GITHUB_WORKFLOW": "Secret Workflow",
             "GITHUB_ACTION": "secret-action",
@@ -175,15 +200,14 @@ class TestSentryFiltering(unittest.TestCase):
             "GITHUB_RUN_NUMBER": "42",
             "GITHUB_REPOSITORY_VISIBILITY": "private",
         },
+        clear=True,
     )
     def test_sentry_github_context_private_repo(self):
         """
         Test that GitHub context is NOT sent for private repos (privacy protection).
         This ensures sensitive repo names, workflows, and branches aren't leaked.
         """
-        # Clear any existing Sentry client
-        sentry_sdk.get_client().close()
-
+        clear_sentry_state()
         initialize_sentry()
 
         client = sentry_sdk.get_client()
@@ -236,8 +260,7 @@ class TestSentryFiltering(unittest.TestCase):
         Test that GitHub context is NOT sent when running outside GitHub Actions.
         This handles local runs, Bitbucket Pipelines, GitLab CI, etc.
         """
-        # Clear any existing Sentry client
-        sentry_sdk.get_client().close()
+        clear_sentry_state()
 
         # Initialize without any GitHub environment variables
         with patch.dict(os.environ, {}, clear=True):
@@ -302,14 +325,13 @@ class TestSentryFiltering(unittest.TestCase):
             "CI_PIPELINE_ID": "12345",
             "CI_JOB_NAME": "test-job",
         },
+        clear=True,
     )
     def test_sentry_gitlab_public_project(self):
         """
         Test that GitLab CI context is properly set for public projects.
         """
-        # Clear any existing Sentry client
-        sentry_sdk.get_client().close()
-
+        clear_sentry_state()
         initialize_sentry()
 
         client = sentry_sdk.get_client()
@@ -364,14 +386,13 @@ class TestSentryFiltering(unittest.TestCase):
             "CI_PROJECT_VISIBILITY": "private",
             "CI_COMMIT_REF_NAME": "feature/secret",
         },
+        clear=True,
     )
     def test_sentry_gitlab_private_project(self):
         """
         Test that GitLab CI context is NOT sent for private projects.
         """
-        # Clear any existing Sentry client
-        sentry_sdk.get_client().close()
-
+        clear_sentry_state()
         initialize_sentry()
 
         client = sentry_sdk.get_client()
@@ -414,15 +435,14 @@ class TestSentryFiltering(unittest.TestCase):
             "BITBUCKET_BRANCH": "main",
             "BITBUCKET_COMMIT": "abc123def456789",
         },
+        clear=True,
     )
     def test_sentry_bitbucket_pipelines(self):
         """
         Test that Bitbucket Pipelines context is NOT sent (no visibility API).
         For privacy, we treat all Bitbucket repos as private by default.
         """
-        # Clear any existing Sentry client
-        sentry_sdk.get_client().close()
-
+        clear_sentry_state()
         initialize_sentry()
 
         client = sentry_sdk.get_client()
@@ -457,52 +477,37 @@ class TestSentryFiltering(unittest.TestCase):
         ci_context = contexts.get("ci", {})
         self.assertEqual(ci_context, {}, "No CI context should be sent for Bitbucket (no visibility API)")
 
-    @patch.dict(os.environ, {"TELEMETRY": "false"})
+    @patch.dict(os.environ, {"TELEMETRY": "false"}, clear=True)
     def test_sentry_telemetry_disabled(self):
         """
         Test that Sentry can be completely disabled via TELEMETRY=false.
         This gives users full control over telemetry.
         """
-        # Clear any existing Sentry client
+        # Close any existing Sentry client and create a fresh one
         sentry_sdk.get_client().close()
+        # Force creation of a new disabled client
+        sentry_sdk.init()
 
-        # Get the client before initialization to check if it's empty
+        # Get the initial state
         client_before = sentry_sdk.get_client()
-        dsn_before = client_before.options.get("dsn") if client_before else None
+        release_before = client_before.options.get("release")
 
+        # This should return early without initializing Sentry
         initialize_sentry()
 
-        # Get the client after initialization
+        # Get the client after (should be same/unchanged)
         client_after = sentry_sdk.get_client()
-        dsn_after = client_after.options.get("dsn") if client_after else None
+        release_after = client_after.options.get("release")
 
-        # Verify Sentry was not initialized (DSN should remain unchanged)
-        self.assertEqual(dsn_before, dsn_after, "Sentry should not be initialized when telemetry is disabled")
+        # Verify the release was not changed (telemetry should not have initialized)
+        self.assertEqual(release_before, release_after, "Release should not change when telemetry is disabled")
 
-        # Try to capture an exception - it should not be sent
-        captured_event = None
-
-        def capture_event(event, hint):
-            nonlocal captured_event
-            captured_event = event
-            return event
-
-        if client_after and client_after.options.get("before_send"):
-            client_after.options["before_send"] = capture_event
-
-        try:
-            raise SBOMGenerationError("Test exception with telemetry disabled")
-        except Exception:
-            sentry_sdk.capture_exception()
-
-        # Event should not be captured (or if captured, DSN was not initialized)
-        if captured_event:
-            # If somehow an event was captured, it shouldn't have our release set
-            self.assertNotEqual(
-                client_after.options.get("release"),
-                f"sbomify-github-action@{SBOMIFY_VERSION}",
-                "Release should not be set when telemetry is disabled",
-            )
+        # Verify the release is not our custom release string
+        self.assertNotEqual(
+            release_after,
+            f"sbomify-github-action@{SBOMIFY_VERSION}",
+            "Custom release should not be set when telemetry is disabled",
+        )
 
 
 if __name__ == "__main__":
