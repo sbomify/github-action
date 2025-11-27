@@ -1,7 +1,7 @@
 [project]
 name = "sbomify-github-action"
 version = "0.7.0"
-description = "GitHub Actions module for generating, augmenting and distributing SBOMs"
+description = "GitHub Actions module for generating, augmenting, enriching and distributing SBOMs"
 authors = [{ name = "sbomify", email = "hello@sbomify.com" }]
 requires-python = ">=3.10"
 readme = "README.md"
