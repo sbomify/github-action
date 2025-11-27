@@ -615,6 +615,44 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
         if spec_version is None:
             raise SBOMValidationError("CycloneDX SBOM is missing required 'specVersion' field")
 
+        # Workaround for CycloneDX library deserialization bug with tools
+        # When tools are serialized as legacy array format, vendor dicts aren't deserialized properly
+        # This causes "unhashable type: 'dict'" errors during parsing
+        # Convert legacy array format to modern components format for 1.5+
+        if "metadata" in data and "tools" in data["metadata"]:
+            tools_data = data["metadata"]["tools"]
+
+            # If tools is a list (legacy format) and we're using spec 1.5+, convert to modern format
+            if isinstance(tools_data, list):
+                # For CycloneDX 1.5+, convert to object format with components
+                # For 1.4 and earlier, the array format is standard and should work
+                spec_version_parts = spec_version.split(".")
+                major = int(spec_version_parts[0]) if len(spec_version_parts) > 0 else 1
+                minor = int(spec_version_parts[1]) if len(spec_version_parts) > 1 else 0
+                is_v15_or_later = (major > 1) or (major == 1 and minor >= 5)
+
+                if is_v15_or_later:
+                    logger.debug(
+                        f"Converting {len(tools_data)} tools from legacy array to components format for spec {spec_version}"
+                    )
+                    # In modern format (1.5+), tools go in the components array
+                    # Components use 'manufacturer' instead of 'vendor', so we need to rename the field
+                    components = []
+                    for tool_data in tools_data:
+                        component_data = tool_data.copy()
+                        # Rename vendor -> manufacturer for components
+                        if "vendor" in component_data:
+                            component_data["manufacturer"] = component_data.pop("vendor")
+                        # Ensure type is set (required for components)
+                        if "type" not in component_data:
+                            component_data["type"] = "application"
+                        components.append(component_data)
+
+                    data["metadata"]["tools"] = {"components": components, "services": []}
+                else:
+                    # For 1.4 and earlier, keep the array format but ensure vendor dicts are properly structured
+                    logger.debug(f"Keeping legacy array format for spec {spec_version}")
+
         # Parse as CycloneDX
         try:
             bom = Bom.from_json(data)
