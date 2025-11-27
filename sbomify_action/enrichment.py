@@ -17,6 +17,7 @@ from spdx_tools.spdx.model import (
     ExternalPackageRefCategory,
     Package,
 )
+from spdx_tools.spdx.parser.jsonlikedict.license_expression_parser import LicenseExpressionParser
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
@@ -374,23 +375,37 @@ def _enrich_spdx_package(package: Package, metadata: Optional[Dict[str, Any]]) -
             added_fields.append("downloadLocation")
 
     # Add licenses (native SPDX field)
-    # Note: SPDX license expressions are complex and require proper parsing
-    # For now, we'll add license information via comments/descriptions
-    # TODO: Implement proper SPDX license expression handling
-    if metadata.get("normalized_licenses") or metadata.get("licenses"):
-        # Add license information to the package comment field instead
-        if metadata.get("normalized_licenses"):
-            license_info = ", ".join(metadata["normalized_licenses"])
-        else:
-            license_info = str(metadata.get("licenses", ""))
-
-        if license_info:
-            # Append to license_comment if it exists, otherwise create it
-            if package.license_comment:
-                package.license_comment += f" | Licenses from ecosyste.ms: {license_info}"
+    # Use proper SPDX license expression handling with the spdx-tools library
+    if not package.license_declared:
+        if metadata.get("normalized_licenses") or metadata.get("licenses"):
+            # Prefer normalized_licenses (array of SPDX identifiers)
+            if metadata.get("normalized_licenses"):
+                licenses = metadata["normalized_licenses"]
+                # Build SPDX license expression from array
+                # If multiple licenses, join with OR operator
+                if len(licenses) == 1:
+                    license_expression = licenses[0]
+                else:
+                    license_expression = " OR ".join(licenses)
             else:
-                package.license_comment = f"Licenses from ecosyste.ms: {license_info}"
-            added_fields.append(f"license comment ({license_info})")
+                # Fallback to licenses string field
+                license_expression = str(metadata.get("licenses", ""))
+
+            if license_expression:
+                # Parse and set the license expression using spdx-tools parser
+                license_parser = LicenseExpressionParser()
+                try:
+                    parsed_expression = license_parser.parse_license_expression(license_expression)
+                    package.license_declared = parsed_expression
+                    added_fields.append(f"license_declared ({license_expression})")
+                except Exception as e:
+                    # If parsing fails, add to license_comment instead
+                    logger.warning(f"Failed to parse license expression '{license_expression}': {e}")
+                    if package.license_comment:
+                        package.license_comment += f" | Licenses from ecosyste.ms: {license_expression}"
+                    else:
+                        package.license_comment = f"Licenses from ecosyste.ms: {license_expression}"
+                    added_fields.append(f"license_comment ({license_expression})")
 
     # Add source info (native SPDX field) - include repository URL
     if not package.source_info and metadata.get("repository_url"):
@@ -564,7 +579,7 @@ def _enrich_spdx_document_with_metadata(
                 for field in added_fields:
                     if "description" in field:
                         stats["descriptions_added"] += 1
-                    elif "license" in field:
+                    elif "license_declared" in field or "license_comment" in field:
                         stats["licenses_added"] += 1
                     elif "homepage" in field:
                         stats["homepages_added"] += 1

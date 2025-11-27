@@ -96,6 +96,101 @@ class TestLibraryBasedEnrichment:
         assert "description" in added_fields
         assert "homepage" in added_fields
 
+    def test_spdx_license_declared_with_single_license(self, sample_metadata):
+        """Test that license_declared is properly set using SPDX license expression parser for single license."""
+        # Create a package with no license declared (None by default)
+        package = Package(
+            spdx_id="SPDXRef-django",
+            name="django",
+            download_location="NOASSERTION",
+            version="5.1",
+        )
+        # By default, license_declared is None which triggers enrichment
+
+        # Enrich it with single license
+        added_fields = _enrich_spdx_package(package, sample_metadata)
+
+        # Verify license_declared was set properly using the parser
+        assert package.license_declared is not None
+        assert "BSD-3-Clause" in str(package.license_declared)
+        assert "license_declared" in " ".join(added_fields)
+
+    def test_spdx_license_declared_with_multiple_licenses(self):
+        """Test that license_declared handles multiple licenses with OR operator."""
+        # Create metadata with multiple licenses
+        metadata = {
+            "normalized_licenses": ["MIT", "Apache-2.0"],
+        }
+
+        package = Package(
+            spdx_id="SPDXRef-test",
+            name="test",
+            download_location="NOASSERTION",
+            version="1.0",
+        )
+
+        # Enrich it
+        added_fields = _enrich_spdx_package(package, metadata)
+
+        # Verify license expression with OR
+        assert package.license_declared is not None
+        license_str = str(package.license_declared)
+        assert "MIT" in license_str
+        assert "Apache-2.0" in license_str
+        assert "OR" in license_str
+        assert "license_declared" in " ".join(added_fields)
+
+    def test_spdx_license_declared_fallback_to_comment(self):
+        """Test that invalid license expressions fall back to license_comment."""
+        # Create metadata with invalid license expression
+        metadata = {
+            "licenses": "This is not a valid SPDX expression!@#$",
+        }
+
+        package = Package(
+            spdx_id="SPDXRef-test",
+            name="test",
+            download_location="NOASSERTION",
+            version="1.0",
+        )
+
+        # Enrich it
+        added_fields = _enrich_spdx_package(package, metadata)
+
+        # Verify it fell back to license_comment
+        assert package.license_comment is not None
+        assert "ecosyste.ms" in package.license_comment
+        assert "license_comment" in " ".join(added_fields)
+
+    def test_spdx_license_declared_not_override_existing(self):
+        """Test that existing license_declared is not overridden."""
+        from spdx_tools.spdx.parser.jsonlikedict.license_expression_parser import LicenseExpressionParser
+
+        metadata = {
+            "normalized_licenses": ["MIT"],
+        }
+
+        package = Package(
+            spdx_id="SPDXRef-test",
+            name="test",
+            download_location="NOASSERTION",
+            version="1.0",
+        )
+
+        # Set existing license
+        license_parser = LicenseExpressionParser()
+        existing_license = license_parser.parse_license_expression("GPL-3.0-or-later")
+        package.license_declared = existing_license
+
+        # Enrich it
+        added_fields = _enrich_spdx_package(package, metadata)
+
+        # Verify existing license was preserved
+        assert "GPL-3.0" in str(package.license_declared)
+        assert "MIT" not in str(package.license_declared)
+        # License should not be in added fields since we didn't add it
+        assert not any("license" in field for field in added_fields)
+
 
 class TestSchemaVersionDifferences:
     """Test key differences between different schema versions."""
