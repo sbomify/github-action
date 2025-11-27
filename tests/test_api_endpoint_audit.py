@@ -8,6 +8,7 @@ updated SBOMIFY_PRODUCTION_API base URL.
 import unittest
 from unittest.mock import Mock, patch
 
+from sbomify_action.augmentation import fetch_backend_metadata
 from sbomify_action.cli.main import (
     SBOMIFY_PRODUCTION_API,
     Config,
@@ -16,7 +17,6 @@ from sbomify_action.cli.main import (
     _get_release_details,
     _get_release_id,
     _tag_sbom_with_release,
-    enrich_sbom_with_backend_metadata,
 )
 
 
@@ -128,24 +128,18 @@ class TestAPIEndpointAudit(unittest.TestCase):
         self.assertEqual(actual_url, expected_url)
         self.assertNotIn("/api/v1/api/v1", actual_url)
 
-    @patch("sbomify_action.cli.main.requests.get")
-    def test_enrich_sbom_metadata_endpoint(self, mock_get):
-        """Test enrich_sbom_with_backend_metadata API endpoint URL construction."""
+    @patch("requests.get")
+    def test_fetch_backend_metadata_endpoint(self, mock_get):
+        """Test fetch_backend_metadata API endpoint URL construction."""
         mock_response = Mock()
         mock_response.ok = True
-        mock_response.json.return_value = {"components": [], "vulnerabilities": [], "licenses": []}
+        mock_response.json.return_value = {"supplier": {}, "authors": [], "licenses": []}
         mock_get.return_value = mock_response
 
-        # Create a minimal SBOM structure for testing
-        from cyclonedx.model.bom import Bom
-        from cyclonedx.model.component import Component, ComponentType
-
-        bom = Bom()
-        component = Component(name="test-component", type=ComponentType.LIBRARY, bom_ref="test-ref")
-        bom.components.add(component)
-
         try:
-            enrich_sbom_with_backend_metadata("cyclonedx", {}, bom, self.config)
+            fetch_backend_metadata(
+                api_base_url=self.config.api_base_url, token=self.config.token, component_id=self.config.component_id
+            )
         except Exception:
             # We don't care if the function fails, we just want to check the URL
             pass

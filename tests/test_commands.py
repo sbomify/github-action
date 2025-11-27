@@ -2,14 +2,14 @@ import subprocess
 import unittest
 from unittest.mock import MagicMock, mock_open, patch
 
-from sbomify_action.cli.main import (
-    _process_python_lock_file,
-    process_lock_file,
-    run_command_with_json_output,
-)
 from sbomify_action.exceptions import (
     FileProcessingError,
     SBOMGenerationError,
+)
+from sbomify_action.generation import (
+    _process_python_lock_file,
+    process_lock_file,
+    run_command_with_json_output,
 )
 
 
@@ -69,7 +69,7 @@ class TestCommandExecution(unittest.TestCase):
 class TestLockFileProcessing(unittest.TestCase):
     """Test cases for lock file processing with mocking."""
 
-    @patch("sbomify_action.cli.main._process_python_lock_file")
+    @patch("sbomify_action.generation._process_python_lock_file")
     def test_process_lock_file_python_requirements(self, mock_process_python):
         """Test processing Python requirements.txt file."""
         test_file = "/path/to/requirements.txt"
@@ -78,7 +78,7 @@ class TestLockFileProcessing(unittest.TestCase):
 
         mock_process_python.assert_called_once_with(test_file, "requirements.txt")
 
-    @patch("sbomify_action.cli.main._process_python_lock_file")
+    @patch("sbomify_action.generation._process_python_lock_file")
     def test_process_lock_file_python_uv_lock(self, mock_process_python):
         """Test processing Python uv.lock file."""
         test_file = "/path/to/uv.lock"
@@ -87,7 +87,7 @@ class TestLockFileProcessing(unittest.TestCase):
 
         mock_process_python.assert_called_once_with(test_file, "uv.lock")
 
-    @patch("sbomify_action.cli.main.run_trivy_fs")
+    @patch("sbomify_action.generation.run_trivy_fs")
     def test_process_lock_file_rust_cargo(self, mock_trivy):
         """Test processing Rust Cargo.lock file."""
         test_file = "/path/to/Cargo.lock"
@@ -96,7 +96,7 @@ class TestLockFileProcessing(unittest.TestCase):
 
         mock_trivy.assert_called_once_with(lock_file=test_file, output_file="step_1.json")
 
-    @patch("sbomify_action.cli.main.run_trivy_fs")
+    @patch("sbomify_action.generation.run_trivy_fs")
     def test_process_lock_file_cpp_conan(self, mock_trivy):
         """Test processing C++ conan.lock file."""
         test_file = "/path/to/conan.lock"
@@ -114,7 +114,7 @@ class TestLockFileProcessing(unittest.TestCase):
 
         self.assertIn("not a recognized lock file type", str(cm.exception))
 
-    @patch("sbomify_action.cli.main.generate_sbom_from_python_lock_file")
+    @patch("sbomify_action.generation.generate_sbom_from_python_lock_file")
     def test_process_python_lock_file_requirements(self, mock_generate):
         """Test processing Python requirements.txt with mocking."""
         mock_generate.return_value = 0
@@ -127,7 +127,7 @@ class TestLockFileProcessing(unittest.TestCase):
             output_file="step_1.json",
         )
 
-    @patch("sbomify_action.cli.main.generate_sbom_from_python_lock_file")
+    @patch("sbomify_action.generation.generate_sbom_from_python_lock_file")
     def test_process_python_lock_file_requirements_legacy(self, mock_generate):
         """Test processing Python requirements.txt with mocking (legacy test updated from poetry)."""
         mock_generate.return_value = 0
@@ -140,7 +140,7 @@ class TestLockFileProcessing(unittest.TestCase):
             output_file="step_1.json",
         )
 
-    @patch("sbomify_action.cli.main.run_trivy_fs")
+    @patch("sbomify_action.generation.run_trivy_fs")
     def test_process_python_lock_file_uv_lock(self, mock_trivy):
         """Test processing Python uv.lock with Trivy."""
         _process_python_lock_file("/path/to/uv.lock", "uv.lock")
@@ -150,7 +150,7 @@ class TestLockFileProcessing(unittest.TestCase):
             output_file="step_1.json",
         )
 
-    @patch("sbomify_action.cli.main.generate_sbom_from_python_lock_file")
+    @patch("sbomify_action.generation.generate_sbom_from_python_lock_file")
     def test_process_python_lock_file_failure(self, mock_generate):
         """Test handling of SBOM generation failure."""
         mock_generate.return_value = 1  # Non-zero return code indicates failure

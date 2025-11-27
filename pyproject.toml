@@ -1,6 +1,6 @@
 [project]
 name = "sbomify-github-action"
-version = "0.6.0"
+version = "0.7.0"
 description = "GitHub Actions module for generating, augmenting and distributing SBOMs"
 authors = [{ name = "sbomify", email = "hello@sbomify.com" }]
 requires-python = ">=3.10"
@@ -9,6 +9,7 @@ dependencies = [
     "requests>=2.32.3,<3",
     "cyclonedx-bom>=6.1.1,<7",
     "sentry-sdk>=2.21.0,<3",
+    "spdx-tools>=0.8.3",
 ]
 
 [project.scripts]
@@ -37,6 +38,10 @@ build-backend = "hatchling.build"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "--cov=sbomify_action --cov-report=term-missing"
+filterwarnings = [
+    "ignore:.*component.author.*is deprecated.*:DeprecationWarning",
+    "ignore:The Component this BOM is describing.*has no defined dependencies.*:UserWarning",
+]
 
 [tool.ruff]
 line-length = 120
