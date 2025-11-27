@@ -20,6 +20,7 @@ from spdx_tools.spdx.parser.jsonlikedict.license_expression_parser import Licens
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
+from .http_client import get_default_headers
 from .logging_config import logger
 from .serialization import serialize_cyclonedx_bom
 
@@ -71,9 +72,7 @@ def fetch_backend_metadata(api_base_url: str, token: str, component_id: str) -> 
     from .exceptions import APIError
 
     url = f"{api_base_url}/api/v1/sboms/component/{component_id}/meta"
-    headers = {
-        "Authorization": f"Bearer {token}",
-    }
+    headers = get_default_headers(token)
 
     try:
         response = requests.get(url, headers=headers, timeout=60)
