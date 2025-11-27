@@ -21,6 +21,7 @@ from spdx_tools.spdx.parser.jsonlikedict.license_expression_parser import Licens
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
+from .exceptions import SBOMValidationError
 from .logging_config import logger
 from .serialization import serialize_cyclonedx_bom
 
@@ -625,8 +626,10 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
     # Detect and process based on format
     if data.get("bomFormat") == "CycloneDX":
         logger.info("Processing CycloneDX SBOM")
-        # Detect spec version for proper output serialization
-        spec_version = data.get("specVersion", "1.6")
+        # Validate required fields before processing
+        spec_version = data.get("specVersion")
+        if spec_version is None:
+            raise SBOMValidationError("CycloneDX SBOM is missing required 'specVersion' field")
 
         # Parse as CycloneDX
         bom = Bom.from_json(data)
