@@ -1362,7 +1362,9 @@ def _apply_sbom_version_override(sbom_file: str, config: "Config") -> None:
                 logger.info(f"Set component version from configuration: {config.component_version}")
 
                 # Serialize the BOM back to JSON using version-aware serializer
-                spec_version = original_json.get("specVersion", "1.6")
+                spec_version = original_json.get("specVersion")
+                if spec_version is None:
+                    raise SBOMValidationError("CycloneDX SBOM is missing required 'specVersion' field")
                 serialized = serialize_cyclonedx_bom(parsed_object, spec_version)
                 with Path(sbom_file).open("w") as f:
                     f.write(serialized)
@@ -1425,7 +1427,9 @@ def _apply_sbom_name_override(sbom_file: str, config: "Config") -> None:
                 logger.info(f"Overriding component name: '{existing_name}' -> '{config.component_name}'")
 
                 # Serialize the BOM back to JSON using version-aware serializer
-                spec_version = original_json.get("specVersion", "1.6")
+                spec_version = original_json.get("specVersion")
+                if spec_version is None:
+                    raise SBOMValidationError("CycloneDX SBOM is missing required 'specVersion' field")
                 serialized = serialize_cyclonedx_bom(parsed_object, spec_version)
                 with Path(sbom_file).open("w") as f:
                     f.write(serialized)
