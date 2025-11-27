@@ -136,6 +136,26 @@ You can use this tool in standalone mode, where you don't upload the final SBOM 
 
 **Note**: The API endpoints (`/api/v1/...`) are automatically appended to this base URL, so you should only provide the base domain.
 
+### `TELEMETRY` (true/false)
+
+**Optional** Controls whether error telemetry is sent to Sentry. Default: `true`
+
+**When to use `false`**: Disable telemetry completely if you prefer not to send any error reports.
+
+Set to `false`, `0`, `no`, `off`, or `disabled` to opt-out of telemetry.
+
+**Privacy Note**: When telemetry is enabled, we respect your privacy:
+- For **public repositories** (GitHub Actions, GitLab CI): We collect action version, repository name, workflow/pipeline name, and commit information to help debug issues
+- For **private repositories** (GitHub Actions, GitLab CI): We only collect the action version and platform - no repository names, workflow names, branch names, or commit information is sent
+- For **Bitbucket Pipelines**: We treat all repositories as private (Bitbucket doesn't expose visibility), so only the action version and platform are sent
+- For **local/unknown environments**: We only collect the action version and mark the platform as "unknown"
+
+**Example**:
+```yaml
+env:
+  TELEMETRY: 'false'
+```
+
 ## Compatibility Notes
 
 ### Format Support

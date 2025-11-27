@@ -405,8 +405,16 @@ def setup_dependencies() -> None:
 
 
 def initialize_sentry() -> None:
-    """Initialize Sentry for error tracking."""
-    # TODO: Make DSN configurable via environment variable
+    """Initialize Sentry for error tracking.
+
+    Can be disabled by setting TELEMETRY to 'false', '0', or 'no'.
+    """
+    # Allow users to opt-out of telemetry
+    telemetry_enabled = os.getenv("TELEMETRY", "true").lower()
+    if telemetry_enabled in ("false", "0", "no", "off", "disabled"):
+        logger.debug("Sentry telemetry disabled via TELEMETRY environment variable")
+        return
+
     sentry_dsn = os.getenv("SENTRY_DSN", "https://84e8d6d0a7d0872a4bba8add571a554c@sentry.vikpire.com/4")
 
     def before_send(event, hint):
@@ -428,7 +436,96 @@ def initialize_sentry() -> None:
         traces_sample_rate=1.0,
         profiles_sample_rate=1.0,
         before_send=before_send,
+        release=f"sbomify-github-action@{SBOMIFY_VERSION}",
     )
+
+    # Set the action version as a tag (always safe to send)
+    sentry_sdk.set_tag("action.version", SBOMIFY_VERSION)
+
+    # Detect CI/CD platform
+    is_github_actions = os.getenv("GITHUB_ACTIONS") == "true"
+    is_gitlab_ci = os.getenv("GITLAB_CI") == "true"
+    is_bitbucket = os.getenv("BITBUCKET_PIPELINE_UUID") is not None
+
+    # Determine if we should send context based on repository visibility
+    # GitHub Actions
+    if is_github_actions:
+        github_visibility = os.getenv("GITHUB_REPOSITORY_VISIBILITY", "").lower()
+        is_public_repo = github_visibility == "public"
+        sentry_sdk.set_tag("ci.platform", "github-actions")
+        sentry_sdk.set_tag("repo.public", str(is_public_repo))
+
+        if is_public_repo:
+            # Add GitHub context tags for public repos only
+            ci_context = {}
+            if repo := os.getenv("GITHUB_REPOSITORY"):
+                sentry_sdk.set_tag("ci.repository", repo)
+                ci_context["repository"] = repo
+            if workflow := os.getenv("GITHUB_WORKFLOW"):
+                sentry_sdk.set_tag("ci.workflow", workflow)
+                ci_context["workflow"] = workflow
+            if ref := os.getenv("GITHUB_REF"):
+                sentry_sdk.set_tag("ci.ref", ref)
+                ci_context["ref"] = ref
+            if sha := os.getenv("GITHUB_SHA"):
+                sentry_sdk.set_tag("ci.sha", sha[:7])
+                ci_context["sha"] = sha
+            if action := os.getenv("GITHUB_ACTION"):
+                ci_context["action"] = action
+            if run_id := os.getenv("GITHUB_RUN_ID"):
+                ci_context["run_id"] = run_id
+            if run_number := os.getenv("GITHUB_RUN_NUMBER"):
+                ci_context["run_number"] = run_number
+
+            if ci_context:
+                sentry_sdk.set_context("ci", ci_context)
+        else:
+            logger.debug("Skipping CI context for Sentry (private repository or visibility not set)")
+
+    # GitLab CI
+    elif is_gitlab_ci:
+        gitlab_visibility = os.getenv("CI_PROJECT_VISIBILITY", "").lower()
+        is_public_repo = gitlab_visibility == "public"
+        sentry_sdk.set_tag("ci.platform", "gitlab-ci")
+        sentry_sdk.set_tag("repo.public", str(is_public_repo))
+
+        if is_public_repo:
+            # Add GitLab context tags for public projects only
+            ci_context = {}
+            if project := os.getenv("CI_PROJECT_PATH"):
+                sentry_sdk.set_tag("ci.repository", project)
+                ci_context["project"] = project
+            if pipeline_source := os.getenv("CI_PIPELINE_SOURCE"):
+                sentry_sdk.set_tag("ci.pipeline_source", pipeline_source)
+                ci_context["pipeline_source"] = pipeline_source
+            if ref := os.getenv("CI_COMMIT_REF_NAME"):
+                sentry_sdk.set_tag("ci.ref", ref)
+                ci_context["ref"] = ref
+            if sha := os.getenv("CI_COMMIT_SHORT_SHA"):
+                sentry_sdk.set_tag("ci.sha", sha)
+                ci_context["sha"] = sha
+            if pipeline_id := os.getenv("CI_PIPELINE_ID"):
+                ci_context["pipeline_id"] = pipeline_id
+            if job_name := os.getenv("CI_JOB_NAME"):
+                ci_context["job_name"] = job_name
+
+            if ci_context:
+                sentry_sdk.set_context("ci", ci_context)
+        else:
+            logger.debug("Skipping CI context for Sentry (private repository or visibility not set)")
+
+    # Bitbucket Pipelines
+    elif is_bitbucket:
+        # Bitbucket doesn't expose repository visibility, so we treat all repos as private by default
+        # This is the safest approach for privacy
+        sentry_sdk.set_tag("ci.platform", "bitbucket-pipelines")
+        sentry_sdk.set_tag("repo.public", "False")
+        logger.debug("Skipping CI context for Sentry (Bitbucket repository visibility unknown, treating as private)")
+
+    # Unknown/Local environment
+    else:
+        sentry_sdk.set_tag("ci.platform", "unknown")
+        logger.debug("Skipping CI context for Sentry (not running in a recognized CI/CD platform)")
 
 
 def path_expansion(path: str) -> str:

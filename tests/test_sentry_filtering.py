@@ -1,10 +1,12 @@
 """Test Sentry error filtering for user vs system errors."""
 
+import os
 import unittest
+from unittest.mock import patch
 
 import sentry_sdk
 
-from sbomify_action.cli.main import initialize_sentry
+from sbomify_action.cli.main import SBOMIFY_VERSION, initialize_sentry
 from sbomify_action.exceptions import (
     ConfigurationError,
     SBOMGenerationError,
@@ -88,6 +90,419 @@ class TestSentryFiltering(unittest.TestCase):
             result = before_send(event, hint)
             self.assertIsNotNone(result, "SBOMGenerationError should be sent to Sentry")
             self.assertEqual(result, event)
+
+    @patch.dict(
+        os.environ,
+        {
+            "GITHUB_REPOSITORY": "owner/test-repo",
+            "GITHUB_WORKFLOW": "Test Workflow",
+            "GITHUB_ACTION": "test-action",
+            "GITHUB_REF": "refs/heads/main",
+            "GITHUB_SHA": "abc123def456789",
+            "GITHUB_RUN_ID": "12345",
+            "GITHUB_RUN_NUMBER": "42",
+            "GITHUB_REPOSITORY_VISIBILITY": "public",
+        },
+    )
+    def test_sentry_github_context_public_repo(self):
+        """
+        Test that GitHub context is properly set in Sentry for public repos.
+        This ensures we can track which repo and workflow triggered errors.
+        """
+        # Clear any existing Sentry client
+        sentry_sdk.get_client().close()
+
+        initialize_sentry()
+
+        client = sentry_sdk.get_client()
+
+        # Verify the release is set with the action version
+        self.assertEqual(client.options.get("release"), f"sbomify-github-action@{SBOMIFY_VERSION}")
+
+        # Capture an event to verify tags and context
+        captured_event = None
+
+        def capture_event(event, hint):
+            nonlocal captured_event
+            captured_event = event
+            return event
+
+        # Replace before_send to capture the event
+        original_before_send = client.options.get("before_send")
+        client.options["before_send"] = lambda event, hint: capture_event(
+            original_before_send(event, hint) if original_before_send else event, hint
+        )
+
+        # Trigger a test event
+        try:
+            raise SBOMGenerationError("Test exception for context verification")
+        except Exception:
+            sentry_sdk.capture_exception()
+
+        # Verify the event was captured
+        self.assertIsNotNone(captured_event, "Event should have been captured")
+
+        # Verify CI tags are present for public repos
+        tags = captured_event.get("tags", {})
+        self.assertEqual(tags.get("ci.repository"), "owner/test-repo")
+        self.assertEqual(tags.get("ci.workflow"), "Test Workflow")
+        self.assertEqual(tags.get("ci.ref"), "refs/heads/main")
+        self.assertEqual(tags.get("ci.sha"), "abc123d")  # Short SHA
+        self.assertEqual(tags.get("action.version"), SBOMIFY_VERSION)
+        self.assertEqual(tags.get("repo.public"), "True")
+        self.assertEqual(tags.get("ci.platform"), "github-actions")
+
+        # Verify CI context is present
+        contexts = captured_event.get("contexts", {})
+        ci_context = contexts.get("ci", {})
+        self.assertEqual(ci_context.get("repository"), "owner/test-repo")
+        self.assertEqual(ci_context.get("workflow"), "Test Workflow")
+        self.assertEqual(ci_context.get("action"), "test-action")
+        self.assertEqual(ci_context.get("ref"), "refs/heads/main")
+        self.assertEqual(ci_context.get("sha"), "abc123def456789")
+        self.assertEqual(ci_context.get("run_id"), "12345")
+        self.assertEqual(ci_context.get("run_number"), "42")
+
+    @patch.dict(
+        os.environ,
+        {
+            "GITHUB_REPOSITORY": "owner/private-repo",
+            "GITHUB_WORKFLOW": "Secret Workflow",
+            "GITHUB_ACTION": "secret-action",
+            "GITHUB_REF": "refs/heads/feature/secret-feature",
+            "GITHUB_SHA": "abc123def456789",
+            "GITHUB_RUN_ID": "12345",
+            "GITHUB_RUN_NUMBER": "42",
+            "GITHUB_REPOSITORY_VISIBILITY": "private",
+        },
+    )
+    def test_sentry_github_context_private_repo(self):
+        """
+        Test that GitHub context is NOT sent for private repos (privacy protection).
+        This ensures sensitive repo names, workflows, and branches aren't leaked.
+        """
+        # Clear any existing Sentry client
+        sentry_sdk.get_client().close()
+
+        initialize_sentry()
+
+        client = sentry_sdk.get_client()
+
+        # Verify the release is set with the action version (always safe)
+        self.assertEqual(client.options.get("release"), f"sbomify-github-action@{SBOMIFY_VERSION}")
+
+        # Capture an event to verify tags and context
+        captured_event = None
+
+        def capture_event(event, hint):
+            nonlocal captured_event
+            captured_event = event
+            return event
+
+        # Replace before_send to capture the event
+        original_before_send = client.options.get("before_send")
+        client.options["before_send"] = lambda event, hint: capture_event(
+            original_before_send(event, hint) if original_before_send else event, hint
+        )
+
+        # Trigger a test event
+        try:
+            raise SBOMGenerationError("Test exception for private repo")
+        except Exception:
+            sentry_sdk.capture_exception()
+
+        # Verify the event was captured
+        self.assertIsNotNone(captured_event, "Event should have been captured")
+
+        # Verify CI tags are NOT present for private repos
+        tags = captured_event.get("tags", {})
+        self.assertIsNone(tags.get("ci.repository"), "Private repo name should not be sent")
+        self.assertIsNone(tags.get("ci.workflow"), "Private workflow name should not be sent")
+        self.assertIsNone(tags.get("ci.ref"), "Private branch name should not be sent")
+        self.assertIsNone(tags.get("ci.sha"), "Private commit SHA should not be sent")
+        self.assertEqual(tags.get("repo.public"), "False")
+        self.assertEqual(tags.get("ci.platform"), "github-actions")
+
+        # Verify action version is still present (not sensitive)
+        self.assertEqual(tags.get("action.version"), SBOMIFY_VERSION)
+
+        # Verify CI context is NOT present
+        contexts = captured_event.get("contexts", {})
+        ci_context = contexts.get("ci", {})
+        self.assertEqual(ci_context, {}, "No CI context should be sent for private repos")
+
+    def test_sentry_non_github_environment(self):
+        """
+        Test that GitHub context is NOT sent when running outside GitHub Actions.
+        This handles local runs, Bitbucket Pipelines, GitLab CI, etc.
+        """
+        # Clear any existing Sentry client
+        sentry_sdk.get_client().close()
+
+        # Initialize without any GitHub environment variables
+        with patch.dict(os.environ, {}, clear=True):
+            initialize_sentry()
+
+            client = sentry_sdk.get_client()
+
+            # Verify the release is set with the action version (always safe)
+            self.assertEqual(client.options.get("release"), f"sbomify-github-action@{SBOMIFY_VERSION}")
+
+            # Capture an event to verify tags and context
+            captured_event = None
+
+            def capture_event(event, hint):
+                nonlocal captured_event
+                captured_event = event
+                return event
+
+            # Replace before_send to capture the event
+            original_before_send = client.options.get("before_send")
+            client.options["before_send"] = lambda event, hint: capture_event(
+                original_before_send(event, hint) if original_before_send else event, hint
+            )
+
+            # Trigger a test event
+            try:
+                raise SBOMGenerationError("Test exception outside GitHub Actions")
+            except Exception:
+                sentry_sdk.capture_exception()
+
+            # Verify the event was captured
+            self.assertIsNotNone(captured_event, "Event should have been captured")
+
+            # Verify CI tags are NOT present
+            tags = captured_event.get("tags", {})
+            self.assertIsNone(tags.get("ci.repository"), "Repo name should not be sent outside CI")
+            self.assertIsNone(tags.get("ci.workflow"), "Workflow name should not be sent outside CI")
+            self.assertIsNone(tags.get("ci.ref"), "Branch name should not be sent outside CI")
+            self.assertIsNone(tags.get("ci.sha"), "Commit SHA should not be sent outside CI")
+            self.assertIsNone(tags.get("repo.public"), "Public repo tag not set outside CI")
+
+            # CI platform should indicate unknown
+            self.assertEqual(tags.get("ci.platform"), "unknown")
+
+            # Verify action version is still present (not sensitive)
+            self.assertEqual(tags.get("action.version"), SBOMIFY_VERSION)
+
+            # Verify CI context is NOT present
+            contexts = captured_event.get("contexts", {})
+            ci_context = contexts.get("ci", {})
+            self.assertEqual(ci_context, {}, "No CI context should be sent outside CI/CD platforms")
+
+    @patch.dict(
+        os.environ,
+        {
+            "GITLAB_CI": "true",
+            "CI_PROJECT_PATH": "group/test-project",
+            "CI_PROJECT_VISIBILITY": "public",
+            "CI_PIPELINE_SOURCE": "push",
+            "CI_COMMIT_REF_NAME": "main",
+            "CI_COMMIT_SHORT_SHA": "abc123d",
+            "CI_PIPELINE_ID": "12345",
+            "CI_JOB_NAME": "test-job",
+        },
+    )
+    def test_sentry_gitlab_public_project(self):
+        """
+        Test that GitLab CI context is properly set for public projects.
+        """
+        # Clear any existing Sentry client
+        sentry_sdk.get_client().close()
+
+        initialize_sentry()
+
+        client = sentry_sdk.get_client()
+
+        # Verify the release is set with the action version
+        self.assertEqual(client.options.get("release"), f"sbomify-github-action@{SBOMIFY_VERSION}")
+
+        # Capture an event to verify tags and context
+        captured_event = None
+
+        def capture_event(event, hint):
+            nonlocal captured_event
+            captured_event = event
+            return event
+
+        original_before_send = client.options.get("before_send")
+        client.options["before_send"] = lambda event, hint: capture_event(
+            original_before_send(event, hint) if original_before_send else event, hint
+        )
+
+        try:
+            raise SBOMGenerationError("Test exception in GitLab CI")
+        except Exception:
+            sentry_sdk.capture_exception()
+
+        self.assertIsNotNone(captured_event, "Event should have been captured")
+
+        # Verify GitLab CI tags are present for public projects
+        tags = captured_event.get("tags", {})
+        self.assertEqual(tags.get("ci.repository"), "group/test-project")
+        self.assertEqual(tags.get("ci.pipeline_source"), "push")
+        self.assertEqual(tags.get("ci.ref"), "main")
+        self.assertEqual(tags.get("ci.sha"), "abc123d")
+        self.assertEqual(tags.get("repo.public"), "True")
+        self.assertEqual(tags.get("ci.platform"), "gitlab-ci")
+
+        # Verify CI context is present
+        contexts = captured_event.get("contexts", {})
+        ci_context = contexts.get("ci", {})
+        self.assertEqual(ci_context.get("project"), "group/test-project")
+        self.assertEqual(ci_context.get("pipeline_source"), "push")
+        self.assertEqual(ci_context.get("ref"), "main")
+        self.assertEqual(ci_context.get("sha"), "abc123d")
+        self.assertEqual(ci_context.get("pipeline_id"), "12345")
+        self.assertEqual(ci_context.get("job_name"), "test-job")
+
+    @patch.dict(
+        os.environ,
+        {
+            "GITLAB_CI": "true",
+            "CI_PROJECT_PATH": "group/private-project",
+            "CI_PROJECT_VISIBILITY": "private",
+            "CI_COMMIT_REF_NAME": "feature/secret",
+        },
+    )
+    def test_sentry_gitlab_private_project(self):
+        """
+        Test that GitLab CI context is NOT sent for private projects.
+        """
+        # Clear any existing Sentry client
+        sentry_sdk.get_client().close()
+
+        initialize_sentry()
+
+        client = sentry_sdk.get_client()
+        captured_event = None
+
+        def capture_event(event, hint):
+            nonlocal captured_event
+            captured_event = event
+            return event
+
+        original_before_send = client.options.get("before_send")
+        client.options["before_send"] = lambda event, hint: capture_event(
+            original_before_send(event, hint) if original_before_send else event, hint
+        )
+
+        try:
+            raise SBOMGenerationError("Test exception in private GitLab project")
+        except Exception:
+            sentry_sdk.capture_exception()
+
+        self.assertIsNotNone(captured_event, "Event should have been captured")
+
+        # Verify CI tags are NOT present for private projects
+        tags = captured_event.get("tags", {})
+        self.assertIsNone(tags.get("ci.repository"), "Private project name should not be sent")
+        self.assertIsNone(tags.get("ci.ref"), "Private branch name should not be sent")
+        self.assertEqual(tags.get("repo.public"), "False")
+        self.assertEqual(tags.get("ci.platform"), "gitlab-ci")
+
+        # Verify CI context is NOT present
+        contexts = captured_event.get("contexts", {})
+        ci_context = contexts.get("ci", {})
+        self.assertEqual(ci_context, {}, "No CI context should be sent for private projects")
+
+    @patch.dict(
+        os.environ,
+        {
+            "BITBUCKET_PIPELINE_UUID": "{12345678-1234-1234-1234-123456789012}",
+            "BITBUCKET_REPO_FULL_NAME": "owner/repo",
+            "BITBUCKET_BRANCH": "main",
+            "BITBUCKET_COMMIT": "abc123def456789",
+        },
+    )
+    def test_sentry_bitbucket_pipelines(self):
+        """
+        Test that Bitbucket Pipelines context is NOT sent (no visibility API).
+        For privacy, we treat all Bitbucket repos as private by default.
+        """
+        # Clear any existing Sentry client
+        sentry_sdk.get_client().close()
+
+        initialize_sentry()
+
+        client = sentry_sdk.get_client()
+        captured_event = None
+
+        def capture_event(event, hint):
+            nonlocal captured_event
+            captured_event = event
+            return event
+
+        original_before_send = client.options.get("before_send")
+        client.options["before_send"] = lambda event, hint: capture_event(
+            original_before_send(event, hint) if original_before_send else event, hint
+        )
+
+        try:
+            raise SBOMGenerationError("Test exception in Bitbucket Pipelines")
+        except Exception:
+            sentry_sdk.capture_exception()
+
+        self.assertIsNotNone(captured_event, "Event should have been captured")
+
+        # Verify CI tags are NOT present (treating as private by default)
+        tags = captured_event.get("tags", {})
+        self.assertIsNone(tags.get("ci.repository"), "Bitbucket repo name should not be sent")
+        self.assertIsNone(tags.get("ci.ref"), "Bitbucket branch name should not be sent")
+        self.assertEqual(tags.get("repo.public"), "False")
+        self.assertEqual(tags.get("ci.platform"), "bitbucket-pipelines")
+
+        # Verify CI context is NOT present
+        contexts = captured_event.get("contexts", {})
+        ci_context = contexts.get("ci", {})
+        self.assertEqual(ci_context, {}, "No CI context should be sent for Bitbucket (no visibility API)")
+
+    @patch.dict(os.environ, {"TELEMETRY": "false"})
+    def test_sentry_telemetry_disabled(self):
+        """
+        Test that Sentry can be completely disabled via TELEMETRY=false.
+        This gives users full control over telemetry.
+        """
+        # Clear any existing Sentry client
+        sentry_sdk.get_client().close()
+
+        # Get the client before initialization to check if it's empty
+        client_before = sentry_sdk.get_client()
+        dsn_before = client_before.options.get("dsn") if client_before else None
+
+        initialize_sentry()
+
+        # Get the client after initialization
+        client_after = sentry_sdk.get_client()
+        dsn_after = client_after.options.get("dsn") if client_after else None
+
+        # Verify Sentry was not initialized (DSN should remain unchanged)
+        self.assertEqual(dsn_before, dsn_after, "Sentry should not be initialized when telemetry is disabled")
+
+        # Try to capture an exception - it should not be sent
+        captured_event = None
+
+        def capture_event(event, hint):
+            nonlocal captured_event
+            captured_event = event
+            return event
+
+        if client_after and client_after.options.get("before_send"):
+            client_after.options["before_send"] = capture_event
+
+        try:
+            raise SBOMGenerationError("Test exception with telemetry disabled")
+        except Exception:
+            sentry_sdk.capture_exception()
+
+        # Event should not be captured (or if captured, DSN was not initialized)
+        if captured_event:
+            # If somehow an event was captured, it shouldn't have our release set
+            self.assertNotEqual(
+                client_after.options.get("release"),
+                f"sbomify-github-action@{SBOMIFY_VERSION}",
+                "Release should not be set when telemetry is disabled",
+            )
 
 
 if __name__ == "__main__":
