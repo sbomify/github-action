@@ -161,12 +161,24 @@ def _add_sbomify_tool_to_cyclonedx(bom: Bom) -> None:
     # Normalize existing tools to ensure vendor is properly typed
     # This prevents comparison errors when adding new tools with OrganizationalEntity vendors
     existing_tools = list(bom.metadata.tools.tools)
+    normalized_tools = []
+
     for tool in existing_tools:
         if tool.vendor is not None and isinstance(tool.vendor, str):
-            # Convert string vendor to OrganizationalEntity
-            bom.metadata.tools.tools.remove(tool)
-            tool.vendor = OrganizationalEntity(name=tool.vendor)
-            bom.metadata.tools.tools.add(tool)
+            # Create a new Tool with OrganizationalEntity vendor
+            normalized_tool = Tool(vendor=OrganizationalEntity(name=tool.vendor), name=tool.name, version=tool.version)
+            # Copy external references if any
+            if tool.external_references:
+                normalized_tool.external_references = tool.external_references
+            normalized_tools.append(normalized_tool)
+        else:
+            # Keep tool as is if vendor is already OrganizationalEntity or None
+            normalized_tools.append(tool)
+
+    # Clear and rebuild the tools set with normalized tools
+    bom.metadata.tools.tools.clear()
+    for tool in normalized_tools:
+        bom.metadata.tools.tools.add(tool)
 
     # Create sbomify tool entry
     sbomify_vendor = OrganizationalEntity(name=SBOMIFY_VENDOR_NAME)
