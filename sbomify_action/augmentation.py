@@ -299,14 +299,14 @@ def augment_cyclonedx_sbom(
         elif has_expressions or license_count > 1:
             # Combine all licenses into a single LicenseExpression
             # This is required when: (a) any license has operators, or (b) we have multiple licenses
+            # Note: We use OR because multiple licenses typically represent alternatives (dual-licensing),
+            # not requirements. E.g., "MIT OR Apache-2.0" means "choose one", not "satisfy both".
             license_parts = []
             for license_data in augmentation_data["licenses"]:
                 if isinstance(license_data, str):
-                    # Check if it needs parentheses (has operators)
-                    if any(op in license_data for op in SPDX_LOGICAL_OPERATORS):
-                        license_parts.append(f"({license_data})")
-                    else:
-                        license_parts.append(license_data)
+                    # Don't wrap in parentheses - trust the expression as provided by backend
+                    # If the backend sends "Apache-2.0 OR GPL-3.0", that's already a valid expression
+                    license_parts.append(license_data)
                 elif isinstance(license_data, dict):
                     # For custom licenses, use the name
                     license_name = license_data.get("name", "")
@@ -314,10 +314,12 @@ def augment_cyclonedx_sbom(
                         license_parts.append(license_name)
 
             if license_parts:
-                # Combine all licenses with AND
-                combined_expression = " AND ".join(license_parts)
+                # Combine all licenses with OR (common pattern for dual/multi-licensing)
+                combined_expression = " OR ".join(license_parts)
                 bom.metadata.licenses.add(LicenseExpression(value=combined_expression))
-                logger.debug(f"Added combined license expression: {combined_expression}")
+                logger.info(
+                    f"Combined {len(license_parts)} licenses with OR (treating as alternatives): {combined_expression}"
+                )
         else:
             # Single license, no operators - safe to use DisjunctiveLicense
             license_data = augmentation_data["licenses"][0]
@@ -361,6 +363,9 @@ def _convert_backend_licenses_to_spdx_expression(licenses: list) -> str:
     """
     Convert backend license data to SPDX license expression.
 
+    When multiple licenses are provided, they are combined with OR to indicate
+    alternatives (dual/multi-licensing), not requirements.
+
     Args:
         licenses: List of license data from backend (strings or dicts)
 
@@ -381,8 +386,8 @@ def _convert_backend_licenses_to_spdx_expression(licenses: list) -> str:
     if not spdx_parts:
         return "NOASSERTION"
 
-    # Join with AND (most restrictive approach)
-    return " AND ".join(spdx_parts) if len(spdx_parts) > 1 else spdx_parts[0]
+    # Join with OR (common pattern for multi-licensing - user can choose any)
+    return " OR ".join(spdx_parts) if len(spdx_parts) > 1 else spdx_parts[0]
 
 
 def augment_spdx_sbom(

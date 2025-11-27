@@ -91,12 +91,17 @@ class TestLicenseHandling:
         assert len(licenses) == 1
         assert "expression" in licenses[0]
 
-        # The expression should combine all three licenses with AND
+        # The expression should combine all three licenses with OR (treating as alternatives)
+        # This is correct for dual/multi-licensing: user can choose any of the offered licenses
         expression = licenses[0]["expression"]
         assert "MIT" in expression
         assert "Apache-2.0 OR GPL-3.0" in expression
         assert "Custom Proprietary License" in expression
-        assert " AND " in expression
+        assert " OR " in expression
+
+        # Verify the licenses are alternatives, not all required
+        # Should be: "MIT OR Apache-2.0 OR GPL-3.0 OR Custom Proprietary License"
+        # NOT: "MIT AND (Apache-2.0 OR GPL-3.0) AND Custom Proprietary License"
 
         # Verify it's a valid LicenseExpression object
         license_obj = list(enriched_bom.metadata.licenses)[0]
