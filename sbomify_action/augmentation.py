@@ -497,16 +497,19 @@ def augment_spdx_sbom(
             if supplier_creator not in document.creation_info.creators:
                 document.creation_info.creators.append(supplier_creator)
 
-        # Apply supplier to packages
-        for package in document.packages:
-            if supplier_name and (not package.supplier or override_sbom_metadata):
-                package.supplier = Actor(ActorType.ORGANIZATION, supplier_name)
+        # Apply supplier to main package only (first package represents the described component)
+        # Dependencies in the SBOM have their own suppliers, not the backend's supplier
+        if document.packages:
+            main_package = document.packages[0]
+
+            if supplier_name and (not main_package.supplier or override_sbom_metadata):
+                main_package.supplier = Actor(ActorType.ORGANIZATION, supplier_name)
 
             # Add homepage from supplier URLs
-            if supplier_data.get("url") and not package.homepage:
+            if supplier_data.get("url") and not main_package.homepage:
                 urls = supplier_data["url"] if isinstance(supplier_data["url"], list) else [supplier_data["url"]]
                 if urls and urls[0]:
-                    package.homepage = urls[0]
+                    main_package.homepage = urls[0]
 
             # Add external references for supplier info
             if supplier_data.get("url"):
@@ -514,7 +517,7 @@ def augment_spdx_sbom(
                 for url in urls:
                     if url:
                         # Check if this URL already exists
-                        existing_refs = [ref.locator for ref in package.external_references]
+                        existing_refs = [ref.locator for ref in main_package.external_references]
                         if url not in existing_refs:
                             ext_ref = ExternalPackageRef(
                                 category=ExternalPackageRefCategory.OTHER,
@@ -522,7 +525,7 @@ def augment_spdx_sbom(
                                 locator=url,
                                 comment="Supplier website",
                             )
-                            package.external_references.append(ext_ref)
+                            main_package.external_references.append(ext_ref)
 
     # Apply authors information
     if "authors" in augmentation_data and augmentation_data["authors"]:
@@ -541,19 +544,20 @@ def augment_spdx_sbom(
                 if person_creator not in document.creation_info.creators:
                     document.creation_info.creators.append(person_creator)
 
-        # Add first author as package originator
-        if authors_data:
+        # Add first author as originator for main package only
+        # Dependencies have their own originators, not the backend's authors
+        if authors_data and document.packages:
             first_author = authors_data[0]
             author_name = first_author.get("name")
             author_email = first_author.get("email", "")
 
             if author_name:
-                for package in document.packages:
-                    if not package.originator or override_sbom_metadata:
-                        originator_name = author_name
-                        if author_email:
-                            originator_name += f" ({author_email})"
-                        package.originator = Actor(ActorType.PERSON, originator_name)
+                main_package = document.packages[0]
+                if not main_package.originator or override_sbom_metadata:
+                    originator_name = author_name
+                    if author_email:
+                        originator_name += f" ({author_email})"
+                    main_package.originator = Actor(ActorType.PERSON, originator_name)
 
     # Apply license information
     if "licenses" in augmentation_data and augmentation_data["licenses"]:
@@ -566,14 +570,15 @@ def augment_spdx_sbom(
         # TODO: Add extracted licensing info for custom licenses to document
         # This requires proper handling of ExtractedLicensingInfo objects
 
-        # Apply to packages
-        for package in document.packages:
+        # Apply to main package only (dependencies have their own licenses)
+        if document.packages:
+            main_package = document.packages[0]
             # Add license information to comments instead of trying to parse complex expressions
             # TODO: Implement proper SPDX license expression parsing
-            if package.license_comment:
-                package.license_comment += f" | Backend licenses: {spdx_license_expression}"
+            if main_package.license_comment:
+                main_package.license_comment += f" | Backend licenses: {spdx_license_expression}"
             else:
-                package.license_comment = f"Backend licenses: {spdx_license_expression}"
+                main_package.license_comment = f"Backend licenses: {spdx_license_expression}"
 
     # Apply component name override
     if component_name:
