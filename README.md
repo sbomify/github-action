@@ -1,11 +1,13 @@
 # sbomify SBOM Generation Tool
 [![sbomified](https://sbomify.com/assets/images/logo/badge.svg)](https://app.sbomify.com/public/component/Gu9wem8mkX)
 
+Think of this as a Swiss Army knife for SBOMs that can be used either in standalone mode or integrated with sbomify (hosted or self-hosted).
+
 ![SBOM lifecycle](https://sbomify.com/assets/images/site/lifecycle.svg)
 
 This is an opinionated tool for helping with the SBOM life cycle, namely [generating, augmenting and enriching](https://sbomify.com/features/generate-collaborate-analyze/), plus automatic release management and SBOM tagging.
 
-The goal is to help users generate NTIA Minimum Elements compliant SBOMs by stitching together various tools, along with metadata augmentation from sbomify, and seamlessly associate them with product releases.
+The goal is to help users generate NTIA/CISA Minimum Elements compliant SBOMs by stitching together various tools, along with metadata augmentation from sbomify, and seamlessly associate them with product releases.
 
 This tool can be used both with an SBOM, as well as with a lock-file from various software packages (see `LOCK_FILE`).
 
