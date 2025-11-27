@@ -730,7 +730,10 @@ def augment_sbom_from_file(
 
         elif data.get("spdxVersion"):
             # Parse as SPDX
-            document = spdx_parse_file(str(input_path))
+            try:
+                document = spdx_parse_file(str(input_path))
+            except Exception as e:
+                raise SBOMValidationError(f"Failed to parse SPDX SBOM: {e}")
             logger.info("Processing SPDX SBOM")
 
             # Augment

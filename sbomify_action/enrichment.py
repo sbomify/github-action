@@ -697,7 +697,10 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
     elif data.get("spdxVersion"):
         logger.info("Processing SPDX SBOM")
         # Parse as SPDX
-        document = spdx_parse_file(str(input_path))
+        try:
+            document = spdx_parse_file(str(input_path))
+        except Exception as e:
+            raise SBOMValidationError(f"Failed to parse SPDX SBOM: {e}")
 
         # Extract packages
         packages = _extract_packages_from_spdx(document)
