@@ -5,15 +5,17 @@ from unittest.mock import Mock, patch
 
 from sbomify_action.cli.main import (
     enrich_sbom_with_ecosystems,
-    generate_sbom_from_python_lock_file,
     path_expansion,
-    run_trivy_docker_image,
-    run_trivy_fs,
     validate_sbom,
 )
 from sbomify_action.exceptions import (
     FileProcessingError,
     SBOMValidationError,
+)
+from sbomify_action.generation import (
+    generate_sbom_from_python_lock_file,
+    run_trivy_docker_image,
+    run_trivy_fs,
 )
 
 
