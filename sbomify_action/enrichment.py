@@ -229,27 +229,33 @@ def _enrich_cyclonedx_component(component: Component, metadata: Optional[Dict[st
         added_fields.append("description")
 
     # Add licenses (native CycloneDX field)
+    # Only add licenses if the component has NO existing licenses
+    # CycloneDX spec requires multiple licenses to be combined into a single LicenseExpression
+    # using operators like OR/AND, not as separate LicenseExpression objects
     # Prefer normalized_licenses (array of SPDX identifiers) over licenses (string)
-    if metadata.get("normalized_licenses"):
-        if not component.licenses or len(component.licenses) == 0:
+    has_licenses = component.licenses is not None and len(component.licenses) > 0
+
+    if not has_licenses:
+        if metadata.get("normalized_licenses"):
             # normalized_licenses is an array of SPDX identifiers
-            for license_id in metadata["normalized_licenses"]:
-                if license_id:
-                    license_expr = LicenseExpression(value=license_id)
-                    component.licenses.add(license_expr)
-            license_display = ", ".join(metadata["normalized_licenses"])
-            added_fields.append(f"licenses ({license_display})")
-    elif metadata.get("licenses"):
-        if not component.licenses or len(component.licenses) == 0:
+            licenses = [lic for lic in metadata["normalized_licenses"] if lic]
+            if licenses:
+                # Combine multiple licenses with OR operator into a single expression
+                if len(licenses) == 1:
+                    license_expression = licenses[0]
+                else:
+                    license_expression = " OR ".join(licenses)
+
+                license_expr = LicenseExpression(value=license_expression)
+                component.licenses.add(license_expr)
+                added_fields.append(f"licenses ({license_expression})")
+        elif metadata.get("licenses"):
             # licenses is a string (could be comma-separated) - fallback
-            licenses_str = str(metadata["licenses"])
-            for license_name in licenses_str.split(","):
-                license_name = license_name.strip()
-                if license_name:
-                    license_expr = LicenseExpression(value=license_name)
-                    component.licenses.add(license_expr)
-            license_display = licenses_str
-            added_fields.append(f"licenses ({license_display})")
+            licenses_str = str(metadata["licenses"]).strip()
+            if licenses_str:
+                license_expr = LicenseExpression(value=licenses_str)
+                component.licenses.add(license_expr)
+                added_fields.append(f"licenses ({licenses_str})")
 
     # Add publisher (native CycloneDX field) - use first maintainer if available
     if not component.publisher and metadata.get("maintainers") and isinstance(metadata["maintainers"], list):
