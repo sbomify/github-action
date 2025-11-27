@@ -160,57 +160,54 @@ def _add_sbomify_tool_to_cyclonedx(bom: Bom) -> None:
     """
     # Normalize existing tools to ensure vendor is properly typed
     # This prevents comparison errors when adding new tools with OrganizationalEntity vendors
-    existing_tools = list(bom.metadata.tools.tools)
-    normalized_tools = []
-
-    for tool in existing_tools:
-        if tool.vendor is not None and isinstance(tool.vendor, str):
-            # Create a new Tool with OrganizationalEntity vendor
-            normalized_tool = Tool(vendor=OrganizationalEntity(name=tool.vendor), name=tool.name, version=tool.version)
-            # Copy external references if any
-            if tool.external_references:
-                normalized_tool.external_references = tool.external_references
-            normalized_tools.append(normalized_tool)
-        else:
-            # Keep tool as is if vendor is already OrganizationalEntity or None
-            normalized_tools.append(tool)
-
-    # Clear and rebuild the tools set with normalized tools
+    tools_to_normalize = list(bom.metadata.tools.tools)
     bom.metadata.tools.tools.clear()
-    for tool in normalized_tools:
+
+    for tool in tools_to_normalize:
+        if tool.vendor is not None and isinstance(tool.vendor, str):
+            tool.vendor = OrganizationalEntity(name=tool.vendor)
         bom.metadata.tools.tools.add(tool)
 
-    # Also normalize components in metadata.tools
-    # During serialization, these get converted to Tools and must have consistent vendor types
-    existing_components = list(bom.metadata.tools.components)
-    normalized_components = []
+    # Convert components to Tools and add to tools collection
+    # This is necessary because Tool.from_component() converts OrganizationalEntity to string,
+    # causing type comparison errors during serialization. By converting ourselves, we can
+    # ensure proper OrganizationalEntity types.
+    for component in list(bom.metadata.tools.components):
+        # Convert to Tool
+        tool = Tool.from_component(component)
 
-    for component in existing_components:
-        if component.supplier is not None and isinstance(component.supplier, str):
-            # Create new component with OrganizationalEntity supplier
-            normalized_component = Component(
-                type=component.type,
-                name=component.name,
-                version=component.version,
-                supplier=OrganizationalEntity(name=component.supplier),
-            )
-            # Copy other attributes
-            if component.external_references:
-                normalized_component.external_references = component.external_references
-            if component.licenses:
-                normalized_component.licenses = component.licenses
-            normalized_components.append(normalized_component)
-        else:
-            # Keep component as is if supplier is already OrganizationalEntity or None
-            normalized_components.append(component)
+        # Fix vendor type - Tool.from_component() incorrectly converts OrganizationalEntity to string
+        if tool.vendor is not None and isinstance(tool.vendor, str):
+            tool.vendor = OrganizationalEntity(name=tool.vendor)
+        elif component.manufacturer is not None and not isinstance(component.manufacturer, str):
+            # If component had OrganizationalEntity manufacturer, use it directly
+            tool.vendor = component.manufacturer
+        elif component.supplier is not None and not isinstance(component.supplier, str):
+            # Fall back to supplier if no manufacturer
+            tool.vendor = component.supplier
 
-    # Clear and rebuild the components set with normalized components
+        bom.metadata.tools.tools.add(tool)
+
+    # Clear components since we've converted them all to tools
     bom.metadata.tools.components.clear()
-    for component in normalized_components:
-        bom.metadata.tools.components.add(component)
 
-    # Note: services would also need normalization if they have string suppliers,
-    # but in practice, cyclonedx-py doesn't generate services in metadata.tools
+    # Convert services to Tools and add to tools collection
+    # Similar issue as with components
+    for service in list(bom.metadata.tools.services):
+        # Convert to Tool
+        tool = Tool.from_service(service)
+
+        # Fix vendor type - Tool.from_service() may have similar issues
+        if tool.vendor is not None and isinstance(tool.vendor, str):
+            tool.vendor = OrganizationalEntity(name=tool.vendor)
+        elif service.provider is not None and not isinstance(service.provider, str):
+            # If service had OrganizationalEntity provider, use it directly
+            tool.vendor = service.provider
+
+        bom.metadata.tools.tools.add(tool)
+
+    # Clear services since we've converted them all to tools
+    bom.metadata.tools.services.clear()
 
     # Create sbomify tool entry
     sbomify_vendor = OrganizationalEntity(name=SBOMIFY_VENDOR_NAME)
