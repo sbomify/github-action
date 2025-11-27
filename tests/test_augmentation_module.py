@@ -688,6 +688,53 @@ class TestErrorHandling:
     """Test error handling in augmentation."""
 
     @patch("requests.get")
+    def test_file_not_found_error(self, mock_get):
+        """Test handling of missing input file."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"supplier": {}}
+        mock_get.return_value = mock_response
+
+        with pytest.raises(FileNotFoundError) as exc_info:
+            augment_sbom_from_file(
+                input_file="/nonexistent/file.json",
+                output_file="/tmp/output.json",
+                api_base_url="https://api.test.com",
+                token="test-token",
+                component_id="test-component",
+            )
+
+        assert "Input SBOM file not found" in str(exc_info.value)
+        assert "/nonexistent/file.json" in str(exc_info.value)
+
+    @patch("requests.get")
+    def test_invalid_json_error(self, mock_get):
+        """Test handling of invalid JSON in input file."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"supplier": {}}
+        mock_get.return_value = mock_response
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_file = Path(tmpdir) / "invalid.json"
+            output_file = Path(tmpdir) / "output.json"
+
+            # Write invalid JSON
+            with open(input_file, "w") as f:
+                f.write("{invalid json content")
+
+            with pytest.raises(ValueError) as exc_info:
+                augment_sbom_from_file(
+                    input_file=str(input_file),
+                    output_file=str(output_file),
+                    api_base_url="https://api.test.com",
+                    token="test-token",
+                    component_id="test-component",
+                )
+
+            assert "Invalid JSON in SBOM file" in str(exc_info.value)
+
+    @patch("requests.get")
     def test_api_connection_error(self, mock_get):
         """Test handling of API connection errors."""
         import requests

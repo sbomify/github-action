@@ -681,8 +681,17 @@ def augment_sbom_from_file(
     try:
         import json
 
-        with open(input_path, "r") as f:
-            data = json.load(f)
+        try:
+            with open(input_path, "r") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Input SBOM file not found: {input_file}")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in SBOM file: {e}")
+        except PermissionError:
+            raise PermissionError(f"Permission denied reading SBOM file: {input_file}")
+        except OSError as e:
+            raise OSError(f"Error reading SBOM file {input_file}: {e}")
 
         if data.get("bomFormat") == "CycloneDX":
             # Parse as CycloneDX
@@ -699,8 +708,13 @@ def augment_sbom_from_file(
             serialized = serialize_cyclonedx_bom(bom, spec_version)
 
             output_path = Path(output_file)
-            with open(output_path, "w") as f:
-                f.write(serialized)
+            try:
+                with open(output_path, "w") as f:
+                    f.write(serialized)
+            except PermissionError:
+                raise PermissionError(f"Permission denied writing output file: {output_file}")
+            except OSError as e:
+                raise OSError(f"Error writing output file {output_file}: {e}")
 
             logger.info(f"Augmented CycloneDX SBOM written to: {output_file}")
             return "cyclonedx"
@@ -717,7 +731,12 @@ def augment_sbom_from_file(
 
             # Write output
             output_path = Path(output_file)
-            spdx_write_file(document, str(output_path), validate=False)
+            try:
+                spdx_write_file(document, str(output_path), validate=False)
+            except PermissionError:
+                raise PermissionError(f"Permission denied writing output file: {output_file}")
+            except OSError as e:
+                raise OSError(f"Error writing output file {output_file}: {e}")
 
             logger.info(f"Augmented SPDX SBOM written to: {output_file}")
             return "spdx"
