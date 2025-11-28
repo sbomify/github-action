@@ -3,6 +3,14 @@
 
 Think of this as a Swiss Army knife for SBOMs that can be used either in standalone mode or integrated with sbomify (hosted or self-hosted).
 
+**Why generate SBOMs in your CI/CD pipeline?** It's critical that all SBOM generation and modification (augmentation, enrichment) happens in your own CI/CD pipeline because:
+
+- **Attestation & Signing**: You can cryptographically sign and attest the SBOM at build time
+- **Chain of Trust**: The signature creates a verifiable chain from your build to the SBOM
+- **Zero Trust Architecture**: You don't need to trust the transportation or storage layer - the cryptographic signature proves the SBOM's authenticity and provenance back to the source build
+
+This tool runs in your pipeline and generates the SBOM locally. You can then optionally upload it to sbomify for collaboration, distribution, and vulnerability management - but the critical security properties are established in your pipeline first.
+
 ![SBOM lifecycle](https://sbomify.com/assets/images/site/lifecycle.svg)
 
 This is an opinionated tool for helping with the SBOM life cycle, namely [generating, augmenting and enriching](https://sbomify.com/features/generate-collaborate-analyze/), plus automatic release management and SBOM tagging.
@@ -15,11 +23,25 @@ This tool can be used both with an SBOM, as well as with a lock-file from variou
 
 ### `TOKEN`
 
-**Required** The authorization token for the sbomify API. Use a GitHub Secret to store this token.
+**Required (conditionally)** The authorization token for the sbomify API. Use a GitHub Secret to store this token.
+
+**Required when**:
+- `UPLOAD=true` (uploading SBOMs to sbomify)
+- `AUGMENT=true` (fetching metadata from sbomify)
+- `PRODUCT_RELEASE` is set (managing product releases)
+
+**Not required when**: Running in standalone mode with `UPLOAD=false`, `AUGMENT=false`, and no `PRODUCT_RELEASE` set.
 
 ### `COMPONENT_ID`
 
-**Required** ID of the component against which the SBOM is to be uploaded.
+**Required (conditionally)** ID of the component against which the SBOM is to be uploaded.
+
+**Required when**:
+- `UPLOAD=true` (uploading SBOMs to sbomify)
+- `AUGMENT=true` (fetching metadata from sbomify)
+- `PRODUCT_RELEASE` is set (managing product releases)
+
+**Not required when**: Running in standalone mode with `UPLOAD=false`, `AUGMENT=false`, and no `PRODUCT_RELEASE` set.
 
 ### `SBOM_FILE` (path)
 
@@ -122,19 +144,27 @@ The action provides user-friendly logging output. For example:
 
 ### `UPLOAD` (true/false)
 
-You can use this tool in standalone mode, where you don't upload the final SBOM to sbomify.
+**Optional** Controls whether the SBOM is uploaded to sbomify. Default: `true`
+
+Set to `false` to use this tool in standalone mode, where you don't upload the final SBOM to sbomify. This is useful for local SBOM generation, attestation workflows, or integration with other tools.
+
+**When `UPLOAD=false`**: `TOKEN` and `COMPONENT_ID` are not required (unless `AUGMENT=true` or `PRODUCT_RELEASE` is set, which both require API access).
 
 ### `API_BASE_URL` (string)
 
 **Optional** Override the sbomify API base URL. Default: `https://app.sbomify.com`
 
-**When to use**: Useful for testing against development instances or when using a self-hosted sbomify instance.
+**When to use**:
+- **Self-hosted sbomify instances**: Point to your own sbomify installation
+- **Development/testing**: Use development or staging instances
+- **Local development**: Test against local sbomify instances
 
 **Examples**:
+- Self-hosted instance: `API_BASE_URL: 'https://sbomify.yourcompany.com'`
 - Development instance: `API_BASE_URL: 'https://dev.sbomify.com'`
 - Local testing: `API_BASE_URL: 'http://127.0.0.1:8000'`
 
-**Note**: The API endpoints (`/api/v1/...`) are automatically appended to this base URL, so you should only provide the base domain.
+**Note**: The API endpoints (`/api/v1/...`) are automatically appended to this base URL, so you should only provide the base domain (including protocol but excluding trailing slash).
 
 ### `TELEMETRY` (true/false)
 
@@ -227,20 +257,43 @@ jobs:
           ENRICH: true
 ```
 
-### Standalone mode
+### Standalone mode (without upload)
+
+You can use this tool without uploading to sbomify by setting `UPLOAD=false`. When running in standalone mode, `TOKEN` and `COMPONENT_ID` are not required.
 
 ```yaml
-      - name: Upload SBOM
+      - name: Generate SBOM locally
+        uses: sbomify/github-action@master
+        env:
+          UPLOAD: false
+          LOCK_FILE: 'Cargo.lock'
+          COMPONENT_NAME: 'my-rust-app'
+          COMPONENT_VERSION: ${{ github.ref_name }}
+          OUTPUT_FILE: 'my-sbom.cdx.json'
+          ENRICH: true
+```
+
+**Note**: When `UPLOAD=false`, the `AUGMENT` feature is not available as it requires API access to fetch metadata. However, you can still use `ENRICH` to add ecosystem data and `COMPONENT_NAME`/`COMPONENT_VERSION` to set basic metadata.
+
+### Using with Self-Hosted sbomify Instance
+
+If you're running your own sbomify instance, simply set the `API_BASE_URL` to point to your instance:
+
+```yaml
+      - name: Upload SBOM to self-hosted instance
         uses: sbomify/github-action@master
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-          COMPONENT_ID: 'Your Component ID'
-          LOCK_FILE: 'Cargo.lock'
-          COMPONENT_NAME: 'my-rust-app'
-          OUTPUT_FILE: 'my-sbom.cdx.json'
+          COMPONENT_ID: 'my-component-id'
+          API_BASE_URL: 'https://sbomify.yourcompany.com'
+          LOCK_FILE: 'requirements.txt'
+          COMPONENT_NAME: 'my-awesome-app'
+          COMPONENT_VERSION: ${{ github.ref_name }}
           AUGMENT: true
           ENRICH: true
 ```
+
+All features (generation, augmentation, enrichment, release management) work the same way with self-hosted instances.
 
 ### Associate SBOM with Product Releases
 

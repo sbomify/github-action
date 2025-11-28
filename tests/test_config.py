@@ -14,8 +14,8 @@ class TestConfig(unittest.TestCase):
     """Test cases for the Config dataclass and related functionality."""
 
     def test_config_validation_missing_token(self):
-        """Test that Config raises ConfigurationError when token is missing."""
-        config = Config(token="", component_id="test-component")
+        """Test that Config raises ConfigurationError when token is missing and UPLOAD=true."""
+        config = Config(token="", component_id="test-component", sbom_file="/path/to/sbom.json", upload=True)
 
         with self.assertRaises(ConfigurationError) as cm:
             config.validate()
@@ -23,8 +23,8 @@ class TestConfig(unittest.TestCase):
         self.assertIn("sbomify API token is not defined", str(cm.exception))
 
     def test_config_validation_missing_component_id(self):
-        """Test that Config raises ConfigurationError when component_id is missing."""
-        config = Config(token="test-token", component_id="")
+        """Test that Config raises ConfigurationError when component_id is missing and UPLOAD=true."""
+        config = Config(token="test-token", component_id="", sbom_file="/path/to/sbom.json", upload=True)
 
         with self.assertRaises(ConfigurationError) as cm:
             config.validate()
@@ -64,6 +64,98 @@ class TestConfig(unittest.TestCase):
 
         # Should not raise any exception
         config.validate()
+
+    def test_config_validation_standalone_mode_no_token_required(self):
+        """Test that TOKEN is not required in standalone mode (UPLOAD=false, AUGMENT=false, no PRODUCT_RELEASE)."""
+        config = Config(
+            token="",
+            component_id="",
+            sbom_file="/path/to/sbom.json",
+            upload=False,
+            augment=False,
+        )
+
+        # Should not raise any exception
+        config.validate()
+
+    def test_config_validation_upload_requires_token(self):
+        """Test that TOKEN is required when UPLOAD=true."""
+        config = Config(
+            token="",
+            component_id="test-component",
+            sbom_file="/path/to/sbom.json",
+            upload=True,
+        )
+
+        with self.assertRaises(ConfigurationError) as cm:
+            config.validate()
+
+        self.assertIn("sbomify API token is not defined", str(cm.exception))
+        self.assertIn("UPLOAD=true", str(cm.exception))
+
+    def test_config_validation_augment_requires_token(self):
+        """Test that TOKEN is required when AUGMENT=true even if UPLOAD=false."""
+        config = Config(
+            token="",
+            component_id="test-component",
+            sbom_file="/path/to/sbom.json",
+            upload=False,
+            augment=True,
+        )
+
+        with self.assertRaises(ConfigurationError) as cm:
+            config.validate()
+
+        self.assertIn("sbomify API token is not defined", str(cm.exception))
+        self.assertIn("AUGMENT=true", str(cm.exception))
+
+    def test_config_validation_product_release_requires_token(self):
+        """Test that TOKEN is required when PRODUCT_RELEASE is set even if UPLOAD=false."""
+        config = Config(
+            token="",
+            component_id="test-component",
+            sbom_file="/path/to/sbom.json",
+            upload=False,
+            augment=False,
+            product_releases='["product_id:v1.0.0"]',
+        )
+
+        with self.assertRaises(ConfigurationError) as cm:
+            config.validate()
+
+        self.assertIn("sbomify API token is not defined", str(cm.exception))
+        self.assertIn("PRODUCT_RELEASE is set", str(cm.exception))
+
+    def test_config_validation_upload_requires_component_id(self):
+        """Test that COMPONENT_ID is required when UPLOAD=true."""
+        config = Config(
+            token="test-token",
+            component_id="",
+            sbom_file="/path/to/sbom.json",
+            upload=True,
+        )
+
+        with self.assertRaises(ConfigurationError) as cm:
+            config.validate()
+
+        self.assertIn("Component ID is not defined", str(cm.exception))
+        self.assertIn("UPLOAD=true", str(cm.exception))
+
+    def test_config_validation_augment_requires_component_id(self):
+        """Test that COMPONENT_ID is required when AUGMENT=true even if UPLOAD=false."""
+        config = Config(
+            token="test-token",
+            component_id="",
+            sbom_file="/path/to/sbom.json",
+            upload=False,
+            augment=True,
+        )
+
+        with self.assertRaises(ConfigurationError) as cm:
+            config.validate()
+
+        self.assertIn("Component ID is not defined", str(cm.exception))
+        self.assertIn("AUGMENT=true", str(cm.exception))
 
     def test_config_url_validation_invalid_scheme(self):
         """Test that Config raises ConfigurationError for invalid URL schemes."""
