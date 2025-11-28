@@ -13,6 +13,9 @@ from sbomify_action.exceptions import (
     SBOMValidationError,
 )
 
+# Use a bogus DSN to prevent any real Sentry events from being sent during tests
+MOCK_SENTRY_DSN = "https://00000000000000000000000000000000@example.com/0000000"
+
 
 def clear_sentry_state():
     """Helper to completely clear Sentry state between tests."""
@@ -39,6 +42,16 @@ def clear_sentry_state():
 
 
 class TestSentryFiltering(unittest.TestCase):
+    def setUp(self):
+        """Set up each test with a bogus Sentry DSN to prevent real events from being sent."""
+        # Patch the environment to use a fake DSN
+        self.env_patcher = patch.dict(os.environ, {"SENTRY_DSN": MOCK_SENTRY_DSN})
+        self.env_patcher.start()
+
+    def tearDown(self):
+        """Clean up after each test."""
+        self.env_patcher.stop()
+
     def test_sentry_filters_validation_errors(self):
         """
         Test that SBOMValidationError is filtered from Sentry.
