@@ -1008,7 +1008,7 @@ class TestToolMetadataVersions:
 
         # Add a component with string manufacturer (this is what Trivy produces)
         component2 = Component(name="trivy", version="0.67.2", type=ComponentType.APPLICATION)
-        component2.manufacturer = "Aqua Security"  # Directly set as string
+        component2.manufacturer = "Aqua Security"  # String assignment that triggers the bug
         bom.metadata.tools.components.add(component2)
 
         # Add a service with string provider (this simulates what some generators might produce)

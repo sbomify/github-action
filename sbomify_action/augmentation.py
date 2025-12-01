@@ -184,7 +184,8 @@ def _add_sbomify_tool_to_cyclonedx(bom: Bom) -> None:
         # Convert to Tool
         tool = Tool.from_component(component)
 
-        # Fix vendor type - Tool.from_component() may incorrectly handle vendor types
+        # Workaround for cyclonedx-python-lib bug (#917): Tool.from_component() converts
+        # OrganizationalEntity vendor to string in legacy formats
         if tool.vendor is not None and isinstance(tool.vendor, str):
             tool.vendor = OrganizationalEntity(name=tool.vendor)
         elif component.manufacturer is not None and not isinstance(component.manufacturer, str):

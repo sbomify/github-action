@@ -697,6 +697,7 @@ class TestCacheAndAPIBehavior:
         assert len(parts) == 2
         version_part = parts[1].split(" ")[0]
         assert version_part != ""
+        assert version_part != "unknown"
 
 
 class TestEnrichmentEdgeCases:
