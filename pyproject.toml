@@ -7,7 +7,8 @@ requires-python = ">=3.10"
 readme = "README.md"
 dependencies = [
     "requests>=2.32.3,<3",
-    "cyclonedx-bom>=6.1.1,<7",
+    "cyclonedx-bom>=7.2.1,<8",
+    "cyclonedx-python-lib>=11.5.0,<12",
     "sentry-sdk>=2.21.0,<3",
     "spdx-tools>=0.8.3",
 ]

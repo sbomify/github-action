@@ -157,6 +157,14 @@ def _add_sbomify_tool_to_cyclonedx(bom: Bom) -> None:
 
     Args:
         bom: The Bom object to update with tool metadata
+
+    Note:
+        This function includes workarounds for cyclonedx-python-lib bugs that persist
+        even in v11.5.0. When tools are deserialized from legacy format (CycloneDX < 1.5),
+        the library creates Tool objects with string vendors instead of OrganizationalEntity,
+        which causes TypeError during comparison when adding new tools.
+
+        See: https://github.com/CycloneDX/cyclonedx-python-lib/issues/917
     """
     # Normalize existing tools to ensure vendor is properly typed
     # This prevents comparison errors when adding new tools with OrganizationalEntity vendors
@@ -169,14 +177,14 @@ def _add_sbomify_tool_to_cyclonedx(bom: Bom) -> None:
         bom.metadata.tools.tools.add(tool)
 
     # Convert components to Tools and add to tools collection
-    # This is necessary because Tool.from_component() converts OrganizationalEntity to string,
+    # This is necessary because Tool.from_component() may convert OrganizationalEntity to string,
     # causing type comparison errors during serialization. By converting ourselves, we can
     # ensure proper OrganizationalEntity types.
     for component in list(bom.metadata.tools.components):
         # Convert to Tool
         tool = Tool.from_component(component)
 
-        # Fix vendor type - Tool.from_component() incorrectly converts OrganizationalEntity to string
+        # Fix vendor type - Tool.from_component() may incorrectly handle vendor types
         if tool.vendor is not None and isinstance(tool.vendor, str):
             tool.vendor = OrganizationalEntity(name=tool.vendor)
         elif component.manufacturer is not None and not isinstance(component.manufacturer, str):
