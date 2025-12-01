@@ -927,7 +927,7 @@ class TestFileErrorHandling:
             enrich_sbom_with_ecosystems(str(input_file), str(output_file))
 
     # Note: Legacy tools format tests are skipped because cyclonedx-python-lib v11.5.0
-    # still has deserialization bugs with vendor dicts. The workaround code in enrichment.py
+    # still has deserialization bugs with vendor dicts. The workaround code in augmentation.py
     # handles this, but we can't easily test it in isolation.
 
     def test_api_response_dict_format(self):
