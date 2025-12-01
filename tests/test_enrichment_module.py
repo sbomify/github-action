@@ -926,10 +926,6 @@ class TestFileErrorHandling:
         with pytest.raises(ValueError, match="Neither CycloneDX nor SPDX"):
             enrich_sbom_with_ecosystems(str(input_file), str(output_file))
 
-    # Note: Legacy tools format tests are skipped because cyclonedx-python-lib v11.5.0
-    # still has deserialization bugs with vendor dicts. The workaround code in augmentation.py
-    # handles this, but we can't easily test it in isolation.
-
     def test_api_response_dict_format(self):
         """Test handling of API response that returns dict instead of list."""
         clear_cache()
