@@ -989,6 +989,7 @@ class TestToolMetadataVersions:
     def test_tool_metadata_normalizes_services_with_string_providers(self):
         """Test that services with string providers are normalized to OrganizationalEntity to prevent type comparison errors."""
         # This test addresses the bug: '<' not supported between instances of 'str' and 'OrganizationalEntity'
+        # The bug persists even in cyclonedx-python-lib v11.5.0, so we still need workarounds
         # When services have string providers and we add a tool with OrganizationalEntity vendor,
         # serialization fails during sorting unless we normalize the services first.
 
@@ -1007,7 +1008,7 @@ class TestToolMetadataVersions:
 
         # Add a component with string manufacturer (this is what Trivy produces)
         component2 = Component(name="trivy", version="0.67.2", type=ComponentType.APPLICATION)
-        component2.manufacturer = "Aqua Security"  # Directly set as string - THIS IS THE BUG!
+        component2.manufacturer = "Aqua Security"  # String assignment that triggers the bug
         bom.metadata.tools.components.add(component2)
 
         # Add a service with string provider (this simulates what some generators might produce)
@@ -1019,7 +1020,7 @@ class TestToolMetadataVersions:
         enriched_bom = augment_cyclonedx_sbom(bom, augmentation_data={})
 
         # Verify components and services were converted to tools
-        # The fix converts all components/services to tools to avoid type issues
+        # The workaround converts all components/services to tools to avoid type issues
         assert len(enriched_bom.metadata.tools.components) == 0, "Components should be converted to tools"
         assert len(enriched_bom.metadata.tools.services) == 0, "Services should be converted to tools"
 
@@ -1037,7 +1038,7 @@ class TestToolMetadataVersions:
                 )
 
         # Most importantly: verify we can serialize without errors
-        # This would fail before the fix with: TypeError: '<' not supported between instances of 'str' and 'OrganizationalEntity'
+        # This would fail without the workaround: TypeError: '<' not supported between instances of 'str' and 'OrganizationalEntity'
         from sbomify_action.serialization import serialize_cyclonedx_bom
 
         serialized = serialize_cyclonedx_bom(enriched_bom, "1.6")

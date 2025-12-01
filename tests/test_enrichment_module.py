@@ -9,8 +9,10 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+import requests
 from cyclonedx.model.bom import Bom
 from cyclonedx.model.component import Component, ComponentType
+from packageurl import PackageURL
 from spdx_tools.spdx.model import (
     ExternalPackageRef,
     ExternalPackageRefCategory,
@@ -49,7 +51,7 @@ class TestLibraryBasedEnrichment:
         """Test enriching a CycloneDX component with library objects."""
         # Create a component using the library
         component = Component(name="django", version="5.1", type=ComponentType.LIBRARY)
-        component.purl = "pkg:pypi/django@5.1"
+        component.purl = PackageURL.from_string("pkg:pypi/django@5.1")
 
         # Enrich it
         added_fields = _enrich_cyclonedx_component(component, sample_metadata)
@@ -488,7 +490,7 @@ class TestCycloneDXVersionSpecificBehavior:
         # Add components to both
         for bom in [bom_15, bom_16]:
             comp = Component(name="test", version="1.0", type=ComponentType.LIBRARY)
-            comp.purl = "pkg:pypi/test@1.0"
+            comp.purl = PackageURL.from_string("pkg:pypi/test@1.0")
             bom.components.add(comp)
 
         # Extract components
@@ -506,7 +508,7 @@ class TestCycloneDXVersionSpecificBehavior:
         from cyclonedx.model import ExternalReferenceType
 
         component = Component(name="test", version="1.0", type=ComponentType.LIBRARY)
-        component.purl = "pkg:pypi/test@1.0"
+        component.purl = PackageURL.from_string("pkg:pypi/test@1.0")
 
         metadata = {
             "homepage": "https://test.com",
@@ -616,6 +618,84 @@ class TestCacheAndAPIBehavior:
             # Should only have called API once (second was cached)
             assert mock_session.get.call_count == 1
 
+    def test_api_404_response(self):
+        """Test handling of 404 response from API."""
+        clear_cache()
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_session.get.return_value = mock_response
+
+        metadata = _fetch_package_metadata("pkg:pypi/nonexistent@1.0", mock_session)
+        assert metadata is None
+
+        # Verify the API was actually called
+        mock_session.get.assert_called_once()
+
+        # Should cache the negative result
+        stats = get_cache_stats()
+        assert stats["entries"] == 1
+
+    def test_api_429_rate_limit(self, caplog):
+        """Test handling of 429 rate limit response."""
+        clear_cache()
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 429
+        mock_session.get.return_value = mock_response
+
+        metadata = _fetch_package_metadata("pkg:pypi/test@1.0", mock_session)
+        assert metadata is None
+
+        # Verify rate limit warning is logged
+        assert any("Rate limit exceeded" in record.message for record in caplog.records)
+
+        # Should cache the negative result
+        stats = get_cache_stats()
+        assert stats["entries"] == 1
+
+    def test_api_timeout(self):
+        """Test handling of API timeout."""
+        clear_cache()
+        mock_session = Mock()
+        mock_session.get.side_effect = requests.exceptions.Timeout("Connection timeout")
+
+        metadata = _fetch_package_metadata("pkg:pypi/test@1.0", mock_session)
+        assert metadata is None
+
+        # Should cache the negative result
+        stats = get_cache_stats()
+        assert stats["entries"] == 1
+
+    def test_api_connection_error(self):
+        """Test handling of connection errors."""
+        clear_cache()
+        mock_session = Mock()
+        mock_session.get.side_effect = requests.exceptions.ConnectionError("Connection failed")
+
+        metadata = _fetch_package_metadata("pkg:pypi/test@1.0", mock_session)
+        assert metadata is None
+
+        # Should cache the negative result
+        stats = get_cache_stats()
+        assert stats["entries"] == 1
+
+    def test_api_generic_exception(self, caplog):
+        """Test handling of generic exceptions."""
+        clear_cache()
+        mock_session = Mock()
+        mock_session.get.side_effect = Exception("Unexpected error")
+
+        metadata = _fetch_package_metadata("pkg:pypi/test@1.0", mock_session)
+        assert metadata is None
+
+        # Verify unexpected error is logged at ERROR level
+        assert any(record.levelname == "ERROR" and "Unexpected error" in record.message for record in caplog.records)
+
+        # Should NOT cache unexpected errors
+        stats = get_cache_stats()
+        assert stats["entries"] == 0
+
     def test_user_agent_header(self):
         """Test that User-Agent header is properly formatted."""
         assert "sbomify-github-action/" in USER_AGENT
@@ -627,3 +707,292 @@ class TestCacheAndAPIBehavior:
         version_part = parts[1].split(" ")[0]
         assert version_part != ""
         assert version_part != "unknown"
+
+
+class TestEnrichmentEdgeCases:
+    """Test edge cases and error conditions in enrichment."""
+
+    def test_enrich_component_with_none_metadata(self):
+        """Test enriching component with None metadata."""
+        component = Component(name="test", version="1.0", type=ComponentType.LIBRARY)
+        component.purl = PackageURL.from_string("pkg:pypi/test@1.0")
+
+        added_fields = _enrich_cyclonedx_component(component, None)
+        assert added_fields == []
+
+    def test_enrich_spdx_package_with_none_metadata(self):
+        """Test enriching SPDX package with None metadata."""
+        from spdx_tools.spdx.model import Package
+
+        package = Package(spdx_id="SPDXRef-test", name="test", download_location="NOASSERTION")
+
+        added_fields = _enrich_spdx_package(package, None)
+        assert added_fields == []
+
+    def test_enrich_component_single_license(self):
+        """Test enriching component with single license."""
+        component = Component(name="test", version="1.0", type=ComponentType.LIBRARY)
+        component.purl = PackageURL.from_string("pkg:pypi/test@1.0")
+
+        metadata = {
+            "normalized_licenses": ["MIT"],
+        }
+
+        added_fields = _enrich_cyclonedx_component(component, metadata)
+        assert len(component.licenses) == 1
+        assert "licenses" in " ".join(added_fields)
+
+    def test_enrich_component_duplicate_external_ref(self):
+        """Test that duplicate external references are not added."""
+        from cyclonedx.model import ExternalReference, ExternalReferenceType, XsUri
+
+        component = Component(name="test", version="1.0", type=ComponentType.LIBRARY)
+        component.purl = PackageURL.from_string("pkg:pypi/test@1.0")
+
+        # Add an existing reference
+        component.external_references.add(
+            ExternalReference(type=ExternalReferenceType.WEBSITE, url=XsUri("https://example.com"))
+        )
+
+        metadata = {
+            "homepage": "https://example.com",  # Same URL
+        }
+
+        added_fields = _enrich_cyclonedx_component(component, metadata)
+        # Should not add duplicate
+        assert len(component.external_references) == 1
+        assert "homepage URL" not in added_fields
+
+    def test_enrich_spdx_download_location_from_repo_metadata(self):
+        """Test SPDX package enrichment with download_url from repo_metadata."""
+        from spdx_tools.spdx.model import Package
+
+        package = Package(spdx_id="SPDXRef-test", name="test", download_location="NOASSERTION")
+
+        metadata = {"repo_metadata": {"download_url": "https://github.com/test/test/archive/v1.0.tar.gz"}}
+
+        added_fields = _enrich_spdx_package(package, metadata)
+        assert package.download_location == "https://github.com/test/test/archive/v1.0.tar.gz"
+        assert "downloadLocation" in added_fields
+
+    def test_enrich_spdx_license_parse_failure(self):
+        """Test SPDX license enrichment with parse failure falls back to comment."""
+        from spdx_tools.spdx.model import Package
+
+        package = Package(spdx_id="SPDXRef-test", name="test", download_location="NOASSERTION")
+
+        metadata = {"normalized_licenses": ["INVALID!@#$LICENSE"]}
+
+        _enrich_spdx_package(package, metadata)
+        # Should fall back to license_comment
+        assert package.license_comment is not None
+        assert "INVALID!@#$LICENSE" in package.license_comment
+
+    def test_enrich_spdx_supplier_from_ecosystem(self):
+        """Test SPDX package supplier from ecosystem field."""
+        from spdx_tools.spdx.model import Package
+
+        package = Package(spdx_id="SPDXRef-test", name="test", download_location="NOASSERTION")
+
+        metadata = {"ecosystem": "PyPI"}
+
+        added_fields = _enrich_spdx_package(package, metadata)
+        assert package.supplier is not None
+        assert "PyPI" in package.supplier.name
+        assert "supplier" in " ".join(added_fields)
+
+    def test_enrich_spdx_supplier_from_repo_owner_dict(self):
+        """Test SPDX package supplier from repo owner (dict format)."""
+        from spdx_tools.spdx.model import Package
+
+        package = Package(spdx_id="SPDXRef-test", name="test", download_location="NOASSERTION")
+
+        metadata = {
+            "repo_metadata": {"owner": {"login": "testorg", "name": "Test Organization", "type": "Organization"}}
+        }
+
+        _enrich_spdx_package(package, metadata)
+        assert package.supplier is not None
+        assert "Test Organization" in package.supplier.name
+
+    def test_enrich_spdx_supplier_from_repo_owner_string(self):
+        """Test SPDX package supplier from repo owner (string format)."""
+        from spdx_tools.spdx.model import Package
+
+        package = Package(spdx_id="SPDXRef-test", name="test", download_location="NOASSERTION")
+
+        metadata = {"repo_metadata": {"owner": "testorg"}}
+
+        _enrich_spdx_package(package, metadata)
+        assert package.supplier is not None
+        assert "testorg" in package.supplier.name
+
+    def test_enrich_spdx_originator_with_email(self):
+        """Test SPDX package originator with email."""
+        from spdx_tools.spdx.model import Package
+
+        package = Package(spdx_id="SPDXRef-test", name="test", download_location="NOASSERTION")
+
+        metadata = {"maintainers": [{"name": "John Doe", "email": "john@example.com"}]}
+
+        _enrich_spdx_package(package, metadata)
+        assert package.originator is not None
+        assert "John Doe" in package.originator.name
+        assert "john@example.com" in package.originator.name
+
+    def test_enrich_spdx_duplicate_external_ref(self):
+        """Test that duplicate external references are not added to SPDX."""
+        from spdx_tools.spdx.model import ExternalPackageRef, ExternalPackageRefCategory, Package
+
+        package = Package(spdx_id="SPDXRef-test", name="test", download_location="NOASSERTION")
+
+        # Add existing reference
+        package.external_references = [
+            ExternalPackageRef(
+                category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                reference_type="url",
+                locator="https://pypi.org/project/test/",
+            )
+        ]
+
+        metadata = {
+            "registry_url": "https://pypi.org/project/test/"  # Same URL
+        }
+
+        added_fields = _enrich_spdx_package(package, metadata)
+        # Should not add duplicate
+        assert len(package.external_references) == 1
+        assert "externalRef" not in " ".join(added_fields)
+
+
+class TestFileErrorHandling:
+    """Test error handling for file operations."""
+
+    def test_enrich_sbom_file_not_found(self, tmp_path):
+        """Test enrichment with non-existent file."""
+        input_file = tmp_path / "nonexistent.json"
+        output_file = tmp_path / "output.json"
+
+        with pytest.raises(FileNotFoundError):
+            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+    def test_enrich_sbom_invalid_json(self, tmp_path):
+        """Test enrichment with invalid JSON."""
+        input_file = tmp_path / "invalid.json"
+        input_file.write_text("{invalid json")
+        output_file = tmp_path / "output.json"
+
+        with pytest.raises(ValueError, match="Invalid JSON"):
+            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+    def test_enrich_sbom_missing_spec_version(self, tmp_path):
+        """Test enrichment with CycloneDX SBOM missing specVersion."""
+        from sbomify_action.exceptions import SBOMValidationError
+
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            # Missing specVersion
+            "version": 1,
+            "components": [],
+        }
+
+        input_file = tmp_path / "missing_spec.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "output.json"
+
+        with pytest.raises(SBOMValidationError, match="missing required 'specVersion' field"):
+            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+    def test_enrich_sbom_no_components_with_purls(self, tmp_path, mocker):
+        """Test enrichment with SBOM that has no components with PURLs."""
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "components": [
+                {"name": "test", "version": "1.0", "type": "library"}
+                # No purl
+            ],
+        }
+
+        input_file = tmp_path / "no_purls.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "output.json"
+
+        enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+        # Should write output file even with no enrichment
+        assert output_file.exists()
+
+    def test_enrich_sbom_unsupported_format(self, tmp_path):
+        """Test enrichment with unsupported SBOM format."""
+        sbom_data = {"some": "unknown format"}
+
+        input_file = tmp_path / "unknown.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "output.json"
+
+        with pytest.raises(ValueError, match="Neither CycloneDX nor SPDX"):
+            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+    def test_api_response_dict_format(self):
+        """Test handling of API response that returns dict instead of list."""
+        clear_cache()
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"description": "Test package"}  # Dict, not list
+        mock_session.get.return_value = mock_response
+
+        metadata = _fetch_package_metadata("pkg:pypi/test@1.0", mock_session)
+        assert metadata is not None
+        assert metadata["description"] == "Test package"
+
+    def test_enrich_component_with_license_string_fallback(self):
+        """Test enriching component with licenses as string instead of normalized_licenses."""
+        component = Component(name="test", version="1.0", type=ComponentType.LIBRARY)
+        component.purl = PackageURL.from_string("pkg:pypi/test@1.0")
+
+        metadata = {
+            "licenses": "MIT OR Apache-2.0",  # String instead of array
+        }
+
+        added_fields = _enrich_cyclonedx_component(component, metadata)
+        assert len(component.licenses) == 1
+        assert "licenses" in " ".join(added_fields)
+
+        # Verify the license expression was properly created with the OR operator
+        license_list = list(component.licenses)
+        assert len(license_list) == 1
+        license_expr = license_list[0]
+        assert hasattr(license_expr, "value")
+        assert license_expr.value == "MIT OR Apache-2.0"
+
+    def test_enrich_spdx_no_packages_with_purls(self, tmp_path):
+        """Test enrichment with SPDX SBOM that has no packages with PURLs."""
+        sbom_data = {
+            "spdxVersion": "SPDX-2.3",
+            "dataLicense": "CC0-1.0",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test",
+            "documentNamespace": "https://example.com/test",
+            "creationInfo": {"created": "2025-01-01T00:00:00Z", "creators": ["Tool: test"]},
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-Package",
+                    "name": "test",
+                    "downloadLocation": "NOASSERTION",
+                    "filesAnalyzed": False,
+                    # No purl in external references
+                }
+            ],
+        }
+
+        input_file = tmp_path / "no_purls_spdx.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "output_spdx.json"
+
+        enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+        # Should write output file even with no enrichment
+        assert output_file.exists()
