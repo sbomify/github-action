@@ -629,11 +629,14 @@ class TestCacheAndAPIBehavior:
         metadata = _fetch_package_metadata("pkg:pypi/nonexistent@1.0", mock_session)
         assert metadata is None
 
+        # Verify the API was actually called
+        mock_session.get.assert_called_once()
+
         # Should cache the negative result
         stats = get_cache_stats()
         assert stats["entries"] == 1
 
-    def test_api_429_rate_limit(self):
+    def test_api_429_rate_limit(self, caplog):
         """Test handling of 429 rate limit response."""
         clear_cache()
         mock_session = Mock()
@@ -643,6 +646,9 @@ class TestCacheAndAPIBehavior:
 
         metadata = _fetch_package_metadata("pkg:pypi/test@1.0", mock_session)
         assert metadata is None
+
+        # Verify rate limit warning is logged
+        assert any("Rate limit exceeded" in record.message for record in caplog.records)
 
         # Should cache the negative result
         stats = get_cache_stats()
@@ -674,7 +680,7 @@ class TestCacheAndAPIBehavior:
         stats = get_cache_stats()
         assert stats["entries"] == 1
 
-    def test_api_generic_exception(self):
+    def test_api_generic_exception(self, caplog):
         """Test handling of generic exceptions."""
         clear_cache()
         mock_session = Mock()
@@ -682,6 +688,9 @@ class TestCacheAndAPIBehavior:
 
         metadata = _fetch_package_metadata("pkg:pypi/test@1.0", mock_session)
         assert metadata is None
+
+        # Verify unexpected error is logged at ERROR level
+        assert any(record.levelname == "ERROR" and "Unexpected error" in record.message for record in caplog.records)
 
         # Should NOT cache unexpected errors
         stats = get_cache_stats()
@@ -951,6 +960,13 @@ class TestFileErrorHandling:
         added_fields = _enrich_cyclonedx_component(component, metadata)
         assert len(component.licenses) == 1
         assert "licenses" in " ".join(added_fields)
+
+        # Verify the license expression was properly created with the OR operator
+        license_list = list(component.licenses)
+        assert len(license_list) == 1
+        license_expr = license_list[0]
+        assert hasattr(license_expr, "value")
+        assert license_expr.value == "MIT OR Apache-2.0"
 
     def test_enrich_spdx_no_packages_with_purls(self, tmp_path):
         """Test enrichment with SPDX SBOM that has no packages with PURLs."""
