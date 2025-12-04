@@ -896,6 +896,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "jsonschema" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -914,6 +915,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "jsonschema", specifier = ">=4.25.1" },
     { name = "pre-commit", specifier = ">=4.2.0,<5" },
     { name = "pytest", specifier = ">=8.0.0,<9" },
     { name = "pytest-cov", specifier = ">=4.1.0,<5" },

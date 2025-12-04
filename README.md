@@ -196,6 +196,11 @@ The following format-specific behaviors apply:
 * **SBOM Upload**: Both CycloneDX and SPDX formats are supported for upload.
 * **Enrichment**: The enrichment process (`ENRICH=true`) works with both formats.
 
+#### Supported Versions
+
+* **CycloneDX**: 1.4, 1.5, 1.6, 1.7 (JSON only)
+* **SPDX**: 2.2, 2.3 (JSON only)
+
 ### Supported Operations by Format
 
 | Operation | CycloneDX | SPDX | Notes |

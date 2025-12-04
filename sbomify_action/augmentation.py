@@ -8,6 +8,7 @@ from cyclonedx.model import AttachedText, ExternalReference, ExternalReferenceTy
 from cyclonedx.model.bom import Bom, OrganizationalContact, OrganizationalEntity, Tool
 from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.license import DisjunctiveLicense, LicenseExpression
+from cyclonedx.model.service import Service
 from spdx_tools.spdx.model import (
     Actor,
     ActorType,
@@ -50,7 +51,7 @@ def _get_package_version() -> str:
 
 
 SBOMIFY_VERSION = _get_package_version()
-SBOMIFY_TOOL_NAME = "sbomify-github-action"
+SBOMIFY_TOOL_NAME = "sbomify GitHub Action"
 SBOMIFY_VENDOR_NAME = "sbomify"
 
 
@@ -151,88 +152,125 @@ def _process_license_data(license_data: Any) -> Optional[Any]:
     return None
 
 
-def _add_sbomify_tool_to_cyclonedx(bom: Bom) -> None:
+def _add_sbomify_tool_to_cyclonedx(bom: Bom, spec_version: Optional[str] = None) -> None:
     """
     Add sbomify as a tool in the CycloneDX SBOM metadata.
 
     Args:
         bom: The Bom object to update with tool metadata
+        spec_version: CycloneDX spec version (e.g., "1.4", "1.5", "1.6", "1.7")
+                     If None, defaults to "1.4" (legacy format)
 
     Note:
-        This function includes workarounds for cyclonedx-python-lib bugs that persist
-        even in v11.5.0. When tools are deserialized from legacy format (CycloneDX < 1.5),
-        the library creates Tool objects with string vendors instead of OrganizationalEntity,
-        which causes TypeError during comparison when adding new tools.
+        Version-specific behavior:
+        - CycloneDX 1.4: Uses legacy Tool format (tools array) with string vendor
+        - CycloneDX 1.5+: Uses modern format (components/services) - sbomify added as Service
+
+        According to CycloneDX spec:
+        - Tool.vendor should be STRING (not OrganizationalEntity) in legacy format
+        - Component.group should be STRING (represents vendor) in modern format
+        - Service-based tools (like sbomify API) should go in tools.services for 1.5+
+        - NEVER use OrganizationalEntity for tools in any version
 
         See: https://github.com/CycloneDX/cyclonedx-python-lib/issues/917
+        See: https://cyclonedx.org/docs/1.7/json/#metadata_tools
     """
-    # Normalize existing tools to ensure vendor is properly typed
-    # This prevents comparison errors when adding new tools with OrganizationalEntity vendors
-    tools_to_normalize = list(bom.metadata.tools.tools)
-    bom.metadata.tools.tools.clear()
+    # Use provided spec_version or default to 1.4
+    if spec_version is None:
+        spec_version = "1.4"
 
-    for tool in tools_to_normalize:
-        if tool.vendor is not None and isinstance(tool.vendor, str):
-            tool.vendor = OrganizationalEntity(name=tool.vendor)
-        bom.metadata.tools.tools.add(tool)
+    spec_parts = spec_version.split(".")
+    major = int(spec_parts[0]) if len(spec_parts) > 0 else 1
+    minor = int(spec_parts[1]) if len(spec_parts) > 1 else 4
+    is_v15_or_later = (major > 1) or (major == 1 and minor >= 5)
 
-    # Convert components to Tools and add to tools collection
-    # This is necessary because Tool.from_component() may convert OrganizationalEntity to string,
-    # causing type comparison errors during serialization. By converting ourselves, we can
-    # ensure proper OrganizationalEntity types.
-    for component in list(bom.metadata.tools.components):
-        # Convert to Tool
-        tool = Tool.from_component(component)
+    if is_v15_or_later:
+        # Modern format (1.5+): Use services for API/service-based tools
+        # Keep existing components and services, add sbomify as a service
+        logger.debug(f"Using modern tools format for CycloneDX {spec_version}")
 
-        # Workaround for cyclonedx-python-lib bug (#917): Tool.from_component() converts
-        # OrganizationalEntity vendor to string in legacy formats
-        if tool.vendor is not None and isinstance(tool.vendor, str):
-            tool.vendor = OrganizationalEntity(name=tool.vendor)
-        elif component.manufacturer is not None and not isinstance(component.manufacturer, str):
-            # If component had OrganizationalEntity manufacturer, use it directly
-            tool.vendor = component.manufacturer
-        elif component.supplier is not None and not isinstance(component.supplier, str):
-            # Fall back to supplier if no manufacturer
-            tool.vendor = component.supplier
-
-        bom.metadata.tools.tools.add(tool)
-
-    # Clear components since we've converted them all to tools
-    bom.metadata.tools.components.clear()
-
-    # Convert services to Tools and add to tools collection
-    # Similar issue as with components
-    for service in list(bom.metadata.tools.services):
-        # Convert to Tool
-        tool = Tool.from_service(service)
-
-        # Fix vendor type - Tool.from_service() may have similar issues
-        if tool.vendor is not None and isinstance(tool.vendor, str):
-            tool.vendor = OrganizationalEntity(name=tool.vendor)
-        elif service.provider is not None and not isinstance(service.provider, str):
-            # If service had OrganizationalEntity provider, use it directly
-            tool.vendor = service.provider
-
-        bom.metadata.tools.tools.add(tool)
-
-    # Clear services since we've converted them all to tools
-    bom.metadata.tools.services.clear()
-
-    # Create sbomify tool entry
-    sbomify_vendor = OrganizationalEntity(name=SBOMIFY_VENDOR_NAME)
-    sbomify_tool = Tool(vendor=sbomify_vendor, name=SBOMIFY_TOOL_NAME, version=SBOMIFY_VERSION)
-
-    # Add external references for the tool
-    try:
-        sbomify_tool.external_references.add(
-            ExternalReference(type=ExternalReferenceType.WEBSITE, url=XsUri("https://github.com/sbomify/github-action"))
+        # Create sbomify as a Service (not a legacy Tool)
+        # Services are appropriate for API/service-based tools like sbomify
+        sbomify_service = Service(
+            name=SBOMIFY_TOOL_NAME,
+            version=SBOMIFY_VERSION,
         )
-    except Exception as e:
-        logger.debug(f"Failed to add external references to sbomify tool: {e}")
 
-    # Add the tool to the metadata
-    bom.metadata.tools.tools.add(sbomify_tool)
-    logger.info("Added sbomify as processing tool to SBOM metadata")
+        # Add group field (equivalent to vendor in legacy format)
+        sbomify_service.group = SBOMIFY_VENDOR_NAME
+
+        # Add external references for the service
+        try:
+            # Website - main product page
+            sbomify_service.external_references.add(
+                ExternalReference(type=ExternalReferenceType.WEBSITE, url=XsUri("https://sbomify.com"))
+            )
+            # VCS - source code repository
+            sbomify_service.external_references.add(
+                ExternalReference(type=ExternalReferenceType.VCS, url=XsUri("https://github.com/sbomify/github-action"))
+            )
+            # Issue tracker - where to report bugs
+            sbomify_service.external_references.add(
+                ExternalReference(
+                    type=ExternalReferenceType.ISSUE_TRACKER,
+                    url=XsUri("https://github.com/sbomify/github-action/issues"),
+                )
+            )
+        except Exception as e:
+            logger.debug(f"Failed to add external references to sbomify service: {e}")
+
+        # Add to tools.services (do NOT clear existing services or components)
+        bom.metadata.tools.services.add(sbomify_service)
+        logger.info(f"Added sbomify as service to tools.services (CycloneDX {spec_version})")
+
+    else:
+        # Legacy format (1.4): Convert all to Tool objects
+        logger.debug(f"Using legacy tools format for CycloneDX {spec_version}")
+
+        # Convert components to Tools and add to tools collection
+        # Tool.from_component() uses component.group (string) as vendor (string)
+        for component in list(bom.metadata.tools.components):
+            tool = Tool.from_component(component)
+            bom.metadata.tools.tools.add(tool)
+
+        # Clear components since we've converted them all to tools
+        bom.metadata.tools.components.clear()
+
+        # Convert services to Tools and add to tools collection
+        for service in list(bom.metadata.tools.services):
+            tool = Tool.from_service(service)
+            bom.metadata.tools.tools.add(tool)
+
+        # Clear services since we've converted them all to tools
+        bom.metadata.tools.services.clear()
+
+        # Create sbomify tool entry with STRING vendor (per spec)
+        # This matches the format used by other tools (e.g., Trivy uses group="aquasecurity")
+        sbomify_tool = Tool(vendor=SBOMIFY_VENDOR_NAME, name=SBOMIFY_TOOL_NAME, version=SBOMIFY_VERSION)
+
+        # Add external references for the tool
+        try:
+            # Website - main product page
+            sbomify_tool.external_references.add(
+                ExternalReference(type=ExternalReferenceType.WEBSITE, url=XsUri("https://sbomify.com"))
+            )
+            # VCS - source code repository
+            sbomify_tool.external_references.add(
+                ExternalReference(type=ExternalReferenceType.VCS, url=XsUri("https://github.com/sbomify/github-action"))
+            )
+            # Issue tracker - where to report bugs
+            sbomify_tool.external_references.add(
+                ExternalReference(
+                    type=ExternalReferenceType.ISSUE_TRACKER,
+                    url=XsUri("https://github.com/sbomify/github-action/issues"),
+                )
+            )
+        except Exception as e:
+            logger.debug(f"Failed to add external references to sbomify tool: {e}")
+
+        # Add the tool to the metadata
+        bom.metadata.tools.tools.add(sbomify_tool)
+        logger.info(f"Added sbomify as legacy tool to tools.tools (CycloneDX {spec_version})")
 
 
 def augment_cyclonedx_sbom(
@@ -241,6 +279,7 @@ def augment_cyclonedx_sbom(
     override_sbom_metadata: bool = False,
     component_name: Optional[str] = None,
     component_version: Optional[str] = None,
+    spec_version: Optional[str] = None,
 ) -> Bom:
     """
     Augment CycloneDX SBOM with backend metadata using native library.
@@ -251,12 +290,14 @@ def augment_cyclonedx_sbom(
         override_sbom_metadata: Whether to override existing metadata
         component_name: Optional component name override
         component_version: Optional component version override
+        spec_version: CycloneDX spec version (e.g., "1.4", "1.5", "1.6", "1.7")
+                     Used to determine tool format (legacy vs modern)
 
     Returns:
         Augmented Bom object
     """
-    # Add sbomify as a processing tool
-    _add_sbomify_tool_to_cyclonedx(bom)
+    # Add sbomify as a processing tool (version-aware)
+    _add_sbomify_tool_to_cyclonedx(bom, spec_version)
 
     # Add supplier information
     if "supplier" in augmentation_data:
@@ -769,7 +810,7 @@ def augment_sbom_from_file(
 
             # Augment
             bom = augment_cyclonedx_sbom(
-                bom, augmentation_data, override_sbom_metadata, component_name, component_version
+                bom, augmentation_data, override_sbom_metadata, component_name, component_version, spec_version
             )
 
             # Write output using version-aware serialization

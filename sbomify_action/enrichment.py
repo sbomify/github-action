@@ -636,13 +636,14 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
                         f"Converting {len(tools_data)} tools from legacy array to components format for spec {spec_version}"
                     )
                     # In modern format (1.5+), tools go in the components array
-                    # Components use 'manufacturer' instead of 'vendor', so we need to rename the field
+                    # Components use 'group' field (not 'manufacturer') to represent the tool vendor
+                    # Tool.from_component() maps component.group -> tool.vendor
                     components = []
                     for tool_data in tools_data:
                         component_data = tool_data.copy()
-                        # Rename vendor -> manufacturer for components
+                        # Rename vendor -> group for components (this is the correct mapping)
                         if "vendor" in component_data:
-                            component_data["manufacturer"] = component_data.pop("vendor")
+                            component_data["group"] = component_data.pop("vendor")
                         # Ensure type is set (required for components)
                         if "type" not in component_data:
                             component_data["type"] = "application"

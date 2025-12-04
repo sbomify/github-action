@@ -919,6 +919,30 @@ class TestSupplierMerging:
 class TestToolMetadataVersions:
     """Test tool metadata handling across different CycloneDX versions."""
 
+    def test_tool_metadata_cyclonedx_14(self):
+        """Test tool metadata is correctly added for CycloneDX 1.4 (legacy format)."""
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.4",
+            "serialNumber": "urn:uuid:00000000-0000-0000-0000-000000000000",
+            "version": 1,
+            "metadata": {},
+            "components": [],
+        }
+
+        bom = Bom.from_json(bom_json)
+        enriched_bom = augment_cyclonedx_sbom(bom, augmentation_data={}, spec_version="1.4")
+
+        # For 1.4, sbomify should be added as a Tool in tools.tools (legacy format)
+        tool_names = [tool.name for tool in enriched_bom.metadata.tools.tools]
+        assert "sbomify GitHub Action" in tool_names, "sbomify should be in tools.tools for CDX 1.4"
+
+        # Verify vendor is set (Tool.vendor should be string per spec)
+        sbomify_tool = next(t for t in enriched_bom.metadata.tools.tools if t.name == "sbomify GitHub Action")
+        assert sbomify_tool.vendor is not None
+        assert sbomify_tool.vendor == "sbomify"
+        assert isinstance(sbomify_tool.vendor, str), "Tool.vendor must be string, not OrganizationalEntity"
+
     def test_tool_metadata_cyclonedx_15(self):
         """Test tool metadata is correctly added for CycloneDX 1.5."""
         bom_json = {
@@ -931,16 +955,16 @@ class TestToolMetadataVersions:
         }
 
         bom = Bom.from_json(bom_json)
-        enriched_bom = augment_cyclonedx_sbom(bom, augmentation_data={})
+        enriched_bom = augment_cyclonedx_sbom(bom, augmentation_data={}, spec_version="1.5")
 
-        # Verify tool was added
-        tool_names = [tool.name for tool in enriched_bom.metadata.tools.tools]
-        assert "sbomify-github-action" in tool_names
+        # For 1.5+, sbomify should be added as a Service in tools.services (modern format)
+        service_names = [service.name for service in enriched_bom.metadata.tools.services]
+        assert "sbomify GitHub Action" in service_names, "sbomify should be in tools.services for CDX 1.5+"
 
-        # Verify vendor is set (1.5 format uses vendor)
-        sbomify_tool = next(t for t in enriched_bom.metadata.tools.tools if t.name == "sbomify-github-action")
-        assert sbomify_tool.vendor is not None
-        assert sbomify_tool.vendor.name == "sbomify"
+        # Verify group is set (equivalent to vendor in legacy format)
+        sbomify_service = next(s for s in enriched_bom.metadata.tools.services if s.name == "sbomify GitHub Action")
+        assert sbomify_service.group is not None
+        assert sbomify_service.group == "sbomify"
 
     def test_tool_metadata_cyclonedx_16(self):
         """Test tool metadata is correctly added for CycloneDX 1.6."""
@@ -954,15 +978,15 @@ class TestToolMetadataVersions:
         }
 
         bom = Bom.from_json(bom_json)
-        enriched_bom = augment_cyclonedx_sbom(bom, augmentation_data={})
+        enriched_bom = augment_cyclonedx_sbom(bom, augmentation_data={}, spec_version="1.6")
 
-        # Verify tool was added
-        tool_names = [tool.name for tool in enriched_bom.metadata.tools.tools]
-        assert "sbomify-github-action" in tool_names
+        # For 1.6+, sbomify should be added as a Service in tools.services (modern format)
+        service_names = [service.name for service in enriched_bom.metadata.tools.services]
+        assert "sbomify GitHub Action" in service_names, "sbomify should be in tools.services for CDX 1.6+"
 
         # Verify external references
-        sbomify_tool = next(t for t in enriched_bom.metadata.tools.tools if t.name == "sbomify-github-action")
-        assert len(sbomify_tool.external_references) > 0
+        sbomify_service = next(s for s in enriched_bom.metadata.tools.services if s.name == "sbomify GitHub Action")
+        assert len(sbomify_service.external_references) > 0
 
     def test_tool_metadata_avoids_duplicates(self):
         """Test that tool metadata doesn't create duplicates."""
@@ -978,67 +1002,66 @@ class TestToolMetadataVersions:
         bom = Bom.from_json(bom_json)
 
         # Augment twice
-        enriched_bom = augment_cyclonedx_sbom(bom, augmentation_data={})
-        enriched_bom = augment_cyclonedx_sbom(enriched_bom, augmentation_data={})
+        enriched_bom = augment_cyclonedx_sbom(bom, augmentation_data={}, spec_version="1.6")
+        enriched_bom = augment_cyclonedx_sbom(enriched_bom, augmentation_data={}, spec_version="1.6")
 
-        # Should still have only unique tools
-        tool_names = [tool.name for tool in enriched_bom.metadata.tools.tools]
-        sbomify_count = tool_names.count("sbomify-github-action")
-        assert sbomify_count == 1, "Should not have duplicate sbomify tools"
+        # For 1.6+, sbomify is in services (modern format)
+        service_names = [service.name for service in enriched_bom.metadata.tools.services]
+        sbomify_count = service_names.count("sbomify GitHub Action")
+        assert sbomify_count == 1, "Should not have duplicate sbomify services"
 
     def test_tool_metadata_normalizes_services_with_string_providers(self):
-        """Test that services with string providers are normalized to OrganizationalEntity to prevent type comparison errors."""
-        # This test addresses the bug: '<' not supported between instances of 'str' and 'OrganizationalEntity'
-        # The bug persists even in cyclonedx-python-lib v11.5.0, so we still need workarounds
-        # When services have string providers and we add a tool with OrganizationalEntity vendor,
-        # serialization fails during sorting unless we normalize the services first.
+        """Test that components and services remain in modern format (1.5+) without converting to legacy tools."""
+        # This test verifies that for 1.5+, we keep the modern format (components/services)
+        # and add sbomify as a service, not converting everything to legacy Tool format
 
-        # Create a BOM programmatically with string suppliers/providers/manufacturers
-        # (Some SBOM generators or older library versions may create these)
+        # Create a BOM programmatically with components that have group fields
+        # (This is what SBOM generators like Trivy produce)
         from cyclonedx.model.bom import Bom
         from cyclonedx.model.component import Component, ComponentType
         from cyclonedx.model.service import Service
 
         bom = Bom()
+        bom.spec_version = "1.6"  # Set spec version to 1.6
 
-        # Add a component with string supplier (this simulates what some generators might produce)
+        # Add a component with group (standard way to specify tool vendor)
         component = Component(name="tool-component", version="1.0.0", type=ComponentType.APPLICATION)
-        component.supplier = "String Supplier"  # Directly set as string
+        component.group = "example-org"
         bom.metadata.tools.components.add(component)
 
-        # Add a component with string manufacturer (this is what Trivy produces)
+        # Add a component like Trivy produces (with group field)
         component2 = Component(name="trivy", version="0.67.2", type=ComponentType.APPLICATION)
-        component2.manufacturer = "Aqua Security"  # String assignment that triggers the bug
+        component2.group = "aquasecurity"
         bom.metadata.tools.components.add(component2)
 
-        # Add a service with string provider (this simulates what some generators might produce)
+        # Add a service
         service = Service(name="test-service", version="1.0.0")
-        service.provider = "String Provider"  # Directly set as string
         bom.metadata.tools.services.add(service)
 
         # This should not raise TypeError during augmentation or serialization
-        enriched_bom = augment_cyclonedx_sbom(bom, augmentation_data={})
+        enriched_bom = augment_cyclonedx_sbom(bom, augmentation_data={}, spec_version="1.6")
 
-        # Verify components and services were converted to tools
-        # The workaround converts all components/services to tools to avoid type issues
-        assert len(enriched_bom.metadata.tools.components) == 0, "Components should be converted to tools"
-        assert len(enriched_bom.metadata.tools.services) == 0, "Services should be converted to tools"
-
-        # Verify all tools have proper OrganizationalEntity vendors
-        assert len(enriched_bom.metadata.tools.tools) >= 3, (
-            "Should have at least 3 tools (2 components + 1 service + sbomify)"
+        # For 1.6+, components and services should NOT be converted to legacy tools
+        # They should remain in modern format
+        assert len(enriched_bom.metadata.tools.components) == 2, (
+            "Components should remain in modern format for CDX 1.6+"
         )
-        for tool in enriched_bom.metadata.tools.tools:
-            # Vendor should be OrganizationalEntity or None, not str
-            if tool.vendor is not None:
-                from cyclonedx.model.bom import OrganizationalEntity
+        assert len(enriched_bom.metadata.tools.services) >= 2, (
+            "Services should remain in modern format (original + sbomify) for CDX 1.6+"
+        )
 
-                assert isinstance(tool.vendor, OrganizationalEntity), (
-                    f"Tool '{tool.name}' vendor should be OrganizationalEntity, got {type(tool.vendor)}"
+        # Verify sbomify was added as a service
+        service_names = [s.name for s in enriched_bom.metadata.tools.services]
+        assert "sbomify GitHub Action" in service_names
+
+        # Verify all components have string groups (equivalent to vendor)
+        for comp in enriched_bom.metadata.tools.components:
+            if comp.group is not None:
+                assert isinstance(comp.group, str), (
+                    f"Component '{comp.name}' group should be string, got {type(comp.group)}"
                 )
 
         # Most importantly: verify we can serialize without errors
-        # This would fail without the workaround: TypeError: '<' not supported between instances of 'str' and 'OrganizationalEntity'
         from sbomify_action.serialization import serialize_cyclonedx_bom
 
         serialized = serialize_cyclonedx_bom(enriched_bom, "1.6")

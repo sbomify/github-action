@@ -1,0 +1,204 @@
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from unittest.mock import patch
+
+import jsonschema
+import pytest
+from cyclonedx.model.bom import Bom
+from cyclonedx.model.component import Component, ComponentType
+from spdx_tools.spdx.model import (
+    Actor,
+    ActorType,
+    CreationInfo,
+    Document,
+    Package,
+    Relationship,
+    RelationshipType,
+    SpdxNoAssertion,
+)
+from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
+
+from sbomify_action.augmentation import augment_sbom_from_file
+from sbomify_action.enrichment import clear_cache, enrich_sbom_with_ecosystems
+from sbomify_action.serialization import serialize_cyclonedx_bom
+
+# Path to schemas
+REPO_ROOT = Path(__file__).parent.parent
+CDX_SCHEMA_DIR = REPO_ROOT / "schemas" / "cyclonedx"
+SPDX_SCHEMA_DIR = REPO_ROOT / "schemas" / "spdx"
+
+CDX_SCHEMAS = {
+    "1.4": CDX_SCHEMA_DIR / "cdx-1.4.schema.json",
+    "1.5": CDX_SCHEMA_DIR / "cdx-1.5.schema.json",
+    "1.6": CDX_SCHEMA_DIR / "cdx-1.6.schema.json",
+    "1.7": CDX_SCHEMA_DIR / "cdx-1.7.schema.json",
+}
+
+SPDX_SCHEMAS = {
+    "2.2": SPDX_SCHEMA_DIR / "spdx-2.2.schema.json",
+    "2.3": SPDX_SCHEMA_DIR / "spdx-2.3.schema.json",
+}
+
+
+def load_schema(schema_path: Path):
+    if not schema_path.exists():
+        pytest.skip(f"Schema file not found: {schema_path}")
+    with open(schema_path) as f:
+        return json.load(f)
+
+
+@pytest.mark.parametrize("version", ["1.4", "1.5", "1.6", "1.7"])
+def test_cyclonedx_full_flow_compliance(version, tmp_path):
+    """Test CycloneDX compliance using full augmentation and enrichment public APIs."""
+    schema = load_schema(CDX_SCHEMAS[version])
+
+    # 1. Create and write minimal valid BOM
+    bom = Bom()
+    c = Component(name="test-lib", version="1.0.0", type=ComponentType.LIBRARY)
+    # Add PURL for enrichment
+    from packageurl import PackageURL
+
+    c.purl = PackageURL.from_string("pkg:pypi/test-lib@1.0.0")
+    bom.components.add(c)
+
+    # Set proper spec version in BOM so serializer uses it and file has it
+    bom.spec_version = version
+
+    input_file = tmp_path / f"input_{version}.json"
+    augmented_file = tmp_path / f"augmented_{version}.json"
+    final_file = tmp_path / f"final_{version}.json"
+
+    # Serialize initial BOM to file
+    with open(input_file, "w") as f:
+        f.write(serialize_cyclonedx_bom(bom, version))
+
+    # 2. Augment (Augmentation Flow)
+    augmentation_data = {
+        "supplier": {"name": "Augmented Supplier", "url": "https://supplier.com"},
+        "authors": [{"name": "Augmented Author", "email": "author@example.com"}],
+        "licenses": ["MIT"],
+    }
+
+    with patch("sbomify_action.augmentation.fetch_backend_metadata", return_value=augmentation_data):
+        augment_sbom_from_file(
+            input_file=str(input_file),
+            output_file=str(augmented_file),
+            api_base_url="https://api.test",
+            token="dummy",
+            component_id="123",
+        )
+
+    # 3. Enrich (Enrichment Flow)
+    enrichment_metadata = {
+        "description": "Enriched description",
+        "homepage": "https://enriched.com",
+        "normalized_licenses": ["Apache-2.0"],
+    }
+
+    # Clear cache to ensure fresh fetch
+    clear_cache()
+
+    # Mock the package metadata fetcher
+    with patch("sbomify_action.enrichment._fetch_package_metadata", return_value=enrichment_metadata):
+        enrich_sbom_with_ecosystems(input_file=str(augmented_file), output_file=str(final_file))
+
+    # 4. Validate Final Output
+    with open(final_file) as f:
+        bom_data = json.load(f)
+
+    try:
+        jsonschema.validate(instance=bom_data, schema=schema)
+    except jsonschema.ValidationError as e:
+        pytest.fail(f"CycloneDX {version} schema validation failed: {e}")
+
+
+@pytest.mark.parametrize("version", ["2.2", "2.3"])
+def test_spdx_full_flow_compliance(version, tmp_path):
+    """Test SPDX compliance using full augmentation and enrichment public APIs."""
+    schema = load_schema(SPDX_SCHEMAS[version])
+
+    # 1. Create and write minimal valid SPDX Document
+    creation_info = CreationInfo(
+        spdx_version=f"SPDX-{version}",
+        spdx_id="SPDXRef-DOCUMENT",
+        name="test-document",
+        document_namespace="http://example.com/namespace",
+        creators=[Actor(ActorType.TOOL, "original-tool")],
+        created=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+    )
+    document = Document(creation_info=creation_info)
+
+    # Add a package with PURL for enrichment
+    package = Package(
+        name="test-package",
+        spdx_id="SPDXRef-Package",
+        download_location=SpdxNoAssertion(),
+        license_concluded=SpdxNoAssertion(),
+        license_declared=SpdxNoAssertion(),
+        copyright_text=SpdxNoAssertion(),
+        files_analyzed=False,
+    )
+    # Add External Ref for PURL
+    from spdx_tools.spdx.model import ExternalPackageRef, ExternalPackageRefCategory
+
+    package.external_references.append(
+        ExternalPackageRef(
+            category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+            reference_type="purl",
+            locator="pkg:pypi/test-package@1.0.0",
+        )
+    )
+    document.packages.append(package)
+
+    # Add relationship
+    relationship = Relationship(
+        spdx_element_id="SPDXRef-DOCUMENT",
+        relationship_type=RelationshipType.DESCRIBES,
+        related_spdx_element_id="SPDXRef-Package",
+    )
+    document.relationships.append(relationship)
+
+    input_file = tmp_path / f"input_spdx_{version}.json"
+    augmented_file = tmp_path / f"augmented_spdx_{version}.json"
+    final_file = tmp_path / f"final_spdx_{version}.json"
+
+    # Write initial SPDX to file
+    spdx_write_file(document, str(input_file))
+
+    # 2. Augment (Augmentation Flow)
+    augmentation_data = {
+        "supplier": {"name": "Augmented Supplier", "url": "https://supplier.com"},
+        "authors": [{"name": "Augmented Author", "email": "author@example.com"}],
+        "licenses": ["MIT"],
+    }
+
+    with patch("sbomify_action.augmentation.fetch_backend_metadata", return_value=augmentation_data):
+        augment_sbom_from_file(
+            input_file=str(input_file),
+            output_file=str(augmented_file),
+            api_base_url="https://api.test",
+            token="dummy",
+            component_id="123",
+        )
+
+    # 3. Enrich (Enrichment Flow)
+    enrichment_metadata = {
+        "description": "Enriched description",
+        "homepage": "https://enriched.com",
+        "normalized_licenses": ["Apache-2.0"],
+    }
+
+    clear_cache()
+
+    with patch("sbomify_action.enrichment._fetch_package_metadata", return_value=enrichment_metadata):
+        enrich_sbom_with_ecosystems(input_file=str(augmented_file), output_file=str(final_file))
+
+    # 4. Validate Final Output
+    with open(final_file) as f:
+        spdx_data = json.load(f)
+
+    try:
+        jsonschema.validate(instance=spdx_data, schema=schema)
+    except jsonschema.ValidationError as e:
+        pytest.fail(f"SPDX {version} schema validation failed: {e}")
