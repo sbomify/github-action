@@ -32,6 +32,7 @@ CDX_SCHEMAS = {
     "1.4": CDX_SCHEMA_DIR / "cdx-1.4.schema.json",
     "1.5": CDX_SCHEMA_DIR / "cdx-1.5.schema.json",
     "1.6": CDX_SCHEMA_DIR / "cdx-1.6.schema.json",
+    "1.7": CDX_SCHEMA_DIR / "cdx-1.7.schema.json",
 }
 
 SPDX_SCHEMAS = {
@@ -47,7 +48,7 @@ def load_schema(schema_path: Path):
         return json.load(f)
 
 
-@pytest.mark.parametrize("version", ["1.4", "1.5", "1.6"])
+@pytest.mark.parametrize("version", ["1.4", "1.5", "1.6", "1.7"])
 def test_cyclonedx_full_flow_compliance(version, tmp_path):
     """Test CycloneDX compliance using full augmentation and enrichment public APIs."""
     schema = load_schema(CDX_SCHEMAS[version])

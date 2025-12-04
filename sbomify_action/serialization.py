@@ -21,8 +21,8 @@ _CYCLONEDX_OUTPUTTERS: Dict[str, Optional[Type]] = {
     "1.4": None,  # JsonV1Dot4
     "1.5": None,  # JsonV1Dot5
     "1.6": None,  # JsonV1Dot6
+    "1.7": None,  # JsonV1Dot7
     # Add new versions here as they become available:
-    # "1.7": None,  # JsonV1Dot7
     # "2.0": None,  # JsonV2Dot0
 }
 
@@ -66,10 +66,11 @@ def _get_cyclonedx_outputter(spec_version: str) -> Type:
                 from cyclonedx.output.json import JsonV1Dot6
 
                 _CYCLONEDX_OUTPUTTERS["1.6"] = JsonV1Dot6
+            elif major_minor == "1.7":
+                from cyclonedx.output.json import JsonV1Dot7
+
+                _CYCLONEDX_OUTPUTTERS["1.7"] = JsonV1Dot7
             # Add future versions here:
-            # elif major_minor == "1.7":
-            #     from cyclonedx.output.json import JsonV1Dot7
-            #     _CYCLONEDX_OUTPUTTERS["1.7"] = JsonV1Dot7
             # elif major_minor == "2.0":
             #     from cyclonedx.output.json import JsonV2Dot0
             #     _CYCLONEDX_OUTPUTTERS["2.0"] = JsonV2Dot0
@@ -81,7 +82,9 @@ def _get_cyclonedx_outputter(spec_version: str) -> Type:
 
     if outputter_class is None:
         # Build list of supported versions (either loaded or known to be available)
-        supported_versions = [v for v, cls in _CYCLONEDX_OUTPUTTERS.items() if cls is not None or v in ["1.5", "1.6"]]
+        supported_versions = [
+            v for v, cls in _CYCLONEDX_OUTPUTTERS.items() if cls is not None or v in ["1.5", "1.6", "1.7"]
+        ]
         raise ValueError(
             f"Unsupported CycloneDX version: {spec_version}. "
             f"Supported versions: {', '.join(sorted(supported_versions))}"
@@ -95,7 +98,7 @@ def serialize_cyclonedx_bom(bom: Bom, spec_version: Optional[str] = None) -> str
     Serialize a CycloneDX BOM to JSON string using the appropriate version outputter.
 
     This function automatically selects the correct serializer based on the spec version,
-    supporting multiple CycloneDX versions (1.4, 1.5, 1.6, and future versions like 1.7, 2.0).
+    supporting multiple CycloneDX versions (1.4, 1.5, 1.6, 1.7, and future versions like 2.0).
 
     Args:
         bom: The CycloneDX BOM object to serialize
