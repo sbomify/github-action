@@ -1,0 +1,40 @@
+fix(augmentation): use modern tools format for CycloneDX 1.5+
+
+Previously, we were forcing all tools to the deprecated legacy format
+(tools array) regardless of CycloneDX version. This change makes our
+implementation version-aware and spec-compliant.
+
+Changes:
+- CycloneDX 1.4: Uses legacy Tool format (tools array) as required
+- CycloneDX 1.5+: Uses modern format (tools.components/tools.services)
+- Sbomify added as Service in 1.5+ (appropriate for API-based tools)
+- Never use OrganizationalEntity for tools (confirmed correct in audit)
+
+Technical details:
+- Added spec_version parameter to augment_cyclonedx_sbom()
+- Updated _add_sbomify_tool_to_cyclonedx() with version detection
+- For 1.5+: Keep existing components/services, add sbomify to services
+- For 1.4: Convert components/services to legacy Tool format
+
+Why this matters:
+- Follows CycloneDX spec correctly for each version
+- Modern format (1.5+) is preferred and not deprecated
+- Service-based tools belong in tools.services per spec
+- Maintains backward compatibility with 1.4
+
+Testing:
+- All schema compliance tests pass (1.4, 1.5, 1.6, 1.7)
+- New test for 1.4 legacy format
+- Updated tests to check correct locations (services vs tools)
+- Full test suite passes with 68% coverage
+
+Fixes:
+- Tool metadata now respects spec version
+- No longer converts modern format to deprecated legacy format
+- Sbomify correctly identified as service-based tool
+
+References:
+- CycloneDX schemas: schemas/cyclonedx/cdx-1.{4,5,6,7}.schema.json
+- Spec docs: https://cyclonedx.org/docs/1.7/json/#metadata_tools
+- Related issue: https://github.com/CycloneDX/cyclonedx-python-lib/issues/917
+
