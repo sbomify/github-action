@@ -50,7 +50,7 @@ def _get_package_version() -> str:
 
 
 SBOMIFY_VERSION = _get_package_version()
-SBOMIFY_TOOL_NAME = "sbomify-github-action"
+SBOMIFY_TOOL_NAME = "sbomify GitHub Action"
 SBOMIFY_VENDOR_NAME = "sbomify"
 
 
@@ -159,73 +159,54 @@ def _add_sbomify_tool_to_cyclonedx(bom: Bom) -> None:
         bom: The Bom object to update with tool metadata
 
     Note:
-        This function includes workarounds for cyclonedx-python-lib bugs that persist
-        even in v11.5.0. When tools are deserialized from legacy format (CycloneDX < 1.5),
-        the library creates Tool objects with string vendors instead of OrganizationalEntity,
-        which causes TypeError during comparison when adding new tools.
+        According to CycloneDX spec and cyclonedx-python-lib implementation:
+        - Tool.vendor should be a STRING (not OrganizationalEntity)
+        - Tool.from_component() copies component.group (string) to tool.vendor (string)
+        - Legacy tool format (< 1.5) uses vendor as string
+        - Modern format (1.5+) uses components with group field (string)
+
+        The library correctly implements Tool.vendor as Optional[str | OrganizationalEntity],
+        but the spec and common practice use strings. Mixing types causes comparison errors.
 
         See: https://github.com/CycloneDX/cyclonedx-python-lib/issues/917
+        See: https://cyclonedx.org/docs/1.7/json/#metadata_tools_oneOf_i1_items_vendor
     """
-    # Normalize existing tools to ensure vendor is properly typed
-    # This prevents comparison errors when adding new tools with OrganizationalEntity vendors
-    tools_to_normalize = list(bom.metadata.tools.tools)
-    bom.metadata.tools.tools.clear()
-
-    for tool in tools_to_normalize:
-        if tool.vendor is not None and isinstance(tool.vendor, str):
-            tool.vendor = OrganizationalEntity(name=tool.vendor)
-        bom.metadata.tools.tools.add(tool)
-
     # Convert components to Tools and add to tools collection
-    # This is necessary because Tool.from_component() may convert OrganizationalEntity to string,
-    # causing type comparison errors during serialization. By converting ourselves, we can
-    # ensure proper OrganizationalEntity types.
+    # Tool.from_component() uses component.group as vendor (string)
     for component in list(bom.metadata.tools.components):
-        # Convert to Tool
         tool = Tool.from_component(component)
-
-        # Workaround for cyclonedx-python-lib bug (#917): Tool.from_component() converts
-        # OrganizationalEntity vendor to string in legacy formats
-        if tool.vendor is not None and isinstance(tool.vendor, str):
-            tool.vendor = OrganizationalEntity(name=tool.vendor)
-        elif component.manufacturer is not None and not isinstance(component.manufacturer, str):
-            # If component had OrganizationalEntity manufacturer, use it directly
-            tool.vendor = component.manufacturer
-        elif component.supplier is not None and not isinstance(component.supplier, str):
-            # Fall back to supplier if no manufacturer
-            tool.vendor = component.supplier
-
         bom.metadata.tools.tools.add(tool)
 
     # Clear components since we've converted them all to tools
     bom.metadata.tools.components.clear()
 
     # Convert services to Tools and add to tools collection
-    # Similar issue as with components
     for service in list(bom.metadata.tools.services):
-        # Convert to Tool
         tool = Tool.from_service(service)
-
-        # Fix vendor type - Tool.from_service() may have similar issues
-        if tool.vendor is not None and isinstance(tool.vendor, str):
-            tool.vendor = OrganizationalEntity(name=tool.vendor)
-        elif service.provider is not None and not isinstance(service.provider, str):
-            # If service had OrganizationalEntity provider, use it directly
-            tool.vendor = service.provider
-
         bom.metadata.tools.tools.add(tool)
 
     # Clear services since we've converted them all to tools
     bom.metadata.tools.services.clear()
 
-    # Create sbomify tool entry
-    sbomify_vendor = OrganizationalEntity(name=SBOMIFY_VENDOR_NAME)
-    sbomify_tool = Tool(vendor=sbomify_vendor, name=SBOMIFY_TOOL_NAME, version=SBOMIFY_VERSION)
+    # Create sbomify tool entry with STRING vendor (per spec)
+    # This matches the format used by other tools (e.g., Trivy uses group="aquasecurity")
+    sbomify_tool = Tool(vendor=SBOMIFY_VENDOR_NAME, name=SBOMIFY_TOOL_NAME, version=SBOMIFY_VERSION)
 
     # Add external references for the tool
     try:
+        # Website - main product page
         sbomify_tool.external_references.add(
-            ExternalReference(type=ExternalReferenceType.WEBSITE, url=XsUri("https://github.com/sbomify/github-action"))
+            ExternalReference(type=ExternalReferenceType.WEBSITE, url=XsUri("https://sbomify.com"))
+        )
+        # VCS - source code repository
+        sbomify_tool.external_references.add(
+            ExternalReference(type=ExternalReferenceType.VCS, url=XsUri("https://github.com/sbomify/github-action"))
+        )
+        # Issue tracker - where to report bugs
+        sbomify_tool.external_references.add(
+            ExternalReference(
+                type=ExternalReferenceType.ISSUE_TRACKER, url=XsUri("https://github.com/sbomify/github-action/issues")
+            )
         )
     except Exception as e:
         logger.debug(f"Failed to add external references to sbomify tool: {e}")
