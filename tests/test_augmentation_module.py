@@ -1011,7 +1011,7 @@ class TestToolMetadataVersions:
         assert sbomify_count == 1, "Should not have duplicate sbomify services"
 
     def test_tool_metadata_normalizes_services_with_string_providers(self):
-        """Test that tools are correctly handled in modern format (1.5+) without converting to legacy."""
+        """Test that components and services remain in modern format (1.5+) without converting to legacy tools."""
         # This test verifies that for 1.5+, we keep the modern format (components/services)
         # and add sbomify as a service, not converting everything to legacy Tool format
 
