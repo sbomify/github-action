@@ -488,6 +488,8 @@ def _fetch_pypi_metadata(package_name: str, session: requests.Session) -> Option
             info = data.get("info", {})
 
             # Normalize PyPI response to ecosyste.ms format
+            # Note: PyPI uses 'home_page' (with underscore), but we normalize to 'homepage'
+            # for consistency with ecosyste.ms format and downstream consumers.
             metadata = {
                 "description": info.get("summary"),
                 "homepage": info.get("home_page"),
@@ -520,8 +522,13 @@ def _fetch_pypi_metadata(package_name: str, session: requests.Session) -> Option
                     # Store for issue tracker
                     if "repo_metadata" not in metadata:
                         metadata["repo_metadata"] = {}
-                    # Strip "/issues" suffix if present to get the repo base URL
-                    metadata["repo_metadata"]["html_url"] = url_value.removesuffix("/issues")
+                    # Strip common issue tracker suffixes to get the base repository URL
+                    base_url = url_value
+                    for suffix in ("/issues", "/bugs", "/tracker"):
+                        if url_value.endswith(suffix):
+                            base_url = url_value[: -len(suffix)]
+                            break
+                    metadata["repo_metadata"]["html_url"] = base_url
                     metadata["repo_metadata"]["has_issues"] = True
                 elif "documentation" in key_lower or "docs" in key_lower:
                     metadata["documentation_url"] = url_value
