@@ -14,9 +14,13 @@ from cyclonedx.model.bom import Bom
 from cyclonedx.model.component import Component, ComponentType
 from packageurl import PackageURL
 from spdx_tools.spdx.model import (
+    CreationInfo,
+    Document,
     ExternalPackageRef,
     ExternalPackageRefCategory,
     Package,
+    Relationship,
+    RelationshipType,
 )
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 
@@ -36,9 +40,11 @@ from sbomify_action.enrichment import (
     _fetch_package_metadata,
     _fetch_pypi_metadata,
     _filter_lockfile_components,
+    _filter_lockfile_packages,
     _get_package_tracker_url,
     _get_supplier_from_purl,
     _is_lockfile_component,
+    _is_lockfile_package,
     _is_os_package_type,
     _parse_purl_safe,
     clear_cache,
@@ -1505,8 +1511,105 @@ class TestLockfileFiltering:
         remaining = list(bom.components)[0]
         assert remaining.name == "django"
 
+    def test_filter_lockfile_components_cleans_up_dependencies(self):
+        """Test that dependencies referencing lockfiles are cleaned up.
+
+        This prevents serialization errors when lockfile components are removed
+        but their bom_ref still exists in the dependencies section.
+        """
+        from cyclonedx.output.json import JsonV1Dot6
+
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "components": [
+                {"type": "application", "name": "uv.lock", "bom-ref": "lockfile-ref"},
+                {
+                    "type": "library",
+                    "name": "requests",
+                    "version": "2.28.0",
+                    "purl": "pkg:pypi/requests@2.28.0",
+                    "bom-ref": "requests-ref",
+                },
+            ],
+            "dependencies": [
+                {"ref": "lockfile-ref", "dependsOn": ["requests-ref"]},
+                {"ref": "requests-ref", "dependsOn": []},
+            ],
+        }
+        bom = Bom.from_json(bom_json)
+
+        removed = _filter_lockfile_components(bom)
+
+        assert removed == 1
+        # Verify dependency entry for lockfile is removed
+        dep_refs = [str(d.ref) for d in bom.dependencies]
+        assert "lockfile-ref" not in dep_refs
+        # Verify package dependency still exists
+        assert "requests-ref" in dep_refs
+
+        # Verify serialization works (this was failing before the fix)
+        outputter = JsonV1Dot6(bom)
+        outputter.output_as_string()  # Should not raise
+
+    def test_filter_lockfile_components_cleans_up_nested_dependencies(self):
+        """Test that lockfile refs are removed from nested dependsOn lists."""
+        from cyclonedx.output.json import JsonV1Dot6
+
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "components": [
+                {"type": "application", "name": "uv.lock", "bom-ref": "lockfile-ref"},
+                {
+                    "type": "library",
+                    "name": "requests",
+                    "version": "2.28.0",
+                    "purl": "pkg:pypi/requests@2.28.0",
+                    "bom-ref": "requests-ref",
+                },
+                {
+                    "type": "library",
+                    "name": "urllib3",
+                    "version": "2.0.0",
+                    "purl": "pkg:pypi/urllib3@2.0.0",
+                    "bom-ref": "urllib3-ref",
+                },
+            ],
+            "dependencies": [
+                {"ref": "lockfile-ref", "dependsOn": ["requests-ref"]},
+                # requests depends on both urllib3 and lockfile (unusual but possible)
+                {"ref": "requests-ref", "dependsOn": ["urllib3-ref", "lockfile-ref"]},
+                {"ref": "urllib3-ref", "dependsOn": []},
+            ],
+        }
+        bom = Bom.from_json(bom_json)
+
+        removed = _filter_lockfile_components(bom)
+
+        assert removed == 1
+        # Verify lockfile dependency entry is removed
+        dep_refs = [str(d.ref) for d in bom.dependencies]
+        assert "lockfile-ref" not in dep_refs
+        # Verify lockfile is not in nested dependencies of requests
+        for dep in bom.dependencies:
+            if str(dep.ref) == "requests-ref":
+                nested_refs = [str(d.ref) for d in dep.dependencies]
+                assert "lockfile-ref" not in nested_refs
+                assert "urllib3-ref" in nested_refs
+
+        # Verify serialization works
+        outputter = JsonV1Dot6(bom)
+        outputter.output_as_string()
+
     def test_filter_lockfile_end_to_end(self, tmp_path):
-        """Test end-to-end that lockfiles are filtered from SBOM."""
+        """Test end-to-end that lockfiles and their dependencies are filtered from SBOM.
+
+        Uses a realistic SBOM structure like Trivy generates, where the lockfile
+        component is the parent in the dependency graph.
+        """
         sbom_data = {
             "bomFormat": "CycloneDX",
             "specVersion": "1.6",
@@ -1521,6 +1624,12 @@ class TestLockfileFiltering:
                     "purl": "pkg:pypi/django@5.1",
                     "bom-ref": "pkg-django",
                 },
+            ],
+            # Realistic dependency graph like Trivy generates:
+            # lockfile is the parent, packages depend on it
+            "dependencies": [
+                {"ref": "lockfile-uv", "dependsOn": ["pkg-django"]},
+                {"ref": "pkg-django", "dependsOn": []},
             ],
         }
 
@@ -1537,10 +1646,227 @@ class TestLockfileFiltering:
         with open(output_file) as f:
             result = json.load(f)
 
-        # uv.lock should be removed
+        # uv.lock should be removed from components
         component_names = [c["name"] for c in result["components"]]
         assert "uv.lock" not in component_names
         assert "django" in component_names
+
+        # Dependency entry for lockfile should also be removed
+        dep_refs = [d["ref"] for d in result.get("dependencies", [])]
+        assert "lockfile-uv" not in dep_refs
+        # Package dependency should still exist
+        assert "pkg-django" in dep_refs
+
+    def test_is_lockfile_package_spdx_true(self):
+        """Test that SPDX lockfile packages are correctly identified."""
+        package = Package(
+            spdx_id="SPDXRef-uv-lock",
+            name="uv.lock",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is True
+
+    def test_is_lockfile_package_spdx_false_with_purl(self):
+        """Test that packages with PURLs are not identified as lockfiles."""
+        package = Package(
+            spdx_id="SPDXRef-requests",
+            name="requests",
+            download_location="NOASSERTION",
+            external_references=[
+                ExternalPackageRef(
+                    category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                    reference_type="purl",
+                    locator="pkg:pypi/requests@2.28.0",
+                )
+            ],
+        )
+        assert _is_lockfile_package(package) is False
+
+    def test_is_lockfile_package_spdx_false_for_regular_package(self):
+        """Test that regular packages are not identified as lockfiles."""
+        package = Package(
+            spdx_id="SPDXRef-django",
+            name="django",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is False
+
+    def test_filter_lockfile_packages_spdx_removes_lockfiles(self):
+        """Test that SPDX lockfile packages are removed."""
+        from datetime import datetime
+
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-sbom",
+            document_namespace="https://example.com/test",
+            creators=[],
+            created=datetime.now(),
+        )
+        document = Document(
+            creation_info=creation_info,
+            packages=[
+                Package(
+                    spdx_id="SPDXRef-uv-lock",
+                    name="uv.lock",
+                    download_location="NOASSERTION",
+                ),
+                Package(
+                    spdx_id="SPDXRef-django",
+                    name="django",
+                    download_location="NOASSERTION",
+                    external_references=[
+                        ExternalPackageRef(
+                            category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                            reference_type="purl",
+                            locator="pkg:pypi/django@5.1",
+                        )
+                    ],
+                ),
+            ],
+            relationships=[],
+        )
+
+        removed = _filter_lockfile_packages(document)
+
+        assert removed == 1
+        assert len(document.packages) == 1
+        assert document.packages[0].name == "django"
+
+    def test_filter_lockfile_packages_spdx_cleans_up_relationships(self):
+        """Test that relationships referencing lockfile packages are removed."""
+        from datetime import datetime
+
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-sbom",
+            document_namespace="https://example.com/test",
+            creators=[],
+            created=datetime.now(),
+        )
+        document = Document(
+            creation_info=creation_info,
+            packages=[
+                Package(
+                    spdx_id="SPDXRef-uv-lock",
+                    name="uv.lock",
+                    download_location="NOASSERTION",
+                ),
+                Package(
+                    spdx_id="SPDXRef-django",
+                    name="django",
+                    download_location="NOASSERTION",
+                    external_references=[
+                        ExternalPackageRef(
+                            category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                            reference_type="purl",
+                            locator="pkg:pypi/django@5.1",
+                        )
+                    ],
+                ),
+            ],
+            relationships=[
+                # Document describes lockfile
+                Relationship(
+                    spdx_element_id="SPDXRef-DOCUMENT",
+                    relationship_type=RelationshipType.DESCRIBES,
+                    related_spdx_element_id="SPDXRef-uv-lock",
+                ),
+                # Lockfile contains django
+                Relationship(
+                    spdx_element_id="SPDXRef-uv-lock",
+                    relationship_type=RelationshipType.CONTAINS,
+                    related_spdx_element_id="SPDXRef-django",
+                ),
+                # Document describes django (should remain)
+                Relationship(
+                    spdx_element_id="SPDXRef-DOCUMENT",
+                    relationship_type=RelationshipType.DESCRIBES,
+                    related_spdx_element_id="SPDXRef-django",
+                ),
+            ],
+        )
+
+        removed = _filter_lockfile_packages(document)
+
+        assert removed == 1
+        # Only the relationship from DOCUMENT to django should remain
+        assert len(document.relationships) == 1
+        remaining_rel = document.relationships[0]
+        assert remaining_rel.spdx_element_id == "SPDXRef-DOCUMENT"
+        assert remaining_rel.related_spdx_element_id == "SPDXRef-django"
+
+    def test_filter_lockfile_spdx_end_to_end(self, tmp_path):
+        """Test end-to-end that lockfiles are filtered from SPDX SBOM."""
+        sbom_data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test-sbom",
+            "dataLicense": "CC0-1.0",
+            "documentNamespace": "https://example.com/test",
+            "creationInfo": {
+                "created": "2024-01-01T00:00:00Z",
+                "creators": ["Tool: test"],
+            },
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-uv-lock",
+                    "name": "uv.lock",
+                    "downloadLocation": "NOASSERTION",
+                    "filesAnalyzed": False,
+                },
+                {
+                    "SPDXID": "SPDXRef-django",
+                    "name": "django",
+                    "versionInfo": "5.1",
+                    "downloadLocation": "NOASSERTION",
+                    "filesAnalyzed": False,
+                    "externalRefs": [
+                        {
+                            "referenceCategory": "PACKAGE-MANAGER",
+                            "referenceType": "purl",
+                            "referenceLocator": "pkg:pypi/django@5.1",
+                        }
+                    ],
+                },
+            ],
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-uv-lock",
+                },
+                {
+                    "spdxElementId": "SPDXRef-uv-lock",
+                    "relationshipType": "CONTAINS",
+                    "relatedSpdxElement": "SPDXRef-django",
+                },
+            ],
+        }
+
+        input_file = tmp_path / "sbom.spdx.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "enriched.spdx.json"
+
+        clear_cache()
+
+        with patch("sbomify_action.enrichment._fetch_package_metadata") as mock_fetch:
+            mock_fetch.return_value = {"description": "Django framework"}
+            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+        with open(output_file) as f:
+            result = json.load(f)
+
+        # uv.lock should be removed from packages
+        package_names = [p["name"] for p in result["packages"]]
+        assert "uv.lock" not in package_names
+        assert "django" in package_names
+
+        # Relationships referencing lockfile should be removed
+        for rel in result.get("relationships", []):
+            assert rel["spdxElementId"] != "SPDXRef-uv-lock"
+            assert rel["relatedSpdxElement"] != "SPDXRef-uv-lock"
 
 
 class TestPyPIFallback:
