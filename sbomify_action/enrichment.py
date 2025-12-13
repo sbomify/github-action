@@ -79,6 +79,8 @@ NAMESPACE_TO_SUPPLIER: Dict[str, str] = {
 }
 
 # Mapping of PURL type/namespace to package tracker URL templates
+# Note: Some URLs are version/arch agnostic (e.g., use search or generic landing pages)
+# to avoid hardcoding specific versions or architectures
 PACKAGE_TRACKER_URLS: Dict[str, Dict[str, str]] = {
     "deb": {
         "debian": "https://tracker.debian.org/pkg/{name}",
@@ -90,13 +92,17 @@ PACKAGE_TRACKER_URLS: Dict[str, Dict[str, str]] = {
         "redhat": "https://access.redhat.com/downloads/content/package-browser",
         "rhel": "https://access.redhat.com/downloads/content/package-browser",
         "amazon": "https://docs.aws.amazon.com/linux/",
-        "rocky": "https://rockylinux.pkgs.org/9/rockylinux-baseos-x86_64/{name}",
-        "almalinux": "https://repo.almalinux.org/almalinux/",
+        # Rocky uses pkgs.org search which works across versions/architectures
+        "rocky": "https://pkgs.org/search/?q={name}",
+        # AlmaLinux uses pkgs.org search which works across versions/architectures
+        "almalinux": "https://pkgs.org/search/?q={name}",
     },
     "apk": {
+        # Alpine URL defaults to edge/main/x86_64 but the package page shows all variants
         "alpine": "https://pkgs.alpinelinux.org/package/edge/main/x86_64/{name}",
         "wolfi": "https://github.com/wolfi-dev/os/tree/main/{name}",
-        "chainguard": "https://images.chainguard.dev/",
+        # Chainguard images catalog with package name in search
+        "chainguard": "https://images.chainguard.dev/directory/image/{name}/overview",
     },
 }
 
@@ -129,7 +135,7 @@ def _parse_purl_safe(purl_str: str) -> Optional[PackageURL]:
     """
     try:
         return PackageURL.from_string(purl_str)
-    except Exception as e:
+    except ValueError as e:
         logger.debug(f"Failed to parse PURL '{purl_str}': {e}")
         return None
 
@@ -539,8 +545,9 @@ def _fetch_pypi_metadata(package_name: str, session: requests.Session) -> Option
         logger.warning(f"Error fetching PyPI metadata for {package_name}: {e}")
         _metadata_cache[cache_key] = None
         return None
-    except Exception as e:
-        logger.error(f"Unexpected error fetching PyPI metadata for {package_name}: {e}")
+    except json.JSONDecodeError as e:
+        logger.warning(f"JSON decode error fetching PyPI metadata for {package_name}: {e}")
+        _metadata_cache[cache_key] = None
         return None
 
 

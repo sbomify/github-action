@@ -45,6 +45,15 @@ from sbomify_action.enrichment import (
     enrich_sbom_with_ecosystems,
     get_cache_stats,
 )
+from sbomify_action.generation import (
+    COMMON_CPP_LOCK_FILES,
+    COMMON_DART_LOCK_FILES,
+    COMMON_GO_LOCK_FILES,
+    COMMON_JAVASCRIPT_LOCK_FILES,
+    COMMON_PYTHON_LOCK_FILES,
+    COMMON_RUBY_LOCK_FILES,
+    COMMON_RUST_LOCK_FILES,
+)
 from sbomify_action.http_client import USER_AGENT
 
 
@@ -1087,7 +1096,11 @@ class TestPURLBasedEnrichment:
         assert url == "https://launchpad.net/ubuntu/+source/bash"
 
     def test_get_package_tracker_url_alpine(self):
-        """Test getting package tracker URL for Alpine packages."""
+        """Test getting package tracker URL for Alpine packages.
+
+        Note: The URL defaults to edge/main/x86_64, but the Alpine package page
+        shows all available variants, so this is acceptable for package discovery.
+        """
         purl = PackageURL.from_string("pkg:apk/alpine/bash@5.2")
         url = _get_package_tracker_url(purl)
         assert url == "https://pkgs.alpinelinux.org/package/edge/main/x86_64/bash"
@@ -1392,23 +1405,28 @@ class TestPURLEnrichmentIntegration:
 class TestLockfileFiltering:
     """Tests for lockfile component filtering."""
 
-    def test_all_lockfile_names_contains_expected_files(self):
-        """Test that ALL_LOCKFILE_NAMES contains all expected lockfiles."""
-        expected = [
-            "uv.lock",
-            "requirements.txt",
-            "Pipfile.lock",
-            "poetry.lock",
-            "Cargo.lock",
-            "package-lock.json",
-            "yarn.lock",
-            "pnpm-lock.yaml",
-            "Gemfile.lock",
-            "go.mod",
-            "pubspec.lock",
-            "conan.lock",
-        ]
-        for lockfile in expected:
+    def test_all_lockfile_names_matches_all_constants(self):
+        """Test that ALL_LOCKFILE_NAMES exactly matches the combination of all COMMON_*_LOCK_FILES constants."""
+        # Build expected set from all COMMON_*_LOCK_FILES constants
+        expected = set(
+            COMMON_PYTHON_LOCK_FILES
+            + COMMON_RUST_LOCK_FILES
+            + COMMON_JAVASCRIPT_LOCK_FILES
+            + COMMON_RUBY_LOCK_FILES
+            + COMMON_GO_LOCK_FILES
+            + COMMON_DART_LOCK_FILES
+            + COMMON_CPP_LOCK_FILES
+        )
+
+        # Verify exact match
+        assert ALL_LOCKFILE_NAMES == expected, (
+            f"ALL_LOCKFILE_NAMES should exactly match combination of all COMMON_*_LOCK_FILES. "
+            f"Missing: {expected - ALL_LOCKFILE_NAMES}, Extra: {ALL_LOCKFILE_NAMES - expected}"
+        )
+
+        # Also verify some expected files are present (sanity check)
+        expected_files = ["uv.lock", "requirements.txt", "Cargo.lock", "package-lock.json", "go.mod"]
+        for lockfile in expected_files:
             assert lockfile in ALL_LOCKFILE_NAMES, f"{lockfile} should be in ALL_LOCKFILE_NAMES"
 
     def test_is_lockfile_component_true_for_uv_lock(self):
