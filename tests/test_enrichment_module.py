@@ -1100,6 +1100,9 @@ class TestPURLBasedEnrichment:
 
         Note: The URL defaults to edge/main/x86_64, but the Alpine package page
         shows all available variants, so this is acceptable for package discovery.
+
+        TEST LIMITATION: This test assumes the default 'edge/main/x86_64' in the URL.
+        Future improvement: extract actual architecture/branch from PURL qualifiers.
         """
         purl = PackageURL.from_string("pkg:apk/alpine/bash@5.2")
         url = _get_package_tracker_url(purl)

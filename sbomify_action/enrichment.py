@@ -50,7 +50,9 @@ ALL_LOCKFILE_NAMES = set(
     + COMMON_CPP_LOCK_FILES
 )
 
-# OS package types that ecosyste.ms doesn't support but we can enrich via PURL parsing
+# OS package types that ecosyste.ms doesn't support but we can enrich via PURL parsing.
+# Fully supported: deb, rpm, apk (have NAMESPACE_TO_SUPPLIER and PACKAGE_TRACKER_URLS mappings)
+# Partial support: alpm (Arch), ebuild (Gentoo) - supplier extraction works but no tracker URLs yet
 OS_PACKAGE_TYPES = {"deb", "rpm", "apk", "alpm", "ebuild"}
 
 # Mapping of PURL namespace to supplier organization name
@@ -488,8 +490,8 @@ def _fetch_pypi_metadata(package_name: str, session: requests.Session) -> Option
             info = data.get("info", {})
 
             # Normalize PyPI response to ecosyste.ms format
-            # Note: PyPI uses 'home_page' (with underscore), but we normalize to 'homepage'
-            # for consistency with ecosyste.ms format and downstream consumers.
+            # PyPI uses 'home_page' (with underscore) in its API response; we normalize
+            # this to 'homepage' for consistency with the ecosyste.ms format.
             metadata = {
                 "description": info.get("summary"),
                 "homepage": info.get("home_page"),
