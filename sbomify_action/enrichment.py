@@ -23,11 +23,32 @@ from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
 from .exceptions import SBOMValidationError
+from .generation import (
+    COMMON_CPP_LOCK_FILES,
+    COMMON_DART_LOCK_FILES,
+    COMMON_GO_LOCK_FILES,
+    COMMON_JAVASCRIPT_LOCK_FILES,
+    COMMON_PYTHON_LOCK_FILES,
+    COMMON_RUBY_LOCK_FILES,
+    COMMON_RUST_LOCK_FILES,
+)
 from .http_client import USER_AGENT
 from .logging_config import logger
 from .serialization import serialize_cyclonedx_bom
 
 ECOSYSTEMS_API_BASE = "https://packages.ecosyste.ms/api/v1"
+PYPI_API_BASE = "https://pypi.org/pypi"
+
+# Combine all lockfile names into a single set for efficient lookup
+ALL_LOCKFILE_NAMES = set(
+    COMMON_PYTHON_LOCK_FILES
+    + COMMON_RUST_LOCK_FILES
+    + COMMON_JAVASCRIPT_LOCK_FILES
+    + COMMON_RUBY_LOCK_FILES
+    + COMMON_GO_LOCK_FILES
+    + COMMON_DART_LOCK_FILES
+    + COMMON_CPP_LOCK_FILES
+)
 
 # OS package types that ecosyste.ms doesn't support but we can enrich via PURL parsing
 OS_PACKAGE_TYPES = {"deb", "rpm", "apk", "alpm", "ebuild"}
@@ -167,6 +188,56 @@ def _is_os_package_type(purl_str: str) -> bool:
     return False
 
 
+def _is_lockfile_component(component: Component) -> bool:
+    """
+    Check if a CycloneDX component represents a lockfile artifact.
+
+    These are "application" type components created by scanners like Trivy
+    to represent the scanned lockfile itself (e.g., uv.lock, requirements.txt).
+    They are not real packages and should be filtered out.
+
+    Args:
+        component: CycloneDX Component object
+
+    Returns:
+        True if this is a lockfile component that should be filtered out
+    """
+    # Must be application type
+    if component.type.name.lower() != "application":
+        return False
+
+    # Must have no PURL (lockfiles aren't real packages)
+    if component.purl:
+        return False
+
+    # Check if name matches known lockfile patterns
+    if component.name and component.name in ALL_LOCKFILE_NAMES:
+        return True
+
+    return False
+
+
+def _filter_lockfile_components(bom: Bom) -> int:
+    """
+    Remove lockfile components from a CycloneDX BOM.
+
+    Args:
+        bom: CycloneDX Bom object (modified in place)
+
+    Returns:
+        Number of lockfile components removed
+    """
+    # Find lockfile components to remove
+    lockfile_components = [c for c in bom.components if _is_lockfile_component(c)]
+
+    # Remove them
+    for component in lockfile_components:
+        bom.components.discard(component)
+        logger.info(f"Filtered out lockfile component: {component.name}")
+
+    return len(lockfile_components)
+
+
 def _enrich_cyclonedx_component_from_purl(component: Component, purl_str: str) -> List[str]:
     """
     Enrich a CycloneDX component using PURL parsing for OS packages.
@@ -198,9 +269,7 @@ def _enrich_cyclonedx_component_from_purl(component: Component, purl_str: str) -
     tracker_url = _get_package_tracker_url(purl)
     if tracker_url:
         # Check if this URL already exists
-        url_exists = any(
-            str(ref.url) == tracker_url for ref in component.external_references
-        )
+        url_exists = any(str(ref.url) == tracker_url for ref in component.external_references)
         if not url_exists:
             component.external_references.add(
                 ExternalReference(type=ExternalReferenceType.WEBSITE, url=XsUri(tracker_url))
@@ -382,6 +451,99 @@ def _fetch_package_metadata(purl: str, session: requests.Session) -> Optional[Di
         return None
 
 
+def _fetch_pypi_metadata(package_name: str, session: requests.Session) -> Optional[Dict[str, Any]]:
+    """
+    Fetch package metadata from PyPI JSON API.
+
+    This is used as a fallback when ecosyste.ms doesn't have data for a PyPI package.
+
+    Args:
+        package_name: Name of the PyPI package
+        session: requests.Session with configured headers
+
+    Returns:
+        Package metadata dict (normalized to ecosyste.ms format) or None if fetch fails
+    """
+    cache_key = f"pypi:{package_name}"
+
+    # Check cache first
+    if cache_key in _metadata_cache:
+        logger.debug(f"Cache hit (PyPI): {package_name}")
+        return _metadata_cache[cache_key]
+
+    try:
+        url = f"{PYPI_API_BASE}/{package_name}/json"
+        logger.debug(f"Fetching PyPI metadata for: {package_name}")
+        response = session.get(url, timeout=30)
+
+        metadata = None
+        if response.status_code == 200:
+            data = response.json()
+            info = data.get("info", {})
+
+            # Normalize PyPI response to ecosyste.ms format
+            metadata = {
+                "description": info.get("summary"),
+                "homepage": info.get("home_page"),
+                "licenses": info.get("license"),
+                "registry_url": f"https://pypi.org/project/{package_name}/",
+            }
+
+            # Extract maintainers from author/maintainer fields
+            maintainers = []
+            if info.get("author"):
+                maintainer = {"name": info["author"]}
+                if info.get("author_email"):
+                    maintainer["email"] = info["author_email"]
+                maintainers.append(maintainer)
+            elif info.get("maintainer"):
+                maintainer = {"name": info["maintainer"]}
+                if info.get("maintainer_email"):
+                    maintainer["email"] = info["maintainer_email"]
+                maintainers.append(maintainer)
+            if maintainers:
+                metadata["maintainers"] = maintainers
+
+            # Extract URLs from project_urls
+            project_urls = info.get("project_urls") or {}
+            for key, url_value in project_urls.items():
+                key_lower = key.lower()
+                if "source" in key_lower or "repository" in key_lower or "github" in key_lower:
+                    metadata["repository_url"] = url_value
+                elif "issue" in key_lower or "bug" in key_lower or "tracker" in key_lower:
+                    # Store for issue tracker
+                    if "repo_metadata" not in metadata:
+                        metadata["repo_metadata"] = {}
+                    metadata["repo_metadata"]["html_url"] = url_value.replace("/issues", "")
+                    metadata["repo_metadata"]["has_issues"] = True
+                elif "documentation" in key_lower or "docs" in key_lower:
+                    metadata["documentation_url"] = url_value
+                elif "homepage" in key_lower and not metadata.get("homepage"):
+                    metadata["homepage"] = url_value
+
+            logger.debug(f"Successfully fetched PyPI metadata for: {package_name}")
+        elif response.status_code == 404:
+            logger.debug(f"Package not found on PyPI: {package_name}")
+        else:
+            logger.warning(f"Failed to fetch PyPI metadata for {package_name}: HTTP {response.status_code}")
+
+        # Cache the result
+        _metadata_cache[cache_key] = metadata
+        return metadata
+
+    except requests.exceptions.Timeout:
+        logger.warning(f"Timeout fetching PyPI metadata for {package_name}")
+        _metadata_cache[cache_key] = None
+        return None
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Error fetching PyPI metadata for {package_name}: {e}")
+        _metadata_cache[cache_key] = None
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error fetching PyPI metadata for {package_name}: {e}")
+        return None
+
+
 def _fetch_all_metadata_sequential(purls: List[str]) -> Dict[str, Optional[Dict[str, Any]]]:
     """
     Fetch metadata for all PURLs sequentially.
@@ -408,6 +570,44 @@ def _fetch_all_metadata_sequential(purls: List[str]) -> Dict[str, Optional[Dict[
                 metadata_map[purl] = None
 
     return metadata_map
+
+
+def _add_enrichment_source_property(component: Component, source: str) -> None:
+    """
+    Add enrichment source property to a CycloneDX component.
+
+    Args:
+        component: Component object to add property to
+        source: Enrichment source (e.g., "ecosyste.ms", "pypi.org", "purl")
+    """
+    from cyclonedx.model import Property
+
+    property_name = "sbomify:enrichment:source"
+
+    # Check if property already exists
+    for prop in component.properties:
+        if prop.name == property_name:
+            return  # Already has enrichment source
+
+    component.properties.add(Property(name=property_name, value=source))
+
+
+def _add_enrichment_source_comment(package: Package, source: str) -> None:
+    """
+    Add enrichment source comment to an SPDX package.
+
+    Args:
+        package: Package object to add comment to
+        source: Enrichment source (e.g., "ecosyste.ms", "pypi.org", "purl")
+    """
+    enrichment_note = f"Enriched by sbomify from {source}"
+
+    if package.comment:
+        # Append to existing comment if not already present
+        if enrichment_note not in package.comment:
+            package.comment = f"{package.comment} | {enrichment_note}"
+    else:
+        package.comment = enrichment_note
 
 
 def _enrich_cyclonedx_component(component: Component, metadata: Optional[Dict[str, Any]]) -> List[str]:
@@ -705,17 +905,20 @@ def _enrich_spdx_package(package: Package, metadata: Optional[Dict[str, Any]]) -
     return added_fields
 
 
-def _enrich_cyclonedx_bom_with_metadata(bom: Bom, metadata_map: Dict[str, Optional[Dict[str, Any]]]) -> Dict[str, int]:
+def _enrich_cyclonedx_bom_with_metadata(
+    bom: Bom, metadata_map: Dict[str, Optional[Dict[str, Any]]], session: requests.Session
+) -> Dict[str, int]:
     """
     Enrich CycloneDX BOM with fetched metadata.
 
-    Uses ecosyste.ms metadata when available, falls back to PURL-based
-    enrichment for OS packages (deb, rpm, apk) that ecosyste.ms doesn't support.
+    Uses ecosyste.ms metadata when available, falls back to PyPI API for
+    pypi packages, and PURL-based enrichment for OS packages (deb, rpm, apk).
     Also handles operating-system type components separately.
 
     Args:
         bom: Bom object to enrich (modified in place)
         metadata_map: Map of PURL to metadata
+        session: requests.Session for PyPI fallback calls
 
     Returns:
         Enrichment statistics
@@ -732,10 +935,13 @@ def _enrich_cyclonedx_bom_with_metadata(bom: Bom, metadata_map: Dict[str, Option
         "issue_trackers_added": 0,
         "os_components_enriched": 0,
         "purl_fallback_enriched": 0,
+        "pypi_fallback_enriched": 0,
+        "ecosystems_enriched": 0,
     }
 
     for component in bom.components:
         added_fields = []
+        enrichment_source = None
         purl = str(component.purl) if component.purl else None
 
         # First, handle operating-system type components (no PURL typically)
@@ -743,11 +949,14 @@ def _enrich_cyclonedx_bom_with_metadata(bom: Bom, metadata_map: Dict[str, Option
         if component.type.name.lower() == "operating_system":
             added_fields = _enrich_os_component(component)
             if added_fields:
+                enrichment_source = "purl"
                 stats["os_components_enriched"] += 1
                 stats["components_enriched"] += 1
                 for field in added_fields:
                     if "publisher" in field:
                         stats["publishers_added"] += 1
+                # Add enrichment source property
+                _add_enrichment_source_property(component, enrichment_source)
             continue
 
         # For components with PURLs, try ecosyste.ms first
@@ -756,15 +965,33 @@ def _enrich_cyclonedx_bom_with_metadata(bom: Bom, metadata_map: Dict[str, Option
             if metadata:
                 # ecosyste.ms has data for this package
                 added_fields = _enrich_cyclonedx_component(component, metadata)
+                if added_fields:
+                    enrichment_source = "ecosyste.ms"
+                    stats["ecosystems_enriched"] += 1
             else:
-                # ecosyste.ms returned no data, try PURL-based fallback for OS packages
-                if _is_os_package_type(purl):
-                    added_fields = _enrich_cyclonedx_component_from_purl(component, purl)
-                    if added_fields:
-                        stats["purl_fallback_enriched"] += 1
+                # ecosyste.ms returned no data, try fallbacks
+                parsed_purl = _parse_purl_safe(purl)
+                if parsed_purl:
+                    if parsed_purl.type == "pypi":
+                        # Try PyPI API fallback
+                        pypi_metadata = _fetch_pypi_metadata(parsed_purl.name, session)
+                        if pypi_metadata:
+                            added_fields = _enrich_cyclonedx_component(component, pypi_metadata)
+                            if added_fields:
+                                enrichment_source = "pypi.org"
+                                stats["pypi_fallback_enriched"] += 1
+                    elif parsed_purl.type in OS_PACKAGE_TYPES:
+                        # Try PURL-based fallback for OS packages
+                        added_fields = _enrich_cyclonedx_component_from_purl(component, purl)
+                        if added_fields:
+                            enrichment_source = "purl"
+                            stats["purl_fallback_enriched"] += 1
 
             if added_fields:
                 stats["components_enriched"] += 1
+                # Add enrichment source property
+                if enrichment_source:
+                    _add_enrichment_source_property(component, enrichment_source)
                 for field in added_fields:
                     if "description" in field:
                         stats["descriptions_added"] += 1
@@ -785,17 +1012,18 @@ def _enrich_cyclonedx_bom_with_metadata(bom: Bom, metadata_map: Dict[str, Option
 
 
 def _enrich_spdx_document_with_metadata(
-    document: Document, metadata_map: Dict[str, Optional[Dict[str, Any]]]
+    document: Document, metadata_map: Dict[str, Optional[Dict[str, Any]]], session: requests.Session
 ) -> Dict[str, int]:
     """
     Enrich SPDX document with fetched metadata.
 
-    Uses ecosyste.ms metadata when available, falls back to PURL-based
-    enrichment for OS packages (deb, rpm, apk) that ecosyste.ms doesn't support.
+    Uses ecosyste.ms metadata when available, falls back to PyPI API for
+    pypi packages, and PURL-based enrichment for OS packages (deb, rpm, apk).
 
     Args:
         document: Document object to enrich (modified in place)
         metadata_map: Map of PURL to metadata
+        session: requests.Session for PyPI fallback calls
 
     Returns:
         Enrichment statistics
@@ -811,10 +1039,13 @@ def _enrich_spdx_document_with_metadata(
         "source_info_added": 0,
         "external_refs_added": 0,
         "purl_fallback_enriched": 0,
+        "pypi_fallback_enriched": 0,
+        "ecosystems_enriched": 0,
     }
 
     for package in document.packages:
         added_fields = []
+        enrichment_source = None
 
         # Find PURL in external references
         purl = None
@@ -828,15 +1059,33 @@ def _enrich_spdx_document_with_metadata(
             if metadata:
                 # ecosyste.ms has data for this package
                 added_fields = _enrich_spdx_package(package, metadata)
+                if added_fields:
+                    enrichment_source = "ecosyste.ms"
+                    stats["ecosystems_enriched"] += 1
             else:
-                # ecosyste.ms returned no data, try PURL-based fallback for OS packages
-                if _is_os_package_type(purl):
-                    added_fields = _enrich_spdx_package_from_purl(package, purl)
-                    if added_fields:
-                        stats["purl_fallback_enriched"] += 1
+                # ecosyste.ms returned no data, try fallbacks
+                parsed_purl = _parse_purl_safe(purl)
+                if parsed_purl:
+                    if parsed_purl.type == "pypi":
+                        # Try PyPI API fallback
+                        pypi_metadata = _fetch_pypi_metadata(parsed_purl.name, session)
+                        if pypi_metadata:
+                            added_fields = _enrich_spdx_package(package, pypi_metadata)
+                            if added_fields:
+                                enrichment_source = "pypi.org"
+                                stats["pypi_fallback_enriched"] += 1
+                    elif parsed_purl.type in OS_PACKAGE_TYPES:
+                        # Try PURL-based fallback for OS packages
+                        added_fields = _enrich_spdx_package_from_purl(package, purl)
+                        if added_fields:
+                            enrichment_source = "purl"
+                            stats["purl_fallback_enriched"] += 1
 
             if added_fields:
                 stats["components_enriched"] += 1
+                # Add enrichment source comment
+                if enrichment_source:
+                    _add_enrichment_source_comment(package, enrichment_source)
                 for field in added_fields:
                     if "description" in field:
                         stats["descriptions_added"] += 1
@@ -936,6 +1185,11 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
         except Exception as e:
             raise SBOMValidationError(f"Failed to parse CycloneDX SBOM: {e}")
 
+        # Filter out lockfile components (e.g., uv.lock, requirements.txt)
+        lockfiles_removed = _filter_lockfile_components(bom)
+        if lockfiles_removed > 0:
+            logger.info(f"Removed {lockfiles_removed} lockfile component(s) from SBOM")
+
         # Extract components
         components = _extract_components_from_cyclonedx(bom)
         if not components:
@@ -951,24 +1205,33 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
         # Extract PURLs
         purls = [purl for _, purl in components]
 
-        # Fetch metadata sequentially
-        metadata_map = _fetch_all_metadata_sequential(purls)
+        # Use a session for all API calls
+        with requests.Session() as session:
+            session.headers.update({"User-Agent": USER_AGENT})
 
-        # Count successful fetches
-        successful_fetches = sum(1 for v in metadata_map.values() if v is not None)
-        logger.info(f"Successfully fetched metadata for {successful_fetches}/{len(purls)} components")
+            # Fetch metadata sequentially
+            metadata_map = _fetch_all_metadata_sequential(purls)
 
-        # Log cache statistics
-        cache_stats = get_cache_stats()
-        logger.info(f"Cache statistics: {cache_stats['entries']} entries cached")
+            # Count successful fetches
+            successful_fetches = sum(1 for v in metadata_map.values() if v is not None)
+            logger.info(f"Successfully fetched metadata for {successful_fetches}/{len(purls)} components")
 
-        # Enrich BOM
-        stats = _enrich_cyclonedx_bom_with_metadata(bom, metadata_map)
+            # Log cache statistics
+            cache_stats = get_cache_stats()
+            logger.info(f"Cache statistics: {cache_stats['entries']} entries cached")
+
+            # Enrich BOM (pass session for PyPI fallback)
+            stats = _enrich_cyclonedx_bom_with_metadata(bom, metadata_map, session)
 
         # Print enrichment summary
         logger.info("Enrichment Summary:")
         logger.info(f"  Components enriched: {stats['components_enriched']}/{len(components)}")
 
+        # Log enrichment sources
+        if stats.get("ecosystems_enriched", 0) > 0:
+            logger.info(f"  Enriched from ecosyste.ms: {stats['ecosystems_enriched']}")
+        if stats.get("pypi_fallback_enriched", 0) > 0:
+            logger.info(f"  Enriched from pypi.org: {stats['pypi_fallback_enriched']}")
         if stats.get("os_components_enriched", 0) > 0:
             logger.info(f"  OS components enriched: {stats['os_components_enriched']}")
         if stats.get("purl_fallback_enriched", 0) > 0:
@@ -1018,24 +1281,33 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
         # Extract PURLs
         purls = [purl for _, purl in packages]
 
-        # Fetch metadata sequentially
-        metadata_map = _fetch_all_metadata_sequential(purls)
+        # Use a session for all API calls
+        with requests.Session() as session:
+            session.headers.update({"User-Agent": USER_AGENT})
 
-        # Count successful fetches
-        successful_fetches = sum(1 for v in metadata_map.values() if v is not None)
-        logger.info(f"Successfully fetched metadata for {successful_fetches}/{len(purls)} packages")
+            # Fetch metadata sequentially
+            metadata_map = _fetch_all_metadata_sequential(purls)
 
-        # Log cache statistics
-        cache_stats = get_cache_stats()
-        logger.info(f"Cache statistics: {cache_stats['entries']} entries cached")
+            # Count successful fetches
+            successful_fetches = sum(1 for v in metadata_map.values() if v is not None)
+            logger.info(f"Successfully fetched metadata for {successful_fetches}/{len(purls)} packages")
 
-        # Enrich document
-        stats = _enrich_spdx_document_with_metadata(document, metadata_map)
+            # Log cache statistics
+            cache_stats = get_cache_stats()
+            logger.info(f"Cache statistics: {cache_stats['entries']} entries cached")
+
+            # Enrich document (pass session for PyPI fallback)
+            stats = _enrich_spdx_document_with_metadata(document, metadata_map, session)
 
         # Print enrichment summary
         logger.info("Enrichment Summary:")
         logger.info(f"  Packages enriched: {stats['components_enriched']}/{len(packages)}")
 
+        # Log enrichment sources
+        if stats.get("ecosystems_enriched", 0) > 0:
+            logger.info(f"  Enriched from ecosyste.ms: {stats['ecosystems_enriched']}")
+        if stats.get("pypi_fallback_enriched", 0) > 0:
+            logger.info(f"  Enriched from pypi.org: {stats['pypi_fallback_enriched']}")
         if stats.get("purl_fallback_enriched", 0) > 0:
             logger.info(f"  OS packages enriched via PURL: {stats['purl_fallback_enriched']}")
         if stats["descriptions_added"] > 0:

@@ -21,9 +21,12 @@ from spdx_tools.spdx.model import (
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 
 from sbomify_action.enrichment import (
+    ALL_LOCKFILE_NAMES,
     NAMESPACE_TO_SUPPLIER,
     OS_PACKAGE_TYPES,
     PACKAGE_TRACKER_URLS,
+    _add_enrichment_source_comment,
+    _add_enrichment_source_property,
     _enrich_cyclonedx_component,
     _enrich_cyclonedx_component_from_purl,
     _enrich_os_component,
@@ -31,8 +34,11 @@ from sbomify_action.enrichment import (
     _enrich_spdx_package_from_purl,
     _extract_components_from_cyclonedx,
     _fetch_package_metadata,
+    _fetch_pypi_metadata,
+    _filter_lockfile_components,
     _get_package_tracker_url,
     _get_supplier_from_purl,
+    _is_lockfile_component,
     _is_os_package_type,
     _parse_purl_safe,
     clear_cache,
@@ -1117,9 +1123,7 @@ class TestPURLBasedEnrichment:
         component = Component(name="bash", version="5.2", type=ComponentType.LIBRARY)
         component.purl = PackageURL.from_string("pkg:deb/debian/bash@5.2")
 
-        added_fields = _enrich_cyclonedx_component_from_purl(
-            component, "pkg:deb/debian/bash@5.2"
-        )
+        added_fields = _enrich_cyclonedx_component_from_purl(component, "pkg:deb/debian/bash@5.2")
 
         assert component.publisher == "Debian Project"
         assert len(component.external_references) == 1
@@ -1133,9 +1137,7 @@ class TestPURLBasedEnrichment:
         component = Component(name="django", version="5.1", type=ComponentType.LIBRARY)
         component.purl = PackageURL.from_string("pkg:pypi/django@5.1")
 
-        added_fields = _enrich_cyclonedx_component_from_purl(
-            component, "pkg:pypi/django@5.1"
-        )
+        added_fields = _enrich_cyclonedx_component_from_purl(component, "pkg:pypi/django@5.1")
 
         # Should not add anything for pypi packages
         assert added_fields == []
@@ -1147,9 +1149,7 @@ class TestPURLBasedEnrichment:
         component.purl = PackageURL.from_string("pkg:deb/debian/bash@5.2")
         component.publisher = "Existing Publisher"
 
-        added_fields = _enrich_cyclonedx_component_from_purl(
-            component, "pkg:deb/debian/bash@5.2"
-        )
+        added_fields = _enrich_cyclonedx_component_from_purl(component, "pkg:deb/debian/bash@5.2")
 
         # Publisher should not be changed
         assert component.publisher == "Existing Publisher"
@@ -1158,9 +1158,7 @@ class TestPURLBasedEnrichment:
 
     def test_enrich_os_component_debian(self):
         """Test enriching a Debian operating-system component."""
-        component = Component(
-            name="debian", version="12.12", type=ComponentType.OPERATING_SYSTEM
-        )
+        component = Component(name="debian", version="12.12", type=ComponentType.OPERATING_SYSTEM)
 
         added_fields = _enrich_os_component(component)
 
@@ -1169,9 +1167,7 @@ class TestPURLBasedEnrichment:
 
     def test_enrich_os_component_ubuntu(self):
         """Test enriching an Ubuntu operating-system component."""
-        component = Component(
-            name="ubuntu", version="22.04", type=ComponentType.OPERATING_SYSTEM
-        )
+        component = Component(name="ubuntu", version="22.04", type=ComponentType.OPERATING_SYSTEM)
 
         added_fields = _enrich_os_component(component)
 
@@ -1180,9 +1176,7 @@ class TestPURLBasedEnrichment:
 
     def test_enrich_os_component_redhat(self):
         """Test enriching a Red Hat operating-system component."""
-        component = Component(
-            name="redhat", version="9.7", type=ComponentType.OPERATING_SYSTEM
-        )
+        component = Component(name="redhat", version="9.7", type=ComponentType.OPERATING_SYSTEM)
 
         added_fields = _enrich_os_component(component)
 
@@ -1191,9 +1185,7 @@ class TestPURLBasedEnrichment:
 
     def test_enrich_os_component_alpine(self):
         """Test enriching an Alpine operating-system component."""
-        component = Component(
-            name="alpine", version="3.19", type=ComponentType.OPERATING_SYSTEM
-        )
+        component = Component(name="alpine", version="3.19", type=ComponentType.OPERATING_SYSTEM)
 
         added_fields = _enrich_os_component(component)
 
@@ -1202,9 +1194,7 @@ class TestPURLBasedEnrichment:
 
     def test_enrich_os_component_unknown(self):
         """Test enriching an unknown operating-system component."""
-        component = Component(
-            name="unknownos", version="1.0", type=ComponentType.OPERATING_SYSTEM
-        )
+        component = Component(name="unknownos", version="1.0", type=ComponentType.OPERATING_SYSTEM)
 
         added_fields = _enrich_os_component(component)
 
@@ -1214,9 +1204,7 @@ class TestPURLBasedEnrichment:
 
     def test_enrich_os_component_existing_publisher(self):
         """Test that existing publisher is not overwritten for OS component."""
-        component = Component(
-            name="debian", version="12.12", type=ComponentType.OPERATING_SYSTEM
-        )
+        component = Component(name="debian", version="12.12", type=ComponentType.OPERATING_SYSTEM)
         component.publisher = "Existing Publisher"
 
         added_fields = _enrich_os_component(component)
@@ -1226,9 +1214,7 @@ class TestPURLBasedEnrichment:
 
     def test_enrich_os_component_non_os_type(self):
         """Test that non-OS components are not enriched by this function."""
-        component = Component(
-            name="debian", version="12.12", type=ComponentType.LIBRARY
-        )
+        component = Component(name="debian", version="12.12", type=ComponentType.LIBRARY)
 
         added_fields = _enrich_os_component(component)
 
@@ -1237,7 +1223,6 @@ class TestPURLBasedEnrichment:
 
     def test_enrich_spdx_package_from_purl_debian(self):
         """Test enriching an SPDX package from a Debian PURL."""
-        from spdx_tools.spdx.model import Actor, ActorType
 
         package = Package(
             spdx_id="SPDXRef-bash",
@@ -1336,9 +1321,7 @@ class TestPURLEnrichmentIntegration:
         assert os_component.get("publisher") == "Debian Project"
 
         # Find bash package
-        bash_pkg = next(
-            (c for c in result["components"] if c.get("name") == "bash"), None
-        )
+        bash_pkg = next((c for c in result["components"] if c.get("name") == "bash"), None)
         assert bash_pkg is not None
         assert bash_pkg.get("publisher") == "Debian Project"
         # Check for external reference
@@ -1389,24 +1372,380 @@ class TestPURLEnrichmentIntegration:
                 }
             return None  # Debian packages not in ecosyste.ms
 
-        with patch(
-            "sbomify_action.enrichment._fetch_package_metadata", side_effect=mock_fetch
-        ):
+        with patch("sbomify_action.enrichment._fetch_package_metadata", side_effect=mock_fetch):
             enrich_sbom_with_ecosystems(str(input_file), str(output_file))
 
         with open(output_file) as f:
             result = json.load(f)
 
         # Django should be enriched from ecosyste.ms
-        django_pkg = next(
-            (c for c in result["components"] if c.get("name") == "django"), None
-        )
+        django_pkg = next((c for c in result["components"] if c.get("name") == "django"), None)
         assert django_pkg is not None
         assert django_pkg.get("description") == "Django web framework"
 
         # Bash should be enriched from PURL
-        bash_pkg = next(
-            (c for c in result["components"] if c.get("name") == "bash"), None
-        )
+        bash_pkg = next((c for c in result["components"] if c.get("name") == "bash"), None)
         assert bash_pkg is not None
         assert bash_pkg.get("publisher") == "Debian Project"
+
+
+class TestLockfileFiltering:
+    """Tests for lockfile component filtering."""
+
+    def test_all_lockfile_names_contains_expected_files(self):
+        """Test that ALL_LOCKFILE_NAMES contains all expected lockfiles."""
+        expected = [
+            "uv.lock",
+            "requirements.txt",
+            "Pipfile.lock",
+            "poetry.lock",
+            "Cargo.lock",
+            "package-lock.json",
+            "yarn.lock",
+            "pnpm-lock.yaml",
+            "Gemfile.lock",
+            "go.mod",
+            "pubspec.lock",
+            "conan.lock",
+        ]
+        for lockfile in expected:
+            assert lockfile in ALL_LOCKFILE_NAMES, f"{lockfile} should be in ALL_LOCKFILE_NAMES"
+
+    def test_is_lockfile_component_true_for_uv_lock(self):
+        """Test that uv.lock is identified as a lockfile component."""
+        component = Component(name="uv.lock", type=ComponentType.APPLICATION)
+        assert _is_lockfile_component(component) is True
+
+    def test_is_lockfile_component_true_for_requirements_txt(self):
+        """Test that requirements.txt is identified as a lockfile component."""
+        component = Component(name="requirements.txt", type=ComponentType.APPLICATION)
+        assert _is_lockfile_component(component) is True
+
+    def test_is_lockfile_component_false_for_library(self):
+        """Test that library components are not identified as lockfiles."""
+        component = Component(name="uv.lock", type=ComponentType.LIBRARY)
+        assert _is_lockfile_component(component) is False
+
+    def test_is_lockfile_component_false_with_purl(self):
+        """Test that components with PURLs are not identified as lockfiles."""
+        component = Component(name="uv.lock", type=ComponentType.APPLICATION)
+        component.purl = PackageURL.from_string("pkg:pypi/something@1.0")
+        assert _is_lockfile_component(component) is False
+
+    def test_is_lockfile_component_false_for_regular_app(self):
+        """Test that regular application components are not identified as lockfiles."""
+        component = Component(name="my-app", type=ComponentType.APPLICATION)
+        assert _is_lockfile_component(component) is False
+
+    def test_filter_lockfile_components_removes_lockfiles(self):
+        """Test that filter_lockfile_components removes lockfile components."""
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "components": [
+                {"type": "application", "name": "uv.lock"},
+                {"type": "library", "name": "django", "version": "5.1", "purl": "pkg:pypi/django@5.1"},
+                {"type": "application", "name": "requirements.txt"},
+            ],
+        }
+        bom = Bom.from_json(bom_json)
+        assert len(bom.components) == 3
+
+        removed = _filter_lockfile_components(bom)
+
+        assert removed == 2
+        assert len(bom.components) == 1
+        remaining = list(bom.components)[0]
+        assert remaining.name == "django"
+
+    def test_filter_lockfile_end_to_end(self, tmp_path):
+        """Test end-to-end that lockfiles are filtered from SBOM."""
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "version": 1,
+            "components": [
+                {"type": "application", "name": "uv.lock", "bom-ref": "lockfile-uv"},
+                {
+                    "type": "library",
+                    "name": "django",
+                    "version": "5.1",
+                    "purl": "pkg:pypi/django@5.1",
+                    "bom-ref": "pkg-django",
+                },
+            ],
+        }
+
+        input_file = tmp_path / "sbom.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "enriched.json"
+
+        clear_cache()
+
+        with patch("sbomify_action.enrichment._fetch_package_metadata") as mock_fetch:
+            mock_fetch.return_value = {"description": "Django framework"}
+            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+        with open(output_file) as f:
+            result = json.load(f)
+
+        # uv.lock should be removed
+        component_names = [c["name"] for c in result["components"]]
+        assert "uv.lock" not in component_names
+        assert "django" in component_names
+
+
+class TestPyPIFallback:
+    """Tests for PyPI API fallback enrichment."""
+
+    def test_fetch_pypi_metadata_success(self):
+        """Test successful PyPI metadata fetch."""
+        clear_cache()
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "info": {
+                "summary": "Boolean algebra library",
+                "author": "John Doe",
+                "author_email": "john@example.com",
+                "license": "BSD-2-Clause",
+                "home_page": "https://example.com",
+                "project_urls": {
+                    "Source": "https://github.com/example/boolean-py",
+                    "Issue Tracker": "https://github.com/example/boolean-py/issues",
+                },
+            }
+        }
+        mock_session.get.return_value = mock_response
+
+        metadata = _fetch_pypi_metadata("boolean-py", mock_session)
+
+        assert metadata is not None
+        assert metadata["description"] == "Boolean algebra library"
+        assert metadata["homepage"] == "https://example.com"
+        assert metadata["licenses"] == "BSD-2-Clause"
+        assert metadata["repository_url"] == "https://github.com/example/boolean-py"
+        assert len(metadata["maintainers"]) == 1
+        assert metadata["maintainers"][0]["name"] == "John Doe"
+
+    def test_fetch_pypi_metadata_not_found(self):
+        """Test PyPI metadata fetch for non-existent package."""
+        clear_cache()
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_session.get.return_value = mock_response
+
+        metadata = _fetch_pypi_metadata("nonexistent-package", mock_session)
+
+        assert metadata is None
+
+    def test_fetch_pypi_metadata_cached(self):
+        """Test that PyPI metadata is cached."""
+        clear_cache()
+        mock_session = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"info": {"summary": "Test"}}
+        mock_session.get.return_value = mock_response
+
+        # First call
+        _fetch_pypi_metadata("test-pkg", mock_session)
+        # Second call should use cache
+        _fetch_pypi_metadata("test-pkg", mock_session)
+
+        # Should only call API once
+        assert mock_session.get.call_count == 1
+
+    def test_pypi_fallback_end_to_end(self, tmp_path):
+        """Test end-to-end PyPI fallback when ecosyste.ms has no data."""
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "version": 1,
+            "components": [
+                {
+                    "type": "library",
+                    "name": "boolean-py",
+                    "version": "5.0",
+                    "purl": "pkg:pypi/boolean-py@5.0",
+                    "bom-ref": "pkg-boolean",
+                },
+            ],
+        }
+
+        input_file = tmp_path / "sbom.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "enriched.json"
+
+        clear_cache()
+
+        # Mock ecosyste.ms to return None, but PyPI to return data
+        def mock_ecosystems_fetch(purl, session):
+            return None
+
+        pypi_response = {
+            "info": {
+                "summary": "Boolean algebra library",
+                "author": "Test Author",
+                "license": "BSD-2-Clause",
+            }
+        }
+
+        with patch("sbomify_action.enrichment._fetch_package_metadata", side_effect=mock_ecosystems_fetch):
+            with patch("sbomify_action.enrichment.requests.Session") as mock_session_class:
+                mock_session = Mock()
+                mock_response = Mock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = pypi_response
+                mock_session.get.return_value = mock_response
+                mock_session.headers = {}
+                mock_session.__enter__ = Mock(return_value=mock_session)
+                mock_session.__exit__ = Mock(return_value=False)
+                mock_session_class.return_value = mock_session
+
+                enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+        with open(output_file) as f:
+            result = json.load(f)
+
+        # Check that component was enriched from PyPI
+        component = result["components"][0]
+        assert component["description"] == "Boolean algebra library"
+
+
+class TestEnrichmentSourceTracking:
+    """Tests for enrichment source tracking (sbomify:enrichment:source property)."""
+
+    def test_add_enrichment_source_property(self):
+        """Test adding enrichment source property to CycloneDX component."""
+        component = Component(name="test", version="1.0", type=ComponentType.LIBRARY)
+
+        _add_enrichment_source_property(component, "ecosyste.ms")
+
+        # Find the property
+        props = list(component.properties)
+        source_prop = next((p for p in props if p.name == "sbomify:enrichment:source"), None)
+
+        assert source_prop is not None
+        assert source_prop.value == "ecosyste.ms"
+
+    def test_add_enrichment_source_property_not_duplicate(self):
+        """Test that enrichment source property is not added twice."""
+        component = Component(name="test", version="1.0", type=ComponentType.LIBRARY)
+
+        _add_enrichment_source_property(component, "ecosyste.ms")
+        _add_enrichment_source_property(component, "pypi.org")  # Should not add
+
+        # Count properties with our name
+        props = [p for p in component.properties if p.name == "sbomify:enrichment:source"]
+        assert len(props) == 1
+        assert props[0].value == "ecosyste.ms"
+
+    def test_add_enrichment_source_comment_spdx(self):
+        """Test adding enrichment source comment to SPDX package."""
+        package = Package(
+            spdx_id="SPDXRef-test",
+            name="test",
+            download_location="NOASSERTION",
+        )
+
+        _add_enrichment_source_comment(package, "ecosyste.ms")
+
+        assert package.comment == "Enriched by sbomify from ecosyste.ms"
+
+    def test_add_enrichment_source_comment_appends(self):
+        """Test that enrichment source comment appends to existing comment."""
+        package = Package(
+            spdx_id="SPDXRef-test",
+            name="test",
+            download_location="NOASSERTION",
+        )
+        package.comment = "Existing comment"
+
+        _add_enrichment_source_comment(package, "pypi.org")
+
+        assert "Existing comment" in package.comment
+        assert "Enriched by sbomify from pypi.org" in package.comment
+
+    def test_enrichment_source_in_output_cyclonedx(self, tmp_path):
+        """Test that enrichment source property appears in CycloneDX output."""
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "version": 1,
+            "components": [
+                {
+                    "type": "library",
+                    "name": "django",
+                    "version": "5.1",
+                    "purl": "pkg:pypi/django@5.1",
+                    "bom-ref": "pkg-django",
+                },
+            ],
+        }
+
+        input_file = tmp_path / "sbom.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "enriched.json"
+
+        clear_cache()
+
+        with patch("sbomify_action.enrichment._fetch_package_metadata") as mock_fetch:
+            mock_fetch.return_value = {"description": "Django framework"}
+            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+        with open(output_file) as f:
+            result = json.load(f)
+
+        # Check for enrichment source property
+        component = result["components"][0]
+        properties = component.get("properties", [])
+        source_prop = next((p for p in properties if p["name"] == "sbomify:enrichment:source"), None)
+
+        assert source_prop is not None
+        assert source_prop["value"] == "ecosyste.ms"
+
+    def test_enrichment_source_purl_for_os_packages(self, tmp_path):
+        """Test that OS packages get 'purl' as enrichment source."""
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "version": 1,
+            "components": [
+                {
+                    "type": "library",
+                    "name": "bash",
+                    "version": "5.2",
+                    "purl": "pkg:deb/debian/bash@5.2",
+                    "bom-ref": "pkg-bash",
+                },
+            ],
+        }
+
+        input_file = tmp_path / "sbom.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "enriched.json"
+
+        clear_cache()
+
+        with patch("sbomify_action.enrichment._fetch_package_metadata") as mock_fetch:
+            mock_fetch.return_value = None  # ecosyste.ms has no data
+            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+        with open(output_file) as f:
+            result = json.load(f)
+
+        # Check for enrichment source property
+        component = result["components"][0]
+        properties = component.get("properties", [])
+        source_prop = next((p for p in properties if p["name"] == "sbomify:enrichment:source"), None)
+
+        assert source_prop is not None
+        assert source_prop["value"] == "purl"
