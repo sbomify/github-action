@@ -1100,9 +1100,6 @@ class TestPURLBasedEnrichment:
 
         Note: The URL defaults to edge/main/x86_64, but the Alpine package page
         shows all available variants, so this is acceptable for package discovery.
-
-        TEST LIMITATION: This test assumes the default 'edge/main/x86_64' in the URL.
-        Future improvement: extract actual architecture/branch from PURL qualifiers.
         """
         purl = PackageURL.from_string("pkg:apk/alpine/bash@5.2")
         url = _get_package_tracker_url(purl)
@@ -1430,11 +1427,14 @@ class TestLockfileFiltering:
             + COMMON_CPP_LOCK_FILES
         )
 
-        # Verify exact match
-        assert ALL_LOCKFILE_NAMES == expected, (
-            f"ALL_LOCKFILE_NAMES should exactly match combination of all COMMON_*_LOCK_FILES. "
-            f"Missing: {expected - ALL_LOCKFILE_NAMES}, Extra: {ALL_LOCKFILE_NAMES - expected}"
-        )
+        # Verify exact match (use lazy evaluation for error message)
+        if ALL_LOCKFILE_NAMES != expected:
+            missing = expected - ALL_LOCKFILE_NAMES
+            extra = ALL_LOCKFILE_NAMES - expected
+            raise AssertionError(
+                f"ALL_LOCKFILE_NAMES should exactly match combination of all COMMON_*_LOCK_FILES. "
+                f"Missing: {missing}, Extra: {extra}"
+            )
 
         # Verify at least one representative file from each language's lockfile set
         representative_files = [

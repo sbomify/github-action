@@ -166,6 +166,9 @@ def _get_package_tracker_url(purl: PackageURL) -> Optional[str]:
     """
     Get package tracker URL for OS packages.
 
+    Note: Some URLs use hardcoded defaults (e.g., Alpine uses edge/main/x86_64).
+    Future improvement: extract actual architecture/branch from PURL qualifiers.
+
     Args:
         purl: Parsed PackageURL object
 
@@ -490,8 +493,8 @@ def _fetch_pypi_metadata(package_name: str, session: requests.Session) -> Option
             info = data.get("info", {})
 
             # Normalize PyPI response to ecosyste.ms format
-            # PyPI uses 'home_page' (with underscore) in its API response; we normalize
-            # this to 'homepage' for consistency with the ecosyste.ms format.
+            # The PyPI API field is 'home_page' (with underscore), and we normalize it
+            # to 'homepage' (without underscore) for consistency with the ecosyste.ms format.
             metadata = {
                 "description": info.get("summary"),
                 "homepage": info.get("home_page"),
@@ -620,9 +623,11 @@ def _add_enrichment_source_comment(package: Package, source: str) -> None:
     enrichment_note = f"Enriched by sbomify from {source}"
 
     if package.comment:
-        # Append to existing comment if not already present
-        if enrichment_note not in package.comment:
-            package.comment = f"{package.comment} | {enrichment_note}"
+        # Split existing comment into entries and check for exact match
+        comment_entries = [entry.strip() for entry in package.comment.split(" | ")]
+        if enrichment_note not in comment_entries:
+            comment_entries.append(enrichment_note)
+        package.comment = " | ".join(comment_entries)
     else:
         package.comment = enrichment_note
 
