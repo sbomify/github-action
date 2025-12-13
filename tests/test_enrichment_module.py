@@ -1424,9 +1424,25 @@ class TestLockfileFiltering:
             f"Missing: {expected - ALL_LOCKFILE_NAMES}, Extra: {ALL_LOCKFILE_NAMES - expected}"
         )
 
-        # Also verify some expected files are present (sanity check)
-        expected_files = ["uv.lock", "requirements.txt", "Cargo.lock", "package-lock.json", "go.mod"]
-        for lockfile in expected_files:
+        # Verify at least one representative file from each language's lockfile set
+        representative_files = [
+            # Python
+            "uv.lock",
+            "requirements.txt",
+            # Rust
+            "Cargo.lock",
+            # JavaScript
+            "package-lock.json",
+            # Go
+            "go.mod",
+            # Ruby
+            "Gemfile.lock",
+            # Dart
+            "pubspec.lock",
+            # C++
+            "conan.lock",
+        ]
+        for lockfile in representative_files:
             assert lockfile in ALL_LOCKFILE_NAMES, f"{lockfile} should be in ALL_LOCKFILE_NAMES"
 
     def test_is_lockfile_component_true_for_uv_lock(self):
