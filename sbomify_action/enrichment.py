@@ -55,6 +55,12 @@ ALL_LOCKFILE_NAMES = set(
 # Partial support: alpm (Arch), ebuild (Gentoo) - supplier extraction works but no tracker URLs yet
 OS_PACKAGE_TYPES = {"deb", "rpm", "apk", "alpm", "ebuild"}
 
+# CycloneDX component type for operating system (used for type comparisons)
+COMPONENT_TYPE_OPERATING_SYSTEM = "operating_system"
+
+# Delimiter used for SPDX package comment entries
+COMMENT_DELIMITER = " | "
+
 # Mapping of PURL namespace to supplier organization name
 NAMESPACE_TO_SUPPLIER: Dict[str, str] = {
     # Debian-based
@@ -81,8 +87,6 @@ NAMESPACE_TO_SUPPLIER: Dict[str, str] = {
 }
 
 # Mapping of PURL type/namespace to package tracker URL templates
-# Note: Some URLs are version/arch agnostic (e.g., use search or generic landing pages)
-# to avoid hardcoding specific versions or architectures
 PACKAGE_TRACKER_URLS: Dict[str, Dict[str, str]] = {
     "deb": {
         "debian": "https://tracker.debian.org/pkg/{name}",
@@ -339,8 +343,7 @@ def _enrich_os_component(component: Component) -> List[str]:
     Returns:
         List of added fields for logging
     """
-    # CycloneDX ComponentType enum uses OPERATING_SYSTEM (with underscore)
-    if component.type.name.lower() != "operating_system":
+    if component.type.name.lower() != COMPONENT_TYPE_OPERATING_SYSTEM:
         return []
 
     added_fields = []
@@ -493,8 +496,6 @@ def _fetch_pypi_metadata(package_name: str, session: requests.Session) -> Option
             info = data.get("info", {})
 
             # Normalize PyPI response to ecosyste.ms format
-            # The PyPI API field is 'home_page' (with underscore), and we normalize it
-            # to 'homepage' (without underscore) for consistency with the ecosyste.ms format.
             metadata = {
                 "description": info.get("summary"),
                 "homepage": info.get("home_page"),
@@ -624,10 +625,10 @@ def _add_enrichment_source_comment(package: Package, source: str) -> None:
 
     if package.comment:
         # Split existing comment into entries and check for exact match
-        comment_entries = [entry.strip() for entry in package.comment.split(" | ")]
+        comment_entries = [entry.strip() for entry in package.comment.split(COMMENT_DELIMITER)]
         if enrichment_note not in comment_entries:
             comment_entries.append(enrichment_note)
-        package.comment = " | ".join(comment_entries)
+        package.comment = COMMENT_DELIMITER.join(comment_entries)
     else:
         package.comment = enrichment_note
 
@@ -967,8 +968,7 @@ def _enrich_cyclonedx_bom_with_metadata(
         purl = str(component.purl) if component.purl else None
 
         # First, handle operating-system type components (no PURL typically)
-        # CycloneDX ComponentType enum uses OPERATING_SYSTEM (with underscore)
-        if component.type.name.lower() == "operating_system":
+        if component.type.name.lower() == COMPONENT_TYPE_OPERATING_SYSTEM:
             added_fields = _enrich_os_component(component)
             if added_fields:
                 enrichment_source = "purl"
