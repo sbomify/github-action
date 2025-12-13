@@ -236,6 +236,9 @@ def _filter_lockfile_components(bom: Bom) -> int:
     """
     Remove lockfile components from a CycloneDX BOM.
 
+    Also cleans up the dependencies section to remove any references to
+    the removed lockfile components, preventing serialization errors.
+
     Args:
         bom: CycloneDX Bom object (modified in place)
 
@@ -245,12 +248,84 @@ def _filter_lockfile_components(bom: Bom) -> int:
     # Find lockfile components to remove
     lockfile_components = [c for c in bom.components if _is_lockfile_component(c)]
 
-    # Remove them
+    # Collect bom_refs of lockfile components for dependency cleanup
+    lockfile_refs = {c.bom_ref for c in lockfile_components if c.bom_ref}
+
+    # Remove from components
     for component in lockfile_components:
         bom.components.discard(component)
         logger.info(f"Filtered out lockfile component: {component.name}")
 
+    # Clean up dependencies - remove entries where ref matches a lockfile
+    deps_to_remove = [dep for dep in bom.dependencies if dep.ref in lockfile_refs]
+    for dep in deps_to_remove:
+        bom.dependencies.discard(dep)
+
+    # Also remove lockfile refs from nested dependencies
+    for dep in bom.dependencies:
+        nested_to_remove = [d for d in dep.dependencies if d.ref in lockfile_refs]
+        for nested in nested_to_remove:
+            dep.dependencies.discard(nested)
+
     return len(lockfile_components)
+
+
+def _is_lockfile_package(package: Package) -> bool:
+    """
+    Check if an SPDX package represents a lockfile artifact.
+
+    These are packages created by scanners like Trivy to represent the scanned
+    lockfile itself (e.g., uv.lock, requirements.txt). They are not real packages
+    and should be filtered out.
+
+    Args:
+        package: SPDX Package object
+
+    Returns:
+        True if this is a lockfile package that should be filtered out
+    """
+    # Check if name matches known lockfile patterns
+    if package.name and package.name in ALL_LOCKFILE_NAMES:
+        # Lockfiles typically have no PURL (they aren't real packages)
+        has_purl = any(ref.reference_type == "purl" for ref in package.external_references)
+        if not has_purl:
+            return True
+
+    return False
+
+
+def _filter_lockfile_packages(document: Document) -> int:
+    """
+    Remove lockfile packages from an SPDX document.
+
+    Also cleans up the relationships section to remove any references to
+    the removed lockfile packages.
+
+    Args:
+        document: SPDX Document object (modified in place)
+
+    Returns:
+        Number of lockfile packages removed
+    """
+    # Find lockfile packages to remove
+    lockfile_packages = [p for p in document.packages if _is_lockfile_package(p)]
+
+    # Collect spdx_ids of lockfile packages for relationship cleanup
+    lockfile_spdx_ids = {p.spdx_id for p in lockfile_packages}
+
+    # Remove packages
+    for pkg in lockfile_packages:
+        document.packages.remove(pkg)
+        logger.info(f"Filtered out lockfile package: {pkg.name}")
+
+    # Clean up relationships referencing lockfile packages
+    document.relationships = [
+        rel
+        for rel in document.relationships
+        if rel.spdx_element_id not in lockfile_spdx_ids and rel.related_spdx_element_id not in lockfile_spdx_ids
+    ]
+
+    return len(lockfile_packages)
 
 
 def _enrich_cyclonedx_component_from_purl(component: Component, purl_str: str) -> List[str]:
@@ -1289,6 +1364,11 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
             document = spdx_parse_file(str(input_path))
         except Exception as e:
             raise SBOMValidationError(f"Failed to parse SPDX SBOM: {e}")
+
+        # Filter out lockfile packages (e.g., uv.lock, requirements.txt)
+        lockfiles_removed = _filter_lockfile_packages(document)
+        if lockfiles_removed > 0:
+            logger.info(f"Removed {lockfiles_removed} lockfile package(s) from SBOM")
 
         # Extract packages
         packages = _extract_packages_from_spdx(document)
