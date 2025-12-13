@@ -21,10 +21,20 @@ from spdx_tools.spdx.model import (
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 
 from sbomify_action.enrichment import (
+    NAMESPACE_TO_SUPPLIER,
+    OS_PACKAGE_TYPES,
+    PACKAGE_TRACKER_URLS,
     _enrich_cyclonedx_component,
+    _enrich_cyclonedx_component_from_purl,
+    _enrich_os_component,
     _enrich_spdx_package,
+    _enrich_spdx_package_from_purl,
     _extract_components_from_cyclonedx,
     _fetch_package_metadata,
+    _get_package_tracker_url,
+    _get_supplier_from_purl,
+    _is_os_package_type,
+    _parse_purl_safe,
     clear_cache,
     enrich_sbom_with_ecosystems,
     get_cache_stats,
@@ -996,3 +1006,407 @@ class TestFileErrorHandling:
 
         # Should write output file even with no enrichment
         assert output_file.exists()
+
+
+class TestPURLBasedEnrichment:
+    """Test PURL-based enrichment for OS packages (deb, rpm, apk)."""
+
+    def test_parse_purl_safe_valid(self):
+        """Test parsing a valid PURL."""
+        purl = _parse_purl_safe("pkg:deb/debian/bash@5.2.15-2")
+        assert purl is not None
+        assert purl.type == "deb"
+        assert purl.namespace == "debian"
+        assert purl.name == "bash"
+        assert purl.version == "5.2.15-2"
+
+    def test_parse_purl_safe_invalid(self):
+        """Test parsing an invalid PURL returns None."""
+        purl = _parse_purl_safe("not-a-valid-purl")
+        assert purl is None
+
+    def test_parse_purl_safe_empty(self):
+        """Test parsing an empty PURL returns None."""
+        purl = _parse_purl_safe("")
+        assert purl is None
+
+    def test_get_supplier_from_purl_known_namespace(self):
+        """Test getting supplier from known namespaces."""
+        purl = PackageURL.from_string("pkg:deb/debian/bash@5.2")
+        supplier = _get_supplier_from_purl(purl)
+        assert supplier == "Debian Project"
+
+        purl = PackageURL.from_string("pkg:deb/ubuntu/bash@5.2")
+        supplier = _get_supplier_from_purl(purl)
+        assert supplier == "Canonical Ltd"
+
+        purl = PackageURL.from_string("pkg:rpm/fedora/bash@5.2")
+        supplier = _get_supplier_from_purl(purl)
+        assert supplier == "Fedora Project"
+
+        purl = PackageURL.from_string("pkg:rpm/redhat/bash@5.2")
+        supplier = _get_supplier_from_purl(purl)
+        assert supplier == "Red Hat, Inc."
+
+        purl = PackageURL.from_string("pkg:rpm/amazon/bash@5.2")
+        supplier = _get_supplier_from_purl(purl)
+        assert supplier == "Amazon Web Services"
+
+        purl = PackageURL.from_string("pkg:apk/alpine/bash@5.2")
+        supplier = _get_supplier_from_purl(purl)
+        assert supplier == "Alpine Linux"
+
+    def test_get_supplier_from_purl_unknown_namespace(self):
+        """Test getting supplier from unknown namespace falls back to title case."""
+        purl = PackageURL.from_string("pkg:deb/custom-distro/bash@5.2")
+        supplier = _get_supplier_from_purl(purl)
+        assert supplier == "Custom-Distro Project"
+
+    def test_get_supplier_from_purl_no_namespace(self):
+        """Test getting supplier when no namespace is present."""
+        purl = PackageURL(type="generic", name="bash", version="5.2")
+        supplier = _get_supplier_from_purl(purl)
+        assert supplier is None
+
+    def test_get_package_tracker_url_debian(self):
+        """Test getting package tracker URL for Debian packages."""
+        purl = PackageURL.from_string("pkg:deb/debian/bash@5.2")
+        url = _get_package_tracker_url(purl)
+        assert url == "https://tracker.debian.org/pkg/bash"
+
+    def test_get_package_tracker_url_ubuntu(self):
+        """Test getting package tracker URL for Ubuntu packages."""
+        purl = PackageURL.from_string("pkg:deb/ubuntu/bash@5.2")
+        url = _get_package_tracker_url(purl)
+        assert url == "https://launchpad.net/ubuntu/+source/bash"
+
+    def test_get_package_tracker_url_alpine(self):
+        """Test getting package tracker URL for Alpine packages."""
+        purl = PackageURL.from_string("pkg:apk/alpine/bash@5.2")
+        url = _get_package_tracker_url(purl)
+        assert url == "https://pkgs.alpinelinux.org/package/edge/main/x86_64/bash"
+
+    def test_get_package_tracker_url_unknown(self):
+        """Test getting package tracker URL for unknown distro returns None."""
+        purl = PackageURL.from_string("pkg:deb/custom-distro/bash@5.2")
+        url = _get_package_tracker_url(purl)
+        assert url is None
+
+    def test_is_os_package_type_deb(self):
+        """Test identifying deb packages as OS packages."""
+        assert _is_os_package_type("pkg:deb/debian/bash@5.2") is True
+
+    def test_is_os_package_type_rpm(self):
+        """Test identifying rpm packages as OS packages."""
+        assert _is_os_package_type("pkg:rpm/fedora/bash@5.2") is True
+
+    def test_is_os_package_type_apk(self):
+        """Test identifying apk packages as OS packages."""
+        assert _is_os_package_type("pkg:apk/alpine/bash@5.2") is True
+
+    def test_is_os_package_type_pypi(self):
+        """Test that pypi packages are not OS packages."""
+        assert _is_os_package_type("pkg:pypi/django@5.1") is False
+
+    def test_is_os_package_type_invalid(self):
+        """Test that invalid PURLs return False."""
+        assert _is_os_package_type("not-a-purl") is False
+
+    def test_enrich_cyclonedx_component_from_purl_debian(self):
+        """Test enriching a CycloneDX component from a Debian PURL."""
+        component = Component(name="bash", version="5.2", type=ComponentType.LIBRARY)
+        component.purl = PackageURL.from_string("pkg:deb/debian/bash@5.2")
+
+        added_fields = _enrich_cyclonedx_component_from_purl(
+            component, "pkg:deb/debian/bash@5.2"
+        )
+
+        assert component.publisher == "Debian Project"
+        assert len(component.external_references) == 1
+        ext_ref = list(component.external_references)[0]
+        assert str(ext_ref.url) == "https://tracker.debian.org/pkg/bash"
+        assert "publisher" in " ".join(added_fields)
+        assert "package tracker URL" in added_fields
+
+    def test_enrich_cyclonedx_component_from_purl_non_os_package(self):
+        """Test that non-OS packages are not enriched by PURL fallback."""
+        component = Component(name="django", version="5.1", type=ComponentType.LIBRARY)
+        component.purl = PackageURL.from_string("pkg:pypi/django@5.1")
+
+        added_fields = _enrich_cyclonedx_component_from_purl(
+            component, "pkg:pypi/django@5.1"
+        )
+
+        # Should not add anything for pypi packages
+        assert added_fields == []
+        assert component.publisher is None
+
+    def test_enrich_cyclonedx_component_from_purl_existing_publisher(self):
+        """Test that existing publisher is not overwritten."""
+        component = Component(name="bash", version="5.2", type=ComponentType.LIBRARY)
+        component.purl = PackageURL.from_string("pkg:deb/debian/bash@5.2")
+        component.publisher = "Existing Publisher"
+
+        added_fields = _enrich_cyclonedx_component_from_purl(
+            component, "pkg:deb/debian/bash@5.2"
+        )
+
+        # Publisher should not be changed
+        assert component.publisher == "Existing Publisher"
+        # But URL should still be added
+        assert "package tracker URL" in added_fields
+
+    def test_enrich_os_component_debian(self):
+        """Test enriching a Debian operating-system component."""
+        component = Component(
+            name="debian", version="12.12", type=ComponentType.OPERATING_SYSTEM
+        )
+
+        added_fields = _enrich_os_component(component)
+
+        assert component.publisher == "Debian Project"
+        assert "publisher" in " ".join(added_fields)
+
+    def test_enrich_os_component_ubuntu(self):
+        """Test enriching an Ubuntu operating-system component."""
+        component = Component(
+            name="ubuntu", version="22.04", type=ComponentType.OPERATING_SYSTEM
+        )
+
+        added_fields = _enrich_os_component(component)
+
+        assert component.publisher == "Canonical Ltd"
+        assert "publisher" in " ".join(added_fields)
+
+    def test_enrich_os_component_redhat(self):
+        """Test enriching a Red Hat operating-system component."""
+        component = Component(
+            name="redhat", version="9.7", type=ComponentType.OPERATING_SYSTEM
+        )
+
+        added_fields = _enrich_os_component(component)
+
+        assert component.publisher == "Red Hat, Inc."
+        assert "publisher" in " ".join(added_fields)
+
+    def test_enrich_os_component_alpine(self):
+        """Test enriching an Alpine operating-system component."""
+        component = Component(
+            name="alpine", version="3.19", type=ComponentType.OPERATING_SYSTEM
+        )
+
+        added_fields = _enrich_os_component(component)
+
+        assert component.publisher == "Alpine Linux"
+        assert "publisher" in " ".join(added_fields)
+
+    def test_enrich_os_component_unknown(self):
+        """Test enriching an unknown operating-system component."""
+        component = Component(
+            name="unknownos", version="1.0", type=ComponentType.OPERATING_SYSTEM
+        )
+
+        added_fields = _enrich_os_component(component)
+
+        # Unknown OS should not get a publisher
+        assert component.publisher is None
+        assert added_fields == []
+
+    def test_enrich_os_component_existing_publisher(self):
+        """Test that existing publisher is not overwritten for OS component."""
+        component = Component(
+            name="debian", version="12.12", type=ComponentType.OPERATING_SYSTEM
+        )
+        component.publisher = "Existing Publisher"
+
+        added_fields = _enrich_os_component(component)
+
+        assert component.publisher == "Existing Publisher"
+        assert added_fields == []
+
+    def test_enrich_os_component_non_os_type(self):
+        """Test that non-OS components are not enriched by this function."""
+        component = Component(
+            name="debian", version="12.12", type=ComponentType.LIBRARY
+        )
+
+        added_fields = _enrich_os_component(component)
+
+        assert added_fields == []
+        assert component.publisher is None
+
+    def test_enrich_spdx_package_from_purl_debian(self):
+        """Test enriching an SPDX package from a Debian PURL."""
+        from spdx_tools.spdx.model import Actor, ActorType
+
+        package = Package(
+            spdx_id="SPDXRef-bash",
+            name="bash",
+            download_location="NOASSERTION",
+            version="5.2",
+        )
+        package.external_references = [
+            ExternalPackageRef(
+                category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                reference_type="purl",
+                locator="pkg:deb/debian/bash@5.2",
+            )
+        ]
+
+        added_fields = _enrich_spdx_package_from_purl(package, "pkg:deb/debian/bash@5.2")
+
+        assert package.supplier is not None
+        assert package.supplier.name == "Debian Project"
+        assert package.homepage == "https://tracker.debian.org/pkg/bash"
+        assert "supplier" in " ".join(added_fields)
+        assert "homepage" in added_fields
+
+    def test_constants_defined(self):
+        """Test that the PURL enrichment constants are properly defined."""
+        assert "deb" in OS_PACKAGE_TYPES
+        assert "rpm" in OS_PACKAGE_TYPES
+        assert "apk" in OS_PACKAGE_TYPES
+
+        assert "debian" in NAMESPACE_TO_SUPPLIER
+        assert "ubuntu" in NAMESPACE_TO_SUPPLIER
+        assert "alpine" in NAMESPACE_TO_SUPPLIER
+
+        assert "deb" in PACKAGE_TRACKER_URLS
+        assert "debian" in PACKAGE_TRACKER_URLS["deb"]
+
+
+class TestPURLEnrichmentIntegration:
+    """Integration tests for PURL-based enrichment with full SBOM processing."""
+
+    def test_enrich_debian_sbom_end_to_end(self, tmp_path):
+        """Test end-to-end enrichment of a Debian-based SBOM."""
+        # Create a minimal Debian SBOM
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "version": 1,
+            "components": [
+                {
+                    "type": "operating-system",
+                    "name": "debian",
+                    "version": "12.12",
+                    "bom-ref": "os-debian",
+                },
+                {
+                    "type": "library",
+                    "name": "bash",
+                    "version": "5.2.15-2",
+                    "purl": "pkg:deb/debian/bash@5.2.15-2?distro=debian-12.12",
+                    "bom-ref": "pkg-bash",
+                },
+                {
+                    "type": "library",
+                    "name": "coreutils",
+                    "version": "9.1",
+                    "purl": "pkg:deb/debian/coreutils@9.1?distro=debian-12.12",
+                    "bom-ref": "pkg-coreutils",
+                },
+            ],
+        }
+
+        input_file = tmp_path / "debian_sbom.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "enriched_sbom.json"
+
+        clear_cache()
+
+        # Mock the API to return empty results (simulating ecosyste.ms not having deb packages)
+        with patch("sbomify_action.enrichment._fetch_package_metadata") as mock_fetch:
+            mock_fetch.return_value = None  # ecosyste.ms returns no data
+
+            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+        # Verify output
+        assert output_file.exists()
+        with open(output_file) as f:
+            result = json.load(f)
+
+        # Find the OS component
+        os_component = next(
+            (c for c in result["components"] if c.get("type") == "operating-system"),
+            None,
+        )
+        assert os_component is not None
+        assert os_component.get("publisher") == "Debian Project"
+
+        # Find bash package
+        bash_pkg = next(
+            (c for c in result["components"] if c.get("name") == "bash"), None
+        )
+        assert bash_pkg is not None
+        assert bash_pkg.get("publisher") == "Debian Project"
+        # Check for external reference
+        ext_refs = bash_pkg.get("externalReferences", [])
+        tracker_url = next(
+            (r["url"] for r in ext_refs if "tracker.debian.org" in r.get("url", "")),
+            None,
+        )
+        assert tracker_url == "https://tracker.debian.org/pkg/bash"
+
+    def test_enrich_mixed_sbom_with_pypi_and_debian(self, tmp_path):
+        """Test enrichment of SBOM with both PyPI and Debian packages."""
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:b2c3d4e5-f6a7-8901-bcde-f12345678901",
+            "version": 1,
+            "components": [
+                {
+                    "type": "library",
+                    "name": "django",
+                    "version": "5.1",
+                    "purl": "pkg:pypi/django@5.1",
+                    "bom-ref": "pkg-django",
+                },
+                {
+                    "type": "library",
+                    "name": "bash",
+                    "version": "5.2",
+                    "purl": "pkg:deb/debian/bash@5.2",
+                    "bom-ref": "pkg-bash",
+                },
+            ],
+        }
+
+        input_file = tmp_path / "mixed_sbom.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "enriched_sbom.json"
+
+        clear_cache()
+
+        # Mock API: return data for django, None for bash
+        def mock_fetch(purl, session):
+            if "pypi" in purl:
+                return {
+                    "description": "Django web framework",
+                    "normalized_licenses": ["BSD-3-Clause"],
+                }
+            return None  # Debian packages not in ecosyste.ms
+
+        with patch(
+            "sbomify_action.enrichment._fetch_package_metadata", side_effect=mock_fetch
+        ):
+            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+
+        with open(output_file) as f:
+            result = json.load(f)
+
+        # Django should be enriched from ecosyste.ms
+        django_pkg = next(
+            (c for c in result["components"] if c.get("name") == "django"), None
+        )
+        assert django_pkg is not None
+        assert django_pkg.get("description") == "Django web framework"
+
+        # Bash should be enriched from PURL
+        bash_pkg = next(
+            (c for c in result["components"] if c.get("name") == "bash"), None
+        )
+        assert bash_pkg is not None
+        assert bash_pkg.get("publisher") == "Debian Project"

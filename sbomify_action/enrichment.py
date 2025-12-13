@@ -9,6 +9,7 @@ from cyclonedx.model import ExternalReference, ExternalReferenceType, XsUri
 from cyclonedx.model.bom import Bom
 from cyclonedx.model.component import Component
 from cyclonedx.model.license import LicenseExpression
+from packageurl import PackageURL
 from spdx_tools.spdx.model import (
     Actor,
     ActorType,
@@ -28,6 +29,56 @@ from .serialization import serialize_cyclonedx_bom
 
 ECOSYSTEMS_API_BASE = "https://packages.ecosyste.ms/api/v1"
 
+# OS package types that ecosyste.ms doesn't support but we can enrich via PURL parsing
+OS_PACKAGE_TYPES = {"deb", "rpm", "apk", "alpm", "ebuild"}
+
+# Mapping of PURL namespace to supplier organization name
+NAMESPACE_TO_SUPPLIER: Dict[str, str] = {
+    # Debian-based
+    "debian": "Debian Project",
+    "ubuntu": "Canonical Ltd",
+    # Red Hat-based (rpm)
+    "redhat": "Red Hat, Inc.",
+    "rhel": "Red Hat, Inc.",
+    "centos": "CentOS Project",
+    "fedora": "Fedora Project",
+    "amazon": "Amazon Web Services",
+    "oracle": "Oracle Corporation",
+    "rocky": "Rocky Enterprise Software Foundation",
+    "almalinux": "AlmaLinux OS Foundation",
+    # Alpine (apk)
+    "alpine": "Alpine Linux",
+    # Other distros
+    "arch": "Arch Linux",
+    "gentoo": "Gentoo Foundation",
+    "opensuse": "openSUSE Project",
+    "suse": "SUSE LLC",
+    "wolfi": "Chainguard, Inc.",
+    "chainguard": "Chainguard, Inc.",
+}
+
+# Mapping of PURL type/namespace to package tracker URL templates
+PACKAGE_TRACKER_URLS: Dict[str, Dict[str, str]] = {
+    "deb": {
+        "debian": "https://tracker.debian.org/pkg/{name}",
+        "ubuntu": "https://launchpad.net/ubuntu/+source/{name}",
+    },
+    "rpm": {
+        "fedora": "https://packages.fedoraproject.org/pkgs/{name}",
+        "centos": "https://git.centos.org/rpms/{name}",
+        "redhat": "https://access.redhat.com/downloads/content/package-browser",
+        "rhel": "https://access.redhat.com/downloads/content/package-browser",
+        "amazon": "https://docs.aws.amazon.com/linux/",
+        "rocky": "https://rockylinux.pkgs.org/9/rockylinux-baseos-x86_64/{name}",
+        "almalinux": "https://repo.almalinux.org/almalinux/",
+    },
+    "apk": {
+        "alpine": "https://pkgs.alpinelinux.org/package/edge/main/x86_64/{name}",
+        "wolfi": "https://github.com/wolfi-dev/os/tree/main/{name}",
+        "chainguard": "https://images.chainguard.dev/",
+    },
+}
+
 
 # Simple in-memory cache for package metadata
 _metadata_cache: Dict[str, Optional[Dict[str, Any]]] = {}
@@ -43,6 +94,186 @@ def clear_cache() -> None:
 def get_cache_stats() -> Dict[str, int]:
     """Get cache statistics."""
     return {"entries": len(_metadata_cache)}
+
+
+def _parse_purl_safe(purl_str: str) -> Optional[PackageURL]:
+    """
+    Safely parse a PURL string.
+
+    Args:
+        purl_str: Package URL string
+
+    Returns:
+        PackageURL object or None if parsing fails
+    """
+    try:
+        return PackageURL.from_string(purl_str)
+    except Exception as e:
+        logger.debug(f"Failed to parse PURL '{purl_str}': {e}")
+        return None
+
+
+def _get_supplier_from_purl(purl: PackageURL) -> Optional[str]:
+    """
+    Get supplier organization name from PURL namespace.
+
+    Args:
+        purl: Parsed PackageURL object
+
+    Returns:
+        Supplier name or None if not found
+    """
+    if purl.namespace:
+        # Check our mapping first
+        supplier = NAMESPACE_TO_SUPPLIER.get(purl.namespace.lower())
+        if supplier:
+            return supplier
+        # Fall back to capitalizing the namespace
+        return f"{purl.namespace.title()} Project"
+    return None
+
+
+def _get_package_tracker_url(purl: PackageURL) -> Optional[str]:
+    """
+    Get package tracker URL for OS packages.
+
+    Args:
+        purl: Parsed PackageURL object
+
+    Returns:
+        Package tracker URL or None if not available
+    """
+    if purl.type in PACKAGE_TRACKER_URLS:
+        type_urls = PACKAGE_TRACKER_URLS[purl.type]
+        if purl.namespace and purl.namespace.lower() in type_urls:
+            url_template = type_urls[purl.namespace.lower()]
+            return url_template.format(name=purl.name)
+    return None
+
+
+def _is_os_package_type(purl_str: str) -> bool:
+    """
+    Check if a PURL represents an OS package type.
+
+    Args:
+        purl_str: Package URL string
+
+    Returns:
+        True if this is an OS package type (deb, rpm, apk, etc.)
+    """
+    purl = _parse_purl_safe(purl_str)
+    if purl:
+        return purl.type in OS_PACKAGE_TYPES
+    return False
+
+
+def _enrich_cyclonedx_component_from_purl(component: Component, purl_str: str) -> List[str]:
+    """
+    Enrich a CycloneDX component using PURL parsing for OS packages.
+
+    This is used as a fallback when ecosyste.ms doesn't have data for the package.
+    Works for pkg:deb, pkg:rpm, pkg:apk and similar OS package types.
+
+    Args:
+        component: Component object to enrich (modified in place)
+        purl_str: Package URL string
+
+    Returns:
+        List of added fields for logging
+    """
+    purl = _parse_purl_safe(purl_str)
+    if not purl or purl.type not in OS_PACKAGE_TYPES:
+        return []
+
+    added_fields = []
+
+    # Add publisher from PURL namespace
+    if not component.publisher:
+        supplier = _get_supplier_from_purl(purl)
+        if supplier:
+            component.publisher = supplier
+            added_fields.append(f"publisher ({supplier})")
+
+    # Add package tracker URL as website external reference
+    tracker_url = _get_package_tracker_url(purl)
+    if tracker_url:
+        # Check if this URL already exists
+        url_exists = any(
+            str(ref.url) == tracker_url for ref in component.external_references
+        )
+        if not url_exists:
+            component.external_references.add(
+                ExternalReference(type=ExternalReferenceType.WEBSITE, url=XsUri(tracker_url))
+            )
+            added_fields.append("package tracker URL")
+
+    return added_fields
+
+
+def _enrich_spdx_package_from_purl(package: Package, purl_str: str) -> List[str]:
+    """
+    Enrich an SPDX package using PURL parsing for OS packages.
+
+    This is used as a fallback when ecosyste.ms doesn't have data for the package.
+    Works for pkg:deb, pkg:rpm, pkg:apk and similar OS package types.
+
+    Args:
+        package: Package object to enrich (modified in place)
+        purl_str: Package URL string
+
+    Returns:
+        List of added fields for logging
+    """
+    purl = _parse_purl_safe(purl_str)
+    if not purl or purl.type not in OS_PACKAGE_TYPES:
+        return []
+
+    added_fields = []
+
+    # Add supplier from PURL namespace
+    if not package.supplier:
+        supplier = _get_supplier_from_purl(purl)
+        if supplier:
+            package.supplier = Actor(ActorType.ORGANIZATION, supplier)
+            added_fields.append(f"supplier ({supplier})")
+
+    # Add homepage from package tracker URL
+    tracker_url = _get_package_tracker_url(purl)
+    if tracker_url and not package.homepage:
+        package.homepage = tracker_url
+        added_fields.append("homepage")
+
+    return added_fields
+
+
+def _enrich_os_component(component: Component) -> List[str]:
+    """
+    Enrich an operating-system type component with supplier info.
+
+    For components like the base OS (e.g., debian, ubuntu), add supplier
+    information based on the component name.
+
+    Args:
+        component: Component object to enrich (modified in place)
+
+    Returns:
+        List of added fields for logging
+    """
+    # CycloneDX ComponentType enum uses OPERATING_SYSTEM (with underscore)
+    if component.type.name.lower() != "operating_system":
+        return []
+
+    added_fields = []
+    os_name = component.name.lower() if component.name else ""
+
+    # Add publisher if not present
+    if not component.publisher:
+        supplier = NAMESPACE_TO_SUPPLIER.get(os_name)
+        if supplier:
+            component.publisher = supplier
+            added_fields.append(f"publisher ({supplier})")
+
+    return added_fields
 
 
 def _extract_components_from_cyclonedx(bom: Bom) -> List[Tuple[Component, str]]:
@@ -478,6 +709,10 @@ def _enrich_cyclonedx_bom_with_metadata(bom: Bom, metadata_map: Dict[str, Option
     """
     Enrich CycloneDX BOM with fetched metadata.
 
+    Uses ecosyste.ms metadata when available, falls back to PURL-based
+    enrichment for OS packages (deb, rpm, apk) that ecosyste.ms doesn't support.
+    Also handles operating-system type components separately.
+
     Args:
         bom: Bom object to enrich (modified in place)
         metadata_map: Map of PURL to metadata
@@ -495,12 +730,38 @@ def _enrich_cyclonedx_bom_with_metadata(bom: Bom, metadata_map: Dict[str, Option
         "repositories_added": 0,
         "distributions_added": 0,
         "issue_trackers_added": 0,
+        "os_components_enriched": 0,
+        "purl_fallback_enriched": 0,
     }
 
     for component in bom.components:
+        added_fields = []
         purl = str(component.purl) if component.purl else None
+
+        # First, handle operating-system type components (no PURL typically)
+        # CycloneDX ComponentType enum uses OPERATING_SYSTEM (with underscore)
+        if component.type.name.lower() == "operating_system":
+            added_fields = _enrich_os_component(component)
+            if added_fields:
+                stats["os_components_enriched"] += 1
+                stats["components_enriched"] += 1
+                for field in added_fields:
+                    if "publisher" in field:
+                        stats["publishers_added"] += 1
+            continue
+
+        # For components with PURLs, try ecosyste.ms first
         if purl and purl in metadata_map:
-            added_fields = _enrich_cyclonedx_component(component, metadata_map[purl])
+            metadata = metadata_map[purl]
+            if metadata:
+                # ecosyste.ms has data for this package
+                added_fields = _enrich_cyclonedx_component(component, metadata)
+            else:
+                # ecosyste.ms returned no data, try PURL-based fallback for OS packages
+                if _is_os_package_type(purl):
+                    added_fields = _enrich_cyclonedx_component_from_purl(component, purl)
+                    if added_fields:
+                        stats["purl_fallback_enriched"] += 1
 
             if added_fields:
                 stats["components_enriched"] += 1
@@ -511,7 +772,7 @@ def _enrich_cyclonedx_bom_with_metadata(bom: Bom, metadata_map: Dict[str, Option
                         stats["licenses_added"] += 1
                     elif "publisher" in field:
                         stats["publishers_added"] += 1
-                    elif "homepage" in field:
+                    elif "homepage" in field or "tracker" in field:
                         stats["homepages_added"] += 1
                     elif "repository" in field:
                         stats["repositories_added"] += 1
@@ -528,6 +789,9 @@ def _enrich_spdx_document_with_metadata(
 ) -> Dict[str, int]:
     """
     Enrich SPDX document with fetched metadata.
+
+    Uses ecosyste.ms metadata when available, falls back to PURL-based
+    enrichment for OS packages (deb, rpm, apk) that ecosyste.ms doesn't support.
 
     Args:
         document: Document object to enrich (modified in place)
@@ -546,9 +810,12 @@ def _enrich_spdx_document_with_metadata(
         "suppliers_added": 0,
         "source_info_added": 0,
         "external_refs_added": 0,
+        "purl_fallback_enriched": 0,
     }
 
     for package in document.packages:
+        added_fields = []
+
         # Find PURL in external references
         purl = None
         for ref in package.external_references:
@@ -557,7 +824,16 @@ def _enrich_spdx_document_with_metadata(
                 break
 
         if purl and purl in metadata_map:
-            added_fields = _enrich_spdx_package(package, metadata_map[purl])
+            metadata = metadata_map[purl]
+            if metadata:
+                # ecosyste.ms has data for this package
+                added_fields = _enrich_spdx_package(package, metadata)
+            else:
+                # ecosyste.ms returned no data, try PURL-based fallback for OS packages
+                if _is_os_package_type(purl):
+                    added_fields = _enrich_spdx_package_from_purl(package, purl)
+                    if added_fields:
+                        stats["purl_fallback_enriched"] += 1
 
             if added_fields:
                 stats["components_enriched"] += 1
@@ -693,6 +969,10 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
         logger.info("Enrichment Summary:")
         logger.info(f"  Components enriched: {stats['components_enriched']}/{len(components)}")
 
+        if stats.get("os_components_enriched", 0) > 0:
+            logger.info(f"  OS components enriched: {stats['os_components_enriched']}")
+        if stats.get("purl_fallback_enriched", 0) > 0:
+            logger.info(f"  OS packages enriched via PURL: {stats['purl_fallback_enriched']}")
         if stats["descriptions_added"] > 0:
             logger.info(f"  Descriptions added: {stats['descriptions_added']}")
         if stats["licenses_added"] > 0:
@@ -756,6 +1036,8 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
         logger.info("Enrichment Summary:")
         logger.info(f"  Packages enriched: {stats['components_enriched']}/{len(packages)}")
 
+        if stats.get("purl_fallback_enriched", 0) > 0:
+            logger.info(f"  OS packages enriched via PURL: {stats['purl_fallback_enriched']}")
         if stats["descriptions_added"] > 0:
             logger.info(f"  Descriptions added: {stats['descriptions_added']}")
         if stats["licenses_added"] > 0:
