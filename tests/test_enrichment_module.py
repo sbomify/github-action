@@ -1407,6 +1407,15 @@ class TestLockfileFiltering:
 
     def test_all_lockfile_names_matches_all_constants(self):
         """Test that ALL_LOCKFILE_NAMES exactly matches the combination of all COMMON_*_LOCK_FILES constants."""
+        # Verify each COMMON_*_LOCK_FILES constant is non-empty to catch accidental removal
+        assert len(COMMON_PYTHON_LOCK_FILES) > 0, "COMMON_PYTHON_LOCK_FILES should not be empty"
+        assert len(COMMON_RUST_LOCK_FILES) > 0, "COMMON_RUST_LOCK_FILES should not be empty"
+        assert len(COMMON_JAVASCRIPT_LOCK_FILES) > 0, "COMMON_JAVASCRIPT_LOCK_FILES should not be empty"
+        assert len(COMMON_RUBY_LOCK_FILES) > 0, "COMMON_RUBY_LOCK_FILES should not be empty"
+        assert len(COMMON_GO_LOCK_FILES) > 0, "COMMON_GO_LOCK_FILES should not be empty"
+        assert len(COMMON_DART_LOCK_FILES) > 0, "COMMON_DART_LOCK_FILES should not be empty"
+        assert len(COMMON_CPP_LOCK_FILES) > 0, "COMMON_CPP_LOCK_FILES should not be empty"
+
         # Build expected set from all COMMON_*_LOCK_FILES constants
         expected = set(
             COMMON_PYTHON_LOCK_FILES

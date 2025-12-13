@@ -520,11 +520,8 @@ def _fetch_pypi_metadata(package_name: str, session: requests.Session) -> Option
                     # Store for issue tracker
                     if "repo_metadata" not in metadata:
                         metadata["repo_metadata"] = {}
-                    # Only strip "/issues" suffix if the URL actually ends with it
-                    if url_value.endswith("/issues"):
-                        metadata["repo_metadata"]["html_url"] = url_value[:-7]
-                    else:
-                        metadata["repo_metadata"]["html_url"] = url_value
+                    # Strip "/issues" suffix if present to get the repo base URL
+                    metadata["repo_metadata"]["html_url"] = url_value.removesuffix("/issues")
                     metadata["repo_metadata"]["has_issues"] = True
                 elif "documentation" in key_lower or "docs" in key_lower:
                     metadata["documentation_url"] = url_value
