@@ -25,7 +25,7 @@ That's it! This generates an SBOM from your lockfile and attempts to make it NTI
 - **Generate** SBOMs from lockfiles (Python, Node, Rust, Go, Ruby, Dart, C++)
 - **Generate** SBOMs from Docker images
 - **Augment** with business metadata (supplier, authors, licenses) from sbomify
-- **Enrich** with package metadata from PyPI, npm, Maven, deps.dev, and more
+- **Enrich** with package metadata from PyPI, pub.dev, npm, Maven, deps.dev, and more
 - **Upload** to sbomify for collaboration and vulnerability management
 - **Tag** SBOMs with product releases
 - **Attest** with GitHub's build provenance
@@ -179,6 +179,7 @@ docker run --rm -v $(pwd):/code \
 | Source | Package Types | Data |
 |--------|---------------|------|
 | PyPI | Python | License, author, homepage |
+| pub.dev | Dart | License, author, homepage, repo |
 | deps.dev | Python, npm, Maven, Go, Rust, Ruby, NuGet | License, homepage, repo |
 | ecosyste.ms | All major ecosystems | License, description, maintainer |
 | Debian Sources | Debian packages | License, maintainer |
