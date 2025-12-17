@@ -102,13 +102,13 @@ That's it! This generates an SBOM from your lockfile and enriches it with metada
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `LOCK_FILE` | * | Path to lockfile (requirements.txt, poetry.lock, Cargo.lock, etc.) |
-| `SBOM_FILE` | * | Path to existing SBOM file |
-| `DOCKER_IMAGE` | * | Docker image name |
+| `LOCK_FILE` | † | Path to lockfile (requirements.txt, poetry.lock, Cargo.lock, etc.) |
+| `SBOM_FILE` | † | Path to existing SBOM file |
+| `DOCKER_IMAGE` | † | Docker image name |
 | `OUTPUT_FILE` | No | Write final SBOM to this path |
 | `ENRICH` | No | Add metadata from package registries |
-| `TOKEN` | ** | sbomify API token |
-| `COMPONENT_ID` | ** | sbomify component ID |
+| `TOKEN` | ‡ | sbomify API token |
+| `COMPONENT_ID` | ‡ | sbomify component ID |
 | `AUGMENT` | No | Add metadata from sbomify |
 | `COMPONENT_NAME` | No | Override component name in SBOM |
 | `COMPONENT_VERSION` | No | Override component version in SBOM |
@@ -116,8 +116,8 @@ That's it! This generates an SBOM from your lockfile and enriches it with metada
 | `UPLOAD` | No | Upload to sbomify (default: true) |
 | `API_BASE_URL` | No | Override sbomify API URL for self-hosted instances |
 
-\* One of `LOCK_FILE`, `SBOM_FILE`, or `DOCKER_IMAGE` required
-\** Required when using sbomify features (`UPLOAD`, `AUGMENT`, `PRODUCT_RELEASE`)
+† **One** of `LOCK_FILE`, `SBOM_FILE`, or `DOCKER_IMAGE` is required (pick one)
+‡ Required when using sbomify features (`UPLOAD`, `AUGMENT`, `PRODUCT_RELEASE`)
 
 ## Supported Lockfiles
 

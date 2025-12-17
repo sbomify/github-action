@@ -42,8 +42,22 @@ from ..serialization import serialize_cyclonedx_bom
 
 # Import version for tool metadata with multiple fallback mechanisms
 def _get_package_version() -> str:
-    """Get the package version using multiple fallback methods."""
-    # Method 1: Try importlib.metadata (preferred for installed packages)
+    """Get the package version using multiple fallback methods.
+
+    Priority:
+    1. SBOMIFY_GITHUB_ACTION_VERSION environment variable (set at Docker build time for release tracking)
+    2. importlib.metadata (for installed packages)
+    3. pyproject.toml (for development)
+    4. Package __version__ attribute
+    5. Fallback to "unknown"
+    """
+    # Method 1: Check for environment variable (set at Docker build time)
+    # This takes precedence as it contains the release version (tag or branch-sha)
+    env_version = os.getenv("SBOMIFY_GITHUB_ACTION_VERSION")
+    if env_version and env_version not in ("dev", "unknown", ""):
+        return env_version
+
+    # Method 2: Try importlib.metadata (preferred for installed packages)
     try:
         from importlib.metadata import version
 
@@ -53,7 +67,7 @@ def _get_package_version() -> str:
     except Exception:
         pass
 
-    # Method 2: Try reading from pyproject.toml directly
+    # Method 3: Try reading from pyproject.toml directly
     try:
         import tomllib
 
@@ -68,7 +82,7 @@ def _get_package_version() -> str:
     except Exception:
         pass
 
-    # Method 3: Try toml library as fallback for older Python
+    # Method 4: Try toml library as fallback for older Python
     try:
         import toml
 
@@ -82,7 +96,7 @@ def _get_package_version() -> str:
     except Exception:
         pass
 
-    # Method 4: Try package __version__ attribute
+    # Method 5: Try package __version__ attribute
     try:
         from sbomify_action import __version__
 
