@@ -25,14 +25,20 @@ def create_default_registry() -> SourceRegistry:
     """
     Create a SourceRegistry with default data sources.
 
-    Returns a registry configured with (in priority order):
-    - PyPISource (priority 10) - native for Python packages
-    - DebianSource (priority 15) - native for Debian packages
-    - DepsDevSource (priority 40) - Google Open Source Insights
-    - EcosystemsSource (priority 50) - generic multi-ecosystem
-    - PURLSource (priority 60) - PURL-based extraction for OS packages
-    - ClearlyDefinedSource (priority 70) - license and attribution data
-    - RepologySource (priority 100) - fallback for OS packages (rate limited)
+    Returns a registry configured with sources in three tiers:
+
+    Tier 1 - Native Sources (10-19):
+    - PyPISource (10) - direct from PyPI for Python packages
+    - DebianSource (10) - direct from sources.debian.org
+
+    Tier 2 - Primary Aggregators (40-49):
+    - DepsDevSource (40) - Google Open Source Insights
+    - EcosystemsSource (45) - ecosyste.ms multi-ecosystem aggregator
+
+    Tier 3 - Fallback Sources (70-99):
+    - PURLSource (70) - local PURL extraction for OS packages (no API)
+    - ClearlyDefinedSource (75) - license and attribution data
+    - RepologySource (90) - cross-distro metadata (rate-limited)
 
     Sources are queried sequentially in priority order. If a source returns
     all required NTIA fields (description, licenses, supplier), subsequent
