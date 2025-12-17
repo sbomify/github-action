@@ -242,7 +242,9 @@ For operating system packages (deb, rpm, apk), the enricher uses a multi-tier ap
 
 ### Supplier Name Mapping
 
-OS packages automatically receive supplier information based on their distribution:
+OS packages automatically receive supplier information based on their distribution.
+
+See [`sbomify_action/_enrichment/sources/purl.py`](sbomify_action/_enrichment/sources/purl.py) for the complete mapping.
 
 | Distribution | Supplier Name |
 |--------------|---------------|
@@ -253,18 +255,52 @@ OS packages automatically receive supplier information based on their distributi
 | Red Hat / RHEL | Red Hat, Inc. |
 | CentOS | CentOS Project |
 | Rocky Linux | Rocky Enterprise Software Foundation |
+| AlmaLinux | AlmaLinux OS Foundation |
+| Amazon Linux | Amazon Web Services |
+| Oracle Linux | Oracle Corporation |
 | openSUSE | openSUSE Project |
+| SUSE | SUSE LLC |
 | Arch Linux | Arch Linux |
+| Gentoo | Gentoo Foundation |
+| Wolfi | Chainguard, Inc. |
+| Chainguard | Chainguard, Inc. |
 
 ### Lockfile Component Handling
 
-Build artifact components (lockfiles like `requirements.txt`, `package-lock.json`, `Cargo.lock`) are preserved in the SBOM but enriched with descriptive metadata rather than queried as packages:
+Build artifact components (lockfiles and manifests) are preserved in the SBOM but enriched with descriptive metadata rather than queried as packages. This ensures lockfiles don't trigger false-positive vulnerability alerts while maintaining SBOM completeness.
 
-- `uv.lock` → "Python uv lockfile"
-- `package-lock.json` → "JavaScript npm lockfile"
-- `Cargo.lock` → "Rust Cargo lockfile"
+See [`sbomify_action/enrichment.py`](sbomify_action/enrichment.py) for the complete mapping.
 
-This ensures lockfiles don't trigger false-positive vulnerability alerts while maintaining SBOM completeness.
+| Lockfile | Description |
+|----------|-------------|
+| **Python** | |
+| `requirements.txt` | Python pip requirements manifest |
+| `pyproject.toml` | Python project configuration |
+| `Pipfile` | Python Pipenv manifest |
+| `Pipfile.lock` | Python Pipenv lockfile |
+| `poetry.lock` | Python Poetry lockfile |
+| `uv.lock` | Python uv lockfile |
+| `pdm.lock` | Python PDM lockfile |
+| `conda-lock.yml` | Conda environment lockfile |
+| **JavaScript** | |
+| `package.json` | JavaScript package manifest |
+| `package-lock.json` | JavaScript npm lockfile |
+| `yarn.lock` | JavaScript Yarn lockfile |
+| `pnpm-lock.yaml` | JavaScript pnpm lockfile |
+| `bun.lock` | JavaScript Bun lockfile |
+| `npm-shrinkwrap.json` | JavaScript npm shrinkwrap lockfile |
+| **Rust** | |
+| `Cargo.lock` | Rust Cargo lockfile |
+| **Ruby** | |
+| `Gemfile.lock` | Ruby Bundler lockfile |
+| **Go** | |
+| `go.mod` | Go module definition |
+| `go.sum` | Go module checksums |
+| **Dart** | |
+| `pubspec.lock` | Dart pub lockfile |
+| **C++** | |
+| `conan.lock` | C++ Conan lockfile |
+| `vcpkg.json` | C++ vcpkg manifest |
 
 ## Compatibility Notes
 
