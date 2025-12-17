@@ -1,0 +1,43 @@
+# Test files and data
+tests/
+scripts/
+
+# Git
+.git/
+.github/
+.gitignore
+
+# CI/CD configuration
+.gitlab-ci.yml
+bitbucket-pipelines.yml
+pipe.yml
+
+# Development files
+.cursorrules
+.env
+.pre-commit-config.yaml
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Documentation (README is needed for package metadata)
+*.md
+!README.md
+
+# Misc
+.DS_Store
+Thumbs.db

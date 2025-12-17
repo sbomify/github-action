@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from sbomify_action.cli.main import (
-    enrich_sbom_with_ecosystems,
+    enrich_sbom,
     path_expansion,
     validate_sbom,
 )
@@ -215,41 +215,32 @@ class TestDockerImageSBOMGeneration(unittest.TestCase):
 
 
 class TestEnrichment(unittest.TestCase):
-    @patch("sbomify_action.enrichment.requests.Session")
-    def test_enrichment(self, mock_session_class):
+    @patch("requests.Session.get")
+    def test_enrichment(self, mock_get):
         """
         Test the enrichment with ecosyste.ms API
         """
-        # Mock the session and responses
-        mock_session = Mock()
-        # Make the mock session support context manager protocol
-        mock_session.__enter__ = Mock(return_value=mock_session)
-        mock_session.__exit__ = Mock(return_value=False)
-        mock_session_class.return_value = mock_session
-
-        # Mock API response for each package in the test SBOM (API returns array)
+        # Mock API response for PyPI packages
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = [
-            {
-                "description": "Test package description",
-                "licenses": "MIT",
-                "homepage": "https://example.com",
-                "repository_url": "https://github.com/example/repo",
-                "language": "Python",
-                "keywords_array": ["test", "package"],
+        mock_response.json.return_value = {
+            "info": {
+                "summary": "Test package description",
+                "license": "MIT",
+                "home_page": "https://example.com",
+                "author": "Test Author",
             }
-        ]
-        mock_session.get.return_value = mock_response
+        }
+        mock_get.return_value = mock_response
 
         input_file = "tests/test-data/syft.cdx.json"
         output_file = "enriched_sbom.cdx.json"
 
-        enrich_sbom_with_ecosystems(input_file, output_file)
+        enrich_sbom(input_file, output_file)
         validate_sbom(output_file)
 
         # Verify that the API was called
-        self.assertTrue(mock_session.get.called)
+        self.assertTrue(mock_get.called)
 
     def test_failed_json_file(self):
         """
@@ -261,7 +252,7 @@ class TestEnrichment(unittest.TestCase):
 
         # Should raise SBOMValidationError for invalid JSON
         with self.assertRaises(SBOMValidationError):
-            enrich_sbom_with_ecosystems(input_file, output_file)
+            enrich_sbom(input_file, output_file)
 
 
 if __name__ == "__main__":

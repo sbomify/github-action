@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import jsonschema
 import pytest
@@ -20,7 +20,7 @@ from spdx_tools.spdx.model import (
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
 from sbomify_action.augmentation import augment_sbom_from_file
-from sbomify_action.enrichment import clear_cache, enrich_sbom_with_ecosystems
+from sbomify_action.enrichment import clear_cache, enrich_sbom
 from sbomify_action.serialization import serialize_cyclonedx_bom
 
 # Path to schemas
@@ -99,9 +99,21 @@ def test_cyclonedx_full_flow_compliance(version, tmp_path):
     # Clear cache to ensure fresh fetch
     clear_cache()
 
-    # Mock the package metadata fetcher
-    with patch("sbomify_action.enrichment._fetch_package_metadata", return_value=enrichment_metadata):
-        enrich_sbom_with_ecosystems(input_file=str(augmented_file), output_file=str(final_file))
+    # Mock the package metadata fetcher via requests.Session.get
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "info": {
+            "summary": enrichment_metadata.get("description"),
+            "home_page": enrichment_metadata.get("homepage"),
+            "license": enrichment_metadata.get("normalized_licenses", [""])[0]
+            if enrichment_metadata.get("normalized_licenses")
+            else None,
+            "author": "Test Author",
+        }
+    }
+    with patch("requests.Session.get", return_value=mock_response):
+        enrich_sbom(input_file=str(augmented_file), output_file=str(final_file))
 
     # 4. Validate Final Output
     with open(final_file) as f:
@@ -191,8 +203,21 @@ def test_spdx_full_flow_compliance(version, tmp_path):
 
     clear_cache()
 
-    with patch("sbomify_action.enrichment._fetch_package_metadata", return_value=enrichment_metadata):
-        enrich_sbom_with_ecosystems(input_file=str(augmented_file), output_file=str(final_file))
+    # Mock the package metadata fetcher via requests.Session.get
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "info": {
+            "summary": enrichment_metadata.get("description"),
+            "home_page": enrichment_metadata.get("homepage"),
+            "license": enrichment_metadata.get("normalized_licenses", [""])[0]
+            if enrichment_metadata.get("normalized_licenses")
+            else None,
+            "author": "Test Author",
+        }
+    }
+    with patch("requests.Session.get", return_value=mock_response):
+        enrich_sbom(input_file=str(augmented_file), output_file=str(final_file))
 
     # 4. Validate Final Output
     with open(final_file) as f:
