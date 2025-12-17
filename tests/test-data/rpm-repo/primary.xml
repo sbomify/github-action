@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="3">
+<package type="rpm">
+  <name>bash</name>
+  <arch>x86_64</arch>
+  <version epoch="0" ver="5.1.8" rel="9.el9"/>
+  <checksum type="sha256" pkgid="YES">abc123def456</checksum>
+  <summary>The GNU Bourne Again shell</summary>
+  <description>The GNU Bourne Again shell (Bash) is a shell or command language
+interpreter that is compatible with the Bourne shell (sh).</description>
+  <packager>Rocky Linux Build System (Peridot) &lt;releng@rockylinux.org&gt;</packager>
+  <url>https://www.gnu.org/software/bash</url>
+  <time file="1682113661" build="1682113275"/>
+  <size package="1274689" installed="4642348" archive="4677144"/>
+  <location href="Packages/b/bash-5.1.8-9.el9.x86_64.rpm"/>
+  <format>
+    <rpm:license>GPLv3+</rpm:license>
+    <rpm:vendor>Rocky Enterprise Software Foundation</rpm:vendor>
+    <rpm:group>System Environment/Shells</rpm:group>
+    <rpm:buildhost>build.rockylinux.org</rpm:buildhost>
+    <rpm:sourcerpm>bash-5.1.8-9.el9.src.rpm</rpm:sourcerpm>
+    <rpm:header-range start="4504" end="49473"/>
+    <rpm:provides>
+      <rpm:entry name="bash" flags="EQ" epoch="0" ver="5.1.8" rel="9.el9"/>
+      <rpm:entry name="/bin/bash"/>
+      <rpm:entry name="/bin/sh"/>
+    </rpm:provides>
+    <rpm:requires>
+      <rpm:entry name="libc.so.6(GLIBC_2.34)(64bit)"/>
+      <rpm:entry name="libtinfo.so.6()(64bit)"/>
+    </rpm:requires>
+  </format>
+</package>
+<package type="rpm">
+  <name>openssl</name>
+  <arch>x86_64</arch>
+  <version epoch="1" ver="3.0.7" rel="18.el9"/>
+  <checksum type="sha256" pkgid="YES">xyz789</checksum>
+  <summary>Utilities from the general purpose cryptography library with TLS implementation</summary>
+  <description>The OpenSSL toolkit provides support for secure communications between
+machines.</description>
+  <packager>Rocky Linux Build System (Peridot) &lt;releng@rockylinux.org&gt;</packager>
+  <url>http://www.openssl.org/</url>
+  <time file="1700000000" build="1699999999"/>
+  <size package="1500000" installed="3000000" archive="3100000"/>
+  <location href="Packages/o/openssl-3.0.7-18.el9.x86_64.rpm"/>
+  <format>
+    <rpm:license>Apache-2.0</rpm:license>
+    <rpm:vendor>Rocky Enterprise Software Foundation</rpm:vendor>
+    <rpm:group>System Environment/Libraries</rpm:group>
+    <rpm:buildhost>build.rockylinux.org</rpm:buildhost>
+    <rpm:sourcerpm>openssl-3.0.7-18.el9.src.rpm</rpm:sourcerpm>
+    <rpm:header-range start="4504" end="20000"/>
+  </format>
+</package>
+<package type="rpm">
+  <name>curl</name>
+  <arch>x86_64</arch>
+  <version epoch="0" ver="7.76.1" rel="29.el9"/>
+  <checksum type="sha256" pkgid="YES">curl123</checksum>
+  <summary>A utility for getting files from remote servers</summary>
+  <description>curl is a command line tool for transferring data with URL syntax.</description>
+  <packager>Rocky Linux Build System (Peridot) &lt;releng@rockylinux.org&gt;</packager>
+  <url>https://curl.se/</url>
+  <time file="1710000000" build="1709999999"/>
+  <size package="300000" installed="600000" archive="650000"/>
+  <location href="Packages/c/curl-7.76.1-29.el9.x86_64.rpm"/>
+  <format>
+    <rpm:license>MIT</rpm:license>
+    <rpm:vendor>Rocky Enterprise Software Foundation</rpm:vendor>
+    <rpm:group>Applications/Internet</rpm:group>
+    <rpm:buildhost>build.rockylinux.org</rpm:buildhost>
+    <rpm:sourcerpm>curl-7.76.1-29.el9.src.rpm</rpm:sourcerpm>
+    <rpm:header-range start="4504" end="15000"/>
+  </format>
+</package>
+</metadata>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<repomd xmlns="http://linux.duke.edu/metadata/repo" xmlns:rpm="http://linux.duke.edu/metadata/rpm">
+  <revision>9</revision>
+  <tags>
+    <distro cpeid="cpe:/o:rocky:rocky:9">Rocky Linux 9</distro>
+  </tags>
+  <data type="primary">
+    <checksum type="sha256">abc123</checksum>
+    <open-checksum type="sha256">def456</open-checksum>
+    <location href="repodata/primary.xml.gz"/>
+    <timestamp>1765738257</timestamp>
+    <size>1000</size>
+    <open-size>5000</open-size>
+  </data>
+</repomd>

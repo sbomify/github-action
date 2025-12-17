@@ -36,6 +36,13 @@ from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 # Import from plugin architecture
 from ._enrichment.enricher import Enricher, clear_all_caches
 from ._enrichment.metadata import NormalizedMetadata
+from ._enrichment.sanitization import (
+    sanitize_description,
+    sanitize_email,
+    sanitize_license,
+    sanitize_supplier,
+    sanitize_url,
+)
 from ._enrichment.sources.purl import NAMESPACE_TO_SUPPLIER
 from .exceptions import SBOMValidationError
 from .generation import (
@@ -257,6 +264,8 @@ def _apply_metadata_to_cyclonedx_component(component: Component, metadata: Norma
     """
     Apply NormalizedMetadata to a CycloneDX component.
 
+    All values are sanitized before being applied to protect against injection attacks.
+
     Args:
         component: Component to enrich
         metadata: Normalized metadata to apply
@@ -266,55 +275,62 @@ def _apply_metadata_to_cyclonedx_component(component: Component, metadata: Norma
     """
     added_fields = []
 
-    # Description
+    # Description (sanitized)
     if not component.description and metadata.description:
-        component.description = metadata.description
-        added_fields.append("description")
+        sanitized_desc = sanitize_description(metadata.description)
+        if sanitized_desc:
+            component.description = sanitized_desc
+            added_fields.append("description")
 
-    # Licenses
+    # Licenses (sanitized)
     has_licenses = component.licenses is not None and len(component.licenses) > 0
     if not has_licenses and metadata.licenses:
-        if len(metadata.licenses) == 1:
-            license_expression = metadata.licenses[0]
-        else:
-            license_expression = " OR ".join(metadata.licenses)
-        license_expr = LicenseExpression(value=license_expression)
-        component.licenses.add(license_expr)
-        added_fields.append(f"licenses ({license_expression})")
+        sanitized_licenses = [sanitize_license(lic) for lic in metadata.licenses if sanitize_license(lic)]
+        if sanitized_licenses:
+            if len(sanitized_licenses) == 1:
+                license_expression = sanitized_licenses[0]
+            else:
+                license_expression = " OR ".join(sanitized_licenses)
+            license_expr = LicenseExpression(value=license_expression)
+            component.licenses.add(license_expr)
+            added_fields.append(f"licenses ({license_expression})")
 
-    # Publisher
+    # Publisher (sanitized)
     if not component.publisher and metadata.supplier:
-        component.publisher = metadata.supplier
-        added_fields.append(f"publisher ({metadata.supplier})")
+        sanitized_supplier = sanitize_supplier(metadata.supplier)
+        if sanitized_supplier:
+            component.publisher = sanitized_supplier
+            added_fields.append(f"publisher ({sanitized_supplier})")
 
-    # External references helper
-    def _add_external_ref(ref_type: ExternalReferenceType, url: str) -> bool:
-        if url:
+    # External references helper (with URL sanitization)
+    def _add_external_ref(ref_type: ExternalReferenceType, url: str, field_name: str = "url") -> bool:
+        sanitized_url = sanitize_url(url, field_name=field_name) if url else None
+        if sanitized_url:
             for existing in component.external_references:
-                if existing.type == ref_type and str(existing.url) == url:
+                if existing.type == ref_type and str(existing.url) == sanitized_url:
                     return False
-            component.external_references.add(ExternalReference(type=ref_type, url=XsUri(url)))
+            component.external_references.add(ExternalReference(type=ref_type, url=XsUri(sanitized_url)))
             return True
         return False
 
-    # Homepage
+    # Homepage (sanitized)
     if metadata.homepage:
-        if _add_external_ref(ExternalReferenceType.WEBSITE, metadata.homepage):
+        if _add_external_ref(ExternalReferenceType.WEBSITE, metadata.homepage, "homepage"):
             added_fields.append("homepage URL")
 
-    # Repository
+    # Repository (sanitized)
     if metadata.repository_url:
-        if _add_external_ref(ExternalReferenceType.VCS, metadata.repository_url):
+        if _add_external_ref(ExternalReferenceType.VCS, metadata.repository_url, "repository_url"):
             added_fields.append("repository URL")
 
-    # Registry/Distribution
+    # Registry/Distribution (sanitized)
     if metadata.registry_url:
-        if _add_external_ref(ExternalReferenceType.DISTRIBUTION, metadata.registry_url):
+        if _add_external_ref(ExternalReferenceType.DISTRIBUTION, metadata.registry_url, "registry_url"):
             added_fields.append("distribution URL")
 
-    # Issue tracker
+    # Issue tracker (sanitized)
     if metadata.issue_tracker_url:
-        if _add_external_ref(ExternalReferenceType.ISSUE_TRACKER, metadata.issue_tracker_url):
+        if _add_external_ref(ExternalReferenceType.ISSUE_TRACKER, metadata.issue_tracker_url, "issue_tracker_url"):
             added_fields.append("issue-tracker URL")
 
     return added_fields
@@ -333,6 +349,8 @@ def _apply_metadata_to_spdx_package(package: Package, metadata: NormalizedMetada
     """
     Apply NormalizedMetadata to an SPDX package.
 
+    All values are sanitized before being applied to protect against injection attacks.
+
     Args:
         package: Package to enrich
         metadata: Normalized metadata to apply
@@ -342,80 +360,96 @@ def _apply_metadata_to_spdx_package(package: Package, metadata: NormalizedMetada
     """
     added_fields = []
 
-    # Description
+    # Description (sanitized)
     if not package.description and metadata.description:
-        package.description = metadata.description
-        added_fields.append("description")
+        sanitized_desc = sanitize_description(metadata.description)
+        if sanitized_desc:
+            package.description = sanitized_desc
+            added_fields.append("description")
 
-    # Homepage
+    # Homepage (sanitized)
     if not package.homepage and metadata.homepage:
-        package.homepage = metadata.homepage
-        added_fields.append("homepage")
+        sanitized_homepage = sanitize_url(metadata.homepage, field_name="homepage")
+        if sanitized_homepage:
+            package.homepage = sanitized_homepage
+            added_fields.append("homepage")
 
-    # Download location
+    # Download location (sanitized)
     if not package.download_location or package.download_location == "NOASSERTION":
         download_url = metadata.registry_url or metadata.download_url or metadata.repository_url
-        if download_url:
-            package.download_location = download_url
+        sanitized_download = sanitize_url(download_url, field_name="download_location") if download_url else None
+        if sanitized_download:
+            package.download_location = sanitized_download
             added_fields.append("downloadLocation")
 
-    # Licenses - use helper to avoid boolean evaluation of LicenseExpression
+    # Licenses (sanitized) - use helper to avoid boolean evaluation of LicenseExpression
     if _is_spdx_license_empty(package.license_declared) and metadata.licenses:
-        if len(metadata.licenses) == 1:
-            license_expression = metadata.licenses[0]
-        else:
-            license_expression = " OR ".join(metadata.licenses)
-
-        license_parser = LicenseExpressionParser()
-        try:
-            parsed_expression = license_parser.parse_license_expression(license_expression)
-            package.license_declared = parsed_expression
-            added_fields.append(f"license_declared ({license_expression})")
-        except Exception as e:
-            logger.warning(f"Failed to parse license expression '{license_expression}': {e}")
-            source = metadata.source or "enrichment"
-            if package.license_comment:
-                package.license_comment += f" | Licenses from {source}: {license_expression}"
+        sanitized_licenses = [sanitize_license(lic) for lic in metadata.licenses if sanitize_license(lic)]
+        if sanitized_licenses:
+            if len(sanitized_licenses) == 1:
+                license_expression = sanitized_licenses[0]
             else:
-                package.license_comment = f"Licenses from {source}: {license_expression}"
-            added_fields.append(f"license_comment ({license_expression})")
+                license_expression = " OR ".join(sanitized_licenses)
 
-    # Source info
+            license_parser = LicenseExpressionParser()
+            try:
+                parsed_expression = license_parser.parse_license_expression(license_expression)
+                package.license_declared = parsed_expression
+                added_fields.append(f"license_declared ({license_expression})")
+            except Exception as e:
+                logger.warning(f"Failed to parse license expression '{license_expression}': {e}")
+                source = metadata.source or "enrichment"
+                if package.license_comment:
+                    package.license_comment += f" | Licenses from {source}: {license_expression}"
+                else:
+                    package.license_comment = f"Licenses from {source}: {license_expression}"
+                added_fields.append(f"license_comment ({license_expression})")
+
+    # Source info (sanitized)
     if not package.source_info and metadata.repository_url:
-        package.source_info = f"acquired from {metadata.repository_url}"
-        added_fields.append("sourceInfo")
+        sanitized_repo = sanitize_url(metadata.repository_url, field_name="repository_url")
+        if sanitized_repo:
+            package.source_info = f"acquired from {sanitized_repo}"
+            added_fields.append("sourceInfo")
 
-    # Originator
+    # Originator (sanitized)
     if not package.originator and metadata.maintainer_name:
-        originator_str = metadata.maintainer_name
-        if metadata.maintainer_email:
-            originator_str += f" ({metadata.maintainer_email})"
-        package.originator = Actor(ActorType.PERSON, originator_str)
-        added_fields.append(f"originator ({metadata.maintainer_name})")
+        sanitized_name = sanitize_supplier(metadata.maintainer_name)
+        if sanitized_name:
+            originator_str = sanitized_name
+            if metadata.maintainer_email:
+                sanitized_email = sanitize_email(metadata.maintainer_email)
+                if sanitized_email:
+                    originator_str += f" ({sanitized_email})"
+            package.originator = Actor(ActorType.PERSON, originator_str)
+            added_fields.append(f"originator ({sanitized_name})")
 
-    # Supplier
+    # Supplier (sanitized)
     if not package.supplier and metadata.supplier:
-        package.supplier = Actor(ActorType.ORGANIZATION, metadata.supplier)
-        added_fields.append(f"supplier ({metadata.supplier})")
+        sanitized_supplier = sanitize_supplier(metadata.supplier)
+        if sanitized_supplier:
+            package.supplier = Actor(ActorType.ORGANIZATION, sanitized_supplier)
+            added_fields.append(f"supplier ({sanitized_supplier})")
 
-    # External references helper
+    # External references helper (with URL sanitization)
     def _add_external_ref(category: ExternalPackageRefCategory, ref_type: str, locator: str) -> bool:
-        if locator:
+        sanitized_locator = sanitize_url(locator) if locator else None
+        if sanitized_locator:
             for existing in package.external_references:
-                if existing.locator == locator:
+                if existing.locator == sanitized_locator:
                     return False
             package.external_references.append(
-                ExternalPackageRef(category=category, reference_type=ref_type, locator=locator)
+                ExternalPackageRef(category=category, reference_type=ref_type, locator=sanitized_locator)
             )
             return True
         return False
 
-    # Registry URL
+    # Registry URL (sanitized)
     if metadata.registry_url:
         if _add_external_ref(ExternalPackageRefCategory.PACKAGE_MANAGER, "url", metadata.registry_url):
             added_fields.append("externalRef (registry)")
 
-    # Documentation URL
+    # Documentation URL (sanitized)
     if metadata.documentation_url:
         if _add_external_ref(ExternalPackageRefCategory.OTHER, "url", metadata.documentation_url):
             added_fields.append("externalRef (documentation)")

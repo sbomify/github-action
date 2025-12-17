@@ -40,9 +40,11 @@ build-backend = "hatchling.build"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "--cov=sbomify_action --cov-report=term-missing"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 filterwarnings = [
-    "ignore:.*component.author.*is deprecated.*:DeprecationWarning",
-    "ignore:The Component this BOM is describing.*has no defined dependencies.*:UserWarning",
+    "default::DeprecationWarning",
 ]
 
 [tool.ruff]

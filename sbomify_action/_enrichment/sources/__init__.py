@@ -8,6 +8,7 @@ from .pubdev import PubDevSource
 from .purl import PURLSource
 from .pypi import PyPISource
 from .repology import RepologySource
+from .rpmrepo import RpmRepoSource
 
 __all__ = [
     "PyPISource",
@@ -18,4 +19,5 @@ __all__ = [
     "PURLSource",
     "ClearlyDefinedSource",
     "RepologySource",
+    "RpmRepoSource",
 ]
