@@ -117,7 +117,9 @@ If you are releasing using GitHub releases, you might want to set `COMPONENT_VER
 
 ### `ENRICH` (true/false)
 
-**Optional** Set this option to enrich your SBOM using [Ecosyste.ms](https://github.com/ecosyste-ms). This can help with improving your NTIA Minimum Elements Compliance.
+**Optional** Set this option to enrich your SBOM with package metadata from multiple sources. This improves NTIA Minimum Elements compliance by adding supplier names, descriptions, licenses, and homepage URLs to your components.
+
+See [Enrichment Architecture](#enrichment-architecture) for details on how enrichment works.
 
 ### `PRODUCT_RELEASE` (JSON array)
 
@@ -185,6 +187,84 @@ Set to `false`, `0`, `no`, `off`, or `disabled` to opt-out of telemetry.
 env:
   TELEMETRY: 'false'
 ```
+
+## Enrichment Architecture
+
+When `ENRICH=true`, the tool automatically fetches metadata from multiple data sources to improve NTIA Minimum Elements compliance. Each package is looked up using its PURL (Package URL), and metadata is merged from sources in priority order.
+
+### Data Sources
+
+| Priority | Source | Package Types | Data Provided |
+|----------|--------|---------------|---------------|
+| 10 | **PyPI** | `pkg:pypi/*` | Description, license, author, homepage, repository |
+| 15 | **Debian Sources** | `pkg:deb/debian/*` | Description, license, maintainer, homepage |
+| 40 | **deps.dev** | PyPI, npm, Cargo, Maven, Go | Description, license, homepage, repository |
+| 50 | **ecosyste.ms** | PyPI, npm, Cargo, Maven, Gem, NuGet, Go | Description, license, maintainer, homepage, repository |
+| 60 | **PURL** | deb, rpm, apk, alpm | Supplier name, package tracker URL (no API call) |
+| 70 | **ClearlyDefined** | PyPI, npm, Cargo, Maven, Gem, NuGet, Go | License, attribution |
+| 100 | **Repology** | deb, rpm, apk, alpm | Description, license, homepage |
+
+Lower priority numbers = higher preference. The enricher queries sources in priority order and merges results, with earlier sources taking precedence for each field.
+
+### Enrichment Flow
+
+```mermaid
+flowchart TD
+    A[Component with PURL] --> B{Parse PURL}
+    B --> C[Find Applicable Sources]
+    C --> D[Sort by Priority]
+    D --> E{More Sources?}
+
+    E -->|Yes| F[Query Next Source]
+    F --> G{Got Data?}
+    G -->|Yes| H[Merge Metadata]
+    G -->|No| E
+    H --> I{Have All<br/>Core Fields?}
+    I -->|No| E
+    I -->|Yes| J[Apply to Component]
+    E -->|No| J
+
+    J --> K[Add Source Tracking]
+    K --> L[Enriched Component]
+
+    style A fill:#e1f5fe
+    style L fill:#c8e6c9
+    style F fill:#fff3e0
+```
+
+### OS Package Enrichment
+
+For operating system packages (deb, rpm, apk), the enricher uses a multi-tier approach:
+
+1. **Native Sources First**: Debian packages query `sources.debian.org` for authoritative metadata
+2. **PURL Fallback**: Supplier names are derived from the PURL namespace (e.g., `pkg:deb/debian/*` → "Debian Project")
+3. **Repology Last Resort**: Cross-distribution metadata from Repology (rate-limited)
+
+### Supplier Name Mapping
+
+OS packages automatically receive supplier information based on their distribution:
+
+| Distribution | Supplier Name |
+|--------------|---------------|
+| Debian | Debian Project |
+| Ubuntu | Canonical Ltd |
+| Alpine | Alpine Linux |
+| Fedora | Fedora Project |
+| Red Hat / RHEL | Red Hat, Inc. |
+| CentOS | CentOS Project |
+| Rocky Linux | Rocky Enterprise Software Foundation |
+| openSUSE | openSUSE Project |
+| Arch Linux | Arch Linux |
+
+### Lockfile Component Handling
+
+Build artifact components (lockfiles like `requirements.txt`, `package-lock.json`, `Cargo.lock`) are preserved in the SBOM but enriched with descriptive metadata rather than queried as packages:
+
+- `uv.lock` → "Python uv lockfile"
+- `package-lock.json` → "JavaScript npm lockfile"
+- `Cargo.lock` → "Rust Cargo lockfile"
+
+This ensures lockfiles don't trigger false-positive vulnerability alerts while maintaining SBOM completeness.
 
 ## Compatibility Notes
 
