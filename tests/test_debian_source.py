@@ -8,7 +8,7 @@ import requests
 from packageurl import PackageURL
 
 from sbomify_action._enrichment.sources.debian import (
-    DEBIAN_SOURCES_API_BASE,
+    DEBIAN_SOURCES_BASE,
     DebianSource,
     clear_cache,
 )
@@ -28,7 +28,7 @@ class TestDebianSourceBasics:
         assert source.name == "sources.debian.org"
 
     def test_source_priority(self):
-        """Test that priority is 15 (higher than generic sources)."""
+        """Test that priority is 10 (Tier 1: Native sources)."""
         source = DebianSource()
         assert source.priority == 10  # Tier 1: Native sources
 
@@ -596,7 +596,7 @@ class TestDebianSourceAPIUrls:
         # Check the URL that was called
         call_args = mock_session.get.call_args
         url = call_args[0][0]
-        assert url == f"{DEBIAN_SOURCES_API_BASE}/info/package/bash/5.2-1"
+        assert url == f"{DEBIAN_SOURCES_BASE}/info/package/bash/5.2-1"
 
     def test_latest_fallback_url(self):
         """Test that fallback to 'latest' uses correct URL."""
@@ -617,8 +617,8 @@ class TestDebianSourceAPIUrls:
         # Check both URLs that were called
         calls = mock_session.get.call_args_list
         assert len(calls) == 2
-        assert calls[0][0][0] == f"{DEBIAN_SOURCES_API_BASE}/info/package/bash/5.2-nonexistent"
-        assert calls[1][0][0] == f"{DEBIAN_SOURCES_API_BASE}/info/package/bash/latest"
+        assert calls[0][0][0] == f"{DEBIAN_SOURCES_BASE}/info/package/bash/5.2-nonexistent"
+        assert calls[1][0][0] == f"{DEBIAN_SOURCES_BASE}/info/package/bash/latest"
 
 
 class TestDebianSourceIntegration:

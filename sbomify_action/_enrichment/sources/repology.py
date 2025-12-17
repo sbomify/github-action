@@ -49,7 +49,7 @@ class RepologySource:
     rate limits (1 request per second) and should only be used when
     other sources don't have data.
 
-    Priority: 100 (lowest - fallback only)
+    Priority: 90 (Tier 3: Fallback sources - last resort, rate-limited)
     Supports: pkg:deb/*, pkg:rpm/*, pkg:apk/*, pkg:alpm/* packages
     """
 
