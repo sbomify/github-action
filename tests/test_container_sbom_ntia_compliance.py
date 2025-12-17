@@ -18,7 +18,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from sbomify_action.augmentation import augment_sbom_from_file
-from sbomify_action.enrichment import clear_cache, enrich_sbom_with_ecosystems
+from sbomify_action.enrichment import clear_cache, enrich_sbom
 
 # Test data directory
 TEST_DATA_DIR = Path(__file__).parent / "test-data"
@@ -371,7 +371,7 @@ class TestEnrichmentNTIACompliance:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(sbom_path), str(output_file))
+            enrich_sbom(str(sbom_path), str(output_file))
 
         with open(output_file) as f:
             enriched_data = json.load(f)
@@ -402,7 +402,7 @@ class TestEnrichmentNTIACompliance:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(sbom_path), str(output_file))
+            enrich_sbom(str(sbom_path), str(output_file))
 
         with open(output_file) as f:
             enriched_data = json.load(f)
@@ -519,7 +519,7 @@ class TestFullPipelineNTIACompliance:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(sbom_path), str(enriched_file))
+            enrich_sbom(str(sbom_path), str(enriched_file))
 
         # Step 2: Augment
         with patch("sbomify_action.augmentation.fetch_backend_metadata") as mock_fetch:
@@ -571,7 +571,7 @@ class TestSpecificDistroEnrichment:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(sbom_path), str(output_file))
+            enrich_sbom(str(sbom_path), str(output_file))
 
         with open(output_file) as f:
             data = json.load(f)
@@ -600,7 +600,7 @@ class TestSpecificDistroEnrichment:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(sbom_path), str(output_file))
+            enrich_sbom(str(sbom_path), str(output_file))
 
         with open(output_file) as f:
             data = json.load(f)
@@ -628,7 +628,7 @@ class TestSpecificDistroEnrichment:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(sbom_path), str(output_file))
+            enrich_sbom(str(sbom_path), str(output_file))
 
         with open(output_file) as f:
             data = json.load(f)
@@ -656,7 +656,7 @@ class TestSpecificDistroEnrichment:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(sbom_path), str(output_file))
+            enrich_sbom(str(sbom_path), str(output_file))
 
         with open(output_file) as f:
             data = json.load(f)

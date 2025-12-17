@@ -711,10 +711,10 @@ def load_sbom_from_file(file_path: str) -> tuple[str, dict, object]:
         raise SBOMValidationError(f"Failed to load SBOM from {file_path}: {e}")
 
 
-def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
+def enrich_sbom(input_file: str, output_file: str) -> None:
     """
     Takes a path to an SBOM as input and returns an enriched SBOM as the output
-    using ecosyste.ms API.
+    using the plugin-based enrichment system.
 
     Args:
         input_file: Path to input SBOM file
@@ -723,7 +723,7 @@ def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
     Raises:
         SBOMGenerationError: If enrichment fails
     """
-    from ..enrichment import enrich_sbom_with_ecosystems as _enrich_impl
+    from ..enrichment import enrich_sbom as _enrich_impl
 
     try:
         _enrich_impl(input_file, output_file)
@@ -1248,8 +1248,8 @@ def main() -> None:
             if not sbom_input_file:
                 raise FileProcessingError("No SBOM file found from previous step")
 
-            logger.info("Enriching SBOM components with ecosystem metadata from Ecosyste.ms")
-            enrich_sbom_with_ecosystems(sbom_input_file, "step_3.json")
+            logger.info("Enriching SBOM components with metadata from multiple data sources")
+            enrich_sbom(sbom_input_file, "step_3.json")
             _detect_sbom_format_silent("step_3.json")  # Silent validation
             _log_step_end(3)
         except (FileProcessingError, SBOMGenerationError, SBOMValidationError) as e:

@@ -20,7 +20,7 @@ from spdx_tools.spdx.model import (
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
 from sbomify_action.augmentation import augment_sbom_from_file
-from sbomify_action.enrichment import clear_cache, enrich_sbom_with_ecosystems
+from sbomify_action.enrichment import clear_cache, enrich_sbom
 from sbomify_action.serialization import serialize_cyclonedx_bom
 
 # Path to schemas
@@ -113,7 +113,7 @@ def test_cyclonedx_full_flow_compliance(version, tmp_path):
         }
     }
     with patch("requests.Session.get", return_value=mock_response):
-        enrich_sbom_with_ecosystems(input_file=str(augmented_file), output_file=str(final_file))
+        enrich_sbom(input_file=str(augmented_file), output_file=str(final_file))
 
     # 4. Validate Final Output
     with open(final_file) as f:
@@ -217,7 +217,7 @@ def test_spdx_full_flow_compliance(version, tmp_path):
         }
     }
     with patch("requests.Session.get", return_value=mock_response):
-        enrich_sbom_with_ecosystems(input_file=str(augmented_file), output_file=str(final_file))
+        enrich_sbom(input_file=str(augmented_file), output_file=str(final_file))
 
     # 4. Validate Final Output
     with open(final_file) as f:

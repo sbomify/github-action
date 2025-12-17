@@ -10,6 +10,7 @@ from packageurl import PackageURL
 from sbomify_action.logging_config import logger
 
 from ..metadata import NormalizedMetadata
+from ..utils import get_qualified_name
 
 DEPSDEV_API_BASE = "https://api.deps.dev/v3"
 DEFAULT_TIMEOUT = 10  # seconds - deps.dev is generally fast
@@ -73,18 +74,19 @@ class DepsDevSource:
         if not system:
             return None
 
-        # Build cache key
+        # Build cache key and package name using shared utility
         version = purl.version or ""
-        cache_key = f"depsdev:{purl.type}:{purl.name}:{version}"
+        package_name = get_qualified_name(purl, separator=":")
+        cache_key = f"depsdev:{purl.type}:{package_name}:{version}"
 
         # Check cache
         if cache_key in _cache:
-            logger.debug(f"Cache hit (deps.dev): {purl.name}")
+            logger.debug(f"Cache hit (deps.dev): {package_name}")
             return _cache[cache_key]
 
         try:
             # URL encode the package name
-            encoded_name = quote(purl.name, safe="")
+            encoded_name = quote(package_name, safe="")
 
             if version:
                 # Get specific version info

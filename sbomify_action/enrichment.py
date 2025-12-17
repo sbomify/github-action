@@ -582,16 +582,18 @@ def _enrich_spdx_document_with_plugin_architecture(document: Document, enricher:
     return stats
 
 
-def enrich_sbom_with_ecosystems(input_file: str, output_file: str) -> None:
+def enrich_sbom(input_file: str, output_file: str) -> None:
     """
     Enrich SBOM with metadata from multiple data sources using plugin architecture.
 
-    This function uses the new plugin-based enrichment system which queries
-    data sources in priority order:
-    1. Native sources (PyPI for pypi packages)
-    2. Generic sources (ecosyste.ms)
-    3. PURL-based extraction (for OS packages)
-    4. Fallback sources (Repology - last resort)
+    This function uses the plugin-based enrichment system which queries
+    data sources in priority order (lower number = higher priority):
+    - Priority 10: Native sources (PyPI, Debian Sources)
+    - Priority 20: deps.dev (Google Open Source Insights)
+    - Priority 30: ecosyste.ms
+    - Priority 40: ClearlyDefined
+    - Priority 50: PURL-based extraction (for OS packages)
+    - Priority 90: Repology (fallback, rate-limited)
 
     Args:
         input_file: Path to input SBOM file

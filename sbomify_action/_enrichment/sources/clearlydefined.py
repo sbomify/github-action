@@ -9,6 +9,7 @@ from packageurl import PackageURL
 from sbomify_action.logging_config import logger
 
 from ..metadata import NormalizedMetadata
+from ..utils import get_qualified_name
 
 CLEARLYDEFINED_API_BASE = "https://api.clearlydefined.io"
 DEFAULT_TIMEOUT = 10  # seconds - short timeout, API can be slow/unreliable
@@ -47,7 +48,7 @@ class ClearlyDefinedSource:
     ClearlyDefined provides curated license and attribution data for
     open source packages across many ecosystems.
 
-    Priority: 70 (medium-low - good for license data, slower API)
+    Priority: 75 (medium-low - good for license data, slower API)
     Supports: pypi, npm, cargo, maven, gem, nuget, golang packages
 
     NOTE: OS packages (deb, apk, rpm) are NOT supported - ClearlyDefined
@@ -82,20 +83,14 @@ class ClearlyDefinedSource:
         if not cd_type:
             return None
 
-        # Build the coordinate
+        # Build the coordinate using shared utility (ClearlyDefined uses "/" separator)
         version = purl.version or "-"
-
-        # Handle Maven's group:artifact format
-        if purl.type == "maven" and purl.namespace:
-            name = f"{purl.namespace}/{purl.name}"
-        else:
-            name = purl.name
-
+        name = get_qualified_name(purl, separator="/")
         cache_key = f"clearlydefined:{purl.type}:{name}:{version}"
 
         # Check cache
         if cache_key in _cache:
-            logger.debug(f"Cache hit (ClearlyDefined): {purl.name}")
+            logger.debug(f"Cache hit (ClearlyDefined): {name}")
             return _cache[cache_key]
 
         try:

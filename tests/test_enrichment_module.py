@@ -42,7 +42,7 @@ from sbomify_action.enrichment import (
     _is_lockfile_component,
     _is_lockfile_package,
     clear_cache,
-    enrich_sbom_with_ecosystems,
+    enrich_sbom,
 )
 from sbomify_action.generation import (
     COMMON_GO_LOCK_FILES,
@@ -730,7 +730,7 @@ class TestEndToEndEnrichment:
         }
 
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         assert output_file.exists()
         with open(output_file) as f:
@@ -787,7 +787,7 @@ class TestEndToEndEnrichment:
         }
 
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         assert output_file.exists()
         with open(output_file) as f:
@@ -825,7 +825,7 @@ class TestEndToEndEnrichment:
         mock_response.status_code = 404
 
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
             result = json.load(f)
@@ -848,7 +848,7 @@ class TestErrorHandling:
     def test_file_not_found(self, tmp_path):
         """Test handling of missing input file."""
         with pytest.raises(FileNotFoundError):
-            enrich_sbom_with_ecosystems(str(tmp_path / "nonexistent.json"), str(tmp_path / "out.json"))
+            enrich_sbom(str(tmp_path / "nonexistent.json"), str(tmp_path / "out.json"))
 
     def test_invalid_json(self, tmp_path):
         """Test handling of invalid JSON."""
@@ -856,7 +856,7 @@ class TestErrorHandling:
         input_file.write_text("not valid json")
 
         with pytest.raises(ValueError, match="Invalid JSON"):
-            enrich_sbom_with_ecosystems(str(input_file), str(tmp_path / "out.json"))
+            enrich_sbom(str(input_file), str(tmp_path / "out.json"))
 
     def test_unsupported_format(self, tmp_path):
         """Test handling of unsupported SBOM format."""
@@ -864,7 +864,7 @@ class TestErrorHandling:
         input_file.write_text(json.dumps({"unknown": "format"}))
 
         with pytest.raises(ValueError, match="Neither CycloneDX nor SPDX"):
-            enrich_sbom_with_ecosystems(str(input_file), str(tmp_path / "out.json"))
+            enrich_sbom(str(input_file), str(tmp_path / "out.json"))
 
     def test_missing_spec_version(self, tmp_path):
         """Test handling of missing specVersion in CycloneDX."""
@@ -872,7 +872,7 @@ class TestErrorHandling:
         input_file.write_text(json.dumps({"bomFormat": "CycloneDX"}))
 
         with pytest.raises(Exception, match="specVersion"):
-            enrich_sbom_with_ecosystems(str(input_file), str(tmp_path / "out.json"))
+            enrich_sbom(str(input_file), str(tmp_path / "out.json"))
 
 
 # =============================================================================
@@ -982,7 +982,7 @@ class TestSchemaVersionEndToEnd:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get", return_value=mock_pypi_response):
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1008,7 +1008,7 @@ class TestSchemaVersionEndToEnd:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get", return_value=mock_pypi_response):
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1052,7 +1052,7 @@ class TestSchemaVersionEndToEnd:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get", return_value=mock_pypi_response):
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1096,7 +1096,7 @@ class TestSchemaVersionEndToEnd:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get", return_value=mock_pypi_response):
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1313,7 +1313,7 @@ class TestPURLEnrichmentIntegration:
         mock_response.status_code = 404
 
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1354,7 +1354,7 @@ class TestPURLEnrichmentIntegration:
             return mock_response
 
         with patch("requests.Session.get", side_effect=mock_get):
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1469,7 +1469,7 @@ class TestLockfileFilteringExtended:
 
         with patch("requests.Session.get") as mock_get:
             mock_get.return_value = Mock(status_code=404)
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1815,7 +1815,7 @@ class TestNoComponentsWithPURLs:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get") as mock_get:
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         # Should not call any API since no PURLs
         mock_get.assert_not_called()
@@ -1852,7 +1852,7 @@ class TestNoComponentsWithPURLs:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get") as mock_get:
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         # Should not call any API since no PURLs
         mock_get.assert_not_called()

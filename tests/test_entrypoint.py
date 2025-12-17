@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from sbomify_action.cli.main import (
-    enrich_sbom_with_ecosystems,
+    enrich_sbom,
     path_expansion,
     validate_sbom,
 )
@@ -236,7 +236,7 @@ class TestEnrichment(unittest.TestCase):
         input_file = "tests/test-data/syft.cdx.json"
         output_file = "enriched_sbom.cdx.json"
 
-        enrich_sbom_with_ecosystems(input_file, output_file)
+        enrich_sbom(input_file, output_file)
         validate_sbom(output_file)
 
         # Verify that the API was called
@@ -252,7 +252,7 @@ class TestEnrichment(unittest.TestCase):
 
         # Should raise SBOMValidationError for invalid JSON
         with self.assertRaises(SBOMValidationError):
-            enrich_sbom_with_ecosystems(input_file, output_file)
+            enrich_sbom(input_file, output_file)
 
 
 if __name__ == "__main__":

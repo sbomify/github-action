@@ -19,7 +19,7 @@ from unittest.mock import Mock, patch
 import pytest
 from cyclonedx.model.bom import Bom
 
-from sbomify_action.enrichment import clear_cache, enrich_sbom_with_ecosystems
+from sbomify_action.enrichment import clear_cache, enrich_sbom
 
 
 class NTIAComplianceChecker:
@@ -317,7 +317,7 @@ class TestNTIAComplianceCycloneDX:
 
         with patch("requests.Session.get", side_effect=mock_get):
             output_file = tmp_path / "enriched.cdx.json"
-            enrich_sbom_with_ecosystems(str(trivy_cdx_path), str(output_file))
+            enrich_sbom(str(trivy_cdx_path), str(output_file))
 
         with open(output_file) as f:
             enriched_data = json.load(f)
@@ -376,7 +376,7 @@ class TestNTIAComplianceCycloneDX:
 
         with patch("requests.Session.get", side_effect=mock_get):
             output_file = tmp_path / "enriched.cdx.json"
-            enrich_sbom_with_ecosystems(str(trivy_cdx_path), str(output_file))
+            enrich_sbom(str(trivy_cdx_path), str(output_file))
 
         with open(output_file) as f:
             enriched_data = json.load(f)
@@ -477,7 +477,7 @@ class TestNTIAComplianceSPDX:
 
         output_file = tmp_path / "enriched.spdx.json"
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(trivy_spdx_path), str(output_file))
+            enrich_sbom(str(trivy_spdx_path), str(output_file))
 
         with open(output_file) as f:
             enriched_data = json.load(f)
@@ -557,7 +557,7 @@ class TestNTIAPURLFallback:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
             enriched_data = json.load(f)
@@ -615,7 +615,7 @@ class TestNTIAPURLFallback:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
             enriched_data = json.load(f)
@@ -656,7 +656,7 @@ class TestNTIAPURLFallback:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom_with_ecosystems(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
             enriched_data = json.load(f)
