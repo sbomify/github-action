@@ -60,10 +60,35 @@ RUN uv pip install dist/sbomify_github_action-*.whl
 # Final stage
 FROM python:3-slim-bullseye
 
-# Add labels
-LABEL org.opencontainers.image.source=https://github.com/sbomify/github-action
-LABEL org.opencontainers.image.description="sbomify Action"
-LABEL org.opencontainers.image.licenses=Apache-2.0
+# Build arguments for dynamic labels (passed at build time)
+ARG VERSION=dev
+ARG COMMIT_SHA=unknown
+ARG BUILD_DATE=unknown
+ARG VCS_REF=unknown
+
+# OCI Image Labels (https://github.com/opencontainers/image-spec/blob/main/annotations.md)
+LABEL org.opencontainers.image.title="sbomify GitHub Action" \
+      org.opencontainers.image.description="Generate, enrich, and manage Software Bill of Materials (SBOM) for your projects" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${COMMIT_SHA}" \
+      org.opencontainers.image.ref.name="${VCS_REF}" \
+      org.opencontainers.image.source="https://github.com/sbomify/github-action" \
+      org.opencontainers.image.url="https://sbomify.com" \
+      org.opencontainers.image.documentation="https://github.com/sbomify/github-action#readme" \
+      org.opencontainers.image.vendor="sbomify" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.authors="sbomify <hello@sbomify.com>" \
+      org.opencontainers.image.base.name="python:3-slim-bullseye"
+
+# Additional metadata labels
+LABEL com.sbomify.maintainer="sbomify <hello@sbomify.com>" \
+      com.sbomify.company="sbomify" \
+      com.sbomify.company.url="https://sbomify.com" \
+      com.sbomify.vcs.type="git" \
+      com.sbomify.vcs.url="https://github.com/sbomify/github-action.git" \
+      com.sbomify.vcs.branch="${VCS_REF}" \
+      com.sbomify.vcs.commit="${COMMIT_SHA}"
 
 # Copy tools from fetcher
 COPY --from=fetcher /usr/local/bin/trivy /usr/local/bin/
