@@ -256,7 +256,7 @@ class TestCachingPerformance:
         assert metadata1 is not None
         assert metadata2 is not None
         # Second lookup should be faster (cached) - use generous threshold to avoid flakiness
-        # Cache lookup should take < 100ms regardless of initial load time
-        assert time2 < 0.1 or time2 < time1 * 0.8, (
+        # Cache lookup should take < 100ms and be faster than the initial load time
+        assert time2 < 0.1 and time2 < time1 * 0.8, (
             f"Cache lookup ({time2:.2f}s) should be faster than initial load ({time1:.2f}s)"
         )
