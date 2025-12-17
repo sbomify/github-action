@@ -148,7 +148,7 @@ class TestPURLSource:
         """Test source name and priority."""
         source = PURLSource()
         assert source.name == "purl"
-        assert source.priority == 60
+        assert source.priority == 70  # Tier 3: Fallback sources
 
     def test_supports_deb_packages(self):
         """Test that PURLSource supports deb packages."""
@@ -239,7 +239,7 @@ class TestPyPISource:
         """Test source name and priority."""
         source = PyPISource()
         assert source.name == "pypi.org"
-        assert source.priority == 10
+        assert source.priority == 10  # Tier 1: Native sources
 
     def test_supports_pypi_packages(self):
         """Test that PyPISource supports pypi packages."""
@@ -319,7 +319,7 @@ class TestRepologySource:
         """Test source name and priority."""
         source = RepologySource()
         assert source.name == "repology.org"
-        assert source.priority == 100  # Lowest priority
+        assert source.priority == 90  # Tier 3: Fallback sources
 
     def test_supports_deb_packages(self):
         """Test that RepologySource supports deb packages."""
@@ -1515,7 +1515,7 @@ class TestDebianSource:
         """Test source name and priority."""
         source = DebianSource()
         assert source.name == "sources.debian.org"
-        assert source.priority == 15
+        assert source.priority == 10  # Tier 1: Native sources
 
     def test_supports_debian_packages(self):
         """Test that DebianSource supports debian packages."""
@@ -1570,7 +1570,7 @@ class TestEcosystemsSource:
         """Test source name and priority."""
         source = EcosystemsSource()
         assert source.name == "ecosyste.ms"
-        assert source.priority == 50
+        assert source.priority == 45  # Tier 2: Primary aggregators
 
     def test_supports_pypi(self):
         """Test that EcosystemsSource supports pypi packages."""
@@ -1605,7 +1605,7 @@ class TestClearlyDefinedSource:
 
         source = ClearlyDefinedSource()
         assert source.name == "clearlydefined.io"
-        assert source.priority == 70
+        assert source.priority == 75  # Tier 3: Fallback sources
 
     def test_supports_pypi(self):
         """Test that ClearlyDefinedSource supports pypi packages."""
@@ -1689,7 +1689,7 @@ class TestDepsDevSource:
 
         source = DepsDevSource()
         assert source.name == "deps.dev"
-        assert source.priority == 40
+        assert source.priority == 40  # Tier 2: Primary aggregators
 
     def test_supports_pypi(self):
         """Test that DepsDevSource supports pypi packages."""

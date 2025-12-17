@@ -44,7 +44,8 @@ class EcosystemsSource:
 
     @property
     def priority(self) -> int:
-        return 50  # Medium priority - generic multi-ecosystem source
+        # Tier 2: Primary aggregators (40-49) - High-quality aggregated data
+        return 45
 
     def supports(self, purl: PackageURL) -> bool:
         """Check if this source supports the given PURL type."""

@@ -30,7 +30,7 @@ class TestDebianSourceBasics:
     def test_source_priority(self):
         """Test that priority is 15 (higher than generic sources)."""
         source = DebianSource()
-        assert source.priority == 15
+        assert source.priority == 10  # Tier 1: Native sources
 
     def test_supports_debian_deb_packages(self):
         """Test that source supports pkg:deb/debian/* packages."""

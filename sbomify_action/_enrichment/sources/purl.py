@@ -78,7 +78,8 @@ class PURLSource:
 
     @property
     def priority(self) -> int:
-        return 60  # Medium-low priority - basic metadata, no API calls
+        # Tier 3: Fallback sources (70-99) - Last resort, basic or rate-limited
+        return 70
 
     def supports(self, purl: PackageURL) -> bool:
         """Check if this source supports the given PURL type."""

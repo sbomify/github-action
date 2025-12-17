@@ -60,7 +60,8 @@ class ClearlyDefinedSource:
 
     @property
     def priority(self) -> int:
-        return 70  # Medium-low priority - good fallback for license data
+        # Tier 3: Fallback sources (70-99) - Last resort, basic or rate-limited
+        return 75
 
     def supports(self, purl: PackageURL) -> bool:
         """Check if this source supports the given PURL type."""

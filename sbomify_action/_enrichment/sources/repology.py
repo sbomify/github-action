@@ -59,7 +59,8 @@ class RepologySource:
 
     @property
     def priority(self) -> int:
-        return 100  # Lowest priority - fallback source
+        # Tier 3: Fallback sources (70-99) - Last resort, basic or rate-limited
+        return 90
 
     def supports(self, purl: PackageURL) -> bool:
         """Check if this source supports the given PURL type."""

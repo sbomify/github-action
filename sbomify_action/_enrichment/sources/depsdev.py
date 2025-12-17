@@ -51,7 +51,8 @@ class DepsDevSource:
 
     @property
     def priority(self) -> int:
-        return 40  # Medium-high priority - reliable source
+        # Tier 2: Primary aggregators (40-49) - High-quality aggregated data
+        return 40
 
     def supports(self, purl: PackageURL) -> bool:
         """Check if this source supports the given PURL type."""

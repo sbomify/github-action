@@ -194,17 +194,37 @@ When `ENRICH=true`, the tool automatically fetches metadata from multiple data s
 
 ### Data Sources
 
+Data sources are organized into three tiers. Lower priority numbers = higher preference. The enricher queries sources in priority order and merges results, with earlier sources taking precedence for each field.
+
+See [`sbomify_action/_enrichment/sources/`](sbomify_action/_enrichment/sources/) for implementations.
+
+#### Tier 1: Native Sources (10-19)
+
+Direct queries to official package registries. Most authoritative data.
+
 | Priority | Source | Package Types | Data Provided |
 |----------|--------|---------------|---------------|
 | 10 | **PyPI** | `pkg:pypi/*` | Description, license, author, homepage, repository |
-| 15 | **Debian Sources** | `pkg:deb/debian/*` | Description, license, maintainer, homepage |
-| 40 | **deps.dev** | PyPI, npm, Cargo, Maven, Go | Description, license, homepage, repository |
-| 50 | **ecosyste.ms** | PyPI, npm, Cargo, Maven, Gem, NuGet, Go | Description, license, maintainer, homepage, repository |
-| 60 | **PURL** | deb, rpm, apk, alpm | Supplier name, package tracker URL (no API call) |
-| 70 | **ClearlyDefined** | PyPI, npm, Cargo, Maven, Gem, NuGet, Go | License, attribution |
-| 100 | **Repology** | deb, rpm, apk, alpm | Description, license, homepage |
+| 10 | **Debian Sources** | `pkg:deb/debian/*` | Description, license, maintainer, homepage |
 
-Lower priority numbers = higher preference. The enricher queries sources in priority order and merges results, with earlier sources taking precedence for each field.
+#### Tier 2: Primary Aggregators (40-49)
+
+High-quality aggregated data from multi-ecosystem sources.
+
+| Priority | Source | Package Types | Data Provided |
+|----------|--------|---------------|---------------|
+| 40 | **deps.dev** | PyPI, npm, Cargo, Maven, Go | Description, license, homepage, repository |
+| 45 | **ecosyste.ms** | PyPI, npm, Cargo, Maven, Gem, NuGet, Go | Description, license, maintainer, homepage, repository |
+
+#### Tier 3: Fallback Sources (70-99)
+
+Last resort sources with limited data or rate-limited APIs.
+
+| Priority | Source | Package Types | Data Provided |
+|----------|--------|---------------|---------------|
+| 70 | **PURL** | deb, rpm, apk, alpm | Supplier name, package tracker URL (local extraction, no API call) |
+| 75 | **ClearlyDefined** | PyPI, npm, Cargo, Maven, Gem, NuGet, Go | License, attribution |
+| 90 | **Repology** | deb, rpm, apk, alpm | Description, license, homepage (rate-limited) |
 
 ### Enrichment Flow
 

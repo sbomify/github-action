@@ -41,7 +41,8 @@ class DebianSource:
 
     @property
     def priority(self) -> int:
-        return 15  # High priority - native source for Debian packages
+        # Tier 1: Native sources (10-19) - Direct from official package registries
+        return 10
 
     def supports(self, purl: PackageURL) -> bool:
         """Check if this source supports the given PURL."""
