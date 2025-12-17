@@ -8,7 +8,7 @@ Acceptance Criteria:
 - Rocky Linux 8, 9
 - Alma Linux 8, 9
 - CentOS Stream 8, 9
-- Fedora 39, 40, 41
+- Fedora 39, 40, 41, 42 (EOL versions use archive fallback)
 - Amazon Linux 2, 2023
 """
 
@@ -136,11 +136,14 @@ class TestFedoraIntegration:
 
     @pytest.mark.slow
     def test_fedora_40_bash_enrichment(self, source, session):
-        """Test Fedora 40 bash package enrichment."""
+        """Test Fedora 40 bash package enrichment.
+
+        Note: Fedora 40 is EOL, uses archive fallback.
+        """
         purl = PackageURL.from_string("pkg:rpm/fedora/bash?arch=x86_64&distro=fedora-40")
         metadata = source.fetch(purl, session)
 
-        assert metadata is not None, "Should find bash in Fedora 40"
+        assert metadata is not None, "Should find bash in Fedora 40 (via archive)"
         assert metadata.supplier is not None
         assert metadata.licenses
 

@@ -49,6 +49,7 @@ DISTRO_REPO_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "fedora": {
         "versions": ["39", "40", "41", "42"],
         "template": "https://dl.fedoraproject.org/pub/fedora/linux/releases/{ver}/Everything/{arch}/os/",
+        "archive_template": "https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/{ver}/Everything/{arch}/os/",
         "repos": ["Everything"],  # Fedora uses single repo
     },
     "amzn": {
@@ -288,6 +289,13 @@ class RpmRepoSource:
             template = config["template"]
             for repo in config["repos"]:
                 url = template.format(ver=version, repo=repo, arch=arch)
+                urls.append(_normalize_repo_base(url))
+
+        # Add archive URLs as fallback (e.g., for EOL Fedora releases)
+        if "archive_template" in config:
+            archive_template = config["archive_template"]
+            for repo in config["repos"]:
+                url = archive_template.format(ver=version, repo=repo, arch=arch)
                 urls.append(_normalize_repo_base(url))
 
         return urls
