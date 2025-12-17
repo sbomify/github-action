@@ -140,7 +140,7 @@ class TestDebianSourceFetch:
         assert metadata.description == "GNU Bourne Again SHell"
 
     def test_fetch_not_found_exact_version(self):
-        """Test handling of 404 for exact version."""
+        """Test handling of 404 for exact version with fallback to latest."""
         source = DebianSource()
         purl = PackageURL.from_string("pkg:deb/debian/bash@5.2.15-2")
 
@@ -293,8 +293,7 @@ class TestDebianSourceCaching:
         source.fetch(purl_v1, mock_session)
         source.fetch(purl_v2, mock_session)
 
-        # Should have called API for each version (2 calls each = 4 total if both fallback to latest)
-        # But since 200 is returned, should be 2 calls total (one for each version)
+        # Should have called API for each version (one call each since 200 returned)
         assert mock_session.get.call_count == 2
 
     def test_clear_cache(self):
@@ -596,7 +595,7 @@ class TestDebianSourceAPIUrls:
         # Check the URL that was called
         call_args = mock_session.get.call_args
         url = call_args[0][0]
-        assert url == f"{DEBIAN_SOURCES_BASE}/info/package/bash/5.2-1"
+        assert url == f"{DEBIAN_SOURCES_BASE}/api/info/package/bash/5.2-1/"
 
     def test_latest_fallback_url(self):
         """Test that fallback to 'latest' uses correct URL."""
@@ -617,8 +616,8 @@ class TestDebianSourceAPIUrls:
         # Check both URLs that were called
         calls = mock_session.get.call_args_list
         assert len(calls) == 2
-        assert calls[0][0][0] == f"{DEBIAN_SOURCES_BASE}/info/package/bash/5.2-nonexistent"
-        assert calls[1][0][0] == f"{DEBIAN_SOURCES_BASE}/info/package/bash/latest"
+        assert calls[0][0][0] == f"{DEBIAN_SOURCES_BASE}/api/info/package/bash/5.2-nonexistent/"
+        assert calls[1][0][0] == f"{DEBIAN_SOURCES_BASE}/api/info/package/bash/latest/"
 
 
 class TestDebianSourceIntegration:
@@ -661,4 +660,4 @@ class TestDebianSourceIntegration:
 
         # Check priority
         debian_source = next(s for s in sources if s["name"] == "sources.debian.org")
-        assert debian_source["priority"] == 15
+        assert debian_source["priority"] == 10

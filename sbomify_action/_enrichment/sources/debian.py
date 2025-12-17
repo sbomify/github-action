@@ -1,8 +1,7 @@
 """Debian Sources data source for Debian package metadata."""
 
 import json
-import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import requests
 from packageurl import PackageURL
@@ -32,10 +31,8 @@ class DebianSource:
 
     API Documentation: https://sources.debian.org/doc/api/
 
-    Uses the debian/control file from source packages to extract:
-    - Description
-    - Maintainer
-    - Homepage
+    Uses /api/info/package/<name>/<version> endpoint to get package metadata.
+    Falls back to 'latest' if specific version is not found.
 
     Priority: 10 (Tier 1 - native source for Debian packages)
     Supports: pkg:deb/debian/* packages only
@@ -63,7 +60,8 @@ class DebianSource:
         """
         Fetch metadata from Debian Sources API.
 
-        Uses the debian/control file to get package description and metadata.
+        Tries version-specific endpoint first, falls back to 'latest' if not found.
+        This is important because licenses and metadata can change between versions.
 
         Args:
             purl: Parsed PackageURL for a Debian package
@@ -72,65 +70,47 @@ class DebianSource:
         Returns:
             NormalizedMetadata if successful, None otherwise
         """
-        cache_key = f"debian:{purl.name}"
+        version = purl.version or "latest"
+        cache_key = f"debian:{purl.name}:{version}"
 
         # Check cache
         if cache_key in _cache:
-            logger.debug(f"Cache hit (Debian Sources): {purl.name}")
+            logger.debug(f"Cache hit (Debian Sources): {purl.name}@{version}")
             return _cache[cache_key]
 
-        metadata = self._fetch_control_file(purl.name, session)
+        metadata = self._fetch_package_info(purl.name, version, session)
 
-        # Cache result
+        # Cache result (including None for negative caching)
         _cache[cache_key] = metadata
         return metadata
 
-    def _fetch_control_file(self, package_name: str, session: requests.Session) -> Optional[NormalizedMetadata]:
+    def _fetch_package_info(
+        self, package_name: str, version: str, session: requests.Session
+    ) -> Optional[NormalizedMetadata]:
         """
-        Fetch and parse the debian/control file for package metadata.
+        Fetch package info from Debian Sources API.
 
         Args:
             package_name: Name of the Debian package
+            version: Version to fetch, or "latest"
             session: requests.Session with configured headers
 
         Returns:
             NormalizedMetadata if successful, None otherwise
         """
         try:
-            # First get the control file metadata to find the raw_url
-            api_url = f"{DEBIAN_SOURCES_BASE}/api/src/{package_name}/latest/debian/control/"
-            logger.debug(f"Fetching Debian control file metadata for: {package_name}")
-            response = session.get(api_url, timeout=DEFAULT_TIMEOUT)
+            # Try exact version first
+            api_data, actual_version = self._try_fetch_version(package_name, version, session)
 
-            if response.status_code == 404:
-                logger.debug(f"Package not found on Debian Sources: {package_name}")
-                return None
-            elif response.status_code != 200:
-                logger.warning(
-                    f"Failed to fetch Debian Sources metadata for {package_name}: HTTP {response.status_code}"
-                )
+            # If exact version not found and we weren't already requesting latest, try latest
+            if api_data is None and version != "latest":
+                logger.debug(f"Version {version} not found for {package_name}, trying latest")
+                api_data, actual_version = self._try_fetch_version(package_name, "latest", session)
+
+            if api_data is None:
                 return None
 
-            api_data = response.json()
-
-            # Check for API error response
-            if "error" in api_data:
-                logger.debug(f"Debian Sources API error for {package_name}: {api_data.get('error')}")
-                return None
-
-            # Get the raw control file content
-            raw_url = api_data.get("raw_url")
-            if not raw_url:
-                logger.debug(f"No raw_url in Debian Sources response for {package_name}")
-                return None
-
-            raw_response = session.get(f"{DEBIAN_SOURCES_BASE}{raw_url}", timeout=DEFAULT_TIMEOUT)
-            if raw_response.status_code != 200:
-                logger.warning(f"Failed to fetch raw control file for {package_name}: HTTP {raw_response.status_code}")
-                return None
-
-            # Parse the control file and extract metadata
-            return self._parse_control_file(package_name, raw_response.text, api_data)
+            return self._parse_api_response(package_name, api_data, actual_version)
 
         except requests.exceptions.Timeout:
             logger.warning(f"Timeout fetching Debian Sources metadata for {package_name}")
@@ -142,22 +122,61 @@ class DebianSource:
             logger.warning(f"JSON decode error for Debian Sources {package_name}: {e}")
             return None
 
-    def _parse_control_file(
-        self, package_name: str, control_content: str, api_data: Dict[str, Any]
+    def _try_fetch_version(
+        self, package_name: str, version: str, session: requests.Session
+    ) -> Tuple[Optional[Dict[str, Any]], str]:
+        """
+        Try to fetch a specific version from the API.
+
+        Args:
+            package_name: Name of the Debian package
+            version: Version to fetch
+            session: requests.Session with configured headers
+
+        Returns:
+            Tuple of (api_data, actual_version) if found, (None, version) if not found
+        """
+        api_url = f"{DEBIAN_SOURCES_BASE}/api/info/package/{package_name}/{version}/"
+        logger.debug(f"Fetching Debian package info: {package_name}@{version}")
+
+        response = session.get(api_url, timeout=DEFAULT_TIMEOUT)
+
+        if response.status_code == 404:
+            logger.debug(f"Package/version not found on Debian Sources: {package_name}@{version}")
+            return None, version
+        elif response.status_code != 200:
+            logger.warning(
+                f"Failed to fetch Debian Sources metadata for {package_name}@{version}: HTTP {response.status_code}"
+            )
+            return None, version
+
+        api_data = response.json()
+
+        # Check for API error response
+        if "error" in api_data:
+            logger.debug(f"Debian Sources API error for {package_name}: {api_data.get('error')}")
+            return None, version
+
+        # Get the actual version from the response (important when requesting 'latest')
+        actual_version = api_data.get("version", version)
+
+        return api_data, actual_version
+
+    def _parse_api_response(
+        self, package_name: str, api_data: Dict[str, Any], version: str
     ) -> Optional[NormalizedMetadata]:
         """
-        Parse a Debian control file and extract metadata.
+        Parse API response and extract metadata.
 
         Args:
             package_name: Name of the package
-            control_content: Raw content of debian/control file
-            api_data: API response data containing pkg_infos
+            api_data: API response data
+            version: The actual version returned
 
         Returns:
             NormalizedMetadata with extracted fields
         """
-        # Parse control file fields
-        fields = self._parse_control_fields(control_content, package_name)
+        pkg_infos = api_data.get("pkg_infos", {})
 
         # Build field_sources for attribution
         field_sources = {}
@@ -166,44 +185,27 @@ class DebianSource:
         supplier = "Debian Project"
         field_sources["supplier"] = self.name
 
-        # Extract maintainer
-        maintainer_name = None
-        maintainer_email = None
-        maintainer = fields.get("Maintainer", "")
-        if maintainer:
-            # Parse "Name <email>" format
-            match = re.match(r"^(.+?)\s*<(.+?)>", maintainer)
-            if match:
-                maintainer_name = match.group(1).strip()
-                maintainer_email = match.group(2).strip()
-            else:
-                maintainer_name = maintainer
-
-        # Extract description (from binary package stanza matching source name)
-        description = fields.get("Description")
+        # Extract description - prefer long_description, fallback to description
+        description = pkg_infos.get("long_description") or pkg_infos.get("description")
         if description:
             field_sources["description"] = self.name
 
-        # Extract homepage
-        homepage = fields.get("Homepage")
+        # Extract homepage - fallback to Package Tracker
+        homepage = pkg_infos.get("homepage")
         if not homepage:
-            # Fallback to Package Tracker
             homepage = f"https://tracker.debian.org/pkg/{package_name}"
         field_sources["homepage"] = self.name
 
         # Registry URL points to the source browser
-        version = api_data.get("version", "latest")
         registry_url = f"https://sources.debian.org/src/{package_name}/{version}/"
         field_sources["registry_url"] = self.name
 
-        # Extract VCS info from pkg_infos if available
-        repository_url = None
-        pkg_infos = api_data.get("pkg_infos", {})
-        pts_link = pkg_infos.get("pts_link")
-        if pts_link:
-            field_sources["homepage"] = self.name
+        # Extract VCS/repository URL
+        repository_url = self._parse_vcs(pkg_infos.get("vcs"))
+        if repository_url:
+            field_sources["repository_url"] = self.name
 
-        logger.debug(f"Successfully parsed Debian control file for: {package_name}")
+        logger.debug(f"Successfully parsed Debian package info for: {package_name}@{version}")
 
         metadata = NormalizedMetadata(
             description=description,
@@ -211,81 +213,43 @@ class DebianSource:
             homepage=homepage,
             repository_url=repository_url,
             registry_url=registry_url,
-            maintainer_name=maintainer_name,
-            maintainer_email=maintainer_email,
             source=self.name,
             field_sources=field_sources,
         )
 
         return metadata if metadata.has_data() else None
 
-    def _parse_control_fields(self, content: str, target_package: str) -> Dict[str, str]:
+    def _parse_vcs(self, vcs: Any) -> Optional[str]:
         """
-        Parse Debian control file format and extract fields.
+        Parse VCS field from pkg_infos to extract repository URL.
 
-        Control files have multiple stanzas (paragraphs) separated by blank lines.
-        We want fields from the Source stanza and the binary Package stanza
-        matching the target package name.
+        The VCS field can be:
+        - A string like "Git https://salsa.debian.org/debian/bash.git"
+        - A string like "https://salsa.debian.org/debian/bash.git"
+        - A string like "git://git.debian.org/debian/bash.git"
+        - A dict with 'url' and/or 'browser' keys
 
         Args:
-            content: Raw control file content
-            target_package: Package name to find description for
+            vcs: VCS field from pkg_infos (string or dict)
 
         Returns:
-            Dictionary of field name -> value
+            Repository URL if found, None otherwise
         """
-        result = {}
-        current_field = None
-        current_value = []
-        in_target_package = False
+        if not vcs:
+            return None
 
-        for line in content.split("\n"):
-            # Empty line marks end of stanza
-            if not line.strip():
-                # Save any pending field
-                if current_field and current_value:
-                    result[current_field] = "\n".join(current_value).strip()
-                current_field = None
-                current_value = []
-                in_target_package = False
-                continue
+        if isinstance(vcs, dict):
+            # Prefer 'url' key, fallback to 'browser'
+            return vcs.get("url") or vcs.get("browser")
 
-            # Continuation line (starts with space or tab)
-            if line.startswith((" ", "\t")):
-                if current_field:
-                    # Handle description continuation (strip leading space, keep . as paragraph separator)
-                    stripped = line.strip()
-                    if stripped == ".":
-                        current_value.append("")
-                    else:
-                        current_value.append(stripped)
-                continue
+        if isinstance(vcs, str):
+            # Handle "Type URL" format (e.g., "Git https://...")
+            # Split on space and take last part that looks like a URL
+            parts = vcs.split()
+            for part in reversed(parts):
+                if part.startswith(("https://", "http://", "git://", "ssh://")):
+                    return part
+            # If no URL-like part found but string exists, return as-is
+            return vcs if vcs.startswith(("https://", "http://", "git://", "ssh://")) else None
 
-            # Field line
-            if ":" in line:
-                # Save previous field
-                if current_field and current_value:
-                    result[current_field] = "\n".join(current_value).strip()
-
-                field_name, _, field_value = line.partition(":")
-                field_name = field_name.strip()
-                field_value = field_value.strip()
-
-                # Track if we're in the target package stanza
-                if field_name == "Package" and field_value == target_package:
-                    in_target_package = True
-
-                # Only capture Description from target package stanza
-                if field_name == "Description" and not in_target_package:
-                    current_field = None
-                    current_value = []
-                    continue
-
-                current_field = field_name
-                current_value = [field_value] if field_value else []
-
-        # Save final field
-        if current_field and current_value:
-            result[current_field] = "\n".join(current_value).strip()
-
-        return result
+        return None
