@@ -99,6 +99,11 @@ ENV PATH="/opt/venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
+# Runtime version information (from build args)
+ENV SBOMIFY_GITHUB_ACTION_VERSION=${VERSION}
+ENV SBOMIFY_GITHUB_ACTION_COMMIT_SHA=${COMMIT_SHA}
+ENV SBOMIFY_GITHUB_ACTION_VCS_REF=${VCS_REF}
+
 # Verify cyclonedx-py is installed and working
 RUN pip install --no-cache-dir cyclonedx-bom && \
     cyclonedx-py --version
