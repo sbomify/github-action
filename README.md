@@ -5,6 +5,8 @@
 
 Generate, augment, enrich, and manage SBOMs in your CI/CD pipeline. Works standalone or with [sbomify](https://sbomify.com).
 
+**Platform agnostic**: Despite the name, this runs anywhere—GitHub Actions, GitLab CI, Bitbucket Pipelines, or any Docker-capable environment. See [examples below](#other-cicd-platforms).
+
 **Why generate SBOMs in CI/CD?** Generating SBOMs at build time enables cryptographic signing and attestation, creating a verifiable chain of trust from source to artifact. Learn more about the [SBOM lifecycle](https://sbomify.com/features/generate-collaborate-analyze/).
 
 ## Quick Start
@@ -18,7 +20,7 @@ Generate, augment, enrich, and manage SBOMs in your CI/CD pipeline. Works standa
     ENRICH: true
 ```
 
-That's it! This generates an SBOM from your lockfile and attempts to make it NTIA-compliant.
+That's it! This generates an SBOM from your lockfile and enriches it with metadata from package registries.
 
 ## Features
 
@@ -184,6 +186,83 @@ docker run --rm -v $(pwd):/code \
 | ecosyste.ms | All major ecosystems | License, description, maintainer |
 | Debian Sources | Debian packages | License, maintainer |
 | Repology | Linux distros | License, homepage |
+
+## SBOM Quality Improvement
+
+SBOM generators like Trivy and Syft focus on dependency detection—they produce name, version, and PURL, but typically leave metadata fields empty. sbomify queries package registries to fill in these gaps, improving license compliance and supply chain visibility.
+
+### What's Typically Missing
+
+Scanners detect packages but don't fetch metadata. Here's what a typical Trivy component looks like:
+
+```json
+{
+  "type": "library",
+  "name": "django",
+  "version": "5.1",
+  "purl": "pkg:pypi/django@5.1"
+}
+```
+
+After sbomify enrichment, the same component includes supplier, license, and reference URLs:
+
+```json
+{
+  "type": "library",
+  "name": "django",
+  "version": "5.1",
+  "purl": "pkg:pypi/django@5.1",
+  "publisher": "Django Software Foundation",
+  "description": "A high-level Python web framework...",
+  "licenses": [{"expression": "BSD-3-Clause"}],
+  "externalReferences": [
+    {"type": "website", "url": "https://www.djangoproject.com/"},
+    {"type": "vcs", "url": "https://github.com/django/django"},
+    {"type": "distribution", "url": "https://pypi.org/project/Django/"}
+  ]
+}
+```
+
+### Fields sbomify Adds
+
+sbomify attempts to populate these fields for each component:
+
+| Field | Description | Coverage |
+|-------|-------------|----------|
+| **Supplier/Publisher** | Package maintainer or organization | High for popular registries |
+| **License** | SPDX license expression | High (most registries require it) |
+| **Description** | Package summary | High |
+| **Homepage** | Project website | Medium-High |
+| **Repository** | Source code URL | Medium-High |
+| **Download URL** | Registry/distribution link | High |
+| **Issue Tracker** | Bug reporting URL | Medium |
+
+**Coverage varies by ecosystem.** Popular packages on PyPI, npm, and crates.io have excellent metadata. OS packages (deb, rpm, apk) and less common registries may have partial data. sbomify queries multiple sources with fallbacks, but some fields may remain empty for obscure packages.
+
+### Data Sources (Priority Order)
+
+sbomify queries sources in priority order, stopping when data is found:
+
+| Ecosystem | Primary Source | Fallback Sources |
+|-----------|----------------|------------------|
+| Python | PyPI API | deps.dev → ecosyste.ms |
+| JavaScript | deps.dev | ecosyste.ms |
+| Rust | deps.dev | ecosyste.ms |
+| Go | deps.dev | ecosyste.ms |
+| Ruby | deps.dev | ecosyste.ms |
+| Java/Maven | deps.dev | ecosyste.ms |
+| Dart | pub.dev API | ecosyste.ms |
+| Debian/Ubuntu | Debian Sources | Repology → ecosyste.ms |
+| Alpine | Repology | ecosyste.ms |
+| Red Hat/Fedora | Repology | ecosyste.ms |
+
+### Limitations
+
+- **Network required**: Enrichment calls external APIs during CI. Not suitable for air-gapped environments.
+- **Rate limits**: APIs may rate-limit large SBOMs. sbomify uses caching and backoff, but very large dependency trees (1000+ packages) may see slower enrichment.
+- **Best effort**: If a package isn't in any registry (private packages, vendored code), no metadata will be added.
+
+> 📖 See [docs/enrichment_coverage.md](docs/enrichment_coverage.md) for detailed coverage information by ecosystem.
 
 ## Format Support
 
