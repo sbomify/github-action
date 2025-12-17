@@ -58,7 +58,9 @@ class PyPISource:
         Returns:
             NormalizedMetadata if successful, None otherwise
         """
-        cache_key = f"pypi:{purl.name}"
+        # Include version in cache key for version-specific lookups
+        version = purl.version or "latest"
+        cache_key = f"pypi:{purl.name}:{version}"
 
         # Check cache
         if cache_key in _cache:

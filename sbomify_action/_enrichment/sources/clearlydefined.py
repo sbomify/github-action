@@ -9,7 +9,6 @@ from packageurl import PackageURL
 from sbomify_action.logging_config import logger
 
 from ..metadata import NormalizedMetadata
-from ..utils import get_qualified_name
 
 CLEARLYDEFINED_API_BASE = "https://api.clearlydefined.io"
 DEFAULT_TIMEOUT = 10  # seconds - short timeout, API can be slow/unreliable
@@ -83,20 +82,21 @@ class ClearlyDefinedSource:
         if not cd_type:
             return None
 
-        # Build the coordinate using shared utility (ClearlyDefined uses "/" separator)
+        # Build the coordinate for ClearlyDefined API
+        # Format: type/provider/namespace/name/revision
+        # e.g., maven/mavencentral/org.apache.commons/commons-lang3/3.12.0
         version = purl.version or "-"
-        name = get_qualified_name(purl, separator="/")
-        cache_key = f"clearlydefined:{purl.type}:{name}:{version}"
+        namespace = purl.namespace or "-"
+        cache_key = f"clearlydefined:{purl.type}:{namespace}:{purl.name}:{version}"
 
         # Check cache
         if cache_key in _cache:
-            logger.debug(f"Cache hit (ClearlyDefined): {name}")
+            logger.debug(f"Cache hit (ClearlyDefined): {purl.name}")
             return _cache[cache_key]
 
         try:
             # Build coordinate: type/provider/namespace/name/version
-            # e.g., pypi/pypi/-/requests/2.31.0
-            coordinate = f"{cd_type}/-/{name}/{version}"
+            coordinate = f"{cd_type}/{namespace}/{purl.name}/{version}"
             url = f"{CLEARLYDEFINED_API_BASE}/definitions/{coordinate}"
 
             logger.debug(f"Fetching ClearlyDefined metadata for: {purl}")

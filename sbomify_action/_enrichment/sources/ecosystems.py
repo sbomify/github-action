@@ -34,7 +34,7 @@ class EcosystemsSource:
     (npm, pypi, maven, cargo, etc.) but has limited support for
     OS-level packages (deb, rpm, apk).
 
-    Priority: 50 (medium - generic source)
+    Priority: 45 (medium - generic source)
     Supports: Most package types except OS packages
     """
 

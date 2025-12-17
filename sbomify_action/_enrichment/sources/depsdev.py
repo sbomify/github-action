@@ -75,8 +75,13 @@ class DepsDevSource:
             return None
 
         # Build cache key and package name using shared utility
+        # Different package types use different separators:
+        # - Maven uses ":" (group:artifact)
+        # - npm uses "/" (@scope/name)
+        # - Go uses "/" (namespace/name)
         version = purl.version or ""
-        package_name = get_qualified_name(purl, separator=":")
+        separator = ":" if purl.type == "maven" else "/"
+        package_name = get_qualified_name(purl, separator=separator)
         cache_key = f"depsdev:{purl.type}:{package_name}:{version}"
 
         # Check cache

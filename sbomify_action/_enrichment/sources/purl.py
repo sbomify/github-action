@@ -68,7 +68,7 @@ class PURLSource:
     package tracker URLs directly from the PURL namespace and type.
     Works for OS package types (deb, rpm, apk).
 
-    Priority: 60 (medium-low - no API calls, basic metadata only)
+    Priority: 70 (medium-low - no API calls, basic metadata only)
     Supports: pkg:deb/*, pkg:rpm/*, pkg:apk/* and similar OS packages
     """
 
