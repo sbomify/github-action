@@ -348,7 +348,7 @@ class RpmRepoSource:
         # Build package index
         package_index: Dict[str, PackageInfo] = {}
         for pkg in self._iter_primary_packages(response.content, repo_url):
-            # Index by name (may overwrite if multiple versions, keeps latest)
+            # Index by name; later entries overwrite earlier ones if multiple versions exist
             package_index[pkg.name] = pkg
 
         _repo_cache[repo_url] = package_index

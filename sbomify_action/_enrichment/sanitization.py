@@ -31,6 +31,9 @@ CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 # Pattern for basic email validation
 EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
+# Pattern to detect HTML-like content in URLs (potential XSS vectors)
+HTML_PATTERN = re.compile(r"<[a-zA-Z][^>]*>", re.IGNORECASE)
+
 
 def sanitize_string(
     value: Optional[str],
@@ -75,7 +78,20 @@ def sanitize_string(
     # Enforce length limit
     if len(sanitized) > max_length:
         logger.debug(f"Truncating {field_name} from {len(sanitized)} to {max_length} chars")
-        sanitized = sanitized[:max_length].rsplit(" ", 1)[0] + "..."
+        # Reserve space for ellipsis so the final length does not exceed max_length
+        if max_length > 3:
+            truncation_limit = max_length - 3
+            base = sanitized[:truncation_limit]
+
+            # Try not to cut a word in half if there is a space to break on
+            last_space = base.rfind(" ")
+            if last_space > 0:
+                base = base[:last_space]
+
+            sanitized = base.rstrip() + "..."
+        else:
+            # For very small max_length, just hard-truncate without ellipsis
+            sanitized = sanitized[:max_length]
 
     return sanitized if sanitized else None
 
@@ -123,6 +139,11 @@ def sanitize_url(value: Optional[str], field_name: str = "url") -> Optional[str]
         # Must have a netloc (host)
         if not parsed.netloc:
             logger.warning(f"Invalid URL (no host) for {field_name}: {url[:100]}")
+            return None
+
+        # Reject URLs with HTML-like content (potential XSS vectors)
+        if HTML_PATTERN.search(url):
+            logger.warning(f"URL contains HTML-like content for {field_name}")
             return None
 
         # Reconstruct URL to normalize it

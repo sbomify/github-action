@@ -47,7 +47,7 @@ class TestSanitizeString:
         """Test that long strings are truncated."""
         long_string = "a" * 5000
         result = sanitize_string(long_string, max_length=100)
-        assert len(result) <= 103  # 100 + "..."
+        assert len(result) <= 100  # Now guaranteed to not exceed max_length
 
     def test_converts_non_string_to_string(self):
         """Test that non-string values are converted."""
@@ -105,6 +105,12 @@ class TestSanitizeUrl:
         """Test that whitespace is stripped from URLs."""
         assert sanitize_url("  https://example.com  ") == "https://example.com"
 
+    def test_blocks_urls_with_html_content(self):
+        """Test that URLs with HTML-like content are blocked."""
+        assert sanitize_url("https://example.com/<script>alert(1)</script>") is None
+        assert sanitize_url("https://example.com/<img src=x>") is None
+        assert sanitize_url("https://example.com/<div>test</div>") is None
+
 
 class TestSanitizeEmail:
     """Tests for sanitize_email function."""
@@ -145,7 +151,7 @@ class TestSanitizeDescription:
         """Test that long descriptions are truncated."""
         long_desc = "a" * (MAX_DESCRIPTION_LENGTH + 100)
         result = sanitize_description(long_desc)
-        assert len(result) <= MAX_DESCRIPTION_LENGTH + 10
+        assert len(result) <= MAX_DESCRIPTION_LENGTH  # Guaranteed to not exceed max_length
 
 
 class TestSanitizeSupplier:
@@ -159,7 +165,7 @@ class TestSanitizeSupplier:
         """Test that long supplier names are truncated."""
         long_name = "a" * (MAX_SUPPLIER_LENGTH + 100)
         result = sanitize_supplier(long_name)
-        assert len(result) <= MAX_SUPPLIER_LENGTH + 10
+        assert len(result) <= MAX_SUPPLIER_LENGTH  # Guaranteed to not exceed max_length
 
 
 class TestSanitizeLicense:
@@ -203,16 +209,15 @@ class TestSanitizeUrlFieldNames:
 class TestXSSPrevention:
     """Tests for XSS attack prevention."""
 
-    def test_allows_script_in_url_path(self):
-        """Test that script tags in URL paths are allowed (valid URL content).
+    def test_rejects_html_patterns_in_url_path(self):
+        """Test that URLs with HTML-like patterns in the path are rejected.
 
-        Note: XSS protection in URLs is about blocking dangerous schemes
-        (javascript:, data:), not about filtering path content. Path content
-        should be properly escaped by consumers when rendering HTML.
+        Allowing raw HTML fragments such as <script> in URL paths can lead to
+        XSS if downstream consumers fail to HTML-escape the value before
+        rendering. The sanitizer therefore rejects such URLs.
         """
-        # This is a valid https URL, the path content is not executable
         url = "https://example.com/<script>alert(1)</script>"
-        assert sanitize_url(url) == url
+        assert sanitize_url(url) is None
 
     def test_removes_script_from_description(self):
         """Test that script content in descriptions is handled."""
