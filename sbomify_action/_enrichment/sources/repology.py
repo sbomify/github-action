@@ -13,18 +13,53 @@ from ..metadata import NormalizedMetadata
 REPOLOGY_API_BASE = "https://repology.org/api/v1"
 DEFAULT_TIMEOUT = 10  # seconds
 
-# Mapping from PURL namespace to Repology repository name
-NAMESPACE_TO_REPO: Dict[str, str] = {
-    "debian": "debian_12",
-    "ubuntu": "ubuntu_24_04",
+# Rolling release distros - these don't have version numbers in Repology
+ROLLING_RELEASE_REPOS: Dict[str, str] = {
     "alpine": "alpine_edge",
-    "fedora": "fedora_40",
-    "centos": "centos_stream_9",
-    "rocky": "rocky_9",
-    "almalinux": "almalinux_9",
     "arch": "arch",
     "opensuse": "opensuse_tumbleweed",
 }
+
+
+def _derive_repo_name_from_purl(purl: PackageURL) -> Optional[str]:
+    """
+    Derive Repology repository name from PURL.
+
+    Strategy:
+    1. Use 'distro' qualifier if present (e.g., distro=debian-12 → debian_12)
+    2. For rolling release distros, use known repo names
+    3. Fall back to namespace as-is (may not match exactly but Repology is flexible)
+
+    Args:
+        purl: PackageURL with potential distro qualifier
+
+    Returns:
+        Repology repository name or None
+    """
+    namespace = purl.namespace.lower() if purl.namespace else None
+    if not namespace:
+        return None
+
+    # Check for distro qualifier (e.g., "debian-12", "ubuntu-24.04", "fedora-40")
+    qualifiers = purl.qualifiers or {}
+    distro = qualifiers.get("distro")
+
+    if distro:
+        # Convert distro format to Repology format:
+        # "debian-12" → "debian_12"
+        # "ubuntu-24.04" → "ubuntu_24_04"
+        # "fedora-40" → "fedora_40"
+        repo_name = distro.replace("-", "_").replace(".", "_")
+        return repo_name
+
+    # Rolling release distros have fixed repo names
+    if namespace in ROLLING_RELEASE_REPOS:
+        return ROLLING_RELEASE_REPOS[namespace]
+
+    # No distro qualifier and not rolling - return namespace as fallback
+    # Repology will search across all versions of this distro
+    return namespace
+
 
 # OS package types supported by Repology
 SUPPORTED_TYPES = {"deb", "rpm", "apk", "alpm"}
@@ -83,10 +118,8 @@ class RepologySource:
         if purl.type not in SUPPORTED_TYPES:
             return None
 
-        # Determine repository name from namespace
-        repo_name = None
-        if purl.namespace:
-            repo_name = NAMESPACE_TO_REPO.get(purl.namespace.lower())
+        # Derive repository name from PURL (distro qualifier or namespace)
+        repo_name = _derive_repo_name_from_purl(purl)
 
         cache_key = f"repology:{purl.name}:{repo_name or 'any'}"
 
