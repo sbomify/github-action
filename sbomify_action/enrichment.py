@@ -38,6 +38,7 @@ from ._enrichment.enricher import Enricher, clear_all_caches
 from ._enrichment.metadata import NormalizedMetadata
 from ._enrichment.sanitization import (
     sanitize_description,
+    sanitize_email,
     sanitize_license,
     sanitize_supplier,
     sanitize_url,
@@ -417,8 +418,9 @@ def _apply_metadata_to_spdx_package(package: Package, metadata: NormalizedMetada
         if sanitized_name:
             originator_str = sanitized_name
             if metadata.maintainer_email:
-                # Email is not sanitized in SPDX originator for compatibility
-                originator_str += f" ({metadata.maintainer_email})"
+                sanitized_email = sanitize_email(metadata.maintainer_email)
+                if sanitized_email:
+                    originator_str += f" ({sanitized_email})"
             package.originator = Actor(ActorType.PERSON, originator_str)
             added_fields.append(f"originator ({sanitized_name})")
 
