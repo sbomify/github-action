@@ -15,6 +15,7 @@ from .sources import (
     DebianSource,
     DepsDevSource,
     EcosystemsSource,
+    PubDevSource,
     PURLSource,
     PyPISource,
     RepologySource,
@@ -29,6 +30,7 @@ def create_default_registry() -> SourceRegistry:
 
     Tier 1 - Native Sources (10-19):
     - PyPISource (10) - direct from PyPI for Python packages
+    - PubDevSource (10) - direct from pub.dev for Dart packages
     - DebianSource (10) - direct from sources.debian.org
 
     Tier 2 - Primary Aggregators (40-49):
@@ -49,6 +51,7 @@ def create_default_registry() -> SourceRegistry:
     """
     registry = SourceRegistry()
     registry.register(PyPISource())
+    registry.register(PubDevSource())
     registry.register(DebianSource())
     registry.register(DepsDevSource())
     registry.register(EcosystemsSource())
@@ -229,10 +232,12 @@ def clear_all_caches() -> None:
     from .sources.debian import clear_cache as clear_debian
     from .sources.depsdev import clear_cache as clear_depsdev
     from .sources.ecosystems import clear_cache as clear_ecosystems
+    from .sources.pubdev import clear_cache as clear_pubdev
     from .sources.pypi import clear_cache as clear_pypi
     from .sources.repology import clear_cache as clear_repology
 
     clear_pypi()
+    clear_pubdev()
     clear_debian()
     clear_depsdev()
     clear_ecosystems()

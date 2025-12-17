@@ -23,6 +23,7 @@ from sbomify_action._enrichment.metadata import NormalizedMetadata
 from sbomify_action._enrichment.registry import SourceRegistry
 from sbomify_action._enrichment.sources.debian import DebianSource
 from sbomify_action._enrichment.sources.ecosystems import EcosystemsSource
+from sbomify_action._enrichment.sources.pubdev import PubDevSource
 from sbomify_action._enrichment.sources.purl import (
     OS_PACKAGE_TYPES,
     PACKAGE_TRACKER_URLS,
@@ -30,6 +31,7 @@ from sbomify_action._enrichment.sources.purl import (
 )
 from sbomify_action._enrichment.sources.pypi import PyPISource
 from sbomify_action._enrichment.sources.repology import RepologySource
+from sbomify_action._enrichment.utils import parse_author_string
 from sbomify_action.enrichment import (
     ALL_LOCKFILE_NAMES,
     NAMESPACE_TO_SUPPLIER,
@@ -308,6 +310,180 @@ class TestPyPISource:
 
 
 # =============================================================================
+# Test PubDevSource
+# =============================================================================
+
+
+class TestPubDevSource:
+    """Test the PubDevSource data source."""
+
+    def test_source_properties(self):
+        """Test source name and priority."""
+        source = PubDevSource()
+        assert source.name == "pub.dev"
+        assert source.priority == 10  # Tier 1: Native sources
+
+    def test_supports_pub_packages(self):
+        """Test that PubDevSource supports pub packages."""
+        source = PubDevSource()
+        purl = PackageURL.from_string("pkg:pub/http@1.2.0")
+        assert source.supports(purl) is True
+
+    def test_does_not_support_pypi(self):
+        """Test that PubDevSource does not support pypi packages."""
+        source = PubDevSource()
+        purl = PackageURL.from_string("pkg:pypi/django@5.1")
+        assert source.supports(purl) is False
+
+    def test_does_not_support_npm(self):
+        """Test that PubDevSource does not support npm packages."""
+        source = PubDevSource()
+        purl = PackageURL.from_string("pkg:npm/lodash@4.17.21")
+        assert source.supports(purl) is False
+
+    def test_fetch_success(self, mock_session):
+        """Test successful metadata fetch from pub.dev."""
+        source = PubDevSource()
+        purl = PackageURL.from_string("pkg:pub/http@1.2.0")
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "name": "http",
+            "publisher": {"publisherId": "dart.dev"},
+            "latest": {
+                "version": "1.2.0",
+                "pubspec": {
+                    "name": "http",
+                    "description": "A composable, Future-based library for making HTTP requests.",
+                    "version": "1.2.0",
+                    "homepage": "https://github.com/dart-lang/http",
+                    "repository": "https://github.com/dart-lang/http",
+                    "issue_tracker": "https://github.com/dart-lang/http/issues",
+                },
+            },
+        }
+        mock_session.get.return_value = mock_response
+
+        metadata = source.fetch(purl, mock_session)
+
+        assert metadata is not None
+        assert metadata.description == "A composable, Future-based library for making HTTP requests."
+        assert metadata.homepage == "https://github.com/dart-lang/http"
+        assert metadata.repository_url == "https://github.com/dart-lang/http"
+        assert metadata.issue_tracker_url == "https://github.com/dart-lang/http/issues"
+        assert metadata.supplier == "dart.dev"
+        assert metadata.registry_url == "https://pub.dev/packages/http"
+        assert metadata.source == "pub.dev"
+
+    def test_fetch_with_author(self, mock_session):
+        """Test metadata fetch with author field instead of publisher."""
+        source = PubDevSource()
+        purl = PackageURL.from_string("pkg:pub/old_package@0.5.0")
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "name": "old_package",
+            "latest": {
+                "version": "0.5.0",
+                "pubspec": {
+                    "name": "old_package",
+                    "description": "An older package with author field",
+                    "author": "John Doe <john@example.com>",
+                },
+            },
+        }
+        mock_session.get.return_value = mock_response
+
+        metadata = source.fetch(purl, mock_session)
+
+        assert metadata is not None
+        assert metadata.maintainer_name == "John Doe"
+        assert metadata.maintainer_email == "john@example.com"
+        assert metadata.supplier == "John Doe"
+
+    def test_fetch_with_authors_list(self, mock_session):
+        """Test metadata fetch with authors list field."""
+        source = PubDevSource()
+        purl = PackageURL.from_string("pkg:pub/multi_author@1.0.0")
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "name": "multi_author",
+            "latest": {
+                "version": "1.0.0",
+                "pubspec": {
+                    "name": "multi_author",
+                    "description": "Package with multiple authors",
+                    "authors": ["Alice <alice@example.com>", "Bob <bob@example.com>"],
+                },
+            },
+        }
+        mock_session.get.return_value = mock_response
+
+        metadata = source.fetch(purl, mock_session)
+
+        assert metadata is not None
+        assert metadata.maintainer_name == "Alice"
+        assert metadata.maintainer_email == "alice@example.com"
+
+    def test_fetch_not_found(self, mock_session):
+        """Test handling of 404 response."""
+        source = PubDevSource()
+        purl = PackageURL.from_string("pkg:pub/nonexistent@1.0")
+
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_session.get.return_value = mock_response
+
+        metadata = source.fetch(purl, mock_session)
+
+        assert metadata is None
+
+    def test_fetch_timeout(self, mock_session):
+        """Test handling of timeout."""
+        source = PubDevSource()
+        purl = PackageURL.from_string("pkg:pub/http@1.2.0")
+
+        mock_session.get.side_effect = requests.exceptions.Timeout()
+
+        metadata = source.fetch(purl, mock_session)
+
+        assert metadata is None
+
+    def test_fetch_cache_functionality(self, mock_session):
+        """Test that pub.dev responses are cached."""
+        source = PubDevSource()
+        purl = PackageURL.from_string("pkg:pub/http@1.2.0")
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "name": "http",
+            "latest": {
+                "version": "1.2.0",
+                "pubspec": {
+                    "name": "http",
+                    "description": "HTTP library",
+                },
+            },
+        }
+        mock_session.get.return_value = mock_response
+
+        # First call
+        result1 = source.fetch(purl, mock_session)
+        # Second call (should use cache)
+        result2 = source.fetch(purl, mock_session)
+
+        assert result1 is not None
+        assert result2 is not None
+        # Should only call API once due to caching
+        assert mock_session.get.call_count == 1
+
+
+# =============================================================================
 # Test RepologySource
 # =============================================================================
 
@@ -450,6 +626,7 @@ class TestEnricher:
         source_names = [s["name"] for s in sources]
 
         assert "pypi.org" in source_names
+        assert "pub.dev" in source_names
         assert "sources.debian.org" in source_names
         assert "purl" in source_names
         assert "repology.org" in source_names
@@ -1752,6 +1929,57 @@ class TestDepsDevSource:
         metadata = source.fetch(purl, mock_session)
 
         assert metadata is None
+
+
+# =============================================================================
+# Test Utility Functions
+# =============================================================================
+
+
+class TestParseAuthorString:
+    """Test the parse_author_string utility function."""
+
+    def test_parse_name_and_email(self):
+        """Test parsing 'Name <email>' format."""
+        name, email = parse_author_string("John Doe <john@example.com>")
+        assert name == "John Doe"
+        assert email == "john@example.com"
+
+    def test_parse_name_only(self):
+        """Test parsing name without email."""
+        name, email = parse_author_string("John Doe")
+        assert name == "John Doe"
+        assert email is None
+
+    def test_parse_email_only(self):
+        """Test parsing email only (no name before angle bracket)."""
+        name, email = parse_author_string("<john@example.com>")
+        assert name is None
+        assert email == "john@example.com"
+
+    def test_parse_empty_string(self):
+        """Test parsing empty string."""
+        name, email = parse_author_string("")
+        assert name is None
+        assert email is None
+
+    def test_parse_none(self):
+        """Test parsing None value."""
+        name, email = parse_author_string(None)
+        assert name is None
+        assert email is None
+
+    def test_parse_whitespace_handling(self):
+        """Test that whitespace is properly stripped."""
+        name, email = parse_author_string("  John Doe   <  john@example.com  >  ")
+        assert name == "John Doe"
+        assert email == "john@example.com"
+
+    def test_parse_complex_name(self):
+        """Test parsing name with multiple parts."""
+        name, email = parse_author_string("Dr. Jane Smith Jr. <jane.smith@example.org>")
+        assert name == "Dr. Jane Smith Jr."
+        assert email == "jane.smith@example.org"
 
 
 # =============================================================================
