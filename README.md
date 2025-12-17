@@ -182,6 +182,7 @@ docker run --rm -v $(pwd):/code \
 |--------|---------------|------|
 | PyPI | Python | License, author, homepage |
 | pub.dev | Dart | License, author, homepage, repo |
+| RPM Repos | Rocky, Alma, CentOS, Fedora, Amazon Linux | License, vendor, description, homepage |
 | deps.dev | Python, npm, Maven, Go, Rust, Ruby, NuGet | License, homepage, repo |
 | ecosyste.ms | All major ecosystems | License, description, maintainer |
 | Debian Sources | Debian packages | License, maintainer |
@@ -237,7 +238,7 @@ sbomify attempts to populate these fields for each component:
 | **Download URL** | Registry/distribution link | High |
 | **Issue Tracker** | Bug reporting URL | Medium |
 
-**Coverage varies by ecosystem.** Popular packages on PyPI, npm, and crates.io have excellent metadata. OS packages (deb, rpm, apk) and less common registries may have partial data. sbomify queries multiple sources with fallbacks, but some fields may remain empty for obscure packages.
+**Coverage varies by ecosystem.** Popular packages on PyPI, npm, and crates.io have excellent metadata. RPM-based distros (Rocky, Alma, CentOS, Fedora, Amazon Linux) and Debian/Ubuntu have high coverage through direct repository queries. Alpine and less common registries may have partial data. sbomify queries multiple sources with fallbacks, but some fields may remain empty for obscure packages.
 
 ### Data Sources (Priority Order)
 
@@ -254,7 +255,9 @@ sbomify queries sources in priority order, stopping when data is found:
 | Dart | pub.dev API | ecosyste.ms |
 | Debian/Ubuntu | Debian Sources | Repology → ecosyste.ms |
 | Alpine | Repology | ecosyste.ms |
-| Red Hat/Fedora | Repology | ecosyste.ms |
+| Rocky/Alma/CentOS | RPM Repos | Repology → ecosyste.ms |
+| Fedora | RPM Repos | Repology → ecosyste.ms |
+| Amazon Linux | RPM Repos | Repology → ecosyste.ms |
 
 ### Limitations
 
