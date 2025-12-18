@@ -9,11 +9,13 @@ from .purl import PURLSource
 from .pypi import PyPISource
 from .repology import RepologySource
 from .rpmrepo import RpmRepoSource
+from .ubuntu import UbuntuSource
 
 __all__ = [
     "PyPISource",
     "PubDevSource",
     "DebianSource",
+    "UbuntuSource",
     "DepsDevSource",
     "EcosystemsSource",
     "PURLSource",
