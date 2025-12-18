@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from sbomify_action._generation import GenerationResult
+from sbomify_action.cli.main import evaluate_boolean
 from sbomify_action.exceptions import (
     FileProcessingError,
     SBOMGenerationError,
@@ -10,18 +11,6 @@ from sbomify_action.generation import (
     generate_sbom,
     process_lock_file,
 )
-
-
-def evaluate_boolean(value):
-    """
-    Evaluates a string or boolean value and returns a boolean.
-    Returns True for "true" (case-insensitive) and False otherwise.
-    """
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.lower() == "true"
-    return False
 
 
 class TestLockFileProcessing(unittest.TestCase):
@@ -246,16 +235,19 @@ class TestUtilityFunctions(unittest.TestCase):
         self.assertTrue(evaluate_boolean("true"))
         self.assertTrue(evaluate_boolean("True"))
         self.assertTrue(evaluate_boolean("TRUE"))
-        self.assertTrue(evaluate_boolean(True))
+        self.assertTrue(evaluate_boolean("yes"))
+        self.assertTrue(evaluate_boolean("Yes"))
+        self.assertTrue(evaluate_boolean("yeah"))
+        self.assertTrue(evaluate_boolean("1"))
 
     def test_evaluate_boolean_false_values(self):
         """Test that false values are evaluated correctly."""
         self.assertFalse(evaluate_boolean("false"))
         self.assertFalse(evaluate_boolean("False"))
         self.assertFalse(evaluate_boolean("FALSE"))
-        self.assertFalse(evaluate_boolean(False))
+        self.assertFalse(evaluate_boolean("no"))
+        self.assertFalse(evaluate_boolean("0"))
         self.assertFalse(evaluate_boolean("anything_else"))
-        self.assertFalse(evaluate_boolean(None))
 
 
 if __name__ == "__main__":

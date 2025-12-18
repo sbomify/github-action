@@ -630,7 +630,8 @@ def enrich_sbom(input_file: str, output_file: str, validate: bool = True) -> Non
     - Priority 50: PURL-based extraction (for OS packages)
     - Priority 90: Repology (fallback, rate-limited)
 
-    After enrichment, the output SBOM is validated against its JSON schema.
+    After enrichment, the output SBOM is validated against its JSON schema
+    (when validate=True).
 
     Args:
         input_file: Path to input SBOM file
