@@ -10,6 +10,7 @@ from sbomify_action.logging_config import logger
 
 from ..license_utils import normalize_license_list
 from ..metadata import NormalizedMetadata
+from ..utils import parse_author_string
 
 PYPI_API_BASE = "https://pypi.org/pypi"
 DEFAULT_TIMEOUT = 10  # seconds - PyPI is fast
@@ -119,6 +120,7 @@ class PyPISource:
         licenses, license_texts = normalize_license_list(raw_licenses)
 
         # Extract maintainer info
+        # Priority: author field > maintainer field > parsed from email fields
         maintainer_name = None
         maintainer_email = None
         if info.get("author"):
@@ -127,6 +129,18 @@ class PyPISource:
         elif info.get("maintainer"):
             maintainer_name = info["maintainer"]
             maintainer_email = info.get("maintainer_email")
+
+        # If no direct name, try parsing from email field ("Name <email>" format)
+        # This handles packages where author/maintainer is empty but author_email contains the name
+        if not maintainer_name:
+            email_field = info.get("author_email") or info.get("maintainer_email")
+            if email_field:
+                parsed_name, parsed_email = parse_author_string(email_field)
+                if parsed_name:
+                    maintainer_name = parsed_name
+                    logger.debug(f"Extracted author name from email field: {parsed_name}")
+                if parsed_email and not maintainer_email:
+                    maintainer_email = parsed_email
 
         # Extract URLs from project_urls
         project_urls = info.get("project_urls") or {}

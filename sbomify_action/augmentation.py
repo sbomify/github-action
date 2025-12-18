@@ -21,6 +21,8 @@ from spdx_tools.spdx.parser.jsonlikedict.license_expression_parser import Licens
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
+# Import lockfile constants from generation utils (single source of truth)
+from ._generation.utils import ALL_LOCK_FILES
 from .exceptions import SBOMValidationError
 from .http_client import get_default_headers
 from .logging_config import logger
@@ -29,6 +31,42 @@ from .validation import validate_sbom_file_auto
 
 # Constants for SPDX license parsing
 SPDX_LOGICAL_OPERATORS = [" OR ", " AND ", " WITH "]
+
+# Convert to set for O(1) lookup
+LOCKFILE_NAMES = set(ALL_LOCK_FILES)
+
+
+def _is_lockfile_component(component: Component) -> bool:
+    """Check if a CycloneDX component represents a lockfile artifact."""
+    if component.type != ComponentType.APPLICATION:
+        return False
+    if component.purl:
+        return False
+    if component.name and component.name in LOCKFILE_NAMES:
+        return True
+    return False
+
+
+def _propagate_supplier_to_lockfile_components(bom: Bom) -> None:
+    """
+    Propagate supplier from metadata to lockfile components.
+
+    Lockfile components (e.g., requirements.txt, uv.lock) are metadata artifacts
+    that don't have their own supplier. After augmentation sets the metadata
+    supplier from the backend, we propagate it to these components for NTIA compliance.
+    """
+    if not bom.metadata.supplier or not bom.components:
+        return
+
+    propagated_count = 0
+    for component in bom.components:
+        if _is_lockfile_component(component) and not component.supplier:
+            component.supplier = bom.metadata.supplier
+            propagated_count += 1
+            logger.debug(f"Propagated supplier to lockfile component: {component.name}")
+
+    if propagated_count > 0:
+        logger.info(f"Propagated supplier to {propagated_count} lockfile component(s)")
 
 
 def _get_package_version() -> str:
@@ -371,6 +409,18 @@ def augment_cyclonedx_sbom(
             else:
                 logger.info("Adding supplier information from sbomify (no existing supplier)")
             bom.metadata.supplier = backend_supplier
+
+        # Also propagate supplier to the root component (metadata.component) if it exists
+        # This is needed for NTIA compliance - the root component needs its own supplier field
+        if bom.metadata.component and not bom.metadata.component.supplier:
+            bom.metadata.component.supplier = bom.metadata.supplier
+            logger.debug("Propagated supplier to root component (metadata.component)")
+
+        # Propagate supplier to lockfile components that don't have one
+        # Lockfile components (e.g., requirements.txt, uv.lock) are metadata artifacts
+        # that inherit supplier from the root/metadata supplier
+        if bom.metadata.supplier and bom.components:
+            _propagate_supplier_to_lockfile_components(bom)
 
     # Add authors if present
     if "authors" in augmentation_data:
