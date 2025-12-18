@@ -14,6 +14,7 @@ import sentry_sdk
 # Add cyclonedx imports for proper SBOM handling
 from cyclonedx.model.bom import Bom
 
+from .._generation.utils import log_command_error
 from ..augmentation import augment_sbom_from_file
 from ..exceptions import (
     APIError,
@@ -24,16 +25,9 @@ from ..exceptions import (
     SBOMValidationError,
 )
 from ..generation import (
-    COMMON_CPP_LOCK_FILES,
-    COMMON_DART_LOCK_FILES,
-    COMMON_GO_LOCK_FILES,
-    COMMON_JAVASCRIPT_LOCK_FILES,
-    COMMON_PYTHON_LOCK_FILES,
-    COMMON_RUBY_LOCK_FILES,
-    COMMON_RUST_LOCK_FILES,
-    log_command_error,
+    ALL_LOCK_FILES,
+    generate_sbom,
     process_lock_file,
-    run_trivy_docker_image,
 )
 from ..http_client import get_default_headers
 from ..logging_config import logger
@@ -1151,7 +1145,9 @@ def main() -> None:
             shutil.copy(FILE, "step_1.json")
         elif config.docker_image:
             logger.info(f"Generating SBOM from Docker image: {config.docker_image}")
-            run_trivy_docker_image(docker_image=config.docker_image, output_file="step_1.json")
+            result = generate_sbom(docker_image=config.docker_image, output_file="step_1.json")
+            if not result.success:
+                raise SBOMGenerationError(result.error_message or "SBOM generation failed")
         elif FILE_TYPE == "LOCK_FILE":
             logger.info(f"Generating SBOM from lock file: {FILE}")
             process_lock_file(FILE)
@@ -1167,16 +1163,7 @@ def main() -> None:
             logger.error("Please ensure the file is a valid CycloneDX or SPDX JSON document.")
 
             # Check if user accidentally provided a lock file instead of an SBOM
-            all_lock_files = (
-                COMMON_PYTHON_LOCK_FILES
-                + COMMON_RUST_LOCK_FILES
-                + COMMON_JAVASCRIPT_LOCK_FILES
-                + COMMON_RUBY_LOCK_FILES
-                + COMMON_GO_LOCK_FILES
-                + COMMON_DART_LOCK_FILES
-                + COMMON_CPP_LOCK_FILES
-            )
-            if file_name in all_lock_files:
+            if file_name in ALL_LOCK_FILES:
                 logger.error(f"'{file_name}' is a lock file, not an SBOM.")
                 logger.error(f"Please use LOCK_FILE instead of SBOM_FILE for '{file_name}'.")
         _log_step_end(1, success=False)

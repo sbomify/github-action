@@ -267,10 +267,41 @@ sbomify queries sources in priority order, stopping when data is found:
 
 > 📖 See [docs/enrichment_coverage.md](docs/enrichment_coverage.md) for detailed coverage information by ecosystem.
 
+## SBOM Generation
+
+sbomify uses a plugin architecture for SBOM generation, automatically selecting the best generator for each input type.
+
+### Generator Selection
+
+Generators are tried in priority order. Native tools (optimized for specific ecosystems) are preferred over generic scanners:
+
+| Priority | Generator | Ecosystems | Output Formats |
+|----------|-----------|------------|----------------|
+| 10 | **cyclonedx-py** | Python only | CycloneDX 1.0–1.7 |
+| 30 | **Trivy** | All ecosystems, Docker images | CycloneDX 1.6, SPDX 2.3 |
+| 35 | **Syft** | All ecosystems, Docker images | CycloneDX 1.2–1.6, SPDX 2.2–2.3 |
+
+### How It Works
+
+1. **Python lockfiles** → cyclonedx-py (native, most accurate)
+2. **Other lockfiles** (Cargo.lock, package-lock.json, etc.) → Trivy
+3. **Docker images** → Trivy (then Syft as fallback)
+
+If the primary generator fails, the next one in priority order is tried automatically.
+
+### Format Defaults
+
+- **CycloneDX**: Version 1.6 (default)
+- **SPDX**: Version 2.3 (default)
+
+Generated SBOMs are validated against their JSON schemas before output.
+
 ## Format Support
 
 - **CycloneDX**: 1.4, 1.5, 1.6, 1.7 (JSON)
 - **SPDX**: 2.2, 2.3 (JSON)
+
+> 📖 See [docs/adr/0001-plugin-architecture.md](docs/adr/0001-plugin-architecture.md) for architecture details.
 
 ## Links
 

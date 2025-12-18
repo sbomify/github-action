@@ -46,26 +46,27 @@ from ._enrichment.sanitization import (
 from ._enrichment.sources.purl import NAMESPACE_TO_SUPPLIER
 from .exceptions import SBOMValidationError
 from .generation import (
-    COMMON_CPP_LOCK_FILES,
-    COMMON_DART_LOCK_FILES,
-    COMMON_GO_LOCK_FILES,
-    COMMON_JAVASCRIPT_LOCK_FILES,
-    COMMON_PYTHON_LOCK_FILES,
-    COMMON_RUBY_LOCK_FILES,
-    COMMON_RUST_LOCK_FILES,
+    CPP_LOCK_FILES,
+    DART_LOCK_FILES,
+    GO_LOCK_FILES,
+    JAVASCRIPT_LOCK_FILES,
+    PYTHON_LOCK_FILES,
+    RUBY_LOCK_FILES,
+    RUST_LOCK_FILES,
 )
 from .logging_config import logger
 from .serialization import serialize_cyclonedx_bom
+from .validation import validate_sbom_file_auto
 
 # Combine all lockfile names into a single set for efficient lookup
 ALL_LOCKFILE_NAMES = set(
-    COMMON_PYTHON_LOCK_FILES
-    + COMMON_RUST_LOCK_FILES
-    + COMMON_JAVASCRIPT_LOCK_FILES
-    + COMMON_RUBY_LOCK_FILES
-    + COMMON_GO_LOCK_FILES
-    + COMMON_DART_LOCK_FILES
-    + COMMON_CPP_LOCK_FILES
+    PYTHON_LOCK_FILES
+    + RUST_LOCK_FILES
+    + JAVASCRIPT_LOCK_FILES
+    + RUBY_LOCK_FILES
+    + GO_LOCK_FILES
+    + DART_LOCK_FILES
+    + CPP_LOCK_FILES
 )
 
 # Human-readable descriptions for lockfile types (for NTIA compliance)
@@ -616,7 +617,7 @@ def _enrich_spdx_document_with_plugin_architecture(document: Document, enricher:
     return stats
 
 
-def enrich_sbom(input_file: str, output_file: str) -> None:
+def enrich_sbom(input_file: str, output_file: str, validate: bool = True) -> None:
     """
     Enrich SBOM with metadata from multiple data sources using plugin architecture.
 
@@ -629,13 +630,18 @@ def enrich_sbom(input_file: str, output_file: str) -> None:
     - Priority 50: PURL-based extraction (for OS packages)
     - Priority 90: Repology (fallback, rate-limited)
 
+    After enrichment, the output SBOM is validated against its JSON schema
+    (when validate=True).
+
     Args:
         input_file: Path to input SBOM file
         output_file: Path to save enriched SBOM
+        validate: Whether to validate the output SBOM (default: True)
 
     Raises:
         FileNotFoundError: If input file doesn't exist
         ValueError: If SBOM format is invalid
+        SBOMValidationError: If output validation fails
         Exception: For other errors during enrichment
     """
     logger.info(f"Starting SBOM enrichment for: {input_file}")
@@ -664,6 +670,13 @@ def enrich_sbom(input_file: str, output_file: str) -> None:
             _enrich_spdx_sbom(input_path, output_path, enricher)
         else:
             raise ValueError("Neither CycloneDX nor SPDX format found in JSON file")
+
+    # Validate the enriched SBOM
+    if validate:
+        validation_result = validate_sbom_file_auto(str(output_path))
+        if not validation_result.valid:
+            raise SBOMValidationError(f"Enriched SBOM failed validation: {validation_result.error_message}")
+        logger.info(f"Enriched SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}")
 
 
 def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: Path, enricher: Enricher) -> None:

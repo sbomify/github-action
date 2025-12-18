@@ -1,0 +1,155 @@
+"""Generator orchestrator and factory functions."""
+
+from typing import Dict, List, Optional
+
+from sbomify_action.logging_config import logger
+
+from .generators import (
+    CycloneDXPyGenerator,
+    SyftFsGenerator,
+    SyftImageGenerator,
+    TrivyFsGenerator,
+    TrivyImageGenerator,
+)
+from .protocol import GenerationInput
+from .registry import GeneratorRegistry
+from .result import GenerationResult
+
+
+def create_default_registry() -> GeneratorRegistry:
+    """
+    Create a GeneratorRegistry with default generators.
+
+    Returns a registry configured with generators in priority order:
+
+    Priority 10 - Native Sources:
+    - CycloneDXPyGenerator: Native Python CycloneDX generator (1.0-1.7)
+
+    Priority 30 - Generic Multi-Ecosystem (Trivy):
+    - TrivyFsGenerator: Filesystem/lock file scanning (CycloneDX 1.6, SPDX 2.3)
+    - TrivyImageGenerator: Docker image scanning (CycloneDX 1.6, SPDX 2.3)
+
+    Priority 35 - Generic Multi-Ecosystem (Syft):
+    - SyftFsGenerator: Filesystem/lock file scanning (CycloneDX 1.2-1.6, SPDX 2.2-2.3)
+    - SyftImageGenerator: Docker image scanning (CycloneDX 1.2-1.6, SPDX 2.2-2.3)
+
+    Generators are queried sequentially in priority order. The first
+    generator that supports the input and requested format/version is used.
+
+    Returns:
+        Configured GeneratorRegistry
+    """
+    registry = GeneratorRegistry()
+
+    # Priority 10: Native generators
+    registry.register(CycloneDXPyGenerator())
+
+    # Priority 30: Trivy generators (fixed versions, but wide ecosystem support)
+    registry.register(TrivyFsGenerator())
+    registry.register(TrivyImageGenerator())
+
+    # Priority 35: Syft generators (version selection, wide ecosystem support)
+    registry.register(SyftFsGenerator())
+    registry.register(SyftImageGenerator())
+
+    return registry
+
+
+class GeneratorOrchestrator:
+    """
+    Main class for orchestrating SBOM generation.
+
+    The GeneratorOrchestrator uses a GeneratorRegistry to find and
+    execute the appropriate generator for each input, handling
+    format and version selection.
+
+    Example:
+        orchestrator = GeneratorOrchestrator()
+
+        # Generate CycloneDX SBOM from Python requirements
+        result = orchestrator.generate(GenerationInput(
+            lock_file="requirements.txt",
+            output_file="sbom.json",
+            output_format="cyclonedx",
+            spec_version="1.6",
+        ))
+
+        # Generate SPDX SBOM from Docker image
+        result = orchestrator.generate(GenerationInput(
+            docker_image="alpine:3.18",
+            output_file="sbom.spdx.json",
+            output_format="spdx",
+        ))
+    """
+
+    def __init__(self, registry: Optional[GeneratorRegistry] = None) -> None:
+        """
+        Initialize the GeneratorOrchestrator.
+
+        Args:
+            registry: Optional GeneratorRegistry. If not provided, creates
+                     a default registry with all standard generators.
+        """
+        self._registry = registry or create_default_registry()
+
+    @property
+    def registry(self) -> GeneratorRegistry:
+        """Get the generator registry."""
+        return self._registry
+
+    def generate(self, input: GenerationInput) -> GenerationResult:
+        """
+        Generate an SBOM using the appropriate generator.
+
+        Finds the first matching generator (by priority) that supports
+        the input type, format, and version, then executes it.
+
+        Args:
+            input: GenerationInput with all generation parameters
+
+        Returns:
+            GenerationResult with output file path and metadata
+        """
+        logger.info(
+            f"Generating SBOM: format={input.output_format}, "
+            f"version={input.spec_version or 'default'}, "
+            f"{'docker_image=' + input.docker_image if input.is_docker_image else 'lock_file=' + str(input.lock_file)}"
+        )
+
+        return self._registry.generate(input)
+
+    def get_available_generators(self, input: GenerationInput) -> List[Dict]:
+        """
+        Get information about generators that could handle an input.
+
+        Args:
+            input: GenerationInput to check
+
+        Returns:
+            List of generator info dicts
+        """
+        generators = self._registry.get_generators_for(input)
+        return [
+            {
+                "name": g.name,
+                "priority": g.priority,
+                "formats": [
+                    {
+                        "format": fv.format,
+                        "versions": list(fv.versions),
+                        "default": fv.default_version,
+                    }
+                    for fv in g.supported_formats
+                ],
+            }
+            for g in generators
+        ]
+
+    def list_all_generators(self) -> List[Dict]:
+        """
+        List all registered generators.
+
+        Returns:
+            List of generator info dicts
+        """
+        return self._registry.list_generators()

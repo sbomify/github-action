@@ -371,7 +371,7 @@ class TestEnrichmentNTIACompliance:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(sbom_path), str(output_file))
+            enrich_sbom(str(sbom_path), str(output_file), validate=False)
 
         with open(output_file) as f:
             enriched_data = json.load(f)
@@ -402,7 +402,7 @@ class TestEnrichmentNTIACompliance:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(sbom_path), str(output_file))
+            enrich_sbom(str(sbom_path), str(output_file), validate=False)
 
         with open(output_file) as f:
             enriched_data = json.load(f)
@@ -443,6 +443,7 @@ class TestAugmentationNTIACompliance:
                 api_base_url="https://api.example.com",
                 token="test-token",
                 component_id="test-component",
+                validate=False,
             )
 
         assert sbom_format == "cyclonedx"
@@ -484,6 +485,7 @@ class TestAugmentationNTIACompliance:
                 api_base_url="https://api.example.com",
                 token="test-token",
                 component_id="test-component",
+                validate=False,
             )
 
         assert sbom_format == "spdx"
@@ -519,7 +521,7 @@ class TestFullPipelineNTIACompliance:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(sbom_path), str(enriched_file))
+            enrich_sbom(str(sbom_path), str(enriched_file), validate=False)
 
         # Step 2: Augment
         with patch("sbomify_action.augmentation.fetch_backend_metadata") as mock_fetch:
@@ -530,6 +532,7 @@ class TestFullPipelineNTIACompliance:
                 api_base_url="https://api.example.com",
                 token="test-token",
                 component_id="test-component",
+                validate=False,
             )
 
         with open(augmented_file) as f:
@@ -571,7 +574,7 @@ class TestSpecificDistroEnrichment:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(sbom_path), str(output_file))
+            enrich_sbom(str(sbom_path), str(output_file), validate=False)
 
         with open(output_file) as f:
             data = json.load(f)
@@ -600,7 +603,7 @@ class TestSpecificDistroEnrichment:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(sbom_path), str(output_file))
+            enrich_sbom(str(sbom_path), str(output_file), validate=False)
 
         with open(output_file) as f:
             data = json.load(f)
@@ -628,7 +631,7 @@ class TestSpecificDistroEnrichment:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(sbom_path), str(output_file))
+            enrich_sbom(str(sbom_path), str(output_file), validate=False)
 
         with open(output_file) as f:
             data = json.load(f)
@@ -656,7 +659,7 @@ class TestSpecificDistroEnrichment:
         mock_response = Mock()
         mock_response.status_code = 404
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(sbom_path), str(output_file))
+            enrich_sbom(str(sbom_path), str(output_file), validate=False)
 
         with open(output_file) as f:
             data = json.load(f)

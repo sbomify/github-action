@@ -47,11 +47,11 @@ from sbomify_action.enrichment import (
     enrich_sbom,
 )
 from sbomify_action.generation import (
-    COMMON_GO_LOCK_FILES,
-    COMMON_JAVASCRIPT_LOCK_FILES,
-    COMMON_PYTHON_LOCK_FILES,
-    COMMON_RUBY_LOCK_FILES,
-    COMMON_RUST_LOCK_FILES,
+    GO_LOCK_FILES,
+    JAVASCRIPT_LOCK_FILES,
+    PYTHON_LOCK_FILES,
+    RUBY_LOCK_FILES,
+    RUST_LOCK_FILES,
 )
 
 # =============================================================================
@@ -907,7 +907,7 @@ class TestEndToEndEnrichment:
         }
 
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         assert output_file.exists()
         with open(output_file) as f:
@@ -964,7 +964,7 @@ class TestEndToEndEnrichment:
         }
 
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         assert output_file.exists()
         with open(output_file) as f:
@@ -1002,7 +1002,7 @@ class TestEndToEndEnrichment:
         mock_response.status_code = 404
 
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1159,7 +1159,7 @@ class TestSchemaVersionEndToEnd:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get", return_value=mock_pypi_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1185,7 +1185,7 @@ class TestSchemaVersionEndToEnd:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get", return_value=mock_pypi_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1229,7 +1229,7 @@ class TestSchemaVersionEndToEnd:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get", return_value=mock_pypi_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1273,7 +1273,7 @@ class TestSchemaVersionEndToEnd:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get", return_value=mock_pypi_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1490,7 +1490,7 @@ class TestPURLEnrichmentIntegration:
         mock_response.status_code = 404
 
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1531,7 +1531,7 @@ class TestPURLEnrichmentIntegration:
             return mock_response
 
         with patch("requests.Session.get", side_effect=mock_get):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1555,23 +1555,23 @@ class TestLockfileFilteringExtended:
     def test_all_lockfile_names_matches_all_constants(self):
         """Test that ALL_LOCKFILE_NAMES includes files from all language categories."""
         # Check Python
-        for f in COMMON_PYTHON_LOCK_FILES:
+        for f in PYTHON_LOCK_FILES:
             assert f in ALL_LOCKFILE_NAMES
 
         # Check JavaScript
-        for f in COMMON_JAVASCRIPT_LOCK_FILES:
+        for f in JAVASCRIPT_LOCK_FILES:
             assert f in ALL_LOCKFILE_NAMES
 
         # Check Rust
-        for f in COMMON_RUST_LOCK_FILES:
+        for f in RUST_LOCK_FILES:
             assert f in ALL_LOCKFILE_NAMES
 
         # Check Ruby
-        for f in COMMON_RUBY_LOCK_FILES:
+        for f in RUBY_LOCK_FILES:
             assert f in ALL_LOCKFILE_NAMES
 
         # Check Go
-        for f in COMMON_GO_LOCK_FILES:
+        for f in GO_LOCK_FILES:
             assert f in ALL_LOCKFILE_NAMES
 
     def test_is_lockfile_package_spdx_true(self):
@@ -1646,7 +1646,7 @@ class TestLockfileFilteringExtended:
 
         with patch("requests.Session.get") as mock_get:
             mock_get.return_value = Mock(status_code=404)
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -2043,7 +2043,7 @@ class TestNoComponentsWithPURLs:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get") as mock_get:
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         # Should not call any API since no PURLs
         mock_get.assert_not_called()
@@ -2080,9 +2080,128 @@ class TestNoComponentsWithPURLs:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get") as mock_get:
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         # Should not call any API since no PURLs
         mock_get.assert_not_called()
+
+        assert output_file.exists()
+
+
+# =============================================================================
+# Test Validation After Enrichment
+# =============================================================================
+
+
+class TestEnrichmentValidation:
+    """Test validation logic after enrichment."""
+
+    def test_enrich_sbom_validates_output_by_default(self, tmp_path):
+        """Test that enrich_sbom validates output when validate=True (default)."""
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:66666666-6666-6666-6666-666666666666",
+            "version": 1,
+            "metadata": {"timestamp": "2024-01-01T00:00:00Z"},
+            "components": [],
+        }
+
+        input_file = tmp_path / "input.json"
+        output_file = tmp_path / "output.json"
+        input_file.write_text(json.dumps(sbom_data))
+
+        with patch("requests.Session.get"):
+            # Should succeed - validation is enabled by default
+            enrich_sbom(str(input_file), str(output_file))
+
+        assert output_file.exists()
+
+    def test_enrich_sbom_validation_failure_raises_error(self, tmp_path):
+        """Test that validation failure raises SBOMValidationError."""
+        from sbomify_action.exceptions import SBOMValidationError
+
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:77777777-7777-7777-7777-777777777777",
+            "version": 1,
+            "metadata": {"timestamp": "2024-01-01T00:00:00Z"},
+            "components": [],
+        }
+
+        input_file = tmp_path / "input.json"
+        output_file = tmp_path / "output.json"
+        input_file.write_text(json.dumps(sbom_data))
+
+        with patch("requests.Session.get"):
+            with patch("sbomify_action.enrichment.validate_sbom_file_auto") as mock_validate:
+                # Mock validation failure
+                mock_result = Mock()
+                mock_result.valid = False
+                mock_result.error_message = "Schema validation failed"
+                mock_validate.return_value = mock_result
+
+                with pytest.raises(SBOMValidationError) as exc_info:
+                    enrich_sbom(str(input_file), str(output_file), validate=True)
+
+                assert "Enriched SBOM failed validation" in str(exc_info.value)
+                assert "Schema validation failed" in str(exc_info.value)
+
+    def test_enrich_sbom_skips_validation_when_disabled(self, tmp_path):
+        """Test that validation is skipped when validate=False."""
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:88888888-8888-8888-8888-888888888888",
+            "version": 1,
+            "metadata": {"timestamp": "2024-01-01T00:00:00Z"},
+            "components": [],
+        }
+
+        input_file = tmp_path / "input.json"
+        output_file = tmp_path / "output.json"
+        input_file.write_text(json.dumps(sbom_data))
+
+        with patch("requests.Session.get"):
+            with patch("sbomify_action.enrichment.validate_sbom_file_auto") as mock_validate:
+                enrich_sbom(str(input_file), str(output_file), validate=False)
+
+                # Validation should not be called
+                mock_validate.assert_not_called()
+
+        assert output_file.exists()
+
+    def test_enrich_sbom_spdx_validates_output(self, tmp_path):
+        """Test that SPDX enrichment also validates output."""
+        sbom_data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test-validation",
+            "documentNamespace": "https://example.com/test-validation",
+            "dataLicense": "CC0-1.0",
+            "creationInfo": {
+                "created": "2024-01-01T00:00:00Z",
+                "creators": ["Tool: test"],
+                "licenseListVersion": "3.21",
+            },
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-main",
+                    "name": "test-pkg",
+                    "versionInfo": "1.0",
+                    "downloadLocation": "NOASSERTION",
+                    "filesAnalyzed": False,
+                }
+            ],
+        }
+
+        input_file = tmp_path / "input.json"
+        output_file = tmp_path / "output.json"
+        input_file.write_text(json.dumps(sbom_data))
+
+        with patch("requests.Session.get"):
+            # Should succeed with validation
+            enrich_sbom(str(input_file), str(output_file), validate=True)
 
         assert output_file.exists()
