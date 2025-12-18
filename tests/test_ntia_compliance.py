@@ -900,3 +900,288 @@ class TestNTIAValidationFunction:
 
         assert not is_compliant, "SBOM should NOT be compliant with NOASSERTION supplier"
         assert "Supplier Name" in missing
+
+
+class TestNTIAEdgeCases:
+    """Test edge cases that were previously not covered by NTIA tests."""
+
+    def test_pypi_author_email_without_author(self, tmp_path):
+        """Test that packages with empty author but valid author_email get supplier.
+
+        This tests the uri-template scenario: author="" but author_email="Peter Linss <email>"
+        """
+        from sbomify_action.enrichment import clear_cache, enrich_sbom
+
+        clear_cache()
+
+        # Create SBOM with a package that will be looked up
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:11111111-1111-1111-1111-111111111111",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "tools": {"components": [{"type": "application", "name": "test-tool", "version": "1.0"}]},
+            },
+            "components": [
+                {
+                    "type": "library",
+                    "name": "test-package",
+                    "version": "1.0.0",
+                    "purl": "pkg:pypi/test-package@1.0.0",
+                    "bom-ref": "pkg:pypi/test-package@1.0.0",
+                },
+            ],
+            "dependencies": [{"ref": "pkg:pypi/test-package@1.0.0", "dependsOn": []}],
+        }
+
+        input_file = tmp_path / "test.cdx.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "enriched.cdx.json"
+
+        # Mock PyPI response with empty author but valid author_email (like uri-template)
+        def mock_get(url, *args, **kwargs):
+            mock_response = Mock()
+            if "pypi.org/pypi/" in url:
+                mock_response.status_code = 200
+                mock_response.json.return_value = {
+                    "info": {
+                        "summary": "Test package description",
+                        "author": "",  # Empty author!
+                        "author_email": "Test Author <test@example.com>",  # But valid author_email
+                        "maintainer": "",
+                        "maintainer_email": "",
+                        "license": "MIT",
+                        "home_page": "https://example.com",
+                    }
+                }
+            else:
+                mock_response.status_code = 404
+            return mock_response
+
+        with patch("requests.Session.get", side_effect=mock_get):
+            enrich_sbom(str(input_file), str(output_file))
+
+        with open(output_file) as f:
+            enriched_data = json.load(f)
+
+        # Verify the component got supplier from author_email
+        component = enriched_data["components"][0]
+        assert component.get("publisher") == "Test Author", (
+            f"Expected publisher 'Test Author' from author_email, got: {component.get('publisher')}"
+        )
+
+    def test_lockfile_components_have_version(self, tmp_path):
+        """Test that lockfile components get version after enrichment.
+
+        Previously, lockfiles were excluded from NTIA checks but they should
+        still have compliant metadata including version.
+        """
+        from sbomify_action.enrichment import clear_cache, enrich_sbom
+
+        clear_cache()
+
+        # Create SBOM with lockfile component (no version, no purl)
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:22222222-2222-2222-2222-222222222222",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "tools": {"components": [{"type": "application", "name": "test-tool", "version": "1.0"}]},
+                "component": {
+                    "type": "application",
+                    "name": "my-project",
+                    "version": "1.2.3",
+                },
+            },
+            "components": [
+                {
+                    "type": "application",
+                    "name": "uv.lock",
+                    "bom-ref": "lockfile-uv",
+                    # No version, no purl - this is how Trivy generates lockfile components
+                },
+            ],
+            "dependencies": [{"ref": "lockfile-uv", "dependsOn": []}],
+        }
+
+        input_file = tmp_path / "test.cdx.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "enriched.cdx.json"
+
+        # Mock all external calls to 404
+        mock_response = Mock()
+        mock_response.status_code = 404
+
+        with patch("requests.Session.get", return_value=mock_response):
+            enrich_sbom(str(input_file), str(output_file))
+
+        with open(output_file) as f:
+            enriched_data = json.load(f)
+
+        # Find the lockfile component
+        lockfile_component = next(
+            (c for c in enriched_data["components"] if c.get("name") == "uv.lock"),
+            None,
+        )
+
+        assert lockfile_component is not None, "Lockfile component should still exist"
+        assert lockfile_component.get("version"), "Lockfile should have version after enrichment"
+        assert lockfile_component.get("description"), "Lockfile should have description after enrichment"
+
+    def test_root_component_gets_supplier_from_augmentation(self, tmp_path):
+        """Test that root component (metadata.component) gets supplier from backend metadata.
+
+        Previously, augmentation set metadata.supplier but not metadata.component.supplier.
+        """
+        from cyclonedx.model.bom import Bom
+
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+
+        # Create a minimal CycloneDX BOM with a root component but no supplier
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:33333333-3333-3333-3333-333333333333",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "tools": {"components": [{"type": "application", "name": "test-tool", "version": "1.0"}]},
+                "component": {
+                    "type": "application",
+                    "name": "my-project",
+                    "version": "1.0.0",
+                    # No supplier!
+                },
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augmentation data from backend
+        augmentation_data = {
+            "supplier": {
+                "name": "My Company Inc",
+                "url": ["https://mycompany.com"],
+            },
+        }
+
+        # Augment the BOM
+        augmented_bom = augment_cyclonedx_sbom(bom, augmentation_data, spec_version="1.6")
+
+        # Verify both metadata.supplier AND metadata.component.supplier are set
+        assert augmented_bom.metadata.supplier is not None, "metadata.supplier should be set"
+        assert augmented_bom.metadata.supplier.name == "My Company Inc"
+
+        assert augmented_bom.metadata.component is not None, "metadata.component should exist"
+        assert augmented_bom.metadata.component.supplier is not None, (
+            "metadata.component.supplier should be propagated from backend"
+        )
+        assert augmented_bom.metadata.component.supplier.name == "My Company Inc"
+
+    def test_self_referencing_component_gets_supplier(self, tmp_path):
+        """Test that self-referencing components (project's own package in dependencies) get supplier.
+
+        When a project scans itself, it may include its own package as a dependency.
+        This package won't be found in external registries, so it should inherit
+        supplier from the root component.
+        """
+        from sbomify_action.enrichment import clear_cache, enrich_sbom
+
+        clear_cache()
+
+        # Create SBOM where the project includes itself as a dependency
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:44444444-4444-4444-4444-444444444444",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "tools": {"components": [{"type": "application", "name": "test-tool", "version": "1.0"}]},
+                "component": {
+                    "type": "application",
+                    "name": "my-project",
+                    "version": "1.0.0",
+                },
+                "supplier": {
+                    "name": "My Company Inc",
+                    "url": ["https://mycompany.com"],
+                },
+            },
+            "components": [
+                {
+                    "type": "library",
+                    "name": "my-project",  # Same as root component name!
+                    "version": "1.0.0",
+                    "purl": "pkg:pypi/my-project@1.0.0",
+                    "bom-ref": "pkg:pypi/my-project@1.0.0",
+                    # No publisher - this is the project itself, won't be found in PyPI
+                },
+            ],
+            "dependencies": [{"ref": "pkg:pypi/my-project@1.0.0", "dependsOn": []}],
+        }
+
+        input_file = tmp_path / "test.cdx.json"
+        input_file.write_text(json.dumps(sbom_data))
+        output_file = tmp_path / "enriched.cdx.json"
+
+        # Mock all external calls to 404 (package not found - it's a private project)
+        mock_response = Mock()
+        mock_response.status_code = 404
+
+        with patch("requests.Session.get", return_value=mock_response):
+            enrich_sbom(str(input_file), str(output_file))
+
+        with open(output_file) as f:
+            enriched_data = json.load(f)
+
+        # Find the self-referencing component
+        self_component = next(
+            (c for c in enriched_data["components"] if c.get("name") == "my-project"),
+            None,
+        )
+
+        assert self_component is not None, "Self-referencing component should exist"
+        assert self_component.get("publisher") == "My Company Inc", (
+            f"Self-referencing component should inherit publisher from root. Got: {self_component.get('publisher')}"
+        )
+
+    def test_ecosystems_does_not_use_platform_as_supplier(self, tmp_path):
+        """Test that ecosyste.ms doesn't use platform name (pypi, npm) as supplier.
+
+        Registry/platform names are not valid suppliers - they're distribution channels.
+        """
+        import requests
+        from packageurl import PackageURL
+
+        from sbomify_action._enrichment.sources.ecosystems import EcosystemsSource
+
+        # Create mock response with ecosystem but no maintainer name
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                "ecosystem": "pypi",  # Should NOT be used as supplier
+                "description": "Test package",
+                "normalized_licenses": ["MIT"],
+                "maintainers": [
+                    {"login": "testuser", "name": None}  # No name, only login
+                ],
+            }
+        ]
+
+        source = EcosystemsSource()
+        session = requests.Session()
+
+        with patch.object(session, "get", return_value=mock_response):
+            purl = PackageURL.from_string("pkg:pypi/test-package@1.0.0")
+            metadata = source.fetch(purl, session)
+
+        # Supplier should be the maintainer login, NOT "pypi"
+        assert metadata is not None
+        assert metadata.supplier != "pypi", "Should not use ecosystem name as supplier"
+        assert metadata.supplier == "testuser", f"Should use maintainer login as supplier. Got: {metadata.supplier}"

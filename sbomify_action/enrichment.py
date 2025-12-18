@@ -134,6 +134,9 @@ def _enrich_lockfile_components(bom: Bom) -> int:
     Instead of removing lockfiles, we enrich them with:
     - Description: Human-readable description based on lockfile type
     - Supplier: Same as the root component (metadata.component or metadata.supplier)
+    - Version: Inherited from root component or set to "0"
+
+    Note: bom-ref already serves as the unique identifier for CycloneDX.
 
     This preserves the dependency graph integrity.
     """
@@ -149,6 +152,11 @@ def _enrich_lockfile_components(bom: Bom) -> int:
     elif bom.metadata.supplier:
         root_supplier = bom.metadata.supplier
 
+    # Get version from root component for lockfile version inheritance
+    root_version = None
+    if bom.metadata.component and bom.metadata.component.version:
+        root_version = bom.metadata.component.version
+
     for component in lockfile_components:
         # Add description if not present
         if not component.description and component.name:
@@ -161,6 +169,12 @@ def _enrich_lockfile_components(bom: Bom) -> int:
         if not component.supplier and root_supplier:
             component.supplier = root_supplier
             logger.debug(f"Added supplier to lockfile: {component.name}")
+
+        # Add version if not present (lockfiles don't have natural versions)
+        # Use root component version or fallback to "0"
+        if not component.version:
+            component.version = root_version if root_version else "0"
+            logger.debug(f"Added version to lockfile: {component.name} -> {component.version}")
 
         logger.info(f"Enriched lockfile component: {component.name}")
 
@@ -183,6 +197,9 @@ def _enrich_lockfile_packages(document: Document) -> int:
     Instead of removing lockfiles, we enrich them with:
     - Description: Human-readable description based on lockfile type
     - Supplier: Same as the main package (first package in document)
+    - Version: Inherited from main package or set to "0"
+
+    Note: SPDX spdx_id already serves as the unique identifier.
 
     This preserves the relationship graph integrity.
     """
@@ -191,12 +208,16 @@ def _enrich_lockfile_packages(document: Document) -> int:
     if not lockfile_packages:
         return 0
 
-    # Get supplier from the main package (usually first package represents the described component)
+    # Get supplier and version from the main package (usually first package represents the described component)
     root_supplier = None
+    root_version = None
     if document.packages:
         for pkg in document.packages:
             if pkg.supplier and not isinstance(pkg.supplier, (SpdxNoAssertion, SpdxNone)):
                 root_supplier = pkg.supplier
+            if pkg.version and pkg.version != "NOASSERTION":
+                root_version = pkg.version
+            if root_supplier and root_version:
                 break
 
     for pkg in lockfile_packages:
@@ -211,6 +232,12 @@ def _enrich_lockfile_packages(document: Document) -> int:
         if root_supplier and (not pkg.supplier or isinstance(pkg.supplier, (SpdxNoAssertion, SpdxNone))):
             pkg.supplier = root_supplier
             logger.debug(f"Added supplier to lockfile: {pkg.name}")
+
+        # Add version if not present (lockfiles don't have natural versions)
+        # Use root package version or fallback to "0"
+        if not pkg.version or pkg.version == "NOASSERTION":
+            pkg.version = root_version if root_version else "0"
+            logger.debug(f"Added version to lockfile: {pkg.name} -> {pkg.version}")
 
         logger.info(f"Enriched lockfile package: {pkg.name}")
 
@@ -475,6 +502,91 @@ def _enrich_os_component(component: Component) -> List[str]:
     return added_fields
 
 
+def _enrich_self_referencing_components(bom: Bom) -> int:
+    """
+    Enrich self-referencing components (project's own package in dependencies).
+
+    When a project scans itself, it may include its own package as a dependency.
+    Since this package won't be found in external registries (it's the project
+    being built), we inherit supplier from the root component metadata.
+
+    Args:
+        bom: Bom object to check and enrich
+
+    Returns:
+        Number of components enriched
+    """
+    if not bom.metadata.component:
+        return 0
+
+    root_name = bom.metadata.component.name
+    if not root_name:
+        return 0
+
+    # Get supplier from root component or BOM metadata
+    root_supplier = None
+    if bom.metadata.component.supplier:
+        root_supplier = bom.metadata.component.supplier
+    elif bom.metadata.supplier:
+        root_supplier = bom.metadata.supplier
+
+    if not root_supplier:
+        return 0
+
+    # Get supplier name for publisher field
+    supplier_name = root_supplier.name if hasattr(root_supplier, "name") else str(root_supplier)
+    if not supplier_name:
+        return 0
+
+    enriched_count = 0
+    for component in bom.components:
+        # Check if component name matches root component (self-referencing)
+        if component.name == root_name and not component.publisher:
+            component.publisher = supplier_name
+            _add_enrichment_source_property(component, "root-component")
+            logger.info(f"Enriched self-referencing component: {component.name} with publisher: {supplier_name}")
+            enriched_count += 1
+
+    return enriched_count
+
+
+def _enrich_self_referencing_packages(document: Document) -> int:
+    """
+    Enrich self-referencing packages in SPDX (project's own package in dependencies).
+
+    Args:
+        document: SPDX Document to check and enrich
+
+    Returns:
+        Number of packages enriched
+    """
+    if not document.packages:
+        return 0
+
+    # First package is usually the main/root package
+    main_package = document.packages[0]
+    root_name = main_package.name
+    if not root_name:
+        return 0
+
+    # Get supplier from main package
+    root_supplier = main_package.supplier
+    if not root_supplier or isinstance(root_supplier, (SpdxNoAssertion, SpdxNone)):
+        return 0
+
+    enriched_count = 0
+    for package in document.packages[1:]:  # Skip first (main) package
+        # Check if package name matches root package (self-referencing)
+        if package.name == root_name:
+            if not package.supplier or isinstance(package.supplier, (SpdxNoAssertion, SpdxNone)):
+                package.supplier = root_supplier
+                _add_enrichment_source_comment(package, "root-package")
+                logger.info(f"Enriched self-referencing package: {package.name}")
+                enriched_count += 1
+
+    return enriched_count
+
+
 def _enrich_cyclonedx_bom_with_plugin_architecture(bom: Bom, enricher: Enricher) -> Dict[str, int]:
     """
     Enrich CycloneDX BOM using the plugin architecture.
@@ -732,6 +844,12 @@ def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: 
     # Enrich using plugin architecture
     stats = _enrich_cyclonedx_bom_with_plugin_architecture(bom, enricher)
 
+    # Enrich self-referencing components (project's own package in dependencies)
+    self_ref_enriched = _enrich_self_referencing_components(bom)
+    if self_ref_enriched > 0:
+        stats["components_enriched"] += self_ref_enriched
+        stats["publishers_added"] += self_ref_enriched
+
     # Print summary
     _log_cyclonedx_enrichment_summary(stats, len(components))
 
@@ -770,6 +888,12 @@ def _enrich_spdx_sbom(input_path: Path, output_path: Path, enricher: Enricher) -
 
     # Enrich using plugin architecture
     stats = _enrich_spdx_document_with_plugin_architecture(document, enricher)
+
+    # Enrich self-referencing packages (project's own package in dependencies)
+    self_ref_enriched = _enrich_self_referencing_packages(document)
+    if self_ref_enriched > 0:
+        stats["components_enriched"] += self_ref_enriched
+        stats["suppliers_added"] += self_ref_enriched
 
     # Print summary
     _log_spdx_enrichment_summary(stats, len(packages))

@@ -147,16 +147,20 @@ class EcosystemsSource:
             maintainer_name = first_maintainer.get("name") or first_maintainer.get("login")
             maintainer_email = first_maintainer.get("email")
 
-        # Extract supplier from ecosystem or repo owner
+        # Extract supplier from maintainer or repo owner
+        # NEVER use ecosystem name as supplier - "pypi", "npm", etc. are platforms, not suppliers
         supplier = None
-        if data.get("ecosystem"):
-            supplier = data["ecosystem"]
+        # Priority 1: Maintainer name or login (already extracted above)
+        if maintainer_name:
+            supplier = maintainer_name
+        # Priority 2: Repo owner name or login
         elif data.get("repo_metadata") and data["repo_metadata"].get("owner"):
             owner = data["repo_metadata"]["owner"]
             if isinstance(owner, dict):
                 supplier = owner.get("name") or owner.get("login")
             elif isinstance(owner, str):
                 supplier = owner
+        # Do NOT fall back to data["ecosystem"] - it's just the platform name
 
         # Extract issue tracker URL from repo metadata
         issue_tracker_url = None

@@ -372,6 +372,12 @@ def augment_cyclonedx_sbom(
                 logger.info("Adding supplier information from sbomify (no existing supplier)")
             bom.metadata.supplier = backend_supplier
 
+        # Also propagate supplier to the root component (metadata.component) if it exists
+        # This is needed for NTIA compliance - the root component needs its own supplier field
+        if bom.metadata.component and not bom.metadata.component.supplier:
+            bom.metadata.component.supplier = bom.metadata.supplier
+            logger.debug("Propagated supplier to root component (metadata.component)")
+
     # Add authors if present
     if "authors" in augmentation_data:
         author_count = len(augmentation_data["authors"])
