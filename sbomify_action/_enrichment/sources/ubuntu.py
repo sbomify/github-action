@@ -1,7 +1,8 @@
 """Ubuntu APT Repository data source for Ubuntu package metadata.
 
 Fetches package metadata from public Ubuntu APT repository Packages.gz files.
-Supports Ubuntu LTS releases (20.04, 22.04, 24.04) and their updates/security pockets.
+Supports Ubuntu releases (18.04, 20.04, 22.04, 24.04 LTS and 24.10 interim)
+with their updates/security pockets.
 """
 
 import gzip
@@ -141,13 +142,19 @@ class UbuntuSource:
     Data source for Ubuntu packages using public APT repository metadata.
 
     Fetches package metadata from Packages.gz files in Ubuntu's archive.
-    Supports Ubuntu LTS releases with security/updates pockets.
+    Supports Ubuntu releases (18.04, 20.04, 22.04, 24.04 LTS and 24.10 interim)
+    with security/updates pockets.
 
     This is a Tier 1 native source for Ubuntu packages, providing metadata
     including description, supplier (maintainer), homepage, and download URL.
 
-    Note: License information is NOT available in APT Packages.gz metadata.
-    Licenses must come from fallback sources or SBOM generation tools.
+    Limitations:
+    - License information is NOT available in APT Packages.gz metadata.
+      Licenses must come from fallback sources or SBOM generation tools.
+    - Version matching is NOT performed: metadata is fetched for the latest
+      available version in the repo, not necessarily the version in the PURL.
+      This means metadata (especially if licenses were available) could
+      theoretically differ from the actual package version being described.
 
     Priority: 12 (Tier 1 - native source for Ubuntu packages)
     Supports: pkg:deb/ubuntu/* packages
@@ -209,7 +216,8 @@ class UbuntuSource:
             codename = self._get_codename_from_distro(distro)
         else:
             # Default to latest LTS
-            codename = "jammy"
+            codename = "noble"
+            logger.debug(f"No distro qualifier for {purl.name}; defaulting to Ubuntu 24.04 LTS (noble)")
 
         if not codename:
             logger.debug(f"Could not determine Ubuntu codename for distro: {distro}")
