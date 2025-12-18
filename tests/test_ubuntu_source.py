@@ -347,8 +347,9 @@ class TestUbuntuSourceCaching:
 
         assert metadata_bash is not None
         assert metadata_curl is not None
-        assert "bash" in metadata_bash.description.lower() or "shell" in metadata_bash.description.lower()
-        assert "curl" in metadata_curl.description.lower() or "url" in metadata_curl.description.lower()
+        # Verify we got distinct metadata for each package (from test fixtures)
+        assert metadata_bash.description == "GNU Bourne Again SHell"
+        assert metadata_curl.description == "command line tool for transferring data with URL syntax"
         # Only loaded repo once
         assert mock_ubuntu_session.get.call_count == 1
 
@@ -573,9 +574,16 @@ class TestUbuntuSourceMultiComponent:
         assert not any("universe" in url for url in call_urls)
 
     def test_falls_back_to_universe(self):
-        """Test that universe is searched if package not in main."""
+        """Test that universe component is searched when package not found in main.
+
+        This test verifies the search order behavior: when a package is not found
+        in main (all pockets), the source should expand its search to universe.
+        We use a non-existent package to trigger the fallback without needing
+        universe-specific test fixtures.
+        """
         source = UbuntuSource()
-        purl = PackageURL.from_string("pkg:deb/ubuntu/nodejs@12.0?arch=amd64&distro=ubuntu-22.04")
+        # Use a package name that won't be in our test fixtures to trigger fallback
+        purl = PackageURL.from_string("pkg:deb/ubuntu/nonexistent-pkg@1.0?arch=amd64&distro=ubuntu-22.04")
 
         call_urls = []
 
@@ -584,33 +592,32 @@ class TestUbuntuSourceMultiComponent:
             call_urls.append(url)
             mock_resp = Mock()
             mock_resp.status_code = 200
-            # Return empty for main, packages for universe
-            if "universe" in url:
-                mock_resp.content = load_test_packages_gz()  # Has bash, used for structure
-            else:
-                # Empty gzip
-                import gzip
-                import io
+            # Return empty for main, also empty for universe (package doesn't exist)
+            # This tests that universe is searched, not that the package is found there
+            import gzip
+            import io
 
-                buf = io.BytesIO()
-                with gzip.GzipFile(fileobj=buf, mode="wb") as gz:
-                    gz.write(b"")
-                buf.seek(0)
-                mock_resp.content = buf.read()
+            buf = io.BytesIO()
+            with gzip.GzipFile(fileobj=buf, mode="wb") as gz:
+                gz.write(b"")
+            buf.seek(0)
+            mock_resp.content = buf.read()
             mock_resp.raise_for_status = Mock()
             return mock_resp
 
         mock_session = Mock(spec=requests.Session)
         mock_session.get.side_effect = track_calls
 
-        # Fetch - should search main first, then universe
-        source.fetch(purl, mock_session)
+        # Fetch - package won't be found, but should search main then universe
+        result = source.fetch(purl, mock_session)
 
-        # Should have searched both main and universe
+        # Package should not be found (returns None)
+        assert result is None
+        # Should have searched both main and universe components
         main_calls = [url for url in call_urls if "main" in url]
         universe_calls = [url for url in call_urls if "universe" in url]
-        assert len(main_calls) > 0, "Should have searched main"
-        assert len(universe_calls) > 0, "Should have searched universe after main"
+        assert len(main_calls) > 0, "Should have searched main component"
+        assert len(universe_calls) > 0, "Should have searched universe after main was exhausted"
 
 
 class TestUbuntuSourceNoLiveNetwork:
