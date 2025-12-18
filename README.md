@@ -277,6 +277,7 @@ sbomify queries sources in priority order, stopping when data is found:
 - [Documentation](https://sbomify.com/features/generate-collaborate-analyze/)
 - [sbomify Platform](https://sbomify.com)
 - [Attestation Guide](https://sbomify.com/2024/10/31/github-action-update-and-attestation/)
+- [Architecture Decision Records (ADR)](docs/adr/)
 
 ## License
 
