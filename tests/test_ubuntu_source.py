@@ -143,7 +143,15 @@ class TestUbuntuSourceCodenames:
 
     def test_codename_mapping_exists(self):
         """Test that all expected codenames are mapped."""
-        expected = {"18.04": "bionic", "20.04": "focal", "22.04": "jammy", "24.04": "noble"}
+        expected = {
+            "18.04": "bionic",
+            "20.04": "focal",
+            "22.04": "jammy",
+            "24.04": "noble",
+            "24.10": "oracular",
+            "25.04": "plucky",
+            "25.10": "questing",
+        }
         for version, codename in expected.items():
             assert version in UBUNTU_CODENAMES
             assert UBUNTU_CODENAMES[version] == codename
@@ -416,7 +424,8 @@ class TestUbuntuSourceCaching:
 
         # Should only have loaded the index once (all packages found in first pocket)
         assert mock_ubuntu_session.get.call_count == 1, (
-            f"Expected 1 API call for {len(packages_to_fetch)} packages, got {mock_ubuntu_session.get.call_count}"
+            f"Expected 1 API call for {len(packages_to_fetch)} packages "
+            f"({packages_to_fetch}), got {mock_ubuntu_session.get.call_count}"
         )
 
     def test_cache_per_component(self):

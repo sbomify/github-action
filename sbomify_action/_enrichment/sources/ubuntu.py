@@ -1,8 +1,8 @@
 """Ubuntu APT Repository data source for Ubuntu package metadata.
 
 Fetches package metadata from public Ubuntu APT repository Packages.gz files.
-Supports Ubuntu releases (18.04, 20.04, 22.04, 24.04 LTS and 24.10 interim)
-with their updates/security pockets.
+Supports Ubuntu releases (18.04, 20.04, 22.04, 24.04 LTS and interim releases
+24.10, 25.04, 25.10) with their updates/security pockets.
 """
 
 import gzip
@@ -30,6 +30,8 @@ UBUNTU_CODENAMES: Dict[str, str] = {
     "22.04": "jammy",
     "24.04": "noble",
     "24.10": "oracular",
+    "25.04": "plucky",
+    "25.10": "questing",
 }
 
 # Search order for pockets (most recent updates first)
@@ -142,7 +144,7 @@ class UbuntuSource:
     Data source for Ubuntu packages using public APT repository metadata.
 
     Fetches package metadata from Packages.gz files in Ubuntu's archive.
-    Supports Ubuntu releases (18.04, 20.04, 22.04, 24.04 LTS and 24.10 interim)
+    Supports Ubuntu releases (18.04, 20.04, 22.04, 24.04 LTS and interim releases)
     with security/updates pockets.
 
     This is a Tier 1 native source for Ubuntu packages, providing metadata
