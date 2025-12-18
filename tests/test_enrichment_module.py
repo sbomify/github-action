@@ -308,7 +308,90 @@ class TestPyPISource:
 
         assert metadata is None
 
+    def test_fetch_author_from_email_field(self, mock_session):
+        """Test extraction of author name from author_email when author is empty.
 
+        This tests the parse_author_string integration - packages like uri-template
+        have empty author but author_email contains "Name <email>" format.
+        """
+        source = PyPISource()
+        purl = PackageURL.from_string("pkg:pypi/uri-template@1.3.0")
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "info": {
+                "summary": "RFC 6570 URI Template Processor",
+                "home_page": "https://gitlab.linss.com/open-source/python/uri-template",
+                "license": "MIT",
+                "author": "",  # Empty author!
+                "author_email": "Peter Linss <peter.linss@gmail.com>",  # Name in email field
+                "maintainer": "",
+                "maintainer_email": "",
+            }
+        }
+        mock_session.get.return_value = mock_response
+
+        metadata = source.fetch(purl, mock_session)
+
+        assert metadata is not None
+        assert metadata.supplier == "Peter Linss", (
+            f"Expected 'Peter Linss' extracted from author_email, got: {metadata.supplier}"
+        )
+
+    def test_fetch_author_from_maintainer_email_field(self, mock_session):
+        """Test extraction of author name from maintainer_email when all other fields empty."""
+        source = PyPISource()
+        purl = PackageURL.from_string("pkg:pypi/test-package@1.0.0")
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "info": {
+                "summary": "Test package",
+                "license": "MIT",
+                "author": "",
+                "author_email": "",
+                "maintainer": "",
+                "maintainer_email": "Jane Doe <jane@example.com>",  # Only maintainer_email has name
+            }
+        }
+        mock_session.get.return_value = mock_response
+
+        metadata = source.fetch(purl, mock_session)
+
+        assert metadata is not None
+        assert metadata.supplier == "Jane Doe", (
+            f"Expected 'Jane Doe' extracted from maintainer_email, got: {metadata.supplier}"
+        )
+
+    def test_fetch_prefers_direct_author_over_email(self, mock_session):
+        """Test that direct author field is preferred over parsing email field."""
+        source = PyPISource()
+        purl = PackageURL.from_string("pkg:pypi/test-package@1.0.0")
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "info": {
+                "summary": "Test package",
+                "license": "MIT",
+                "author": "Direct Author",  # Has direct author
+                "author_email": "Different Person <other@example.com>",  # Different in email
+            }
+        }
+        mock_session.get.return_value = mock_response
+
+        metadata = source.fetch(purl, mock_session)
+
+        assert metadata is not None
+        assert metadata.supplier == "Direct Author", (
+            f"Expected 'Direct Author' from author field, got: {metadata.supplier}"
+        )
+
+
+# =============================================================================
+# Test parse_author_string utility
 # =============================================================================
 # Test PubDevSource
 # =============================================================================

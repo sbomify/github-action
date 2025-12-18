@@ -171,9 +171,9 @@ def _enrich_lockfile_components(bom: Bom) -> int:
             logger.debug(f"Added supplier to lockfile: {component.name}")
 
         # Add version if not present (lockfiles don't have natural versions)
-        # Use root component version or fallback to "0"
+        # Use root component version (set by COMPONENT_VERSION env var) or fallback to "unversioned"
         if not component.version:
-            component.version = root_version if root_version else "0"
+            component.version = root_version if root_version else "unversioned"
             logger.debug(f"Added version to lockfile: {component.name} -> {component.version}")
 
         logger.info(f"Enriched lockfile component: {component.name}")
@@ -234,9 +234,9 @@ def _enrich_lockfile_packages(document: Document) -> int:
             logger.debug(f"Added supplier to lockfile: {pkg.name}")
 
         # Add version if not present (lockfiles don't have natural versions)
-        # Use root package version or fallback to "0"
+        # Use root package version (set by COMPONENT_VERSION env var) or fallback to "unversioned"
         if not pkg.version or pkg.version == "NOASSERTION":
-            pkg.version = root_version if root_version else "0"
+            pkg.version = root_version if root_version else "unversioned"
             logger.debug(f"Added version to lockfile: {pkg.name} -> {pkg.version}")
 
         logger.info(f"Enriched lockfile package: {pkg.name}")
