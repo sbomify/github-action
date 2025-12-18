@@ -1,0 +1,626 @@
+"""Tests for the SBOM generation plugin architecture."""
+
+import unittest
+from unittest.mock import MagicMock, patch
+
+from sbomify_action._generation import (
+    FormatVersion,
+    GenerationInput,
+    GenerationResult,
+    GeneratorOrchestrator,
+    GeneratorRegistry,
+    create_default_registry,
+)
+from sbomify_action._generation.generators import (
+    CycloneDXPyGenerator,
+    SyftFsGenerator,
+    SyftImageGenerator,
+    TrivyFsGenerator,
+    TrivyImageGenerator,
+)
+from sbomify_action.exceptions import SBOMGenerationError
+
+
+class TestFormatVersion(unittest.TestCase):
+    """Tests for FormatVersion dataclass."""
+
+    def test_supports_version_true(self):
+        """Test that supports_version returns True for supported versions."""
+        fv = FormatVersion(format="cyclonedx", versions=("1.4", "1.5", "1.6"), default_version="1.6")
+        self.assertTrue(fv.supports_version("1.5"))
+
+    def test_supports_version_false(self):
+        """Test that supports_version returns False for unsupported versions."""
+        fv = FormatVersion(format="cyclonedx", versions=("1.4", "1.5", "1.6"), default_version="1.6")
+        self.assertFalse(fv.supports_version("1.7"))
+
+
+class TestGenerationInput(unittest.TestCase):
+    """Tests for GenerationInput dataclass."""
+
+    def test_lock_file_input(self):
+        """Test creating input with lock file."""
+        input = GenerationInput(lock_file="requirements.txt", output_file="sbom.json")
+        self.assertTrue(input.is_lock_file)
+        self.assertFalse(input.is_docker_image)
+        self.assertEqual(input.lock_file_name, "requirements.txt")
+
+    def test_docker_image_input(self):
+        """Test creating input with Docker image."""
+        input = GenerationInput(docker_image="alpine:3.18", output_file="sbom.json")
+        self.assertTrue(input.is_docker_image)
+        self.assertFalse(input.is_lock_file)
+        self.assertIsNone(input.lock_file_name)
+
+    def test_both_inputs_raises_error(self):
+        """Test that providing both lock_file and docker_image raises error."""
+        with self.assertRaises(ValueError):
+            GenerationInput(lock_file="requirements.txt", docker_image="alpine:3.18")
+
+    def test_no_inputs_raises_error(self):
+        """Test that providing neither lock_file nor docker_image raises error."""
+        with self.assertRaises(ValueError):
+            GenerationInput(output_file="sbom.json")
+
+    def test_format_defaults(self):
+        """Test default format and version."""
+        input = GenerationInput(lock_file="requirements.txt")
+        self.assertEqual(input.output_format, "cyclonedx")
+        self.assertIsNone(input.spec_version)
+
+
+class TestGenerationResult(unittest.TestCase):
+    """Tests for GenerationResult dataclass."""
+
+    def test_success_result(self):
+        """Test creating a success result."""
+        result = GenerationResult.success_result(
+            output_file="sbom.json",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="test",
+        )
+        self.assertTrue(result.success)
+        self.assertEqual(result.output_file, "sbom.json")
+        self.assertIsNone(result.error_message)
+
+    def test_failure_result(self):
+        """Test creating a failure result."""
+        result = GenerationResult.failure_result(
+            error_message="Test error",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="test",
+        )
+        self.assertFalse(result.success)
+        self.assertIsNone(result.output_file)
+        self.assertEqual(result.error_message, "Test error")
+
+
+class TestGeneratorRegistry(unittest.TestCase):
+    """Tests for GeneratorRegistry."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.registry = GeneratorRegistry()
+
+    def test_register_generator(self):
+        """Test registering a generator."""
+        generator = CycloneDXPyGenerator()
+        self.registry.register(generator)
+        generators = self.registry.list_generators()
+        self.assertEqual(len(generators), 1)
+        self.assertEqual(generators[0]["name"], "cyclonedx-py")
+
+    def test_get_generators_for_python_cyclonedx(self):
+        """Test getting generators for Python CycloneDX."""
+        self.registry.register(CycloneDXPyGenerator())
+        self.registry.register(TrivyFsGenerator())
+        self.registry.register(SyftFsGenerator())
+
+        input = GenerationInput(lock_file="requirements.txt", output_format="cyclonedx")
+        generators = self.registry.get_generators_for(input)
+
+        # Should return all three, sorted by priority
+        self.assertEqual(len(generators), 3)
+        self.assertEqual(generators[0].name, "cyclonedx-py")  # Priority 10
+        self.assertEqual(generators[1].name, "trivy-fs")  # Priority 30
+        self.assertEqual(generators[2].name, "syft-fs")  # Priority 35
+
+    def test_get_generators_for_python_spdx(self):
+        """Test getting generators for Python SPDX (cyclonedx-py doesn't support)."""
+        self.registry.register(CycloneDXPyGenerator())
+        self.registry.register(TrivyFsGenerator())
+        self.registry.register(SyftFsGenerator())
+
+        input = GenerationInput(lock_file="requirements.txt", output_format="spdx")
+        generators = self.registry.get_generators_for(input)
+
+        # cyclonedx-py doesn't support SPDX
+        self.assertEqual(len(generators), 2)
+        self.assertEqual(generators[0].name, "trivy-fs")
+        self.assertEqual(generators[1].name, "syft-fs")
+
+    def test_get_generators_for_version_filter(self):
+        """Test version filtering when getting generators."""
+        self.registry.register(CycloneDXPyGenerator())
+        self.registry.register(TrivyFsGenerator())
+        self.registry.register(SyftFsGenerator())
+
+        # Request CycloneDX 1.7 - only cyclonedx-py supports it
+        input = GenerationInput(lock_file="requirements.txt", output_format="cyclonedx", spec_version="1.7")
+        generators = self.registry.get_generators_for(input)
+
+        self.assertEqual(len(generators), 1)
+        self.assertEqual(generators[0].name, "cyclonedx-py")
+
+    def test_get_generators_for_spdx_2_2(self):
+        """Test SPDX 2.2 only supported by Syft."""
+        self.registry.register(TrivyFsGenerator())
+        self.registry.register(SyftFsGenerator())
+
+        # Request SPDX 2.2 - only Syft supports it
+        input = GenerationInput(lock_file="requirements.txt", output_format="spdx", spec_version="2.2")
+        generators = self.registry.get_generators_for(input)
+
+        self.assertEqual(len(generators), 1)
+        self.assertEqual(generators[0].name, "syft-fs")
+
+    def test_get_generators_for_docker_image(self):
+        """Test getting generators for Docker images."""
+        self.registry.register(CycloneDXPyGenerator())
+        self.registry.register(TrivyImageGenerator())
+        self.registry.register(SyftImageGenerator())
+
+        input = GenerationInput(docker_image="alpine:3.18", output_format="cyclonedx")
+        generators = self.registry.get_generators_for(input)
+
+        # cyclonedx-py doesn't support Docker images
+        self.assertEqual(len(generators), 2)
+        self.assertEqual(generators[0].name, "trivy-image")
+        self.assertEqual(generators[1].name, "syft-image")
+
+
+class TestCycloneDXPyGenerator(unittest.TestCase):
+    """Tests for CycloneDXPyGenerator."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.generator = CycloneDXPyGenerator()
+
+    def test_name_and_priority(self):
+        """Test generator name and priority."""
+        self.assertEqual(self.generator.name, "cyclonedx-py")
+        self.assertEqual(self.generator.priority, 10)
+
+    def test_supported_formats(self):
+        """Test supported formats."""
+        formats = self.generator.supported_formats
+        self.assertEqual(len(formats), 1)
+        self.assertEqual(formats[0].format, "cyclonedx")
+        self.assertIn("1.7", formats[0].versions)
+
+    def test_supports_python_lock_files(self):
+        """Test support for Python lock files."""
+        for lock_file in ["requirements.txt", "poetry.lock", "pyproject.toml", "Pipfile.lock"]:
+            input = GenerationInput(lock_file=f"/path/{lock_file}", output_format="cyclonedx")
+            self.assertTrue(self.generator.supports(input), f"Should support {lock_file}")
+
+    def test_does_not_support_uv_lock(self):
+        """Test that uv.lock is not supported (use Trivy instead)."""
+        input = GenerationInput(lock_file="/path/uv.lock", output_format="cyclonedx")
+        self.assertFalse(self.generator.supports(input))
+
+    def test_does_not_support_spdx(self):
+        """Test that SPDX format is not supported."""
+        input = GenerationInput(lock_file="/path/requirements.txt", output_format="spdx")
+        self.assertFalse(self.generator.supports(input))
+
+    def test_does_not_support_docker_images(self):
+        """Test that Docker images are not supported."""
+        input = GenerationInput(docker_image="alpine:3.18", output_format="cyclonedx")
+        self.assertFalse(self.generator.supports(input))
+
+    @patch("sbomify_action._generation.generators.cyclonedx_py.run_command")
+    def test_generate_success(self, mock_run):
+        """Test successful generation."""
+        mock_run.return_value = MagicMock(returncode=0)
+
+        input = GenerationInput(lock_file="/path/requirements.txt", output_file="sbom.json")
+        result = self.generator.generate(input)
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.sbom_format, "cyclonedx")
+        self.assertEqual(result.spec_version, "1.6")
+        self.assertEqual(result.generator_name, "cyclonedx-py")
+
+
+class TestTrivyFsGenerator(unittest.TestCase):
+    """Tests for TrivyFsGenerator."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.generator = TrivyFsGenerator()
+
+    def test_name_and_priority(self):
+        """Test generator name and priority."""
+        self.assertEqual(self.generator.name, "trivy-fs")
+        self.assertEqual(self.generator.priority, 30)
+
+    def test_supported_formats(self):
+        """Test supported formats."""
+        formats = self.generator.supported_formats
+        self.assertEqual(len(formats), 2)
+
+        cyclonedx = next(f for f in formats if f.format == "cyclonedx")
+        spdx = next(f for f in formats if f.format == "spdx")
+
+        self.assertEqual(cyclonedx.versions, ("1.6",))
+        self.assertEqual(spdx.versions, ("2.3",))
+
+    def test_supports_all_lock_files(self):
+        """Test support for various lock files."""
+        lock_files = ["requirements.txt", "Cargo.lock", "package.json", "go.mod"]
+        for lock_file in lock_files:
+            input = GenerationInput(lock_file=f"/path/{lock_file}", output_format="cyclonedx")
+            self.assertTrue(self.generator.supports(input), f"Should support {lock_file}")
+
+    def test_does_not_support_docker_images(self):
+        """Test that Docker images are not supported."""
+        input = GenerationInput(docker_image="alpine:3.18", output_format="cyclonedx")
+        self.assertFalse(self.generator.supports(input))
+
+    def test_does_not_support_other_versions(self):
+        """Test that other versions are not supported."""
+        input = GenerationInput(lock_file="/path/requirements.txt", output_format="cyclonedx", spec_version="1.5")
+        self.assertFalse(self.generator.supports(input))
+
+
+class TestSyftFsGenerator(unittest.TestCase):
+    """Tests for SyftFsGenerator."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.generator = SyftFsGenerator()
+
+    def test_name_and_priority(self):
+        """Test generator name and priority."""
+        self.assertEqual(self.generator.name, "syft-fs")
+        self.assertEqual(self.generator.priority, 35)
+
+    def test_supported_versions(self):
+        """Test supported versions."""
+        formats = self.generator.supported_formats
+
+        cyclonedx = next(f for f in formats if f.format == "cyclonedx")
+        spdx = next(f for f in formats if f.format == "spdx")
+
+        self.assertIn("1.5", cyclonedx.versions)
+        self.assertNotIn("1.7", cyclonedx.versions)  # Syft doesn't support 1.7
+        self.assertIn("2.2", spdx.versions)
+
+
+class TestCreateDefaultRegistry(unittest.TestCase):
+    """Tests for create_default_registry factory."""
+
+    def test_creates_registry_with_all_generators(self):
+        """Test that default registry has all expected generators."""
+        registry = create_default_registry()
+        generators = registry.list_generators()
+
+        names = [g["name"] for g in generators]
+        self.assertIn("cyclonedx-py", names)
+        self.assertIn("trivy-fs", names)
+        self.assertIn("trivy-image", names)
+        self.assertIn("syft-fs", names)
+        self.assertIn("syft-image", names)
+
+    def test_generators_sorted_by_priority(self):
+        """Test that generators are sorted by priority."""
+        registry = create_default_registry()
+        generators = registry.list_generators()
+
+        priorities = [g["priority"] for g in generators]
+        self.assertEqual(priorities, sorted(priorities))
+
+
+class TestGeneratorOrchestrator(unittest.TestCase):
+    """Tests for GeneratorOrchestrator."""
+
+    def test_orchestrator_uses_default_registry(self):
+        """Test that orchestrator creates default registry if none provided."""
+        orchestrator = GeneratorOrchestrator()
+        generators = orchestrator.list_all_generators()
+        self.assertGreater(len(generators), 0)
+
+    def test_orchestrator_uses_provided_registry(self):
+        """Test that orchestrator uses provided registry."""
+        registry = GeneratorRegistry()
+        registry.register(CycloneDXPyGenerator())
+
+        orchestrator = GeneratorOrchestrator(registry=registry)
+        generators = orchestrator.list_all_generators()
+
+        self.assertEqual(len(generators), 1)
+        self.assertEqual(generators[0]["name"], "cyclonedx-py")
+
+    @patch("sbomify_action._generation.generators.cyclonedx_py.run_command")
+    def test_generate_uses_first_matching_generator(self, mock_run):
+        """Test that generate uses the first matching generator by priority."""
+        mock_run.return_value = MagicMock(returncode=0)
+
+        orchestrator = GeneratorOrchestrator()
+        input = GenerationInput(lock_file="/path/requirements.txt", output_file="sbom.json", output_format="cyclonedx")
+
+        result = orchestrator.generate(input)
+
+        # Should use cyclonedx-py (priority 10) for Python files
+        self.assertTrue(result.success)
+        self.assertEqual(result.generator_name, "cyclonedx-py")
+
+
+class TestTrivyImageGenerator(unittest.TestCase):
+    """Tests for TrivyImageGenerator."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.generator = TrivyImageGenerator()
+
+    def test_name_and_priority(self):
+        """Test generator name and priority."""
+        self.assertEqual(self.generator.name, "trivy-image")
+        self.assertEqual(self.generator.priority, 30)
+
+    def test_supports_docker_images(self):
+        """Test support for Docker images."""
+        input = GenerationInput(docker_image="alpine:3.18", output_format="cyclonedx")
+        self.assertTrue(self.generator.supports(input))
+
+    def test_supports_spdx(self):
+        """Test support for SPDX format."""
+        input = GenerationInput(docker_image="alpine:3.18", output_format="spdx")
+        self.assertTrue(self.generator.supports(input))
+
+    def test_does_not_support_lock_files(self):
+        """Test that lock files are not supported."""
+        input = GenerationInput(lock_file="/path/requirements.txt", output_format="cyclonedx")
+        self.assertFalse(self.generator.supports(input))
+
+    def test_does_not_support_cyclonedx_1_5(self):
+        """Test that CycloneDX 1.5 is not supported (Trivy only outputs 1.6)."""
+        input = GenerationInput(docker_image="alpine:3.18", output_format="cyclonedx", spec_version="1.5")
+        self.assertFalse(self.generator.supports(input))
+
+    @patch("sbomify_action._generation.generators.trivy.run_command")
+    def test_generate_success_cyclonedx(self, mock_run):
+        """Test successful CycloneDX generation."""
+        mock_run.return_value = MagicMock(returncode=0, stdout='{"bomFormat": "CycloneDX"}')
+
+        input = GenerationInput(docker_image="alpine:3.18", output_file="/tmp/sbom.json", output_format="cyclonedx")
+
+        with patch("builtins.open", MagicMock()):
+            with patch("json.loads", return_value={"bomFormat": "CycloneDX"}):
+                with patch("json.dump"):
+                    result = self.generator.generate(input)
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.sbom_format, "cyclonedx")
+        self.assertEqual(result.spec_version, "1.6")
+
+    @patch("sbomify_action._generation.generators.trivy.run_command")
+    def test_generate_success_spdx(self, mock_run):
+        """Test successful SPDX generation."""
+        mock_run.return_value = MagicMock(returncode=0, stdout='{"spdxVersion": "SPDX-2.3"}')
+
+        input = GenerationInput(docker_image="alpine:3.18", output_file="/tmp/sbom.json", output_format="spdx")
+
+        with patch("builtins.open", MagicMock()):
+            with patch("json.loads", return_value={"spdxVersion": "SPDX-2.3"}):
+                with patch("json.dump"):
+                    result = self.generator.generate(input)
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.sbom_format, "spdx")
+        self.assertEqual(result.spec_version, "2.3")
+
+
+class TestSyftImageGenerator(unittest.TestCase):
+    """Tests for SyftImageGenerator."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.generator = SyftImageGenerator()
+
+    def test_name_and_priority(self):
+        """Test generator name and priority."""
+        self.assertEqual(self.generator.name, "syft-image")
+        self.assertEqual(self.generator.priority, 35)
+
+    def test_supports_docker_images(self):
+        """Test support for Docker images."""
+        input = GenerationInput(docker_image="alpine:3.18", output_format="cyclonedx")
+        self.assertTrue(self.generator.supports(input))
+
+    def test_supports_spdx(self):
+        """Test support for SPDX format."""
+        input = GenerationInput(docker_image="alpine:3.18", output_format="spdx")
+        self.assertTrue(self.generator.supports(input))
+
+    def test_supports_cyclonedx_1_5(self):
+        """Test support for CycloneDX 1.5."""
+        input = GenerationInput(docker_image="alpine:3.18", output_format="cyclonedx", spec_version="1.5")
+        self.assertTrue(self.generator.supports(input))
+
+    def test_does_not_support_cyclonedx_1_7(self):
+        """Test that CycloneDX 1.7 is not supported by Syft."""
+        input = GenerationInput(docker_image="alpine:3.18", output_format="cyclonedx", spec_version="1.7")
+        self.assertFalse(self.generator.supports(input))
+
+    def test_does_not_support_lock_files(self):
+        """Test that lock files are not supported."""
+        input = GenerationInput(lock_file="/path/requirements.txt", output_format="cyclonedx")
+        self.assertFalse(self.generator.supports(input))
+
+
+class TestRegistryGenerateWithFallback(unittest.TestCase):
+    """Tests for registry generate with fallback behavior."""
+
+    def test_generate_no_generators_raises_error(self):
+        """Test that generate raises error when no generators available."""
+        registry = GeneratorRegistry()
+
+        input = GenerationInput(lock_file="/path/unknown.xyz", output_format="cyclonedx")
+
+        with self.assertRaises(ValueError) as cm:
+            registry.generate(input)
+
+        self.assertIn("No generator found", str(cm.exception))
+
+    @patch("sbomify_action._generation.generators.cyclonedx_py.run_command")
+    def test_generate_falls_back_on_failure(self, mock_run):
+        """Test that generate tries next generator on failure."""
+        # First generator fails
+        mock_run.side_effect = SBOMGenerationError("First generator failed")
+
+        registry = GeneratorRegistry()
+        registry.register(CycloneDXPyGenerator())
+
+        # Add a mock generator that succeeds
+        mock_generator = MagicMock()
+        mock_generator.name = "mock-generator"
+        mock_generator.priority = 20
+        mock_generator.supported_formats = [FormatVersion("cyclonedx", ("1.6",), "1.6")]
+        mock_generator.supports.return_value = True
+        mock_generator.generate.return_value = GenerationResult.success_result(
+            output_file="sbom.json",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="mock-generator",
+        )
+        registry.register(mock_generator)
+
+        input = GenerationInput(lock_file="/path/requirements.txt", output_format="cyclonedx")
+        result = registry.generate(input)
+
+        # Should succeed with mock generator
+        self.assertTrue(result.success)
+        self.assertEqual(result.generator_name, "mock-generator")
+
+
+class TestUtilsFunctions(unittest.TestCase):
+    """Tests for utility functions in _generation/utils.py."""
+
+    def test_get_lock_file_ecosystem_python(self):
+        """Test ecosystem detection for Python lock files."""
+        from sbomify_action._generation.utils import get_lock_file_ecosystem
+
+        self.assertEqual(get_lock_file_ecosystem("requirements.txt"), "python")
+        self.assertEqual(get_lock_file_ecosystem("poetry.lock"), "python")
+        self.assertEqual(get_lock_file_ecosystem("Pipfile.lock"), "python")
+
+    def test_get_lock_file_ecosystem_rust(self):
+        """Test ecosystem detection for Rust lock files."""
+        from sbomify_action._generation.utils import get_lock_file_ecosystem
+
+        self.assertEqual(get_lock_file_ecosystem("Cargo.lock"), "rust")
+
+    def test_get_lock_file_ecosystem_javascript(self):
+        """Test ecosystem detection for JavaScript lock files."""
+        from sbomify_action._generation.utils import get_lock_file_ecosystem
+
+        self.assertEqual(get_lock_file_ecosystem("package.json"), "javascript")
+        self.assertEqual(get_lock_file_ecosystem("yarn.lock"), "javascript")
+
+    def test_get_lock_file_ecosystem_unknown(self):
+        """Test ecosystem detection for unknown lock files."""
+        from sbomify_action._generation.utils import get_lock_file_ecosystem
+
+        self.assertIsNone(get_lock_file_ecosystem("unknown.lock"))
+
+    def test_is_supported_lock_file(self):
+        """Test supported lock file detection."""
+        from sbomify_action._generation.utils import is_supported_lock_file
+
+        self.assertTrue(is_supported_lock_file("requirements.txt"))
+        self.assertTrue(is_supported_lock_file("Cargo.lock"))
+        self.assertFalse(is_supported_lock_file("unknown.lock"))
+
+
+class TestCycloneDXPyGeneratorVersionValidation(unittest.TestCase):
+    """Tests for CycloneDX-py generator version validation."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.generator = CycloneDXPyGenerator()
+
+    def test_unsupported_version_returns_failure(self):
+        """Test that unsupported version returns failure result."""
+        input = GenerationInput(
+            lock_file="/path/requirements.txt",
+            output_format="cyclonedx",
+            spec_version="2.0",  # Invalid version
+        )
+
+        result = self.generator.generate(input)
+
+        self.assertFalse(result.success)
+        self.assertIn("Unsupported CycloneDX version", result.error_message)
+
+
+class TestGenerationResultValidation(unittest.TestCase):
+    """Tests for GenerationResult validation."""
+
+    def test_success_without_output_file_raises(self):
+        """Test that success result without output file raises error."""
+        with self.assertRaises(ValueError):
+            GenerationResult(
+                success=True,
+                output_file=None,
+                sbom_format="cyclonedx",
+                spec_version="1.6",
+                generator_name="test",
+            )
+
+    def test_failure_without_error_message_raises(self):
+        """Test that failure result without error message raises error."""
+        with self.assertRaises(ValueError):
+            GenerationResult(
+                success=False,
+                output_file=None,
+                sbom_format="cyclonedx",
+                spec_version="1.6",
+                generator_name="test",
+                error_message=None,
+            )
+
+
+class TestRegistryListGenerators(unittest.TestCase):
+    """Tests for registry list_generators functionality."""
+
+    def test_list_generators_includes_format_info(self):
+        """Test that list_generators includes format information."""
+        registry = GeneratorRegistry()
+        registry.register(CycloneDXPyGenerator())
+
+        generators = registry.list_generators()
+
+        self.assertEqual(len(generators), 1)
+        self.assertEqual(generators[0]["name"], "cyclonedx-py")
+        self.assertEqual(len(generators[0]["formats"]), 1)
+        self.assertEqual(generators[0]["formats"][0]["format"], "cyclonedx")
+
+    def test_clear_removes_all_generators(self):
+        """Test that clear removes all generators."""
+        registry = GeneratorRegistry()
+        registry.register(CycloneDXPyGenerator())
+        registry.register(TrivyFsGenerator())
+
+        self.assertEqual(len(registry.list_generators()), 2)
+
+        registry.clear()
+
+        self.assertEqual(len(registry.list_generators()), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

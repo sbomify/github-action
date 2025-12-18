@@ -21,9 +21,11 @@ from spdx_tools.spdx.parser.jsonlikedict.license_expression_parser import Licens
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
+from .exceptions import SBOMValidationError
 from .http_client import get_default_headers
 from .logging_config import logger
 from .serialization import serialize_cyclonedx_bom
+from .validation import validate_sbom_file_auto
 
 # Constants for SPDX license parsing
 SPDX_LOGICAL_OPERATORS = [" OR ", " AND ", " WITH "]
@@ -749,9 +751,12 @@ def augment_sbom_from_file(
     override_sbom_metadata: bool = False,
     component_name: Optional[str] = None,
     component_version: Optional[str] = None,
+    validate: bool = True,
 ) -> Literal["cyclonedx", "spdx"]:
     """
     Augment SBOM file with backend metadata.
+
+    After augmentation, the output SBOM is validated against its JSON schema.
 
     Args:
         input_file: Path to input SBOM file
@@ -762,12 +767,14 @@ def augment_sbom_from_file(
         override_sbom_metadata: Whether to override existing metadata
         component_name: Optional component name override
         component_version: Optional component version override
+        validate: Whether to validate the output SBOM (default: True)
 
     Returns:
         SBOM format ('cyclonedx' or 'spdx')
 
     Raises:
         ValueError: If SBOM format is not supported
+        SBOMValidationError: If output validation fails
         Exception: For other errors during augmentation
     """
     # Fetch backend metadata
@@ -780,8 +787,6 @@ def augment_sbom_from_file(
     # Try CycloneDX first
     try:
         import json
-
-        from .exceptions import SBOMValidationError
 
         try:
             with open(input_path, "r") as f:
@@ -826,6 +831,16 @@ def augment_sbom_from_file(
                 raise OSError(f"Error writing output file {output_file}: {e}")
 
             logger.info(f"Augmented CycloneDX SBOM written to: {output_file}")
+
+            # Validate the augmented SBOM
+            if validate:
+                validation_result = validate_sbom_file_auto(output_file)
+                if not validation_result.valid:
+                    raise SBOMValidationError(f"Augmented SBOM failed validation: {validation_result.error_message}")
+                logger.info(
+                    f"Augmented SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}"
+                )
+
             return "cyclonedx"
 
         elif data.get("spdxVersion"):
@@ -851,6 +866,16 @@ def augment_sbom_from_file(
                 raise OSError(f"Error writing output file {output_file}: {e}")
 
             logger.info(f"Augmented SPDX SBOM written to: {output_file}")
+
+            # Validate the augmented SBOM
+            if validate:
+                validation_result = validate_sbom_file_auto(output_file)
+                if not validation_result.valid:
+                    raise SBOMValidationError(f"Augmented SBOM failed validation: {validation_result.error_message}")
+                logger.info(
+                    f"Augmented SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}"
+                )
+
             return "spdx"
 
         else:

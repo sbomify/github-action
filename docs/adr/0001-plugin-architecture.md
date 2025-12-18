@@ -10,7 +10,7 @@ The sbomify action needs to integrate with multiple external services and data s
 
 - **Enrichment**: Multiple metadata sources (PyPI, deps.dev, ecosyste.ms, Repology, etc.)
 - **Augmentation**: Organizational metadata sources (sbomify API, etc.) - *to migrate*
-- **Generation**: Multiple SBOM generators (Trivy, Syft, cdxgen, etc.) - *to migrate*
+- **Generation**: Multiple SBOM generators (cyclonedx-py, Trivy, Syft) - *migrated*
 - **Upload**: Multiple destinations (sbomify API, GitHub release artifacts, etc.) - *to migrate*
 
 Each subsystem faces similar challenges:
@@ -143,5 +143,5 @@ sbomify_action/_enrichment/
 ## Subsystems to Migrate
 
 - **Augmentation**: `MetadataSource` protocol with sbomify API, environment variables, GitHub variables, JSON config file
-- **Generation**: `Generator` protocol with Trivy, Syft, cdxgen implementations
+- **Generation**: `Generator` protocol with cyclonedx-py, Trivy, Syft implementations
 - **Upload**: `Destination` protocol with sbomify API, GitHub release artifacts implementations

@@ -47,11 +47,11 @@ from sbomify_action.enrichment import (
     enrich_sbom,
 )
 from sbomify_action.generation import (
-    COMMON_GO_LOCK_FILES,
-    COMMON_JAVASCRIPT_LOCK_FILES,
-    COMMON_PYTHON_LOCK_FILES,
-    COMMON_RUBY_LOCK_FILES,
-    COMMON_RUST_LOCK_FILES,
+    GO_LOCK_FILES,
+    JAVASCRIPT_LOCK_FILES,
+    PYTHON_LOCK_FILES,
+    RUBY_LOCK_FILES,
+    RUST_LOCK_FILES,
 )
 
 # =============================================================================
@@ -907,7 +907,7 @@ class TestEndToEndEnrichment:
         }
 
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         assert output_file.exists()
         with open(output_file) as f:
@@ -964,7 +964,7 @@ class TestEndToEndEnrichment:
         }
 
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         assert output_file.exists()
         with open(output_file) as f:
@@ -1002,7 +1002,7 @@ class TestEndToEndEnrichment:
         mock_response.status_code = 404
 
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1159,7 +1159,7 @@ class TestSchemaVersionEndToEnd:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get", return_value=mock_pypi_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1185,7 +1185,7 @@ class TestSchemaVersionEndToEnd:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get", return_value=mock_pypi_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1229,7 +1229,7 @@ class TestSchemaVersionEndToEnd:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get", return_value=mock_pypi_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1273,7 +1273,7 @@ class TestSchemaVersionEndToEnd:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get", return_value=mock_pypi_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1490,7 +1490,7 @@ class TestPURLEnrichmentIntegration:
         mock_response.status_code = 404
 
         with patch("requests.Session.get", return_value=mock_response):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1531,7 +1531,7 @@ class TestPURLEnrichmentIntegration:
             return mock_response
 
         with patch("requests.Session.get", side_effect=mock_get):
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -1555,23 +1555,23 @@ class TestLockfileFilteringExtended:
     def test_all_lockfile_names_matches_all_constants(self):
         """Test that ALL_LOCKFILE_NAMES includes files from all language categories."""
         # Check Python
-        for f in COMMON_PYTHON_LOCK_FILES:
+        for f in PYTHON_LOCK_FILES:
             assert f in ALL_LOCKFILE_NAMES
 
         # Check JavaScript
-        for f in COMMON_JAVASCRIPT_LOCK_FILES:
+        for f in JAVASCRIPT_LOCK_FILES:
             assert f in ALL_LOCKFILE_NAMES
 
         # Check Rust
-        for f in COMMON_RUST_LOCK_FILES:
+        for f in RUST_LOCK_FILES:
             assert f in ALL_LOCKFILE_NAMES
 
         # Check Ruby
-        for f in COMMON_RUBY_LOCK_FILES:
+        for f in RUBY_LOCK_FILES:
             assert f in ALL_LOCKFILE_NAMES
 
         # Check Go
-        for f in COMMON_GO_LOCK_FILES:
+        for f in GO_LOCK_FILES:
             assert f in ALL_LOCKFILE_NAMES
 
     def test_is_lockfile_package_spdx_true(self):
@@ -1646,7 +1646,7 @@ class TestLockfileFilteringExtended:
 
         with patch("requests.Session.get") as mock_get:
             mock_get.return_value = Mock(status_code=404)
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         with open(output_file) as f:
             result = json.load(f)
@@ -2043,7 +2043,7 @@ class TestNoComponentsWithPURLs:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get") as mock_get:
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         # Should not call any API since no PURLs
         mock_get.assert_not_called()
@@ -2080,7 +2080,7 @@ class TestNoComponentsWithPURLs:
         input_file.write_text(json.dumps(sbom_data))
 
         with patch("requests.Session.get") as mock_get:
-            enrich_sbom(str(input_file), str(output_file))
+            enrich_sbom(str(input_file), str(output_file), validate=False)
 
         # Should not call any API since no PURLs
         mock_get.assert_not_called()

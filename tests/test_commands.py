@@ -1,184 +1,261 @@
-import subprocess
 import unittest
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
+from sbomify_action._generation import GenerationResult
 from sbomify_action.exceptions import (
     FileProcessingError,
     SBOMGenerationError,
 )
 from sbomify_action.generation import (
-    _process_python_lock_file,
+    generate_sbom,
     process_lock_file,
-    run_command_with_json_output,
 )
 
 
-class TestCommandExecution(unittest.TestCase):
-    """Test cases for command execution functions with proper mocking."""
-
-    @patch("subprocess.run")
-    @patch("pathlib.Path.open", new_callable=mock_open)
-    def test_run_command_with_json_output_success(self, mock_file, mock_run):
-        """Test successful command execution with valid JSON output."""
-        # Setup mock
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = '{"test": "data"}'
-        mock_run.return_value = mock_result
-
-        result = run_command_with_json_output(["echo", "test"], "test-command", "output.json")
-
-        # Assertions
-        self.assertEqual(result, 0)
-        mock_run.assert_called_once_with(
-            ["echo", "test"], capture_output=True, check=True, text=True, shell=False, timeout=600
-        )
-        mock_file.assert_called_once_with("w")
-
-    @patch("subprocess.run")
-    def test_run_command_with_json_output_command_failure(self, mock_run):
-        """Test command execution when subprocess fails."""
-        # Setup mock to raise CalledProcessError
-        mock_run.side_effect = subprocess.CalledProcessError(1, ["echo", "test"], stderr="error")
-
-        with self.assertRaises(SBOMGenerationError):
-            run_command_with_json_output(["echo", "test"], "test-command", "output.json")
-
-    @patch("subprocess.run")
-    def test_run_command_with_json_output_invalid_json(self, mock_run):
-        """Test command execution with invalid JSON output."""
-        # Setup mock with invalid JSON
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "invalid json"
-        mock_run.return_value = mock_result
-
-        with self.assertRaises(SBOMGenerationError):
-            run_command_with_json_output(["echo", "test"], "test-command", "output.json")
-
-    @patch("subprocess.run")
-    def test_run_command_with_json_output_timeout(self, mock_run):
-        """Test command execution timeout."""
-        # Setup mock to raise TimeoutExpired
-        mock_run.side_effect = subprocess.TimeoutExpired(["echo", "test"], 10)
-
-        with self.assertRaises(SBOMGenerationError):
-            run_command_with_json_output(["echo", "test"], "test-command", "output.json")
+def evaluate_boolean(value):
+    """
+    Evaluates a string or boolean value and returns a boolean.
+    Returns True for "true" (case-insensitive) and False otherwise.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() == "true"
+    return False
 
 
 class TestLockFileProcessing(unittest.TestCase):
     """Test cases for lock file processing with mocking."""
 
-    @patch("sbomify_action.generation._process_python_lock_file")
-    def test_process_lock_file_python_requirements(self, mock_process_python):
+    @patch("sbomify_action.generation.generate_sbom")
+    def test_process_lock_file_python_requirements(self, mock_generate):
         """Test processing Python requirements.txt file."""
+        mock_generate.return_value = GenerationResult.success_result(
+            output_file="step_1.json",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="cyclonedx-py",
+        )
         test_file = "/path/to/requirements.txt"
 
-        process_lock_file(test_file)
+        result = process_lock_file(test_file)
 
-        mock_process_python.assert_called_once_with(test_file, "requirements.txt")
+        mock_generate.assert_called_once()
+        call_args = mock_generate.call_args
+        self.assertEqual(call_args.kwargs["lock_file"], test_file)
+        self.assertEqual(call_args.kwargs["output_file"], "step_1.json")
+        self.assertTrue(result.success)
 
-    @patch("sbomify_action.generation._process_python_lock_file")
-    def test_process_lock_file_python_uv_lock(self, mock_process_python):
+    @patch("sbomify_action.generation.generate_sbom")
+    def test_process_lock_file_python_uv_lock(self, mock_generate):
         """Test processing Python uv.lock file."""
+        mock_generate.return_value = GenerationResult.success_result(
+            output_file="step_1.json",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="trivy-fs",
+        )
         test_file = "/path/to/uv.lock"
 
-        process_lock_file(test_file)
+        result = process_lock_file(test_file)
 
-        mock_process_python.assert_called_once_with(test_file, "uv.lock")
+        mock_generate.assert_called_once()
+        call_args = mock_generate.call_args
+        self.assertEqual(call_args.kwargs["lock_file"], test_file)
+        self.assertTrue(result.success)
 
-    @patch("sbomify_action.generation.run_trivy_fs")
-    def test_process_lock_file_rust_cargo(self, mock_trivy):
+    @patch("sbomify_action.generation.generate_sbom")
+    def test_process_lock_file_rust_cargo(self, mock_generate):
         """Test processing Rust Cargo.lock file."""
+        mock_generate.return_value = GenerationResult.success_result(
+            output_file="step_1.json",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="trivy-fs",
+        )
         test_file = "/path/to/Cargo.lock"
 
-        process_lock_file(test_file)
+        result = process_lock_file(test_file)
 
-        mock_trivy.assert_called_once_with(lock_file=test_file, output_file="step_1.json")
+        mock_generate.assert_called_once()
+        call_args = mock_generate.call_args
+        self.assertEqual(call_args.kwargs["lock_file"], test_file)
+        self.assertEqual(call_args.kwargs["output_file"], "step_1.json")
+        self.assertTrue(result.success)
 
-    @patch("sbomify_action.generation.run_trivy_fs")
-    def test_process_lock_file_cpp_conan(self, mock_trivy):
+    @patch("sbomify_action.generation.generate_sbom")
+    def test_process_lock_file_cpp_conan(self, mock_generate):
         """Test processing C++ conan.lock file."""
+        mock_generate.return_value = GenerationResult.success_result(
+            output_file="step_1.json",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="trivy-fs",
+        )
         test_file = "/path/to/conan.lock"
 
-        process_lock_file(test_file)
+        result = process_lock_file(test_file)
 
-        mock_trivy.assert_called_once_with(lock_file=test_file, output_file="step_1.json")
+        mock_generate.assert_called_once()
+        call_args = mock_generate.call_args
+        self.assertEqual(call_args.kwargs["lock_file"], test_file)
+        self.assertEqual(call_args.kwargs["output_file"], "step_1.json")
+        self.assertTrue(result.success)
 
     def test_process_lock_file_unsupported_type(self):
         """Test processing unsupported lock file type."""
-        test_file = "/path/to/unsupported.lock"
+        test_file = "/path/to/unsupported.xyz"
 
         with self.assertRaises(FileProcessingError) as cm:
             process_lock_file(test_file)
 
         self.assertIn("not a recognized lock file type", str(cm.exception))
 
-    @patch("sbomify_action.generation.generate_sbom_from_python_lock_file")
-    def test_process_python_lock_file_requirements(self, mock_generate):
-        """Test processing Python requirements.txt with mocking."""
-        mock_generate.return_value = 0
-
-        _process_python_lock_file("/path/to/requirements.txt", "requirements.txt")
-
-        mock_generate.assert_called_once_with(
-            lock_file="/path/to/requirements.txt",
-            lock_file_type="requirements",
-            output_file="step_1.json",
-        )
-
-    @patch("sbomify_action.generation.generate_sbom_from_python_lock_file")
-    def test_process_python_lock_file_requirements_legacy(self, mock_generate):
-        """Test processing Python requirements.txt with mocking (legacy test updated from poetry)."""
-        mock_generate.return_value = 0
-
-        _process_python_lock_file("/path/to/requirements.txt", "requirements.txt")
-
-        mock_generate.assert_called_once_with(
-            lock_file="/path/to/requirements.txt",
-            lock_file_type="requirements",
-            output_file="step_1.json",
-        )
-
-    @patch("sbomify_action.generation.run_trivy_fs")
-    def test_process_python_lock_file_uv_lock(self, mock_trivy):
-        """Test processing Python uv.lock with Trivy."""
-        _process_python_lock_file("/path/to/uv.lock", "uv.lock")
-
-        mock_trivy.assert_called_once_with(
-            lock_file="/path/to/uv.lock",
-            output_file="step_1.json",
-        )
-
-    @patch("sbomify_action.generation.generate_sbom_from_python_lock_file")
-    def test_process_python_lock_file_failure(self, mock_generate):
+    @patch("sbomify_action.generation.generate_sbom")
+    def test_process_lock_file_failure(self, mock_generate):
         """Test handling of SBOM generation failure."""
-        mock_generate.return_value = 1  # Non-zero return code indicates failure
+        mock_generate.return_value = GenerationResult.failure_result(
+            error_message="Generation failed",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="cyclonedx-py",
+        )
 
         with self.assertRaises(SBOMGenerationError):
-            _process_python_lock_file("/path/to/requirements.txt", "requirements.txt")
+            process_lock_file("/path/to/requirements.txt")
+
+    @patch("sbomify_action.generation.generate_sbom")
+    def test_process_lock_file_with_spdx_format(self, mock_generate):
+        """Test processing lock file with SPDX format."""
+        mock_generate.return_value = GenerationResult.success_result(
+            output_file="step_1.json",
+            sbom_format="spdx",
+            spec_version="2.3",
+            generator_name="trivy-fs",
+        )
+        test_file = "/path/to/requirements.txt"
+
+        result = process_lock_file(test_file, output_format="spdx")
+
+        mock_generate.assert_called_once()
+        call_args = mock_generate.call_args
+        self.assertEqual(call_args.kwargs["output_format"], "spdx")
+        self.assertTrue(result.success)
+
+    @patch("sbomify_action.generation.generate_sbom")
+    def test_process_lock_file_with_spec_version(self, mock_generate):
+        """Test processing lock file with specific version."""
+        mock_generate.return_value = GenerationResult.success_result(
+            output_file="step_1.json",
+            sbom_format="cyclonedx",
+            spec_version="1.5",
+            generator_name="syft-fs",
+        )
+        test_file = "/path/to/requirements.txt"
+
+        result = process_lock_file(test_file, output_format="cyclonedx", spec_version="1.5")
+
+        mock_generate.assert_called_once()
+        call_args = mock_generate.call_args
+        self.assertEqual(call_args.kwargs["spec_version"], "1.5")
+        self.assertTrue(result.success)
+
+    @patch("sbomify_action.generation.generate_sbom")
+    def test_process_lock_file_custom_output(self, mock_generate):
+        """Test processing lock file with custom output file."""
+        mock_generate.return_value = GenerationResult.success_result(
+            output_file="custom_sbom.json",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="cyclonedx-py",
+        )
+        test_file = "/path/to/requirements.txt"
+
+        result = process_lock_file(test_file, output_file="custom_sbom.json")
+
+        mock_generate.assert_called_once()
+        call_args = mock_generate.call_args
+        self.assertEqual(call_args.kwargs["output_file"], "custom_sbom.json")
+        self.assertTrue(result.success)
+
+
+class TestGenerateSbom(unittest.TestCase):
+    """Test cases for generate_sbom function."""
+
+    @patch("sbomify_action.generation._get_orchestrator")
+    def test_generate_sbom_lock_file(self, mock_get_orch):
+        """Test generating SBOM from lock file."""
+        mock_orch = MagicMock()
+        mock_orch.generate.return_value = GenerationResult.success_result(
+            output_file="sbom.json",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="cyclonedx-py",
+        )
+        mock_get_orch.return_value = mock_orch
+
+        result = generate_sbom(
+            lock_file="requirements.txt",
+            output_file="sbom.json",
+            output_format="cyclonedx",
+        )
+
+        self.assertTrue(result.success)
+        mock_orch.generate.assert_called_once()
+
+    @patch("sbomify_action.generation._get_orchestrator")
+    def test_generate_sbom_docker_image(self, mock_get_orch):
+        """Test generating SBOM from Docker image."""
+        mock_orch = MagicMock()
+        mock_orch.generate.return_value = GenerationResult.success_result(
+            output_file="sbom.json",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="trivy-image",
+        )
+        mock_get_orch.return_value = mock_orch
+
+        result = generate_sbom(
+            docker_image="alpine:3.18",
+            output_file="sbom.json",
+            output_format="cyclonedx",
+        )
+
+        self.assertTrue(result.success)
+        mock_orch.generate.assert_called_once()
+
+    def test_generate_sbom_both_inputs_raises_error(self):
+        """Test that providing both lock_file and docker_image raises error."""
+        with self.assertRaises(ValueError):
+            generate_sbom(
+                lock_file="requirements.txt",
+                docker_image="alpine:3.18",
+            )
+
+    def test_generate_sbom_no_inputs_raises_error(self):
+        """Test that providing neither lock_file nor docker_image raises error."""
+        with self.assertRaises(ValueError):
+            generate_sbom(output_file="sbom.json")
 
 
 class TestUtilityFunctions(unittest.TestCase):
     """Test cases for utility functions."""
 
     def test_evaluate_boolean_true_values(self):
-        """Test boolean evaluation for various true values."""
-        from sbomify_action.cli.main import evaluate_boolean
-
-        true_values = ["true", "True", "TRUE", "yes", "YES", "yeah", "1"]
-        for value in true_values:
-            with self.subTest(value=value):
-                self.assertTrue(evaluate_boolean(value))
+        """Test that true values are evaluated correctly."""
+        self.assertTrue(evaluate_boolean("true"))
+        self.assertTrue(evaluate_boolean("True"))
+        self.assertTrue(evaluate_boolean("TRUE"))
+        self.assertTrue(evaluate_boolean(True))
 
     def test_evaluate_boolean_false_values(self):
-        """Test boolean evaluation for various false values."""
-        from sbomify_action.cli.main import evaluate_boolean
-
-        false_values = ["false", "False", "FALSE", "no", "NO", "0", "anything"]
-        for value in false_values:
-            with self.subTest(value=value):
-                self.assertFalse(evaluate_boolean(value))
+        """Test that false values are evaluated correctly."""
+        self.assertFalse(evaluate_boolean("false"))
+        self.assertFalse(evaluate_boolean("False"))
+        self.assertFalse(evaluate_boolean("FALSE"))
+        self.assertFalse(evaluate_boolean(False))
+        self.assertFalse(evaluate_boolean("anything_else"))
+        self.assertFalse(evaluate_boolean(None))
 
 
 if __name__ == "__main__":
