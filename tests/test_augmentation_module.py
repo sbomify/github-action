@@ -1211,3 +1211,255 @@ class TestLicenseRefSanitization:
         # Should have 1 ExtractedLicensingInfo for the custom license
         assert len(extracted_infos) == 1
         assert extracted_infos[0].license_id == "LicenseRef-Proprietary-License-Company-X"
+
+
+class TestAugmentationValidation:
+    """Test validation logic after augmentation."""
+
+    @pytest.fixture
+    def sample_cyclonedx_bom(self):
+        """Sample CycloneDX BOM for validation tests."""
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:99999999-9999-9999-9999-999999999999",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "component": {
+                    "type": "application",
+                    "name": "validation-test-app",
+                    "version": "1.0.0",
+                },
+            },
+            "components": [],
+        }
+        return Bom.from_json(bom_json)
+
+    @pytest.fixture
+    def sample_spdx_document(self):
+        """Create a sample SPDX document for validation tests."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import (
+            ActorType,
+            CreationInfo,
+            Document,
+            Package,
+        )
+
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="validation-test-doc",
+            document_namespace="https://test.com/validation-test-doc",
+            creators=[Actor(ActorType.TOOL, "test-tool")],
+            created=datetime(2024, 1, 1),
+        )
+
+        package = Package(
+            spdx_id="SPDXRef-main",
+            name="validation-test-app",
+            download_location="https://example.com",
+            version="1.0.0",
+        )
+
+        return Document(creation_info=creation_info, packages=[package])
+
+    @patch("sbomify_action.augmentation.requests.get")
+    def test_augment_cyclonedx_validates_output_by_default(self, mock_get, sample_cyclonedx_bom):
+        """Test that CycloneDX augmentation validates output by default."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"supplier": {"name": "Test Supplier"}}
+        mock_get.return_value = mock_response
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from cyclonedx.output.json import JsonV1Dot6
+
+            input_file = Path(tmpdir) / "input.json"
+            output_file = Path(tmpdir) / "output.json"
+
+            outputter = JsonV1Dot6(sample_cyclonedx_bom)
+            with open(input_file, "w") as f:
+                f.write(outputter.output_as_string())
+
+            # Should succeed - validation is enabled by default
+            format_result = augment_sbom_from_file(
+                input_file=str(input_file),
+                output_file=str(output_file),
+                api_base_url="https://api.test.com",
+                token="test-token",
+                component_id="test-component",
+            )
+
+            assert format_result == "cyclonedx"
+            assert output_file.exists()
+
+    @patch("sbomify_action.augmentation.requests.get")
+    def test_augment_cyclonedx_validation_failure_raises_error(self, mock_get, sample_cyclonedx_bom):
+        """Test that CycloneDX validation failure raises SBOMValidationError."""
+        from sbomify_action.exceptions import SBOMValidationError
+
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"supplier": {"name": "Test Supplier"}}
+        mock_get.return_value = mock_response
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from cyclonedx.output.json import JsonV1Dot6
+
+            input_file = Path(tmpdir) / "input.json"
+            output_file = Path(tmpdir) / "output.json"
+
+            outputter = JsonV1Dot6(sample_cyclonedx_bom)
+            with open(input_file, "w") as f:
+                f.write(outputter.output_as_string())
+
+            with patch("sbomify_action.augmentation.validate_sbom_file_auto") as mock_validate:
+                # Mock validation failure
+                mock_result = Mock()
+                mock_result.valid = False
+                mock_result.error_message = "CycloneDX schema validation failed"
+                mock_validate.return_value = mock_result
+
+                with pytest.raises(SBOMValidationError) as exc_info:
+                    augment_sbom_from_file(
+                        input_file=str(input_file),
+                        output_file=str(output_file),
+                        api_base_url="https://api.test.com",
+                        token="test-token",
+                        component_id="test-component",
+                        validate=True,
+                    )
+
+                assert "Augmented SBOM failed validation" in str(exc_info.value)
+
+    @patch("sbomify_action.augmentation.requests.get")
+    def test_augment_cyclonedx_skips_validation_when_disabled(self, mock_get, sample_cyclonedx_bom):
+        """Test that CycloneDX validation is skipped when validate=False."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"supplier": {"name": "Test Supplier"}}
+        mock_get.return_value = mock_response
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from cyclonedx.output.json import JsonV1Dot6
+
+            input_file = Path(tmpdir) / "input.json"
+            output_file = Path(tmpdir) / "output.json"
+
+            outputter = JsonV1Dot6(sample_cyclonedx_bom)
+            with open(input_file, "w") as f:
+                f.write(outputter.output_as_string())
+
+            with patch("sbomify_action.augmentation.validate_sbom_file_auto") as mock_validate:
+                augment_sbom_from_file(
+                    input_file=str(input_file),
+                    output_file=str(output_file),
+                    api_base_url="https://api.test.com",
+                    token="test-token",
+                    component_id="test-component",
+                    validate=False,
+                )
+
+                # Validation should not be called
+                mock_validate.assert_not_called()
+
+            assert output_file.exists()
+
+    @patch("sbomify_action.augmentation.requests.get")
+    def test_augment_spdx_validates_output_by_default(self, mock_get, sample_spdx_document):
+        """Test that SPDX augmentation validates output by default."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"supplier": {"name": "SPDX Supplier"}}
+        mock_get.return_value = mock_response
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
+
+            input_file = Path(tmpdir) / "input_spdx.json"
+            output_file = Path(tmpdir) / "output_spdx.json"
+
+            spdx_write_file(sample_spdx_document, str(input_file), validate=False)
+
+            # Should succeed - validation is enabled by default
+            format_result = augment_sbom_from_file(
+                input_file=str(input_file),
+                output_file=str(output_file),
+                api_base_url="https://api.test.com",
+                token="test-token",
+                component_id="test-component",
+            )
+
+            assert format_result == "spdx"
+            assert output_file.exists()
+
+    @patch("sbomify_action.augmentation.requests.get")
+    def test_augment_spdx_validation_failure_raises_error(self, mock_get, sample_spdx_document):
+        """Test that SPDX validation failure raises SBOMValidationError."""
+        from sbomify_action.exceptions import SBOMValidationError
+
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"supplier": {"name": "SPDX Supplier"}}
+        mock_get.return_value = mock_response
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
+
+            input_file = Path(tmpdir) / "input_spdx.json"
+            output_file = Path(tmpdir) / "output_spdx.json"
+
+            spdx_write_file(sample_spdx_document, str(input_file), validate=False)
+
+            with patch("sbomify_action.augmentation.validate_sbom_file_auto") as mock_validate:
+                # Mock validation failure
+                mock_result = Mock()
+                mock_result.valid = False
+                mock_result.error_message = "SPDX schema validation failed"
+                mock_validate.return_value = mock_result
+
+                with pytest.raises(SBOMValidationError) as exc_info:
+                    augment_sbom_from_file(
+                        input_file=str(input_file),
+                        output_file=str(output_file),
+                        api_base_url="https://api.test.com",
+                        token="test-token",
+                        component_id="test-component",
+                        validate=True,
+                    )
+
+                assert "Augmented SBOM failed validation" in str(exc_info.value)
+
+    @patch("sbomify_action.augmentation.requests.get")
+    def test_augment_spdx_skips_validation_when_disabled(self, mock_get, sample_spdx_document):
+        """Test that SPDX validation is skipped when validate=False."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"supplier": {"name": "SPDX Supplier"}}
+        mock_get.return_value = mock_response
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
+
+            input_file = Path(tmpdir) / "input_spdx.json"
+            output_file = Path(tmpdir) / "output_spdx.json"
+
+            spdx_write_file(sample_spdx_document, str(input_file), validate=False)
+
+            with patch("sbomify_action.augmentation.validate_sbom_file_auto") as mock_validate:
+                augment_sbom_from_file(
+                    input_file=str(input_file),
+                    output_file=str(output_file),
+                    api_base_url="https://api.test.com",
+                    token="test-token",
+                    component_id="test-component",
+                    validate=False,
+                )
+
+                # Validation should not be called
+                mock_validate.assert_not_called()
+
+            assert output_file.exists()

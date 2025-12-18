@@ -622,5 +622,106 @@ class TestRegistryListGenerators(unittest.TestCase):
         self.assertEqual(len(registry.list_generators()), 0)
 
 
+class TestRegistryGenerateValidation(unittest.TestCase):
+    """Tests for registry generate validation behavior."""
+
+    def test_generate_validates_output_by_default(self):
+        """Test that generate validates output when validate=True (default)."""
+        registry = GeneratorRegistry()
+
+        # Add a mock generator that succeeds
+        mock_generator = MagicMock()
+        mock_generator.name = "mock-generator"
+        mock_generator.priority = 10
+        mock_generator.supported_formats = [FormatVersion("cyclonedx", ("1.6",), "1.6")]
+        mock_generator.supports.return_value = True
+        mock_generator.generate.return_value = GenerationResult.success_result(
+            output_file="/tmp/sbom.json",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="mock-generator",
+        )
+        registry.register(mock_generator)
+
+        input = GenerationInput(lock_file="/path/requirements.txt", output_format="cyclonedx")
+
+        with patch("sbomify_action._generation.registry.validate_sbom_file") as mock_validate:
+            # Mock successful validation
+            mock_result = MagicMock()
+            mock_result.valid = True
+            mock_result.sbom_format = "cyclonedx"
+            mock_result.spec_version = "1.6"
+            mock_validate.return_value = mock_result
+
+            result = registry.generate(input, validate=True)
+
+            # Validation should be called
+            mock_validate.assert_called_once()
+            self.assertTrue(result.success)
+
+    def test_generate_skips_validation_when_disabled(self):
+        """Test that generate skips validation when validate=False."""
+        registry = GeneratorRegistry()
+
+        # Add a mock generator that succeeds
+        mock_generator = MagicMock()
+        mock_generator.name = "mock-generator"
+        mock_generator.priority = 10
+        mock_generator.supported_formats = [FormatVersion("cyclonedx", ("1.6",), "1.6")]
+        mock_generator.supports.return_value = True
+        mock_generator.generate.return_value = GenerationResult.success_result(
+            output_file="/tmp/sbom.json",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="mock-generator",
+        )
+        registry.register(mock_generator)
+
+        input = GenerationInput(lock_file="/path/requirements.txt", output_format="cyclonedx")
+
+        with patch("sbomify_action._generation.registry.validate_sbom_file") as mock_validate:
+            result = registry.generate(input, validate=False)
+
+            # Validation should NOT be called
+            mock_validate.assert_not_called()
+            self.assertTrue(result.success)
+
+    def test_generate_validation_failure_sets_validation_error(self):
+        """Test that validation failure sets validation_error on result."""
+        registry = GeneratorRegistry()
+
+        # Add a mock generator that succeeds
+        mock_generator = MagicMock()
+        mock_generator.name = "mock-generator"
+        mock_generator.priority = 10
+        mock_generator.supported_formats = [FormatVersion("cyclonedx", ("1.6",), "1.6")]
+        mock_generator.supports.return_value = True
+        mock_generator.generate.return_value = GenerationResult.success_result(
+            output_file="/tmp/sbom.json",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="mock-generator",
+        )
+        registry.register(mock_generator)
+
+        input = GenerationInput(lock_file="/path/requirements.txt", output_format="cyclonedx")
+
+        with patch("sbomify_action._generation.registry.validate_sbom_file") as mock_validate:
+            # Mock validation failure
+            mock_result = MagicMock()
+            mock_result.valid = False
+            mock_result.error_message = "Schema validation failed: missing required field"
+            mock_validate.return_value = mock_result
+
+            result = registry.generate(input, validate=True)
+
+            # SBOM was generated successfully, but validation found issues
+            self.assertTrue(result.success)
+            self.assertTrue(result.validated)
+            # validation_error should contain the error message
+            self.assertIsNotNone(result.validation_error)
+            self.assertIn("Schema validation failed", result.validation_error)
+
+
 if __name__ == "__main__":
     unittest.main()

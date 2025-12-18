@@ -2086,3 +2086,122 @@ class TestNoComponentsWithPURLs:
         mock_get.assert_not_called()
 
         assert output_file.exists()
+
+
+# =============================================================================
+# Test Validation After Enrichment
+# =============================================================================
+
+
+class TestEnrichmentValidation:
+    """Test validation logic after enrichment."""
+
+    def test_enrich_sbom_validates_output_by_default(self, tmp_path):
+        """Test that enrich_sbom validates output when validate=True (default)."""
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:66666666-6666-6666-6666-666666666666",
+            "version": 1,
+            "metadata": {"timestamp": "2024-01-01T00:00:00Z"},
+            "components": [],
+        }
+
+        input_file = tmp_path / "input.json"
+        output_file = tmp_path / "output.json"
+        input_file.write_text(json.dumps(sbom_data))
+
+        with patch("requests.Session.get"):
+            # Should succeed - validation is enabled by default
+            enrich_sbom(str(input_file), str(output_file))
+
+        assert output_file.exists()
+
+    def test_enrich_sbom_validation_failure_raises_error(self, tmp_path):
+        """Test that validation failure raises SBOMValidationError."""
+        from sbomify_action.exceptions import SBOMValidationError
+
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:77777777-7777-7777-7777-777777777777",
+            "version": 1,
+            "metadata": {"timestamp": "2024-01-01T00:00:00Z"},
+            "components": [],
+        }
+
+        input_file = tmp_path / "input.json"
+        output_file = tmp_path / "output.json"
+        input_file.write_text(json.dumps(sbom_data))
+
+        with patch("requests.Session.get"):
+            with patch("sbomify_action.enrichment.validate_sbom_file_auto") as mock_validate:
+                # Mock validation failure
+                mock_result = Mock()
+                mock_result.valid = False
+                mock_result.error_message = "Schema validation failed"
+                mock_validate.return_value = mock_result
+
+                with pytest.raises(SBOMValidationError) as exc_info:
+                    enrich_sbom(str(input_file), str(output_file), validate=True)
+
+                assert "Enriched SBOM failed validation" in str(exc_info.value)
+                assert "Schema validation failed" in str(exc_info.value)
+
+    def test_enrich_sbom_skips_validation_when_disabled(self, tmp_path):
+        """Test that validation is skipped when validate=False."""
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:88888888-8888-8888-8888-888888888888",
+            "version": 1,
+            "metadata": {"timestamp": "2024-01-01T00:00:00Z"},
+            "components": [],
+        }
+
+        input_file = tmp_path / "input.json"
+        output_file = tmp_path / "output.json"
+        input_file.write_text(json.dumps(sbom_data))
+
+        with patch("requests.Session.get"):
+            with patch("sbomify_action.enrichment.validate_sbom_file_auto") as mock_validate:
+                enrich_sbom(str(input_file), str(output_file), validate=False)
+
+                # Validation should not be called
+                mock_validate.assert_not_called()
+
+        assert output_file.exists()
+
+    def test_enrich_sbom_spdx_validates_output(self, tmp_path):
+        """Test that SPDX enrichment also validates output."""
+        sbom_data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test-validation",
+            "documentNamespace": "https://example.com/test-validation",
+            "dataLicense": "CC0-1.0",
+            "creationInfo": {
+                "created": "2024-01-01T00:00:00Z",
+                "creators": ["Tool: test"],
+                "licenseListVersion": "3.21",
+            },
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-main",
+                    "name": "test-pkg",
+                    "versionInfo": "1.0",
+                    "downloadLocation": "NOASSERTION",
+                    "filesAnalyzed": False,
+                }
+            ],
+        }
+
+        input_file = tmp_path / "input.json"
+        output_file = tmp_path / "output.json"
+        input_file.write_text(json.dumps(sbom_data))
+
+        with patch("requests.Session.get"):
+            # Should succeed with validation
+            enrich_sbom(str(input_file), str(output_file), validate=True)
+
+        assert output_file.exists()
