@@ -762,7 +762,8 @@ def augment_sbom_from_file(
     """
     Augment SBOM file with backend metadata.
 
-    After augmentation, the output SBOM is validated against its JSON schema.
+    After augmentation, the output SBOM is validated against its JSON schema
+    (when validate=True).
 
     Args:
         input_file: Path to input SBOM file
