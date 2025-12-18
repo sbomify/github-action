@@ -183,9 +183,10 @@ docker run --rm -v $(pwd):/code \
 | PyPI | Python | License, author, homepage |
 | pub.dev | Dart | License, author, homepage, repo |
 | RPM Repos | Rocky, Alma, CentOS, Fedora, Amazon Linux | License, vendor, description, homepage |
+| Ubuntu APT | Ubuntu packages | Maintainer, description, homepage, download URL |
 | deps.dev | Python, npm, Maven, Go, Rust, Ruby, NuGet | License, homepage, repo |
 | ecosyste.ms | All major ecosystems | License, description, maintainer |
-| Debian Sources | Debian packages | License, maintainer |
+| Debian Sources | Debian packages | Maintainer, description, homepage |
 | Repology | Linux distros | License, homepage |
 
 ## SBOM Quality Improvement
@@ -253,7 +254,8 @@ sbomify queries sources in priority order, stopping when data is found:
 | Ruby | deps.dev | ecosyste.ms |
 | Java/Maven | deps.dev | ecosyste.ms |
 | Dart | pub.dev API | ecosyste.ms |
-| Debian/Ubuntu | Debian Sources | Repology → ecosyste.ms |
+| Debian | Debian Sources | Repology → ecosyste.ms |
+| Ubuntu | Ubuntu APT | Repology → ecosyste.ms |
 | Alpine | Repology | ecosyste.ms |
 | Rocky/Alma/CentOS | RPM Repos | Repology → ecosyste.ms |
 | Fedora | RPM Repos | Repology → ecosyste.ms |

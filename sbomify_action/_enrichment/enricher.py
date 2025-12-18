@@ -20,6 +20,7 @@ from .sources import (
     PyPISource,
     RepologySource,
     RpmRepoSource,
+    UbuntuSource,
 )
 
 
@@ -33,6 +34,7 @@ def create_default_registry() -> SourceRegistry:
     - PyPISource (10) - direct from PyPI for Python packages
     - PubDevSource (10) - direct from pub.dev for Dart packages
     - DebianSource (10) - direct from sources.debian.org
+    - UbuntuSource (12) - Ubuntu APT repo Packages.gz for Ubuntu packages
     - RpmRepoSource (15) - RPM repo primary.xml for Rocky/Alma/CentOS/Fedora/Amazon Linux
 
     Tier 2 - Primary Aggregators (40-49):
@@ -55,6 +57,7 @@ def create_default_registry() -> SourceRegistry:
     registry.register(PyPISource())
     registry.register(PubDevSource())
     registry.register(DebianSource())
+    registry.register(UbuntuSource())
     registry.register(RpmRepoSource())
     registry.register(DepsDevSource())
     registry.register(EcosystemsSource())
@@ -239,10 +242,12 @@ def clear_all_caches() -> None:
     from .sources.pypi import clear_cache as clear_pypi
     from .sources.repology import clear_cache as clear_repology
     from .sources.rpmrepo import clear_cache as clear_rpmrepo
+    from .sources.ubuntu import clear_cache as clear_ubuntu
 
     clear_pypi()
     clear_pubdev()
     clear_debian()
+    clear_ubuntu()
     clear_rpmrepo()
     clear_depsdev()
     clear_ecosystems()
