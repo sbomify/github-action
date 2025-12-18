@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Tuple
 
 from cyclonedx.model import ExternalReference, ExternalReferenceType, Property, XsUri
 from cyclonedx.model.bom import Bom
-from cyclonedx.model.component import Component
+from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.license import LicenseExpression
 from spdx_tools.spdx.model import (
     Actor,
@@ -118,7 +118,7 @@ def clear_cache() -> None:
 
 def _is_lockfile_component(component: Component) -> bool:
     """Check if a CycloneDX component represents a lockfile artifact."""
-    if component.type.name.lower() != "application":
+    if component.type != ComponentType.APPLICATION:
         return False
     if component.purl:
         return False
