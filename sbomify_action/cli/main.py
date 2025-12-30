@@ -16,6 +16,7 @@ from cyclonedx.model.bom import Bom
 
 from .._generation.utils import log_command_error
 from .._upload import VALID_DESTINATIONS
+from ..additional_packages import inject_additional_packages
 from ..augmentation import augment_sbom_from_file
 from ..exceptions import (
     APIError,
@@ -111,6 +112,11 @@ SBOMIFY_PRODUCTION_API = "https://app.sbomify.com"
 SBOMIFY_TOOL_NAME = "sbomify-github-action"
 SBOMIFY_VENDOR_NAME = "sbomify"
 LOCALHOST_PATTERNS = ["127.0.0.1", "localhost", "0.0.0.0"]
+
+# Intermediate SBOM files for pipeline steps
+STEP_1_FILE = "step_1.json"  # Output of generation/validation
+STEP_2_FILE = "step_2.json"  # Output of augmentation
+STEP_3_FILE = "step_3.json"  # Output of enrichment
 
 
 def _get_current_utc_timestamp() -> str:
@@ -621,7 +627,7 @@ def get_last_sbom_from_last_step() -> Optional[str]:
     Returns:
         Path to the most recent SBOM file, or None if not found
     """
-    steps = ["step_3.json", "step_2.json", "step_1.json"]
+    steps = [STEP_3_FILE, STEP_2_FILE, STEP_1_FILE]
     for file in steps:
         if Path(file).is_file():
             return file
@@ -1167,10 +1173,10 @@ def main() -> None:
         if FILE_TYPE == "SBOM":
             logger.info(f"Processing existing SBOM file: {FILE}")
             FORMAT = validate_sbom(FILE)
-            shutil.copy(FILE, "step_1.json")
+            shutil.copy(FILE, STEP_1_FILE)
         elif config.docker_image:
             logger.info(f"Generating SBOM from Docker image: {config.docker_image}")
-            result = generate_sbom(docker_image=config.docker_image, output_file="step_1.json")
+            result = generate_sbom(docker_image=config.docker_image, output_file=STEP_1_FILE)
             if not result.success:
                 raise SBOMGenerationError(result.error_message or "SBOM generation failed")
         elif FILE_TYPE == "LOCK_FILE":
@@ -1201,7 +1207,7 @@ def main() -> None:
     # Set the SBOM format based on the output (silent detection for generated SBOMs)
     try:
         if FILE_TYPE != "SBOM":  # Only detect format if we generated the SBOM
-            FORMAT = _detect_sbom_format_silent("step_1.json")
+            FORMAT = _detect_sbom_format_silent(STEP_1_FILE)
             logger.info(f"Generated SBOM format: {FORMAT.upper()}")
     except SBOMValidationError as e:
         logger.error(f"Generated SBOM validation failed: {e}")
@@ -1225,12 +1231,26 @@ def main() -> None:
     # Apply component version override if specified (regardless of augmentation settings)
     if config.component_version:
         logger.info(f"Applying component version override: {config.component_version}")
-        _apply_sbom_version_override("step_1.json", config)
+        _apply_sbom_version_override(STEP_1_FILE, config)
 
     # Apply component name override if specified (regardless of augmentation settings)
     if config.component_name:
         logger.info(f"Applying component name override: {config.component_name}")
-        _apply_sbom_name_override("step_1.json", config)
+        _apply_sbom_name_override(STEP_1_FILE, config)
+
+    # Inject additional packages if specified (file or environment variables)
+    try:
+        injected_count = inject_additional_packages(STEP_1_FILE)
+        if injected_count > 0:
+            logger.info(f"Successfully injected {injected_count} additional package(s) into SBOM")
+    except Exception as e:
+        logger.warning(
+            f"Failed to inject additional packages into SBOM: {e}. "
+            f"Verify that the SBOM file '{STEP_1_FILE}' exists and is readable, and that any "
+            "additional package configuration (ADDITIONAL_PACKAGES env var or "
+            "additional_packages.txt file) is present and correctly formatted."
+        )
+        # Don't fail the entire process for additional packages injection issues
 
     # Step 2: Augmentation
     if config.augment:
@@ -1245,7 +1265,7 @@ def main() -> None:
             # Use augmentation module's file-based function
             sbom_format = augment_sbom_from_file(
                 input_file=sbom_input_file,
-                output_file="step_2.json",
+                output_file=STEP_2_FILE,
                 api_base_url=config.api_base_url,
                 token=config.token,
                 component_id=config.component_id,
@@ -1275,8 +1295,8 @@ def main() -> None:
                 raise FileProcessingError("No SBOM file found from previous step")
 
             logger.info("Enriching SBOM components with metadata from multiple data sources")
-            enrich_sbom(sbom_input_file, "step_3.json")
-            _detect_sbom_format_silent("step_3.json")  # Silent validation
+            enrich_sbom(sbom_input_file, STEP_3_FILE)
+            _detect_sbom_format_silent(STEP_3_FILE)  # Silent validation
             _log_step_end(3)
         except (FileProcessingError, SBOMGenerationError, SBOMValidationError) as e:
             logger.error(f"Step 3 (enrichment) failed: {e}")

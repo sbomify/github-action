@@ -26,6 +26,7 @@ That's it! This generates an SBOM from your lockfile and enriches it with metada
 
 - **Generate** SBOMs from lockfiles (Python, Node, Rust, Go, Ruby, Dart, C++)
 - **Generate** SBOMs from Docker images
+- **Inject** additional packages not in lockfiles (vendored code, runtime deps, system libraries)
 - **Augment** with business metadata (supplier, authors, licenses) from sbomify
 - **Enrich** with package metadata from PyPI, pub.dev, npm, Maven, deps.dev, and more
 - **Upload** to sbomify for collaboration and vulnerability management
@@ -116,6 +117,8 @@ That's it! This generates an SBOM from your lockfile and enriches it with metada
 | `UPLOAD` | No | Upload SBOM (default: true) |
 | `UPLOAD_DESTINATIONS` | No | Comma-separated destinations: `sbomify`, `dependency-track` (default: `sbomify`) |
 | `API_BASE_URL` | No | Override sbomify API URL for self-hosted instances |
+| `ADDITIONAL_PACKAGES_FILE` | No | Custom path to additional packages file |
+| `ADDITIONAL_PACKAGES` | No | Inline PURLs to inject (comma or newline separated) |
 
 † **One** of `LOCK_FILE`, `SBOM_FILE`, or `DOCKER_IMAGE` is required (pick one)
 ‡ Required when uploading to sbomify or using sbomify features (`AUGMENT`, `PRODUCT_RELEASE`)
@@ -185,6 +188,71 @@ When uploading to Dependency Track (`UPLOAD_DESTINATIONS=dependency-track`), con
 | Ruby | `Gemfile.lock` |
 | Dart | `pubspec.lock` |
 | C++ | `conan.lock` |
+
+## Additional Packages
+
+Inject packages not captured by lockfile scanning—vendored code, runtime dependencies, or system libraries.
+
+### Convention-Based File
+
+If `additional_packages.txt` exists in your working directory, it's automatically detected:
+
+```txt
+# additional_packages.txt
+# Runtime dependencies not in lockfile
+pkg:pypi/requests@2.31.0
+pkg:npm/lodash@4.17.21
+
+# System libraries
+pkg:deb/debian/openssl@3.0.11
+```
+
+**File format:**
+- One [PURL](https://github.com/package-url/purl-spec) per line
+- Lines starting with `#` are comments
+- Empty lines are ignored
+
+### Custom File Location
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: requirements.txt
+    ADDITIONAL_PACKAGES_FILE: .sbomify/extra-packages.txt
+```
+
+### Inline Packages
+
+For dynamic or programmatic use:
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: requirements.txt
+    ADDITIONAL_PACKAGES: "pkg:pypi/requests@2.31.0,pkg:npm/lodash@4.17.21"
+```
+
+### Build-Time Injection
+
+Append packages across multiple steps:
+
+```yaml
+- name: Add Python runtime deps
+  run: echo "pkg:pypi/requests@2.31.0" >> additional_packages.txt
+
+- name: Add system libraries
+  run: |
+    echo "pkg:deb/debian/openssl@3.0.11" >> additional_packages.txt
+    echo "pkg:deb/debian/libssl3@3.0.11" >> additional_packages.txt
+
+- name: Generate SBOM
+  uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: requirements.txt
+    # No additional config needed - file is auto-detected
+```
+
+**Merge behavior:** If both file and inline packages are provided, they are merged and deduplicated. Injected packages flow through augmentation and enrichment like any other component.
 
 ## Other CI/CD Platforms
 
