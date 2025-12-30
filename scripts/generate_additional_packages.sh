@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKERFILE="${SCRIPT_DIR}/../Dockerfile"
 
 # Expected version format: digits and dots only (e.g., 0.67.2)
+# Note: Using [0-9.]* not [0-9.]+ because basic sed doesn't support +
+# The validation below catches empty matches anyway
 VERSION_REGEX='[0-9.]*'
 
 # Extract version from Dockerfile ENV declaration

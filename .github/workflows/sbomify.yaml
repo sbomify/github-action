@@ -63,7 +63,7 @@ jobs:
       - name: Install Trivy
         run: |
           # Source version extraction script (sets TRIVY_VERSION, BOMCTL_VERSION)
-          source ./scripts/generate_additional_packages.sh
+          source ./scripts/generate_additional_packages.sh || { echo 'Failed to extract versions from Dockerfile' >&2; exit 1; }
           echo "Installing Trivy version: $TRIVY_VERSION"
           curl -sL \
             -o trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz \
