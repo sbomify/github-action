@@ -27,10 +27,10 @@ from sbomify_action.logging_config import logger
 # SBOM format type - matches _generation.protocol.SBOMFormat
 SBOMFormat = Literal["cyclonedx", "spdx"]
 
-# Path to schemas relative to the repository root
-REPO_ROOT = Path(__file__).parent.parent
-CDX_SCHEMA_DIR = REPO_ROOT / "schemas" / "cyclonedx"
-SPDX_SCHEMA_DIR = REPO_ROOT / "schemas" / "spdx"
+# Path to schemas within the package directory
+PACKAGE_DIR = Path(__file__).parent
+CDX_SCHEMA_DIR = PACKAGE_DIR / "schemas" / "cyclonedx"
+SPDX_SCHEMA_DIR = PACKAGE_DIR / "schemas" / "spdx"
 
 # Schema file mappings
 CDX_SCHEMAS = {
@@ -58,6 +58,7 @@ class ValidationResult:
     spec_version: str
     error_message: Optional[str] = None
     error_path: Optional[str] = None
+    skipped: bool = False
 
     @classmethod
     def success(cls, sbom_format: SBOMFormat, spec_version: str) -> "ValidationResult":
@@ -79,6 +80,17 @@ class ValidationResult:
             spec_version=spec_version,
             error_message=error_message,
             error_path=error_path,
+        )
+
+    @classmethod
+    def validation_skipped(cls, sbom_format: SBOMFormat, spec_version: str, reason: str) -> "ValidationResult":
+        """Create a result indicating validation was skipped (schema not available)."""
+        return cls(
+            valid=True,  # Not a failure, but validation didn't happen
+            sbom_format=sbom_format,
+            spec_version=spec_version,
+            error_message=reason,
+            skipped=True,
         )
 
 
@@ -142,8 +154,9 @@ def validate_sbom_data(
 
     if schema is None:
         # No schema available - skip validation but log warning
-        logger.warning(f"No schema available for {sbom_format} {spec_version}, skipping validation")
-        return ValidationResult.success(sbom_format, spec_version)
+        reason = f"No schema available for {sbom_format} {spec_version}"
+        logger.warning(f"{reason}, unable to validate SBOM")
+        return ValidationResult.validation_skipped(sbom_format, spec_version, reason)
 
     try:
         jsonschema.validate(instance=sbom_data, schema=schema)

@@ -888,9 +888,15 @@ def augment_sbom_from_file(
                 validation_result = validate_sbom_file_auto(output_file)
                 if not validation_result.valid:
                     raise SBOMValidationError(f"Augmented SBOM failed validation: {validation_result.error_message}")
-                logger.info(
-                    f"Augmented SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}"
-                )
+                if validation_result.skipped:
+                    logger.warning(
+                        f"Augmented SBOM could not be validated ({validation_result.sbom_format} "
+                        f"{validation_result.spec_version}): {validation_result.error_message}"
+                    )
+                else:
+                    logger.info(
+                        f"Augmented SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}"
+                    )
 
             return "cyclonedx"
 
@@ -923,9 +929,15 @@ def augment_sbom_from_file(
                 validation_result = validate_sbom_file_auto(output_file)
                 if not validation_result.valid:
                     raise SBOMValidationError(f"Augmented SBOM failed validation: {validation_result.error_message}")
-                logger.info(
-                    f"Augmented SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}"
-                )
+                if validation_result.skipped:
+                    logger.warning(
+                        f"Augmented SBOM could not be validated ({validation_result.sbom_format} "
+                        f"{validation_result.spec_version}): {validation_result.error_message}"
+                    )
+                else:
+                    logger.info(
+                        f"Augmented SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}"
+                    )
 
             return "spdx"
 
