@@ -1245,11 +1245,10 @@ def main() -> None:
             logger.info(f"Successfully injected {injected_count} additional package(s) into SBOM")
     except Exception as e:
         logger.warning(
-            "Failed to inject additional packages into SBOM. "
+            f"Failed to inject additional packages into SBOM: {e}. "
             f"Verify that the SBOM file '{STEP_1_FILE}' exists and is readable, and that any "
             "additional package configuration (ADDITIONAL_PACKAGES env var or "
-            "additional_packages.txt file) is present and correctly formatted. "
-            f"Underlying error: {e}"
+            "additional_packages.txt file) is present and correctly formatted."
         )
         # Don't fail the entire process for additional packages injection issues
 
