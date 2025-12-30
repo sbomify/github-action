@@ -786,13 +786,13 @@ def enrich_sbom(input_file: str, output_file: str, validate: bool = True) -> Non
     # Validate the enriched SBOM
     if validate:
         validation_result = validate_sbom_file_auto(str(output_path))
-        if not validation_result.valid:
-            raise SBOMValidationError(f"Enriched SBOM failed validation: {validation_result.error_message}")
-        if validation_result.skipped:
+        if validation_result.valid is None:
             logger.warning(
                 f"Enriched SBOM could not be validated ({validation_result.sbom_format} {validation_result.spec_version}): "
                 f"{validation_result.error_message}"
             )
+        elif not validation_result.valid:
+            raise SBOMValidationError(f"Enriched SBOM failed validation: {validation_result.error_message}")
         else:
             logger.info(f"Enriched SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}")
 

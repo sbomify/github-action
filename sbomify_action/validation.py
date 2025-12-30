@@ -8,7 +8,9 @@ Usage:
 
     # Validate with known format and version
     result = validate_sbom_file("sbom.json", "cyclonedx", "1.6")
-    if not result.valid:
+    if result.valid is None:
+        print(f"Validation skipped: {result.error_message}")
+    elif not result.valid:
         print(f"Validation failed: {result.error_message}")
 
     # Auto-detect format and version
@@ -51,14 +53,19 @@ _schema_cache: dict[str, dict] = {}
 
 @dataclass
 class ValidationResult:
-    """Result of SBOM validation."""
+    """Result of SBOM validation.
 
-    valid: bool
+    The `valid` field has three states:
+    - True: Validation passed
+    - False: Validation failed
+    - None: Validation was skipped (e.g., no schema available)
+    """
+
+    valid: Optional[bool]
     sbom_format: SBOMFormat
     spec_version: str
     error_message: Optional[str] = None
     error_path: Optional[str] = None
-    skipped: bool = False
 
     @classmethod
     def success(cls, sbom_format: SBOMFormat, spec_version: str) -> "ValidationResult":
@@ -83,14 +90,13 @@ class ValidationResult:
         )
 
     @classmethod
-    def validation_skipped(cls, sbom_format: SBOMFormat, spec_version: str, reason: str) -> "ValidationResult":
+    def skipped(cls, sbom_format: SBOMFormat, spec_version: str, reason: str) -> "ValidationResult":
         """Create a result indicating validation was skipped (schema not available)."""
         return cls(
-            valid=True,  # Not a failure, but validation didn't happen
+            valid=None,
             sbom_format=sbom_format,
             spec_version=spec_version,
             error_message=reason,
-            skipped=True,
         )
 
 
@@ -156,7 +162,7 @@ def validate_sbom_data(
         # No schema available - skip validation but log warning
         reason = f"No schema available for {sbom_format} {spec_version}"
         logger.warning(f"{reason}, unable to validate SBOM")
-        return ValidationResult.validation_skipped(sbom_format, spec_version, reason)
+        return ValidationResult.skipped(sbom_format, spec_version, reason)
 
     try:
         jsonschema.validate(instance=sbom_data, schema=schema)
