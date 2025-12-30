@@ -18,7 +18,6 @@ from .._generation.utils import log_command_error
 from ..augmentation import augment_sbom_from_file
 from ..exceptions import (
     APIError,
-    CommandExecutionError,
     ConfigurationError,
     FileProcessingError,
     SBOMGenerationError,
@@ -32,6 +31,7 @@ from ..generation import (
 from ..http_client import get_default_headers
 from ..logging_config import logger
 from ..serialization import serialize_cyclonedx_bom
+from ..upload import upload_sbom
 
 
 # Import version for tool metadata with multiple fallback mechanisms
@@ -174,6 +174,7 @@ class Config:
     lock_file: Optional[str] = None
     output_file: str = "sbom_output.json"
     upload: bool = True
+    upload_destinations: Optional[list[str]] = None
     augment: bool = False
     enrich: bool = False
     override_sbom_metadata: bool = False
@@ -183,6 +184,11 @@ class Config:
     product_releases: Optional[str | list[str]] = None
     api_base_url: str = SBOMIFY_PRODUCTION_API
 
+    def __post_init__(self) -> None:
+        """Set default values that depend on other fields."""
+        if self.upload_destinations is None:
+            self.upload_destinations = ["sbomify"]  # Default to sbomify only
+
     def validate(self) -> None:
         """
         Validate configuration settings.
@@ -190,15 +196,18 @@ class Config:
         Raises:
             ConfigurationError: If configuration is invalid
         """
-        # TOKEN and COMPONENT_ID are only required if uploading, augmenting, or managing releases
-        # (augmentation and release management require API access)
-        requires_api_access = self.upload or self.augment or self.product_releases
+        # Check if sbomify API access is required:
+        # - Uploading to sbomify destination
+        # - Augmenting (uses sbomify API)
+        # - Managing releases (uses sbomify API)
+        uploads_to_sbomify = self.upload and "sbomify" in self.upload_destinations
+        requires_sbomify_api = uploads_to_sbomify or self.augment or self.product_releases
 
-        if requires_api_access:
+        if requires_sbomify_api:
             if not self.token:
                 operations = []
-                if self.upload:
-                    operations.append("UPLOAD=true")
+                if uploads_to_sbomify:
+                    operations.append("uploading to sbomify")
                 if self.augment:
                     operations.append("AUGMENT=true")
                 if self.product_releases:
@@ -207,8 +216,8 @@ class Config:
                 raise ConfigurationError(f"sbomify API token is not defined (required when {reason})")
             if not self.component_id:
                 operations = []
-                if self.upload:
-                    operations.append("UPLOAD=true")
+                if uploads_to_sbomify:
+                    operations.append("uploading to sbomify")
                 if self.augment:
                     operations.append("AUGMENT=true")
                 if self.product_releases:
@@ -364,6 +373,21 @@ def load_config() -> Config:
         # Store the raw value for validation later in Config.validate()
         product_releases = product_release_env
 
+    # Handle upload destinations
+    upload_destinations = None
+    upload_destinations_env = os.getenv("UPLOAD_DESTINATIONS")
+    if upload_destinations_env:
+        # Parse comma-separated list of destinations
+        upload_destinations = [d.strip() for d in upload_destinations_env.split(",") if d.strip()]
+        # Validate destination names
+        valid_destinations = {"sbomify", "dependency-track"}
+        invalid_destinations = [d for d in upload_destinations if d not in valid_destinations]
+        if invalid_destinations:
+            logger.error(f"Invalid upload destination(s): {invalid_destinations}")
+            logger.error(f"Valid destinations are: {sorted(valid_destinations)}")
+            sys.exit(1)
+        logger.info(f"Upload destinations: {upload_destinations}")
+
     config = Config(
         token=os.getenv("TOKEN", ""),
         component_id=os.getenv("COMPONENT_ID", ""),
@@ -372,6 +396,7 @@ def load_config() -> Config:
         lock_file=path_expansion(os.getenv("LOCK_FILE")) if os.getenv("LOCK_FILE") else None,
         output_file=os.getenv("OUTPUT_FILE", "sbom_output.json"),
         upload=evaluate_boolean(os.getenv("UPLOAD", "True")),
+        upload_destinations=upload_destinations,
         augment=evaluate_boolean(os.getenv("AUGMENT", "False")),
         enrich=evaluate_boolean(os.getenv("ENRICH", "False")),
         override_sbom_metadata=evaluate_boolean(os.getenv("OVERRIDE_SBOM_METADATA", "False")),
@@ -1292,61 +1317,42 @@ def main() -> None:
         _log_step_end(4, success=False)
         sys.exit(1)
 
-    # Step 5: Upload SBOM via API
-    sbom_id = None  # Store SBOM ID for potential release tagging
+    # Step 5: Upload SBOM to configured destinations
+    sbom_id = None  # Store SBOM ID for potential release tagging (from sbomify)
     if config.upload:
-        _log_step_header(5, "Uploading SBOM to sbomify")
+        _log_step_header(5, "Uploading SBOM")
         try:
-            # Validate SBOM before uploading (for CycloneDX)
-            if FORMAT == "cyclonedx":
-                try:
-                    validation_passed = _validate_cyclonedx_sbom(config.output_file)
-                    if not validation_passed:
-                        logger.warning("SBOM validation failed, but proceeding with upload")
-                except CommandExecutionError as e:
-                    logger.warning(f"SBOM validation error: {e}, proceeding with upload")
+            # Upload to each configured destination
+            logger.info(f"Upload destinations: {config.upload_destinations}")
 
-            # Execute the POST request to upload the SBOM file
-            url = config.api_base_url + f"/api/v1/sboms/artifact/{FORMAT}/{config.component_id}"
-            headers = get_default_headers(config.token, content_type="application/json")
+            failed_destinations: list[str] = []
+            for destination in config.upload_destinations:
+                logger.info(f"Uploading to: {destination}")
 
-            with Path(config.output_file).open() as f:
-                sbom_data = f.read()
-
-            logger.info(f"Uploading {FORMAT.upper()} SBOM to component: {config.component_id}")
-
-            try:
-                response = requests.post(
-                    url,
-                    headers=headers,
-                    data=sbom_data,
-                    timeout=120,  # Security: add timeout for upload
+                result = upload_sbom(
+                    sbom_file=config.output_file,
+                    sbom_format=FORMAT,
+                    token=config.token,
+                    component_id=config.component_id,
+                    api_base_url=config.api_base_url,
+                    component_name=config.component_name,
+                    component_version=config.component_version,
+                    destination=destination,
+                    validate_before_upload=(FORMAT == "cyclonedx"),
                 )
-            except requests.exceptions.ConnectionError:
-                raise APIError("Failed to connect to sbomify API for upload")
-            except requests.exceptions.Timeout:
-                raise APIError("SBOM upload timed out")
 
-            if not response.ok:
-                err_msg = f"Failed to upload SBOM file. [{response.status_code}]"
-                try:
-                    if response.json() and "detail" in response.json():
-                        err_msg += f" - {response.json()['detail']}"
-                except (ValueError, json.JSONDecodeError):
-                    pass
+                if not result.success:
+                    logger.error(f"Upload to {destination} failed: {result.error_message}")
+                    failed_destinations.append(destination)
+                else:
+                    logger.info(f"Upload to {destination} succeeded")
+                    # Store sbom_id from sbomify for release tagging
+                    if destination == "sbomify" and result.sbom_id:
+                        sbom_id = result.sbom_id
 
-                raise APIError(err_msg)
-            else:
-                logger.info("SBOM uploaded successfully to sbomify")
-
-                # Extract SBOM ID from response for potential release tagging
-                try:
-                    response_data = response.json()
-                    sbom_id = response_data.get("sbom_id") or response_data.get("id")
-                    if sbom_id:
-                        logger.info(f"SBOM ID: {sbom_id}")
-                except (ValueError, json.JSONDecodeError):
-                    logger.warning("Could not extract SBOM ID from upload response")
+            # Fail if any upload failed
+            if failed_destinations:
+                raise APIError(f"Upload failed for destination(s): {', '.join(failed_destinations)}")
 
             _log_step_end(5)
 

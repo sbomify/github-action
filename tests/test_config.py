@@ -78,20 +78,35 @@ class TestConfig(unittest.TestCase):
         # Should not raise any exception
         config.validate()
 
+    def test_config_validation_dtrack_only_no_sbomify_credentials(self):
+        """Test that sbomify TOKEN/COMPONENT_ID not required when uploading only to dependency-track."""
+        config = Config(
+            token="",
+            component_id="",
+            sbom_file="/path/to/sbom.json",
+            upload=True,
+            upload_destinations=["dependency-track"],
+            augment=False,
+        )
+
+        # Should not raise any exception - sbomify credentials not required
+        config.validate()
+
     def test_config_validation_upload_requires_token(self):
-        """Test that TOKEN is required when UPLOAD=true."""
+        """Test that TOKEN is required when uploading to sbomify."""
         config = Config(
             token="",
             component_id="test-component",
             sbom_file="/path/to/sbom.json",
             upload=True,
+            upload_destinations=["sbomify"],
         )
 
         with self.assertRaises(ConfigurationError) as cm:
             config.validate()
 
         self.assertIn("sbomify API token is not defined", str(cm.exception))
-        self.assertIn("UPLOAD=true", str(cm.exception))
+        self.assertIn("uploading to sbomify", str(cm.exception))
 
     def test_config_validation_augment_requires_token(self):
         """Test that TOKEN is required when AUGMENT=true even if UPLOAD=false."""
@@ -127,19 +142,20 @@ class TestConfig(unittest.TestCase):
         self.assertIn("PRODUCT_RELEASE is set", str(cm.exception))
 
     def test_config_validation_upload_requires_component_id(self):
-        """Test that COMPONENT_ID is required when UPLOAD=true."""
+        """Test that COMPONENT_ID is required when uploading to sbomify."""
         config = Config(
             token="test-token",
             component_id="",
             sbom_file="/path/to/sbom.json",
             upload=True,
+            upload_destinations=["sbomify"],
         )
 
         with self.assertRaises(ConfigurationError) as cm:
             config.validate()
 
         self.assertIn("Component ID is not defined", str(cm.exception))
-        self.assertIn("UPLOAD=true", str(cm.exception))
+        self.assertIn("uploading to sbomify", str(cm.exception))
 
     def test_config_validation_augment_requires_component_id(self):
         """Test that COMPONENT_ID is required when AUGMENT=true even if UPLOAD=false."""
@@ -455,6 +471,81 @@ class TestConfig(unittest.TestCase):
                     self.assertIn("Both COMPONENT_NAME and OVERRIDE_NAME are set", log_output)
                     self.assertIn("Using COMPONENT_NAME and ignoring OVERRIDE_NAME", log_output)
                     self.assertIn("OVERRIDE_NAME is deprecated", log_output)
+
+    def test_upload_destinations_default_to_sbomify(self):
+        """Test that upload_destinations defaults to ['sbomify'] when not specified."""
+        config = Config(
+            token="test-token",
+            component_id="test-component",
+            sbom_file="/path/to/sbom.json",
+        )
+        # __post_init__ should set default
+        self.assertEqual(config.upload_destinations, ["sbomify"])
+
+    def test_upload_destinations_custom_values(self):
+        """Test that custom upload_destinations are preserved."""
+        config = Config(
+            token="test-token",
+            component_id="test-component",
+            sbom_file="/path/to/sbom.json",
+            upload_destinations=["dependency-track"],
+        )
+        self.assertEqual(config.upload_destinations, ["dependency-track"])
+
+    def test_upload_destinations_multiple(self):
+        """Test that multiple upload destinations are supported."""
+        config = Config(
+            token="test-token",
+            component_id="test-component",
+            sbom_file="/path/to/sbom.json",
+            upload_destinations=["sbomify", "dependency-track"],
+        )
+        self.assertEqual(config.upload_destinations, ["sbomify", "dependency-track"])
+
+    def test_load_config_invalid_upload_destinations(self):
+        """Test that invalid upload destinations cause exit."""
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        # Create a dummy lock file for validation
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock_file = Path(tmp_dir) / "test.lock"
+            lock_file.write_text("dummy content")
+
+            env_vars = {
+                "TOKEN": "test-token",
+                "COMPONENT_ID": "test-component",
+                "LOCK_FILE": str(lock_file),
+                "UPLOAD_DESTINATIONS": "sbomify,invalid-dest",
+            }
+            with patch.dict(os.environ, env_vars, clear=False):
+                with self.assertRaises(SystemExit) as cm:
+                    load_config()
+                self.assertEqual(cm.exception.code, 1)
+
+    def test_load_config_valid_upload_destinations(self):
+        """Test that valid upload destinations are loaded correctly."""
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        # Create a dummy lock file for validation
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock_file = Path(tmp_dir) / "test.lock"
+            lock_file.write_text("dummy content")
+
+            env_vars = {
+                "TOKEN": "test-token",
+                "COMPONENT_ID": "test-component",
+                "LOCK_FILE": str(lock_file),
+                "UPLOAD_DESTINATIONS": "sbomify,dependency-track",
+            }
+            with patch.dict(os.environ, env_vars, clear=False):
+                config = load_config()
+                self.assertEqual(config.upload_destinations, ["sbomify", "dependency-track"])
 
 
 if __name__ == "__main__":
