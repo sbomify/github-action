@@ -397,7 +397,7 @@ class TestInjectPackagesIntoSPDX(unittest.TestCase):
 
     def _create_empty_spdx_document(self):
         """Create an empty SPDX document for testing."""
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         from spdx_tools.spdx.model import (
             Actor,
@@ -412,7 +412,7 @@ class TestInjectPackagesIntoSPDX(unittest.TestCase):
             name="Test SBOM",
             document_namespace="https://example.com/test-sbom",
             creators=[Actor(ActorType.TOOL, "test-tool")],
-            created=datetime.now(),
+            created=datetime.now(timezone.utc),
         )
 
         return Document(creation_info=creation_info)
