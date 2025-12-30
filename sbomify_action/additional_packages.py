@@ -413,7 +413,12 @@ def inject_additional_packages(sbom_file: str) -> int:
         return injected
 
     # Handle SPDX
-    elif data.get("spdxVersion"):
+    elif "spdxVersion" in data:
+        spdx_version = data.get("spdxVersion")
+        if not isinstance(spdx_version, str) or not spdx_version:
+            logger.error("SPDX SBOM missing or invalid spdxVersion")
+            return 0
+
         try:
             document = spdx_parse_file(str(sbom_path))
         except Exception as e:
