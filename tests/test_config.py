@@ -1,5 +1,7 @@
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from sbomify_action.cli.main import (
@@ -386,11 +388,6 @@ class TestConfig(unittest.TestCase):
 
     def test_component_name_no_warning(self):
         """Test that using COMPONENT_NAME alone produces no deprecation warnings."""
-        import os
-        import tempfile
-        from pathlib import Path
-        from unittest.mock import patch
-
         # Create a dummy lock file for validation
         with tempfile.TemporaryDirectory() as tmp_dir:
             lock_file = Path(tmp_dir) / "test.lock"
@@ -418,11 +415,6 @@ class TestConfig(unittest.TestCase):
 
     def test_override_name_deprecated_warning(self):
         """Test that OVERRIDE_NAME shows deprecation warning."""
-        import os
-        import tempfile
-        from pathlib import Path
-        from unittest.mock import patch
-
         with self.assertLogs("sbomify_action", level="WARNING") as log:
             # Create a dummy lock file for validation
             with tempfile.TemporaryDirectory() as tmp_dir:
@@ -456,11 +448,6 @@ class TestConfig(unittest.TestCase):
 
     def test_component_name_takes_precedence_over_deprecated(self):
         """Test that COMPONENT_NAME takes precedence over deprecated OVERRIDE_NAME."""
-        import os
-        import tempfile
-        from pathlib import Path
-        from unittest.mock import patch
-
         with self.assertLogs("sbomify_action", level="WARNING") as log:
             # Create a dummy lock file for validation
             with tempfile.TemporaryDirectory() as tmp_dir:
@@ -521,11 +508,6 @@ class TestConfig(unittest.TestCase):
 
     def test_load_config_invalid_upload_destinations(self):
         """Test that invalid upload destinations cause exit."""
-        import os
-        import tempfile
-        from pathlib import Path
-        from unittest.mock import patch
-
         # Create a dummy lock file for validation
         with tempfile.TemporaryDirectory() as tmp_dir:
             lock_file = Path(tmp_dir) / "test.lock"
@@ -544,11 +526,6 @@ class TestConfig(unittest.TestCase):
 
     def test_load_config_valid_upload_destinations(self):
         """Test that valid upload destinations are loaded correctly."""
-        import os
-        import tempfile
-        from pathlib import Path
-        from unittest.mock import patch
-
         # Create a dummy lock file for validation
         with tempfile.TemporaryDirectory() as tmp_dir:
             lock_file = Path(tmp_dir) / "test.lock"
