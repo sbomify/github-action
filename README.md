@@ -113,11 +113,66 @@ That's it! This generates an SBOM from your lockfile and enriches it with metada
 | `COMPONENT_NAME` | No | Override component name in SBOM |
 | `COMPONENT_VERSION` | No | Override component version in SBOM |
 | `PRODUCT_RELEASE` | No | Tag SBOM with releases: `'["product_id:v1.0.0"]'` |
-| `UPLOAD` | No | Upload to sbomify (default: true) |
+| `UPLOAD` | No | Upload SBOM (default: true) |
+| `UPLOAD_DESTINATIONS` | No | Comma-separated destinations: `sbomify`, `dependency-track` (default: `sbomify`) |
 | `API_BASE_URL` | No | Override sbomify API URL for self-hosted instances |
 
 † **One** of `LOCK_FILE`, `SBOM_FILE`, or `DOCKER_IMAGE` is required (pick one)
-‡ Required when using sbomify features (`UPLOAD`, `AUGMENT`, `PRODUCT_RELEASE`)
+‡ Required when uploading to sbomify or using sbomify features (`AUGMENT`, `PRODUCT_RELEASE`)
+
+### Dependency Track Configuration
+
+When uploading to Dependency Track (`UPLOAD_DESTINATIONS=dependency-track`), configure with `DTRACK_*` prefixed environment variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DTRACK_API_KEY` | Yes | Dependency Track API key |
+| `DTRACK_API_URL` | Yes | Full API base URL (e.g., `https://dtrack.example.com/api`) |
+| `DTRACK_PROJECT_ID` | § | Project UUID (alternative to using `COMPONENT_NAME`/`COMPONENT_VERSION`) |
+| `DTRACK_AUTO_CREATE` | No | Auto-create project if it doesn't exist (default: false) |
+
+§ Either `DTRACK_PROJECT_ID` **or** both `COMPONENT_NAME` and `COMPONENT_VERSION` are required
+
+> **Note**: Dependency Track only supports **CycloneDX** format (not SPDX). It uses the global `COMPONENT_NAME` and `COMPONENT_VERSION` for project identification.
+
+#### Dependency Track Example
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: requirements.txt
+    OUTPUT_FILE: sbom.cdx.json
+    UPLOAD: true
+    UPLOAD_DESTINATIONS: dependency-track
+    COMPONENT_NAME: my-app
+    COMPONENT_VERSION: ${{ github.ref_name }}
+    DTRACK_API_KEY: ${{ secrets.DTRACK_API_KEY }}
+    DTRACK_API_URL: https://dtrack.example.com/api
+    DTRACK_AUTO_CREATE: true
+    ENRICH: true
+```
+
+#### Upload to Multiple Destinations
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: requirements.txt
+    OUTPUT_FILE: sbom.cdx.json
+    UPLOAD: true
+    UPLOAD_DESTINATIONS: sbomify,dependency-track
+    # Component metadata (used by both sbomify and Dependency Track)
+    COMPONENT_NAME: my-app
+    COMPONENT_VERSION: ${{ github.ref_name }}
+    # sbomify config
+    TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+    COMPONENT_ID: your-component-id
+    # Dependency Track config
+    DTRACK_API_KEY: ${{ secrets.DTRACK_API_KEY }}
+    DTRACK_API_URL: https://dtrack.example.com/api
+    DTRACK_AUTO_CREATE: true
+    ENRICH: true
+```
 
 ## Supported Lockfiles
 
