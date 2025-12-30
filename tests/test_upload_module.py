@@ -68,8 +68,8 @@ class TestUploadInput(unittest.TestCase):
 class TestUploadResult(unittest.TestCase):
     """Tests for UploadResult dataclass."""
 
-    def test_success_result(self):
-        """Test creating a successful result."""
+    def test_success_result_with_validation(self):
+        """Test creating a successful result with validated=True."""
         result = UploadResult.success_result(
             destination_name="sbomify",
             sbom_id="sbom-123",
@@ -80,6 +80,19 @@ class TestUploadResult(unittest.TestCase):
         self.assertEqual(result.sbom_id, "sbom-123")
         self.assertIsNone(result.error_message)
         self.assertTrue(result.validated)
+
+    def test_success_result_without_validation(self):
+        """Test creating a successful result with validated=False."""
+        result = UploadResult.success_result(
+            destination_name="sbomify",
+            sbom_id="sbom-456",
+            validated=False,
+        )
+        self.assertTrue(result.success)
+        self.assertEqual(result.destination_name, "sbomify")
+        self.assertEqual(result.sbom_id, "sbom-456")
+        self.assertIsNone(result.error_message)
+        self.assertFalse(result.validated)
 
     def test_failure_result(self):
         """Test creating a failed result."""

@@ -70,7 +70,9 @@ class DependencyTrackConfig(DestinationConfig):
 
         return cls(
             api_key=api_key,
-            api_url=api_url.rstrip("/"),  # Only strip trailing slash
+            api_url=api_url.rstrip(
+                "/"
+            ),  # Only strip trailing "/" so custom paths like /api or /dtrack/api are preserved
             project_id=cls._get_env("PROJECT_ID"),
             auto_create=cls._get_env_bool("AUTO_CREATE", default=False),
         )

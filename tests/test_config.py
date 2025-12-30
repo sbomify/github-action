@@ -92,6 +92,23 @@ class TestConfig(unittest.TestCase):
         # Should not raise any exception - sbomify credentials not required
         config.validate()
 
+    def test_config_validation_multi_destination_requires_sbomify_credentials(self):
+        """Test that sbomify credentials ARE required when sbomify is one of multiple destinations."""
+        config = Config(
+            token="",
+            component_id="",
+            sbom_file="/path/to/sbom.json",
+            upload=True,
+            upload_destinations=["sbomify", "dependency-track"],
+            augment=False,
+        )
+
+        with self.assertRaises(ConfigurationError) as cm:
+            config.validate()
+
+        self.assertIn("sbomify API token is not defined", str(cm.exception))
+        self.assertIn("uploading to sbomify", str(cm.exception))
+
     def test_config_validation_upload_requires_token(self):
         """Test that TOKEN is required when uploading to sbomify."""
         config = Config(

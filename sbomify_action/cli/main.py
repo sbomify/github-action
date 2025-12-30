@@ -15,6 +15,7 @@ import sentry_sdk
 from cyclonedx.model.bom import Bom
 
 from .._generation.utils import log_command_error
+from .._upload import VALID_DESTINATIONS
 from ..augmentation import augment_sbom_from_file
 from ..exceptions import (
     APIError,
@@ -174,7 +175,7 @@ class Config:
     lock_file: Optional[str] = None
     output_file: str = "sbom_output.json"
     upload: bool = True
-    upload_destinations: Optional[list[str]] = None
+    upload_destinations: list[str] | None = None
     augment: bool = False
     enrich: bool = False
     override_sbom_metadata: bool = False
@@ -379,12 +380,11 @@ def load_config() -> Config:
     if upload_destinations_env:
         # Parse comma-separated list of destinations
         upload_destinations = [d.strip() for d in upload_destinations_env.split(",") if d.strip()]
-        # Validate destination names
-        valid_destinations = {"sbomify", "dependency-track"}
-        invalid_destinations = [d for d in upload_destinations if d not in valid_destinations]
+        # Validate destination names using centralized registry constant
+        invalid_destinations = [d for d in upload_destinations if d not in VALID_DESTINATIONS]
         if invalid_destinations:
             logger.error(f"Invalid upload destination(s): {invalid_destinations}")
-            logger.error(f"Valid destinations are: {sorted(valid_destinations)}")
+            logger.error(f"Valid destinations are: {sorted(VALID_DESTINATIONS)}")
             sys.exit(1)
         logger.info(f"Upload destinations: {upload_destinations}")
 

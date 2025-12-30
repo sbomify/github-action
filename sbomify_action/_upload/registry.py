@@ -1,11 +1,14 @@
 """Destination registry for managing SBOM upload plugins."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, FrozenSet, List, Optional
 
 from sbomify_action.logging_config import logger
 
 from .protocol import Destination, UploadInput
 from .result import UploadResult
+
+# Valid destination names - single source of truth for destination validation
+VALID_DESTINATIONS: FrozenSet[str] = frozenset({"sbomify", "dependency-track"})
 
 
 class DestinationRegistry:
