@@ -13,6 +13,7 @@ All sources are merged and deduplicated before injection.
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import List, Optional
 
@@ -43,6 +44,9 @@ ENV_PACKAGES_INLINE = "ADDITIONAL_PACKAGES"
 # Property name for tracking injection source
 SBOMIFY_SOURCE_PROPERTY = "sbomify:source"
 SBOMIFY_SOURCE_VALUE = "additional-packages"
+
+# SPDX external reference type for PURLs
+PURL_REFERENCE_TYPE = "purl"
 
 
 def parse_additional_packages_file(file_path: str) -> List[str]:
@@ -294,7 +298,7 @@ def inject_packages_into_spdx(document: Document, purls: List[str]) -> int:
     existing_purls = set()
     for pkg in document.packages:
         for ref in pkg.external_references:
-            if ref.reference_type == "purl":
+            if ref.reference_type == PURL_REFERENCE_TYPE:
                 existing_purls.add(ref.locator)
 
     # Get existing SPDX IDs to avoid collisions
@@ -311,8 +315,9 @@ def inject_packages_into_spdx(document: Document, purls: List[str]) -> int:
             logger.debug(f"Skipping duplicate PURL: {purl_str}")
             continue
 
-        # Generate unique SPDX ID
-        base_id = f"SPDXRef-additional-{purl.name.replace('/', '-').replace('@', '-')}"
+        # Generate unique SPDX ID (sanitize to valid idstring: letters, numbers, . and -)
+        sanitized_name = re.sub(r"[^a-zA-Z0-9.\-]", "-", purl.name)
+        base_id = f"SPDXRef-additional-{sanitized_name}"
         spdx_id = base_id
         counter = 1
         while spdx_id in existing_ids:
@@ -333,7 +338,7 @@ def inject_packages_into_spdx(document: Document, purls: List[str]) -> int:
         package.external_references.append(
             ExternalPackageRef(
                 category=ExternalPackageRefCategory.PACKAGE_MANAGER,
-                reference_type="purl",
+                reference_type=PURL_REFERENCE_TYPE,
                 locator=purl_str,
             )
         )
