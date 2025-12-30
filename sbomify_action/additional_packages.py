@@ -174,15 +174,8 @@ def get_additional_packages() -> List[str]:
     # 3. Check for inline packages via environment variable
     inline_packages = os.getenv(ENV_PACKAGES_INLINE)
     if inline_packages:
-        # Support both comma and newline separation
-        inline_purls = []
-        for separator in ["\n", ","]:
-            if separator in inline_packages:
-                inline_purls = [p.strip() for p in inline_packages.split(separator) if p.strip()]
-                break
-        else:
-            # Single PURL
-            inline_purls = [inline_packages.strip()] if inline_packages.strip() else []
+        # Support both comma and newline separation (including mixed usage)
+        inline_purls = [p.strip() for p in re.split(r"[\n,]", inline_packages) if p.strip()]
 
         valid_count = 0
         for purl in inline_purls:
