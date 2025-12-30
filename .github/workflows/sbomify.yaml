@@ -61,10 +61,10 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install Trivy
-        env:
-          TRIVY_VERSION: 0.67.2
         run: |
-          # Install Trivy
+          # Source version extraction script (sets TRIVY_VERSION, BOMCTL_VERSION)
+          source ./scripts/generate_additional_packages.sh || { echo 'Failed to extract versions from Dockerfile' >&2; exit 1; }
+          echo "Installing Trivy version: $TRIVY_VERSION"
           curl -sL \
             -o trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz \
             "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
@@ -214,6 +214,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Generate additional packages from Dockerfile
+        run: ./scripts/generate_additional_packages.sh > additional_packages.txt
 
       - name: Upload SBOM
         uses: sbomify/github-action@master

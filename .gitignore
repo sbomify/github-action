@@ -8,3 +8,4 @@ test_conan_generation.json
 sbom_output.json
 .coverage
 step_1.json
+additional_packages.txt
