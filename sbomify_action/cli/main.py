@@ -15,6 +15,7 @@ import sentry_sdk
 from cyclonedx.model.bom import Bom
 
 from .._generation.utils import log_command_error
+from ..additional_packages import inject_additional_packages
 from ..augmentation import augment_sbom_from_file
 from ..exceptions import (
     APIError,
@@ -1231,6 +1232,15 @@ def main() -> None:
     if config.component_name:
         logger.info(f"Applying component name override: {config.component_name}")
         _apply_sbom_name_override("step_1.json", config)
+
+    # Inject additional packages if specified (file or environment variables)
+    try:
+        injected_count = inject_additional_packages("step_1.json")
+        if injected_count > 0:
+            logger.info(f"Successfully injected {injected_count} additional package(s) into SBOM")
+    except Exception as e:
+        logger.warning(f"Failed to inject additional packages: {e}")
+        # Don't fail the entire process for additional packages injection issues
 
     # Step 2: Augmentation
     if config.augment:
