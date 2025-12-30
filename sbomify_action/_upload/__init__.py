@@ -40,7 +40,7 @@ from .destinations import (
 )
 from .orchestrator import UploadOrchestrator, create_registry_with_sbomify
 from .protocol import Destination, DestinationConfig, SBOMFormat, UploadInput
-from .registry import DestinationRegistry
+from .registry import VALID_DESTINATIONS, DestinationRegistry
 from .result import UploadResult
 
 __all__ = [
@@ -52,6 +52,7 @@ __all__ = [
     "DestinationConfig",
     # Registry and orchestration
     "DestinationRegistry",
+    "VALID_DESTINATIONS",
     "UploadOrchestrator",
     "create_registry_with_sbomify",
     # Destination implementations
