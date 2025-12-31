@@ -2005,13 +2005,6 @@ class TestDepsDevVcsUrlNormalization:
 
         assert _normalize_vcs_url("") == ""
 
-    def test_normalize_none_like_empty(self):
-        """Test that None-like values are handled."""
-        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
-
-        # Empty string returns empty
-        assert _normalize_vcs_url("") == ""
-
     def test_normalize_gitlab_ssh(self):
         """Test normalization of GitLab SSH URLs."""
         from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
