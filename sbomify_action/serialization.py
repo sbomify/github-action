@@ -5,9 +5,12 @@ This module provides centralized serialization functions for both CycloneDX and 
 formats, supporting multiple versions and making it easy to add new versions in the future.
 """
 
-from typing import Dict, Optional, Type
+from typing import TYPE_CHECKING, Dict, Optional, Type
 
 from cyclonedx.model.bom import Bom
+
+if TYPE_CHECKING:
+    from packageurl import PackageURL
 from spdx_tools.spdx.model import Document
 
 from .logging_config import logger
@@ -98,7 +101,7 @@ def _get_cyclonedx_outputter(spec_version: str) -> Type:
     return outputter_class
 
 
-def _parse_purl_for_stub(purl_string: str) -> tuple[Optional[str], Optional[str], Optional[str], Optional[object]]:
+def _parse_purl_for_stub(purl_string: str) -> tuple[Optional[str], Optional[str], Optional[str], Optional["PackageURL"]]:
     """
     Parse a PURL string to extract component information for stub creation.
 
