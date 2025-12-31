@@ -101,7 +101,9 @@ def _get_cyclonedx_outputter(spec_version: str) -> Type:
     return outputter_class
 
 
-def _parse_purl_for_stub(purl_string: str) -> tuple[Optional[str], Optional[str], Optional[str], Optional["PackageURL"]]:
+def _parse_purl_for_stub(
+    purl_string: str,
+) -> tuple[Optional[str], Optional[str], Optional[str], Optional["PackageURL"]]:
     """
     Parse a PURL string to extract component information for stub creation.
 
