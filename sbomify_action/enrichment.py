@@ -55,7 +55,7 @@ from .generation import (
     RUST_LOCK_FILES,
 )
 from .logging_config import logger
-from .serialization import serialize_cyclonedx_bom
+from .serialization import sanitize_dependency_graph, serialize_cyclonedx_bom
 from .validation import validate_sbom_file_auto
 
 # Combine all lockfile names into a single set for efficient lookup
@@ -841,6 +841,8 @@ def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: 
     components = _extract_components_from_cyclonedx(bom)
     if not components:
         logger.warning("No components with PURLs found in SBOM, skipping enrichment")
+        # Sanitize dependency graph (add stubs for orphaned references)
+        sanitize_dependency_graph(bom)
         serialized = serialize_cyclonedx_bom(bom, spec_version)
         with open(output_path, "w") as f:
             f.write(serialized)
@@ -859,6 +861,9 @@ def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: 
 
     # Print summary
     _log_cyclonedx_enrichment_summary(stats, len(components))
+
+    # Sanitize dependency graph (add stubs for orphaned references)
+    sanitize_dependency_graph(bom)
 
     # Write output
     try:

@@ -98,6 +98,131 @@ def _get_cyclonedx_outputter(spec_version: str) -> Type:
     return outputter_class
 
 
+def _parse_purl_for_stub(purl_string: str) -> tuple[Optional[str], Optional[str], Optional[str], Optional["PackageURL"]]:
+    """
+    Parse a PURL string to extract component information for stub creation.
+
+    Uses the packageurl library for robust parsing.
+
+    Args:
+        purl_string: PURL string (e.g., "pkg:npm/vue-chartjs@3.5.1" or "pkg:npm/%40scope/name@1.0.0")
+
+    Returns:
+        Tuple of (name, version, namespace, PackageURL) or (None, None, None, None) if parsing fails
+    """
+    try:
+        from packageurl import PackageURL
+
+        purl_obj = PackageURL.from_string(purl_string)
+        return purl_obj.name, purl_obj.version, purl_obj.namespace, purl_obj
+
+    except Exception:
+        return None, None, None, None
+
+
+def sanitize_dependency_graph(bom: Bom) -> int:
+    """
+    Fix orphaned dependency references by adding stub components for missing refs.
+
+    Some SBOM generators (like CycloneDX webpack plugin) may produce SBOMs with
+    dependency graph entries that reference components not included in the BOM.
+    The cyclonedx-python library's validate() rejects such SBOMs. This function
+    creates minimal stub components for missing references to make the tool
+    resilient to malformed inputs while preserving the dependency graph structure.
+
+    Args:
+        bom: The CycloneDX BOM object to sanitize (modified in place)
+
+    Returns:
+        Number of stub components added
+    """
+    from cyclonedx.model import BomRef
+    from cyclonedx.model.component import Component, ComponentType
+
+    # Collect all known BomRef values
+    known_refs: set[str] = set()
+
+    # Add component BomRefs
+    for comp in bom.components:
+        if comp.bom_ref and comp.bom_ref.value:
+            known_refs.add(comp.bom_ref.value)
+
+    # Add service BomRefs
+    for service in bom.services:
+        if service.bom_ref and service.bom_ref.value:
+            known_refs.add(service.bom_ref.value)
+
+    # Add metadata component BomRef
+    if bom.metadata and bom.metadata.component:
+        if bom.metadata.component.bom_ref and bom.metadata.component.bom_ref.value:
+            known_refs.add(bom.metadata.component.bom_ref.value)
+
+    # Collect all refs used in dependency graph
+    dependency_refs: set[str] = set()
+    for dep in bom.dependencies:
+        if dep.ref and dep.ref.value:
+            dependency_refs.add(dep.ref.value)
+        for nested_dep in dep.dependencies:
+            if nested_dep.ref and nested_dep.ref.value:
+                dependency_refs.add(nested_dep.ref.value)
+
+    # Find orphaned refs (in dependencies but not in components)
+    orphaned_refs = dependency_refs - known_refs
+
+    if not orphaned_refs:
+        return 0
+
+    stubs_added = 0
+
+    for ref_value in orphaned_refs:
+        # Try to parse as PURL to get component info
+        name, version, namespace, purl_obj = _parse_purl_for_stub(ref_value)
+
+        if name:
+            # Create stub component from PURL info
+            stub = Component(
+                type=ComponentType.LIBRARY,
+                name=name,
+                version=version or "unknown",
+                bom_ref=BomRef(ref_value),
+            )
+            if namespace:
+                stub.group = namespace
+            if purl_obj:
+                stub.purl = purl_obj
+
+            logger.warning(
+                f"Adding stub component for orphaned dependency reference: {ref_value} "
+                f"(name={name}, version={version or 'unknown'}, group={namespace or 'none'}). "
+                "This component was referenced in the dependency graph but missing from components list. "
+                "The upstream SBOM generator may have a bug."
+            )
+        else:
+            # Can't parse as PURL - create minimal stub with ref as name
+            stub = Component(
+                type=ComponentType.LIBRARY,
+                name=ref_value,
+                version="unknown",
+                bom_ref=BomRef(ref_value),
+            )
+            logger.warning(
+                f"Adding stub component for orphaned dependency reference: {ref_value} "
+                "(could not parse as PURL, using ref as component name). "
+                "This component was referenced in the dependency graph but missing from components list. "
+                "The upstream SBOM generator may have a bug."
+            )
+
+        bom.components.add(stub)
+        stubs_added += 1
+
+    logger.info(
+        f"Dependency graph sanitization: added {stubs_added} stub component(s) for orphaned references. "
+        "These stubs may be enriched in the enrichment step."
+    )
+
+    return stubs_added
+
+
 def serialize_cyclonedx_bom(bom: Bom, spec_version: Optional[str] = None) -> str:
     """
     Serialize a CycloneDX BOM to JSON string using the appropriate version outputter.

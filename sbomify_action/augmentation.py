@@ -26,7 +26,7 @@ from ._generation.utils import ALL_LOCK_FILES
 from .exceptions import SBOMValidationError
 from .http_client import get_default_headers
 from .logging_config import logger
-from .serialization import serialize_cyclonedx_bom
+from .serialization import sanitize_dependency_graph, serialize_cyclonedx_bom
 from .validation import validate_sbom_file_auto
 
 # Constants for SPDX license parsing
@@ -868,6 +868,9 @@ def augment_sbom_from_file(
             bom = augment_cyclonedx_sbom(
                 bom, augmentation_data, override_sbom_metadata, component_name, component_version, spec_version
             )
+
+            # Sanitize dependency graph (add stubs for orphaned references)
+            sanitize_dependency_graph(bom)
 
             # Write output using version-aware serialization
             serialized = serialize_cyclonedx_bom(bom, spec_version)
