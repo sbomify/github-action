@@ -98,7 +98,7 @@ def _get_cyclonedx_outputter(spec_version: str) -> Type:
     return outputter_class
 
 
-def _parse_purl_for_stub(purl_string: str) -> tuple[Optional[str], Optional[str], Optional[str], Optional["PackageURL"]]:
+def _parse_purl_for_stub(purl_string: str) -> tuple[Optional[str], Optional[str], Optional[str], Optional[object]]:
     """
     Parse a PURL string to extract component information for stub creation.
 
@@ -116,7 +116,7 @@ def _parse_purl_for_stub(purl_string: str) -> tuple[Optional[str], Optional[str]
         purl_obj = PackageURL.from_string(purl_string)
         return purl_obj.name, purl_obj.version, purl_obj.namespace, purl_obj
 
-    except Exception:
+    except (ImportError, ValueError):
         return None, None, None, None
 
 
@@ -193,7 +193,7 @@ def sanitize_dependency_graph(bom: Bom) -> int:
 
             logger.warning(
                 f"Adding stub component for orphaned dependency reference: {ref_value} "
-                f"(name={name}, version={version or 'unknown'}, group={namespace or 'none'}). "
+                f"(name={name}, version={version or 'unknown'}, group={namespace or 'unknown'}). "
                 "This component was referenced in the dependency graph but missing from components list. "
                 "The upstream SBOM generator may have a bug."
             )

@@ -76,6 +76,9 @@ class TestParsePurlForStub:
         """Test that malformed PURL without slash returns None."""
         name, version, namespace, purl_obj = _parse_purl_for_stub("pkg:npm")
         assert name is None
+        assert version is None
+        assert namespace is None
+        assert purl_obj is None
 
 
 class TestSanitizeDependencyGraph:
