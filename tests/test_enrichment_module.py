@@ -1940,6 +1940,88 @@ class TestClearlyDefinedSource:
 # =============================================================================
 
 
+class TestDepsDevVcsUrlNormalization:
+    """Test VCS URL normalization in DepsDevSource."""
+
+    def test_normalize_ssh_shorthand_to_git_ssh(self):
+        """Test that SSH shorthand URLs are normalized to git+ssh://."""
+        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+
+        url = "git@github.com:user/repo.git"
+        result = _normalize_vcs_url(url)
+        assert result == "git+ssh://git@github.com/user/repo.git"
+
+    def test_normalize_scm_git_ssh_to_git_ssh(self):
+        """Test that scm:git:git@... URLs are normalized to git+ssh://."""
+        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+
+        url = "scm:git:git@github.com:user/repo.git"
+        result = _normalize_vcs_url(url)
+        assert result == "git+ssh://git@github.com/user/repo.git"
+
+    def test_normalize_scm_git_protocol_to_git(self):
+        """Test that scm:git:git://... URLs are normalized to git://."""
+        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+
+        url = "scm:git:git://github.com/user/repo.git"
+        result = _normalize_vcs_url(url)
+        assert result == "git://github.com/user/repo.git"
+
+    def test_normalize_scm_git_https_to_git_https(self):
+        """Test that scm:git:https://... URLs are normalized to git+https://."""
+        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+
+        url = "scm:git:https://github.com/user/repo.git"
+        result = _normalize_vcs_url(url)
+        assert result == "git+https://github.com/user/repo.git"
+
+    def test_normalize_scm_git_http_to_git_http(self):
+        """Test that scm:git:http://... URLs are normalized to git+http://."""
+        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+
+        url = "scm:git:http://github.com/user/repo.git"
+        result = _normalize_vcs_url(url)
+        assert result == "git+http://github.com/user/repo.git"
+
+    def test_normalize_git_protocol_unchanged(self):
+        """Test that git:// URLs are not changed."""
+        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+
+        url = "git://github.com/user/repo.git"
+        result = _normalize_vcs_url(url)
+        assert result == "git://github.com/user/repo.git"
+
+    def test_normalize_https_unchanged(self):
+        """Test that https:// URLs are not changed."""
+        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+
+        url = "https://github.com/user/repo.git"
+        result = _normalize_vcs_url(url)
+        assert result == "https://github.com/user/repo.git"
+
+    def test_normalize_empty_string(self):
+        """Test that empty strings are returned unchanged."""
+        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+
+        assert _normalize_vcs_url("") == ""
+
+    def test_normalize_gitlab_ssh(self):
+        """Test normalization of GitLab SSH URLs."""
+        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+
+        url = "git@gitlab.com:group/project.git"
+        result = _normalize_vcs_url(url)
+        assert result == "git+ssh://git@gitlab.com/group/project.git"
+
+    def test_normalize_bitbucket_ssh(self):
+        """Test normalization of Bitbucket SSH URLs."""
+        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+
+        url = "git@bitbucket.org:user/repo.git"
+        result = _normalize_vcs_url(url)
+        assert result == "git+ssh://git@bitbucket.org/user/repo.git"
+
+
 class TestDepsDevSource:
     """Test the DepsDevSource data source."""
 

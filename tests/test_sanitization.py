@@ -249,3 +249,37 @@ class TestInjectionPrevention:
         """Test that unicode control characters are handled."""
         # Bell character
         assert sanitize_string("hello\x07world") == "helloworld"
+
+
+class TestSpdxVcsUrlSchemes:
+    """Tests for SPDX VCS URL scheme support."""
+
+    def test_allows_git_scheme(self):
+        """Test that git:// URLs are allowed (SPDX VCS format)."""
+        url = "git://github.com/user/repo.git"
+        assert sanitize_url(url) == url
+
+    def test_allows_git_ssh_scheme(self):
+        """Test that git+ssh:// URLs are allowed (SPDX VCS format)."""
+        url = "git+ssh://git@github.com/user/repo.git"
+        assert sanitize_url(url) == url
+
+    def test_allows_git_https_scheme(self):
+        """Test that git+https:// URLs are allowed (SPDX VCS format)."""
+        url = "git+https://github.com/user/repo.git"
+        assert sanitize_url(url) == url
+
+    def test_allows_git_http_scheme(self):
+        """Test that git+http:// URLs are allowed (SPDX VCS format)."""
+        url = "git+http://github.com/user/repo.git"
+        assert sanitize_url(url) == url
+
+    def test_blocks_scm_git_scheme(self):
+        """Test that Maven scm:git: URLs are blocked (not SPDX standard)."""
+        # These should be normalized by the data source, not sanitization
+        assert sanitize_url("scm:git:git@github.com:user/repo.git") is None
+
+    def test_blocks_ssh_shorthand(self):
+        """Test that SSH shorthand URLs are blocked (not SPDX standard)."""
+        # These should be normalized by the data source, not sanitization
+        assert sanitize_url("git@github.com:user/repo.git") is None
