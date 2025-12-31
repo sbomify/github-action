@@ -58,6 +58,26 @@ from .logging_config import logger
 from .serialization import sanitize_dependency_graph, serialize_cyclonedx_bom
 from .validation import validate_sbom_file_auto
 
+
+def _sanitize_and_serialize_cyclonedx(bom: Bom, spec_version: str) -> str:
+    """
+    Sanitize dependency graph and serialize CycloneDX BOM.
+
+    This is the final modification step before serialization. It adds stub
+    components for any orphaned dependency references, ensuring the BOM
+    passes validation.
+
+    Args:
+        bom: The CycloneDX BOM to sanitize and serialize
+        spec_version: The CycloneDX spec version
+
+    Returns:
+        Serialized JSON string
+    """
+    sanitize_dependency_graph(bom)
+    return serialize_cyclonedx_bom(bom, spec_version)
+
+
 # Combine all lockfile names into a single set for efficient lookup
 ALL_LOCKFILE_NAMES = set(
     PYTHON_LOCK_FILES
@@ -841,10 +861,7 @@ def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: 
     components = _extract_components_from_cyclonedx(bom)
     if not components:
         logger.warning("No components with PURLs found in SBOM, skipping enrichment")
-        # Sanitize dependency graph as the final modification step before serialization.
-        # This ensures graph consistency even when no enrichment occurs.
-        sanitize_dependency_graph(bom)
-        serialized = serialize_cyclonedx_bom(bom, spec_version)
+        serialized = _sanitize_and_serialize_cyclonedx(bom, spec_version)
         with open(output_path, "w") as f:
             f.write(serialized)
         return
@@ -863,15 +880,9 @@ def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: 
     # Print summary
     _log_cyclonedx_enrichment_summary(stats, len(components))
 
-    # Sanitize dependency graph as the final modification step before serialization.
-    # This adds stub components for any orphaned dependency references,
-    # ensuring the BOM passes validation. Done after enrichment so stubs
-    # aren't processed by the enricher (they are incomplete synthetic components).
-    sanitize_dependency_graph(bom)
-
     # Write output
     try:
-        serialized = serialize_cyclonedx_bom(bom, spec_version)
+        serialized = _sanitize_and_serialize_cyclonedx(bom, spec_version)
         with open(output_path, "w") as f:
             f.write(serialized)
         logger.info(f"Enriched SBOM written to: {output_path}")
