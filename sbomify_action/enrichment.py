@@ -866,7 +866,7 @@ def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: 
     # Sanitize dependency graph as the final modification step before serialization.
     # This adds stub components for any orphaned dependency references,
     # ensuring the BOM passes validation. Done after enrichment so stubs
-    # aren't processed by the enricher (they lack PURLs for lookup).
+    # aren't processed by the enricher (they are incomplete synthetic components).
     sanitize_dependency_graph(bom)
 
     # Write output
