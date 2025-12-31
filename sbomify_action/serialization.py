@@ -18,6 +18,7 @@ from .logging_config import logger
 
 # Lazy imports to avoid loading all versions upfront
 _CYCLONEDX_OUTPUTTERS: Dict[str, Optional[Type]] = {
+    "1.3": None,  # JsonV1Dot3
     "1.4": None,  # JsonV1Dot4
     "1.5": None,  # JsonV1Dot5
     "1.6": None,  # JsonV1Dot6
@@ -54,7 +55,11 @@ def _get_cyclonedx_outputter(spec_version: str) -> Type:
     # Lazy load the outputter class if not already loaded
     if major_minor in _CYCLONEDX_OUTPUTTERS and _CYCLONEDX_OUTPUTTERS[major_minor] is None:
         try:
-            if major_minor == "1.4":
+            if major_minor == "1.3":
+                from cyclonedx.output.json import JsonV1Dot3
+
+                _CYCLONEDX_OUTPUTTERS["1.3"] = JsonV1Dot3
+            elif major_minor == "1.4":
                 from cyclonedx.output.json import JsonV1Dot4
 
                 _CYCLONEDX_OUTPUTTERS["1.4"] = JsonV1Dot4

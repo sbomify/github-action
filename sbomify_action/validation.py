@@ -36,6 +36,7 @@ SPDX_SCHEMA_DIR = PACKAGE_DIR / "schemas" / "spdx"
 
 # Schema file mappings
 CDX_SCHEMAS = {
+    "1.3": CDX_SCHEMA_DIR / "cdx-1.3.schema.json",
     "1.4": CDX_SCHEMA_DIR / "cdx-1.4.schema.json",
     "1.5": CDX_SCHEMA_DIR / "cdx-1.5.schema.json",
     "1.6": CDX_SCHEMA_DIR / "cdx-1.6.schema.json",
