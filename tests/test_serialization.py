@@ -7,18 +7,18 @@ from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.dependency import Dependency
 
 from sbomify_action.serialization import (
-    _parse_purl_for_stub,
+    _extract_component_info_from_purl,
     sanitize_dependency_graph,
     serialize_cyclonedx_bom,
 )
 
 
-class TestParsePurlForStub:
+class TestExtractComponentInfoFromPurl:
     """Tests for PURL parsing helper function."""
 
     def test_simple_npm_purl(self):
         """Test parsing a simple npm PURL."""
-        name, version, namespace, purl_obj = _parse_purl_for_stub("pkg:npm/lodash@4.17.21")
+        name, version, namespace, purl_obj = _extract_component_info_from_purl("pkg:npm/lodash@4.17.21")
         assert name == "lodash"
         assert version == "4.17.21"
         assert namespace is None
@@ -28,7 +28,7 @@ class TestParsePurlForStub:
 
     def test_scoped_npm_purl(self):
         """Test parsing a scoped npm PURL with URL-encoded @ symbol."""
-        name, version, namespace, purl_obj = _parse_purl_for_stub("pkg:npm/%40scope/package@1.0.0")
+        name, version, namespace, purl_obj = _extract_component_info_from_purl("pkg:npm/%40scope/package@1.0.0")
         assert name == "package"
         assert version == "1.0.0"
         assert namespace == "@scope"
@@ -36,28 +36,30 @@ class TestParsePurlForStub:
 
     def test_pypi_purl(self):
         """Test parsing a PyPI PURL."""
-        name, version, namespace, purl_obj = _parse_purl_for_stub("pkg:pypi/requests@2.31.0")
+        name, version, namespace, purl_obj = _extract_component_info_from_purl("pkg:pypi/requests@2.31.0")
         assert name == "requests"
         assert version == "2.31.0"
         assert namespace is None
 
     def test_maven_purl_with_group(self):
         """Test parsing a Maven PURL with namespace."""
-        name, version, namespace, purl_obj = _parse_purl_for_stub("pkg:maven/org.apache.commons/commons-lang3@3.12.0")
+        name, version, namespace, purl_obj = _extract_component_info_from_purl(
+            "pkg:maven/org.apache.commons/commons-lang3@3.12.0"
+        )
         assert name == "commons-lang3"
         assert version == "3.12.0"
         assert namespace == "org.apache.commons"
 
     def test_purl_without_version(self):
         """Test parsing a PURL without version."""
-        name, version, namespace, purl_obj = _parse_purl_for_stub("pkg:npm/lodash")
+        name, version, namespace, purl_obj = _extract_component_info_from_purl("pkg:npm/lodash")
         assert name == "lodash"
         assert version is None
         assert namespace is None
 
     def test_purl_with_qualifiers(self):
         """Test parsing a PURL with qualifiers after version."""
-        name, version, namespace, purl_obj = _parse_purl_for_stub("pkg:npm/lodash@4.17.21?arch=x86")
+        name, version, namespace, purl_obj = _extract_component_info_from_purl("pkg:npm/lodash@4.17.21?arch=x86")
         assert name == "lodash"
         assert version == "4.17.21"
         assert namespace is None
@@ -66,7 +68,7 @@ class TestParsePurlForStub:
 
     def test_invalid_purl_no_pkg_prefix(self):
         """Test that non-PURL strings return None."""
-        name, version, namespace, purl_obj = _parse_purl_for_stub("not-a-purl")
+        name, version, namespace, purl_obj = _extract_component_info_from_purl("not-a-purl")
         assert name is None
         assert version is None
         assert namespace is None
@@ -74,7 +76,7 @@ class TestParsePurlForStub:
 
     def test_invalid_purl_no_slash(self):
         """Test that malformed PURL without slash returns None."""
-        name, version, namespace, purl_obj = _parse_purl_for_stub("pkg:npm")
+        name, version, namespace, purl_obj = _extract_component_info_from_purl("pkg:npm")
         assert name is None
         assert version is None
         assert namespace is None
@@ -104,7 +106,8 @@ class TestSanitizeDependencyGraph:
 
         # Add valid dependency
         dep = Dependency(ref=comp1.bom_ref)
-        dep.dependencies.add(Dependency(ref=comp2.bom_ref))
+        dep2 = Dependency(ref=comp2.bom_ref)
+        dep.dependencies.add(dep2)
         bom.dependencies.add(dep)
 
         stubs_added = sanitize_dependency_graph(bom)

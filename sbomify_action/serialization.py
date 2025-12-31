@@ -101,11 +101,15 @@ def _get_cyclonedx_outputter(spec_version: str) -> Type:
     return outputter_class
 
 
-def _parse_purl_for_stub(
+# Display value for missing namespace in log messages
+_NO_NAMESPACE_DISPLAY = "<none>"
+
+
+def _extract_component_info_from_purl(
     purl_string: str,
 ) -> tuple[Optional[str], Optional[str], Optional[str], Optional["PackageURL"]]:
     """
-    Parse a PURL string to extract component information for stub creation.
+    Extract component information from a PURL string for stub creation.
 
     Uses the packageurl library for robust parsing.
 
@@ -181,7 +185,7 @@ def sanitize_dependency_graph(bom: Bom) -> int:
 
     for ref_value in orphaned_refs:
         # Try to parse as PURL to get component info
-        name, version, namespace, purl_obj = _parse_purl_for_stub(ref_value)
+        name, version, namespace, purl_obj = _extract_component_info_from_purl(ref_value)
 
         if name:
             # Create stub component from PURL info
@@ -196,7 +200,7 @@ def sanitize_dependency_graph(bom: Bom) -> int:
             if purl_obj:
                 stub.purl = purl_obj
 
-            group_display = namespace or "<none>"
+            group_display = namespace or _NO_NAMESPACE_DISPLAY
             logger.warning(
                 f"Adding stub component for orphaned dependency reference: {ref_value} "
                 f"(name={name}, version={version or 'unknown'}, group={group_display}). "
