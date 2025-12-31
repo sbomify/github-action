@@ -55,8 +55,28 @@ from .generation import (
     RUST_LOCK_FILES,
 )
 from .logging_config import logger
-from .serialization import serialize_cyclonedx_bom
+from .serialization import sanitize_dependency_graph, serialize_cyclonedx_bom
 from .validation import validate_sbom_file_auto
+
+
+def _sanitize_and_serialize_cyclonedx(bom: Bom, spec_version: str) -> str:
+    """
+    Sanitize dependency graph and serialize CycloneDX BOM.
+
+    This is the final modification step before serialization. It adds stub
+    components for any orphaned dependency references, ensuring the BOM
+    passes validation.
+
+    Args:
+        bom: The CycloneDX BOM to sanitize and serialize
+        spec_version: The CycloneDX spec version
+
+    Returns:
+        Serialized JSON string
+    """
+    sanitize_dependency_graph(bom)
+    return serialize_cyclonedx_bom(bom, spec_version)
+
 
 # Combine all lockfile names into a single set for efficient lookup
 ALL_LOCKFILE_NAMES = set(
@@ -841,7 +861,7 @@ def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: 
     components = _extract_components_from_cyclonedx(bom)
     if not components:
         logger.warning("No components with PURLs found in SBOM, skipping enrichment")
-        serialized = serialize_cyclonedx_bom(bom, spec_version)
+        serialized = _sanitize_and_serialize_cyclonedx(bom, spec_version)
         with open(output_path, "w") as f:
             f.write(serialized)
         return
@@ -862,7 +882,7 @@ def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: 
 
     # Write output
     try:
-        serialized = serialize_cyclonedx_bom(bom, spec_version)
+        serialized = _sanitize_and_serialize_cyclonedx(bom, spec_version)
         with open(output_path, "w") as f:
             f.write(serialized)
         logger.info(f"Enriched SBOM written to: {output_path}")

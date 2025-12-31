@@ -5,9 +5,12 @@ This module provides centralized serialization functions for both CycloneDX and 
 formats, supporting multiple versions and making it easy to add new versions in the future.
 """
 
-from typing import Dict, Optional, Type
+from typing import TYPE_CHECKING, Dict, Optional, Type
 
 from cyclonedx.model.bom import Bom
+
+if TYPE_CHECKING:
+    from packageurl import PackageURL
 from spdx_tools.spdx.model import Document
 
 from .logging_config import logger
@@ -96,6 +99,143 @@ def _get_cyclonedx_outputter(spec_version: str) -> Type:
         )
 
     return outputter_class
+
+
+# Display value for missing namespace in log messages
+_NO_NAMESPACE_DISPLAY = "<none>"
+
+# Default version for stub components when version cannot be determined
+_UNKNOWN_VERSION = "unknown"
+
+
+def _extract_component_info_from_purl(
+    purl_string: str,
+) -> tuple[Optional[str], Optional[str], Optional[str], Optional["PackageURL"]]:
+    """
+    Extract component information from a PURL string for stub creation.
+
+    Uses the packageurl library for robust parsing.
+
+    Args:
+        purl_string: PURL string (e.g., "pkg:npm/vue-chartjs@3.5.1" or "pkg:npm/%40scope/name@1.0.0")
+
+    Returns:
+        Tuple of (name, version, namespace, PackageURL) or (None, None, None, None) if parsing fails
+    """
+    try:
+        from packageurl import PackageURL
+
+        purl_obj = PackageURL.from_string(purl_string)
+        return purl_obj.name, purl_obj.version, purl_obj.namespace, purl_obj
+
+    except (ImportError, ValueError):
+        # ImportError: packageurl library is not installed
+        # ValueError: the provided PURL string is malformed
+        return None, None, None, None
+
+
+def sanitize_dependency_graph(bom: Bom) -> int:
+    """
+    Fix orphaned dependency references by adding stub components for missing refs.
+
+    Some SBOM generators (like CycloneDX webpack plugin) may produce SBOMs with
+    dependency graph entries that reference components not included in the BOM.
+    The cyclonedx-python library's validate() rejects such SBOMs. This function
+    creates minimal stub components for missing references to make the tool
+    resilient to malformed inputs while preserving the dependency graph structure.
+
+    Args:
+        bom: The CycloneDX BOM object to sanitize (modified in place)
+
+    Returns:
+        Number of stub components added
+    """
+    from cyclonedx.model import BomRef
+    from cyclonedx.model.component import Component, ComponentType
+
+    # Collect all known BomRef values
+    known_refs: set[str] = set()
+
+    # Add component BomRefs
+    for comp in bom.components:
+        if comp.bom_ref and comp.bom_ref.value:
+            known_refs.add(comp.bom_ref.value)
+
+    # Add service BomRefs
+    for service in bom.services:
+        if service.bom_ref and service.bom_ref.value:
+            known_refs.add(service.bom_ref.value)
+
+    # Add metadata component BomRef
+    if bom.metadata and bom.metadata.component:
+        if bom.metadata.component.bom_ref and bom.metadata.component.bom_ref.value:
+            known_refs.add(bom.metadata.component.bom_ref.value)
+
+    # Collect all refs used in dependency graph
+    dependency_refs: set[str] = set()
+    for dep in bom.dependencies:
+        if dep.ref and dep.ref.value:
+            dependency_refs.add(dep.ref.value)
+        for nested_dep in dep.dependencies:
+            if nested_dep.ref and nested_dep.ref.value:
+                dependency_refs.add(nested_dep.ref.value)
+
+    # Find orphaned refs (in dependencies but not in components)
+    orphaned_refs = dependency_refs - known_refs
+
+    if not orphaned_refs:
+        return 0
+
+    stubs_added = 0
+
+    for ref_value in orphaned_refs:
+        # Try to parse as PURL to get component info
+        name, version, namespace, purl_obj = _extract_component_info_from_purl(ref_value)
+
+        if name:
+            # Create stub component from PURL info
+            stub = Component(
+                type=ComponentType.LIBRARY,
+                name=name,
+                version=version or _UNKNOWN_VERSION,
+                bom_ref=BomRef(ref_value),
+            )
+            if namespace:
+                stub.group = namespace
+            if purl_obj:
+                stub.purl = purl_obj
+
+            group_display = namespace or _NO_NAMESPACE_DISPLAY
+            logger.warning(
+                f"Adding stub component for orphaned dependency reference: {ref_value} "
+                f"(name={name}, version={version or _UNKNOWN_VERSION}, group={group_display}). "
+                "This component was referenced in the dependency graph but missing from components list. "
+                "The upstream SBOM generator may have a bug."
+            )
+        else:
+            # Can't parse as PURL - create minimal stub with ref as name
+            stub = Component(
+                type=ComponentType.LIBRARY,
+                name=ref_value,
+                version=_UNKNOWN_VERSION,
+                bom_ref=BomRef(ref_value),
+            )
+            logger.warning(
+                f"Adding stub component for orphaned dependency reference: {ref_value} "
+                "(could not parse as PURL, using ref as component name). "
+                "This component was referenced in the dependency graph but missing from components list. "
+                "The upstream SBOM generator may have a bug."
+            )
+
+        bom.components.add(stub)
+        stubs_added += 1
+
+    logger.info(
+        f"Dependency graph sanitization: added {stubs_added} stub component(s) for orphaned references. "
+        "These stubs may be enriched in the enrichment step."
+    )
+
+    return stubs_added
 
 
 def serialize_cyclonedx_bom(bom: Bom, spec_version: Optional[str] = None) -> str:
