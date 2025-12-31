@@ -4,7 +4,7 @@ This module provides sanitization functions to protect against injection attacks
 when using data from external package registries.
 
 Security considerations:
-- URLs: Only allow http/https, validate format
+- URLs: Allow http/https and SPDX VCS schemes (git, git+ssh, git+https, git+http), validate format
 - Strings: Remove control characters, enforce length limits
 - Emails: Basic format validation
 """
@@ -23,7 +23,9 @@ MAX_LICENSE_LENGTH = 512
 MAX_EMAIL_LENGTH = 254
 
 # Allowed URL schemes
-ALLOWED_URL_SCHEMES = {"http", "https"}
+# Includes SPDX VCS URL schemes: git, git+ssh, git+https, git+http
+# See: https://spdx.github.io/spdx-spec/v2.3/package-information/
+ALLOWED_URL_SCHEMES = {"http", "https", "git", "git+ssh", "git+https", "git+http"}
 
 # Control characters to remove (except newline/tab in descriptions)
 CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -100,7 +102,8 @@ def sanitize_url(value: Optional[str], field_name: str = "url") -> Optional[str]
     """
     Sanitize and validate a URL from external sources.
 
-    Only allows http/https URLs, validates format, and enforces length limits.
+    Allows http/https URLs and SPDX VCS URL schemes (git, git+ssh, git+https, git+http).
+    Validates format and enforces length limits.
 
     Args:
         value: The URL to sanitize
@@ -133,7 +136,7 @@ def sanitize_url(value: Optional[str], field_name: str = "url") -> Optional[str]
 
         # Check scheme
         if parsed.scheme.lower() not in ALLOWED_URL_SCHEMES:
-            logger.warning(f"Disallowed URL scheme for {field_name}: {parsed.scheme}")
+            logger.warning(f"Disallowed URL scheme for {field_name}: '{parsed.scheme}' in URL: {url[:200]}")
             return None
 
         # Must have a netloc (host)
