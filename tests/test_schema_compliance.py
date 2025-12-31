@@ -25,10 +25,11 @@ from sbomify_action.serialization import serialize_cyclonedx_bom
 
 # Path to schemas
 REPO_ROOT = Path(__file__).parent.parent
-CDX_SCHEMA_DIR = REPO_ROOT / "schemas" / "cyclonedx"
-SPDX_SCHEMA_DIR = REPO_ROOT / "schemas" / "spdx"
+CDX_SCHEMA_DIR = REPO_ROOT / "sbomify_action" / "schemas" / "cyclonedx"
+SPDX_SCHEMA_DIR = REPO_ROOT / "sbomify_action" / "schemas" / "spdx"
 
 CDX_SCHEMAS = {
+    "1.3": CDX_SCHEMA_DIR / "cdx-1.3.schema.json",
     "1.4": CDX_SCHEMA_DIR / "cdx-1.4.schema.json",
     "1.5": CDX_SCHEMA_DIR / "cdx-1.5.schema.json",
     "1.6": CDX_SCHEMA_DIR / "cdx-1.6.schema.json",
@@ -48,7 +49,7 @@ def load_schema(schema_path: Path):
         return json.load(f)
 
 
-@pytest.mark.parametrize("version", ["1.4", "1.5", "1.6", "1.7"])
+@pytest.mark.parametrize("version", ["1.3", "1.4", "1.5", "1.6", "1.7"])
 def test_cyclonedx_full_flow_compliance(version, tmp_path):
     """Test CycloneDX compliance using full augmentation and enrichment public APIs."""
     schema = load_schema(CDX_SCHEMAS[version])

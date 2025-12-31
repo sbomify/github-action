@@ -423,7 +423,7 @@ Generated SBOMs are validated against their JSON schemas before output.
 
 ## Format Support
 
-- **CycloneDX**: 1.4, 1.5, 1.6, 1.7 (JSON)
+- **CycloneDX**: 1.3, 1.4, 1.5, 1.6, 1.7 (JSON)
 - **SPDX**: 2.2, 2.3 (JSON)
 
 > 📖 See [docs/adr/0001-plugin-architecture.md](docs/adr/0001-plugin-architecture.md) for architecture details.

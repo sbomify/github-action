@@ -78,6 +78,16 @@ class TestValidateSBOMData(unittest.TestCase):
         result = validate_sbom_data(data, "cyclonedx", "1.6")
         self.assertTrue(result.valid)
 
+    def test_valid_cyclonedx_1_3_minimal(self):
+        """Test validating minimal valid CycloneDX 1.3."""
+        data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.3",
+            "version": 1,
+        }
+        result = validate_sbom_data(data, "cyclonedx", "1.3")
+        self.assertTrue(result.valid)
+
     def test_invalid_cyclonedx_wrong_type(self):
         """Test validating CycloneDX with wrong field type."""
         data = {
