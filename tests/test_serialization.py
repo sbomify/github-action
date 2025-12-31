@@ -7,6 +7,7 @@ from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.dependency import Dependency
 
 from sbomify_action.serialization import (
+    _UNKNOWN_VERSION,
     _extract_component_info_from_purl,
     sanitize_dependency_graph,
     serialize_cyclonedx_bom,
@@ -56,6 +57,7 @@ class TestExtractComponentInfoFromPurl:
         assert name == "lodash"
         assert version is None
         assert namespace is None
+        assert purl_obj is not None  # PURL object should still be valid
 
     def test_purl_with_qualifiers(self):
         """Test parsing a PURL with qualifiers after version."""
@@ -228,7 +230,7 @@ class TestSanitizeDependencyGraph:
 
         assert stub is not None
         assert stub.name == "some-weird-ref-format"
-        assert stub.version == "unknown"
+        assert stub.version == _UNKNOWN_VERSION
 
     def test_multiple_orphaned_refs(self):
         """Test that multiple orphaned refs are all handled."""

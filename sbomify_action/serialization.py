@@ -104,6 +104,9 @@ def _get_cyclonedx_outputter(spec_version: str) -> Type:
 # Display value for missing namespace in log messages
 _NO_NAMESPACE_DISPLAY = "<none>"
 
+# Default version for stub components when version cannot be determined
+_UNKNOWN_VERSION = "unknown"
+
 
 def _extract_component_info_from_purl(
     purl_string: str,
@@ -126,6 +129,8 @@ def _extract_component_info_from_purl(
         return purl_obj.name, purl_obj.version, purl_obj.namespace, purl_obj
 
     except (ImportError, ValueError):
+        # ImportError: packageurl library is not installed
+        # ValueError: the provided PURL string is malformed
         return None, None, None, None
 
 
@@ -192,7 +197,7 @@ def sanitize_dependency_graph(bom: Bom) -> int:
             stub = Component(
                 type=ComponentType.LIBRARY,
                 name=name,
-                version=version or "unknown",
+                version=version or _UNKNOWN_VERSION,
                 bom_ref=BomRef(ref_value),
             )
             if namespace:
@@ -203,7 +208,7 @@ def sanitize_dependency_graph(bom: Bom) -> int:
             group_display = namespace or _NO_NAMESPACE_DISPLAY
             logger.warning(
                 f"Adding stub component for orphaned dependency reference: {ref_value} "
-                f"(name={name}, version={version or 'unknown'}, group={group_display}). "
+                f"(name={name}, version={version or _UNKNOWN_VERSION}, group={group_display}). "
                 "This component was referenced in the dependency graph but missing from components list. "
                 "The upstream SBOM generator may have a bug."
             )
@@ -212,7 +217,7 @@ def sanitize_dependency_graph(bom: Bom) -> int:
             stub = Component(
                 type=ComponentType.LIBRARY,
                 name=ref_value,
-                version="unknown",
+                version=_UNKNOWN_VERSION,
                 bom_ref=BomRef(ref_value),
             )
             logger.warning(
