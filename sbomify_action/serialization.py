@@ -198,7 +198,7 @@ def sanitize_dependency_graph(bom: Bom) -> int:
 
             logger.warning(
                 f"Adding stub component for orphaned dependency reference: {ref_value} "
-                f"(name={name}, version={version or 'unknown'}, group={namespace or 'unknown'}). "
+                f"(name={name}, version={version or 'unknown'}, group={namespace if namespace is not None else '<none>'}). "
                 "This component was referenced in the dependency graph but missing from components list. "
                 "The upstream SBOM generator may have a bug."
             )

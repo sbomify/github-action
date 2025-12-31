@@ -841,7 +841,7 @@ def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: 
     components = _extract_components_from_cyclonedx(bom)
     if not components:
         logger.warning("No components with PURLs found in SBOM, skipping enrichment")
-        # Sanitize dependency graph as the final step before serialization.
+        # Sanitize dependency graph as the final modification step before serialization.
         # This ensures graph consistency even when no enrichment occurs.
         sanitize_dependency_graph(bom)
         serialized = serialize_cyclonedx_bom(bom, spec_version)
@@ -863,7 +863,7 @@ def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: 
     # Print summary
     _log_cyclonedx_enrichment_summary(stats, len(components))
 
-    # Sanitize dependency graph as the final step before serialization.
+    # Sanitize dependency graph as the final modification step before serialization.
     # This adds stub components for any orphaned dependency references,
     # ensuring the BOM passes validation. Done after enrichment so stubs
     # aren't processed by the enricher (they lack PURLs for lookup).
