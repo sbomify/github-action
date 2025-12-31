@@ -886,11 +886,17 @@ def augment_sbom_from_file(
             # Validate the augmented SBOM
             if validate:
                 validation_result = validate_sbom_file_auto(output_file)
-                if not validation_result.valid:
+                if validation_result.valid is None:
+                    logger.warning(
+                        f"Augmented SBOM could not be validated ({validation_result.sbom_format} "
+                        f"{validation_result.spec_version}): {validation_result.error_message}"
+                    )
+                elif not validation_result.valid:
                     raise SBOMValidationError(f"Augmented SBOM failed validation: {validation_result.error_message}")
-                logger.info(
-                    f"Augmented SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}"
-                )
+                else:
+                    logger.info(
+                        f"Augmented SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}"
+                    )
 
             return "cyclonedx"
 
@@ -921,11 +927,17 @@ def augment_sbom_from_file(
             # Validate the augmented SBOM
             if validate:
                 validation_result = validate_sbom_file_auto(output_file)
-                if not validation_result.valid:
+                if validation_result.valid is None:
+                    logger.warning(
+                        f"Augmented SBOM could not be validated ({validation_result.sbom_format} "
+                        f"{validation_result.spec_version}): {validation_result.error_message}"
+                    )
+                elif not validation_result.valid:
                     raise SBOMValidationError(f"Augmented SBOM failed validation: {validation_result.error_message}")
-                logger.info(
-                    f"Augmented SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}"
-                )
+                else:
+                    logger.info(
+                        f"Augmented SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}"
+                    )
 
             return "spdx"
 
