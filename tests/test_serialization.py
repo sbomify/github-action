@@ -192,6 +192,7 @@ class TestSanitizeDependencyGraph:
 
         assert stub is not None
         assert stub.name == "chartjs"
+        # CycloneDX Component uses 'group' field for PURL namespace (e.g., npm scopes)
         assert stub.group == "@vue"
         assert stub.version == "3.5.1"
 
