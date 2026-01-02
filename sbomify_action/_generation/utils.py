@@ -29,6 +29,7 @@ RUBY_LOCK_FILES = ["Gemfile.lock"]
 GO_LOCK_FILES = ["go.mod"]
 DART_LOCK_FILES = ["pubspec.lock"]
 CPP_LOCK_FILES = ["conan.lock"]
+JAVA_LOCK_FILES = ["pom.xml"]
 
 # All supported lock files
 ALL_LOCK_FILES = (
@@ -39,6 +40,7 @@ ALL_LOCK_FILES = (
     + GO_LOCK_FILES
     + DART_LOCK_FILES
     + CPP_LOCK_FILES
+    + JAVA_LOCK_FILES
 )
 
 # Default command timeout in seconds
@@ -126,6 +128,8 @@ def get_lock_file_ecosystem(lock_file_name: str) -> Optional[str]:
         return "dart"
     elif lock_file_name in CPP_LOCK_FILES:
         return "cpp"
+    elif lock_file_name in JAVA_LOCK_FILES:
+        return "java"
     return None
 
 

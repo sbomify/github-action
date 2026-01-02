@@ -531,6 +531,12 @@ class TestUtilsFunctions(unittest.TestCase):
         self.assertEqual(get_lock_file_ecosystem("package.json"), "javascript")
         self.assertEqual(get_lock_file_ecosystem("yarn.lock"), "javascript")
 
+    def test_get_lock_file_ecosystem_java(self):
+        """Test ecosystem detection for Java lock files."""
+        from sbomify_action._generation.utils import get_lock_file_ecosystem
+
+        self.assertEqual(get_lock_file_ecosystem("pom.xml"), "java")
+
     def test_get_lock_file_ecosystem_unknown(self):
         """Test ecosystem detection for unknown lock files."""
         from sbomify_action._generation.utils import get_lock_file_ecosystem

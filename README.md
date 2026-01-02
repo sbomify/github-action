@@ -188,6 +188,7 @@ When uploading to Dependency Track (`UPLOAD_DESTINATIONS=dependency-track`), con
 | Ruby | `Gemfile.lock` |
 | Dart | `pubspec.lock` |
 | C++ | `conan.lock` |
+| Java | `pom.xml` |
 
 ## Additional Packages
 
