@@ -25,7 +25,7 @@ from ..protocol import (
     GenerationInput,
 )
 from ..result import GenerationResult
-from ..utils import ALL_LOCK_FILES, run_command
+from ..utils import SYFT_LOCK_FILES, run_command
 
 
 class SyftFsGenerator:
@@ -76,8 +76,8 @@ class SyftFsGenerator:
         if not input.is_lock_file:
             return False
 
-        # Check if it's a supported lock file
-        if input.lock_file_name not in ALL_LOCK_FILES:
+        # Check if it's a supported lock file for Syft
+        if input.lock_file_name not in SYFT_LOCK_FILES:
             return False
 
         # Check format

@@ -5,6 +5,8 @@ from typing import Dict, List, Optional
 from sbomify_action.logging_config import logger
 
 from .generators import (
+    CdxgenFsGenerator,
+    CdxgenImageGenerator,
     CycloneDXPyGenerator,
     SyftFsGenerator,
     SyftImageGenerator,
@@ -23,15 +25,36 @@ def create_default_registry() -> GeneratorRegistry:
     Returns a registry configured with generators in priority order:
 
     Priority 10 - Native Sources:
-    - CycloneDXPyGenerator: Native Python CycloneDX generator (1.0-1.7)
+    - CycloneDXPyGenerator: Native Python CycloneDX generator
+      - Input: Python lock files only (requirements.txt, poetry.lock, Pipfile.lock, pyproject.toml)
+      - Output: CycloneDX 1.0-1.7
+
+    Priority 20 - Comprehensive Multi-Ecosystem (cdxgen):
+    - CdxgenFsGenerator: Filesystem/lock file scanning
+      - Input: Python, JavaScript, Java/Gradle, Go, Rust, Ruby, Dart, C++,
+               PHP, .NET, Swift, Elixir, Scala
+      - Output: CycloneDX 1.4-1.7 (no SPDX support)
+    - CdxgenImageGenerator: Docker image scanning
+      - Input: Container images
+      - Output: CycloneDX 1.4-1.7 (no SPDX support)
 
     Priority 30 - Generic Multi-Ecosystem (Trivy):
-    - TrivyFsGenerator: Filesystem/lock file scanning (CycloneDX 1.6, SPDX 2.3)
-    - TrivyImageGenerator: Docker image scanning (CycloneDX 1.6, SPDX 2.3)
+    - TrivyFsGenerator: Filesystem/lock file scanning
+      - Input: Python, JavaScript, Java/Gradle, Go, Rust, Ruby, C++, PHP, .NET
+               (NOT Dart, Swift, Elixir, Scala, Terraform)
+      - Output: CycloneDX 1.6, SPDX 2.3
+    - TrivyImageGenerator: Docker image scanning
+      - Input: Container images
+      - Output: CycloneDX 1.6, SPDX 2.3
 
     Priority 35 - Generic Multi-Ecosystem (Syft):
-    - SyftFsGenerator: Filesystem/lock file scanning (CycloneDX 1.2-1.6, SPDX 2.2-2.3)
-    - SyftImageGenerator: Docker image scanning (CycloneDX 1.2-1.6, SPDX 2.2-2.3)
+    - SyftFsGenerator: Filesystem/lock file scanning
+      - Input: Python, JavaScript, Go, Rust, Ruby, Dart, C++, PHP, .NET,
+               Swift, Elixir, Terraform (NOT Java/Gradle lock files)
+      - Output: CycloneDX 1.2-1.6, SPDX 2.2-2.3
+    - SyftImageGenerator: Docker image scanning
+      - Input: Container images
+      - Output: CycloneDX 1.2-1.6, SPDX 2.2-2.3
 
     Generators are queried sequentially in priority order. The first
     generator that supports the input and requested format/version is used.
@@ -43,6 +66,10 @@ def create_default_registry() -> GeneratorRegistry:
 
     # Priority 10: Native generators
     registry.register(CycloneDXPyGenerator())
+
+    # Priority 20: cdxgen generators (comprehensive multi-ecosystem)
+    registry.register(CdxgenFsGenerator())
+    registry.register(CdxgenImageGenerator())
 
     # Priority 30: Trivy generators (fixed versions, but wide ecosystem support)
     registry.register(TrivyFsGenerator())

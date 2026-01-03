@@ -21,7 +21,7 @@ from ..protocol import (
     GenerationInput,
 )
 from ..result import GenerationResult
-from ..utils import ALL_LOCK_FILES, run_command
+from ..utils import TRIVY_LOCK_FILES, run_command
 
 # Trivy format flags
 TRIVY_FORMAT_MAP = {
@@ -78,8 +78,8 @@ class TrivyFsGenerator:
         if not input.is_lock_file:
             return False
 
-        # Check if it's a supported lock file
-        if input.lock_file_name not in ALL_LOCK_FILES:
+        # Check if it's a supported lock file for Trivy
+        if input.lock_file_name not in TRIVY_LOCK_FILES:
             return False
 
         # Check format

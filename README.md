@@ -181,14 +181,20 @@ When uploading to Dependency Track (`UPLOAD_DESTINATIONS=dependency-track`), con
 
 | Language | Files |
 |----------|-------|
-| Python | `requirements.txt`, `poetry.lock`, `Pipfile.lock`, `uv.lock` |
-| JavaScript | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml` |
+| Python | `requirements.txt`, `poetry.lock`, `Pipfile.lock`, `uv.lock`, `pyproject.toml` |
+| JavaScript | `package.json`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `bun.lock` |
+| Java | `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle.lockfile` |
+| Go | `go.mod`, `go.sum` |
 | Rust | `Cargo.lock` |
-| Go | `go.mod` |
 | Ruby | `Gemfile.lock` |
+| PHP | `composer.json`, `composer.lock` |
+| .NET/C# | `packages.lock.json` |
+| Swift | `Package.swift`, `Package.resolved` |
 | Dart | `pubspec.lock` |
+| Elixir | `mix.lock` |
+| Scala | `build.sbt` |
 | C++ | `conan.lock` |
-| Java | `pom.xml` |
+| Terraform | `.terraform.lock.hcl` |
 
 ## Additional Packages
 
@@ -395,25 +401,28 @@ sbomify queries sources in priority order, stopping when data is found:
 
 ## SBOM Generation
 
-sbomify uses a plugin architecture for SBOM generation, automatically selecting the best generator for each input type.
+sbomify uses a plugin architecture for SBOM generation, automatically selecting the best generator for each input type and ecosystem.
 
 ### Generator Selection
 
-Generators are tried in priority order. Native tools (optimized for specific ecosystems) are preferred over generic scanners:
+Generators are tried in priority order. Native tools (optimized for specific ecosystems) are preferred over generic scanners. Each tool supports different ecosystems:
 
-| Priority | Generator | Ecosystems | Output Formats |
-|----------|-----------|------------|----------------|
+| Priority | Generator | Supported Ecosystems | Output Formats |
+|----------|-----------|---------------------|----------------|
 | 10 | **cyclonedx-py** | Python only | CycloneDX 1.0–1.7 |
-| 30 | **Trivy** | All ecosystems, Docker images | CycloneDX 1.6, SPDX 2.3 |
-| 35 | **Syft** | All ecosystems, Docker images | CycloneDX 1.2–1.6, SPDX 2.2–2.3 |
+| 20 | **cdxgen** | Python, JavaScript, **Java/Gradle**, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Scala, Docker images | CycloneDX 1.4–1.7 |
+| 30 | **Trivy** | Python, JavaScript, Java/Gradle, Go, Rust, Ruby, C++, PHP, .NET, Docker images | CycloneDX 1.6, SPDX 2.3 |
+| 35 | **Syft** | Python, JavaScript, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Terraform, Docker images | CycloneDX 1.2–1.6, SPDX 2.2–2.3 |
 
 ### How It Works
 
-1. **Python lockfiles** → cyclonedx-py (native, most accurate)
-2. **Other lockfiles** (Cargo.lock, package-lock.json, etc.) → Trivy
-3. **Docker images** → Trivy (then Syft as fallback)
+1. **Python lockfiles** → cyclonedx-py (native, most accurate for Python)
+2. **Java lockfiles** (pom.xml) → cdxgen (best Java support)
+3. **Dart lockfiles** (pubspec.lock) → cdxgen or Syft (Trivy doesn't support Dart)
+4. **Other lockfiles** (Cargo.lock, package-lock.json, go.mod, etc.) → cdxgen (then Trivy, then Syft as fallbacks)
+5. **Docker images** → cdxgen (then Trivy, then Syft as fallbacks)
 
-If the primary generator fails, the next one in priority order is tried automatically.
+If the primary generator fails or doesn't support the input, the next one in priority order is tried automatically.
 
 ### Format Defaults
 

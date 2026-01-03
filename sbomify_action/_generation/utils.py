@@ -26,10 +26,41 @@ JAVASCRIPT_LOCK_FILES = [
 ]
 
 RUBY_LOCK_FILES = ["Gemfile.lock"]
-GO_LOCK_FILES = ["go.mod"]
+
+GO_LOCK_FILES = [
+    "go.mod",
+    "go.sum",
+]
+
 DART_LOCK_FILES = ["pubspec.lock"]
 CPP_LOCK_FILES = ["conan.lock"]
-JAVA_LOCK_FILES = ["pom.xml"]
+
+JAVA_LOCK_FILES = [
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "gradle.lockfile",
+]
+
+PHP_LOCK_FILES = [
+    "composer.json",
+    "composer.lock",
+]
+
+DOTNET_LOCK_FILES = [
+    "packages.lock.json",
+]
+
+SWIFT_LOCK_FILES = [
+    "Package.swift",
+    "Package.resolved",
+]
+
+ELIXIR_LOCK_FILES = ["mix.lock"]
+
+SCALA_LOCK_FILES = ["build.sbt"]
+
+TERRAFORM_LOCK_FILES = [".terraform.lock.hcl"]
 
 # All supported lock files
 ALL_LOCK_FILES = (
@@ -41,6 +72,70 @@ ALL_LOCK_FILES = (
     + DART_LOCK_FILES
     + CPP_LOCK_FILES
     + JAVA_LOCK_FILES
+    + PHP_LOCK_FILES
+    + DOTNET_LOCK_FILES
+    + SWIFT_LOCK_FILES
+    + ELIXIR_LOCK_FILES
+    + SCALA_LOCK_FILES
+    + TERRAFORM_LOCK_FILES
+)
+
+# =============================================================================
+# Tool-specific lock file support
+# Each tool supports different ecosystems - this drives generator selection
+# =============================================================================
+
+# cyclonedx-py: Native Python generator - Python only
+CYCLONEDX_PY_LOCK_FILES = PYTHON_LOCK_FILES
+
+# cdxgen: Comprehensive multi-ecosystem support
+# Excellent for Java (pom.xml, gradle), JavaScript, Python, Go, Rust, etc.
+CDXGEN_LOCK_FILES = (
+    PYTHON_LOCK_FILES
+    + JAVASCRIPT_LOCK_FILES
+    + JAVA_LOCK_FILES  # Best tool for Java/Gradle lock files
+    + GO_LOCK_FILES
+    + RUST_LOCK_FILES
+    + RUBY_LOCK_FILES
+    + DART_LOCK_FILES
+    + CPP_LOCK_FILES
+    + PHP_LOCK_FILES
+    + DOTNET_LOCK_FILES
+    + SWIFT_LOCK_FILES
+    + ELIXIR_LOCK_FILES
+    + SCALA_LOCK_FILES
+)
+
+# Trivy: Good multi-ecosystem support
+# Supports most common ecosystems but may have varying quality
+TRIVY_LOCK_FILES = (
+    PYTHON_LOCK_FILES
+    + JAVASCRIPT_LOCK_FILES
+    + GO_LOCK_FILES
+    + RUST_LOCK_FILES
+    + RUBY_LOCK_FILES
+    + JAVA_LOCK_FILES
+    + CPP_LOCK_FILES
+    + PHP_LOCK_FILES
+    + DOTNET_LOCK_FILES
+)
+
+# Syft: Good multi-ecosystem support
+# Note: Java support is for compiled artifacts (jar/war/ear), not pom.xml/gradle
+SYFT_LOCK_FILES = (
+    PYTHON_LOCK_FILES
+    + JAVASCRIPT_LOCK_FILES
+    + GO_LOCK_FILES
+    + RUST_LOCK_FILES
+    + RUBY_LOCK_FILES
+    + DART_LOCK_FILES
+    + CPP_LOCK_FILES
+    + PHP_LOCK_FILES
+    + DOTNET_LOCK_FILES
+    + SWIFT_LOCK_FILES
+    + ELIXIR_LOCK_FILES
+    + TERRAFORM_LOCK_FILES
+    # Note: Syft does NOT support pom.xml/gradle - only compiled Java artifacts
 )
 
 # Default command timeout in seconds
@@ -130,6 +225,18 @@ def get_lock_file_ecosystem(lock_file_name: str) -> Optional[str]:
         return "cpp"
     elif lock_file_name in JAVA_LOCK_FILES:
         return "java"
+    elif lock_file_name in PHP_LOCK_FILES:
+        return "php"
+    elif lock_file_name in DOTNET_LOCK_FILES:
+        return "dotnet"
+    elif lock_file_name in SWIFT_LOCK_FILES:
+        return "swift"
+    elif lock_file_name in ELIXIR_LOCK_FILES:
+        return "elixir"
+    elif lock_file_name in SCALA_LOCK_FILES:
+        return "scala"
+    elif lock_file_name in TERRAFORM_LOCK_FILES:
+        return "terraform"
     return None
 
 
