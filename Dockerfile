@@ -4,10 +4,12 @@ WORKDIR /tmp
 
 # Define tool versions
 ENV BOMCTL_VERSION=0.4.3 \
-    TRIVY_VERSION=0.67.2
+    TRIVY_VERSION=0.67.2 \
+    SYFT_VERSION=1.39.0 \
+    CDXGEN_VERSION=12.0.0
 
 RUN apt-get update && \
-    apt-get install -y curl
+    apt-get install -y curl unzip
 
 # Install Trivy
 RUN curl -sL \
@@ -34,6 +36,24 @@ RUN tar xvfz bomctl_${BOMCTL_VERSION}_linux_amd64.tar.gz
 RUN chmod +x /tmp/bomctl
 RUN mv bomctl /usr/local/bin
 RUN rm -rf /tmp/*
+
+# Install Syft
+RUN curl -sL \
+    -o syft_${SYFT_VERSION}_linux_amd64.tar.gz \
+    "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+RUN curl -sL \
+    -o syft_checksum.txt \
+    "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_checksums.txt"
+RUN sha256sum --ignore-missing -c syft_checksum.txt
+RUN tar xvfz syft_${SYFT_VERSION}_linux_amd64.tar.gz
+RUN chmod +x /tmp/syft
+RUN mv syft /usr/local/bin
+RUN rm -rf /tmp/*
+
+# Install bun and cdxgen
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:${PATH}"
+RUN bun install -g @cyclonedx/cdxgen@${CDXGEN_VERSION}
 
 # Python builder stage
 FROM python:3-slim-bullseye AS builder
@@ -90,12 +110,25 @@ LABEL com.sbomify.maintainer="sbomify <hello@sbomify.com>" \
       com.sbomify.vcs.branch="${VCS_REF}" \
       com.sbomify.vcs.commit="${COMMIT_SHA}"
 
+# Install runtime dependencies for SBOM generation
+# - Maven: Required by cdxgen for full Java dependency resolution
+# - default-jdk-headless: Java runtime for Maven
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends maven default-jdk-headless && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy tools from fetcher
 COPY --from=fetcher /usr/local/bin/trivy /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/bomctl /usr/local/bin/
+COPY --from=fetcher /usr/local/bin/syft /usr/local/bin/
+COPY --from=fetcher /root/.bun /root/.bun
 COPY --from=builder /opt/venv /opt/venv
 
-ENV PATH="/opt/venv/bin:$PATH"
+ENV PATH="/root/.bun/bin:/opt/venv/bin:$PATH"
+
+# Make 'node' invoke 'bun' so tools that expect 'node' actually run bun (compatibility shim)
+RUN ln -s /root/.bun/bin/bun /usr/local/bin/node
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 

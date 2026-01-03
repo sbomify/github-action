@@ -26,10 +26,41 @@ JAVASCRIPT_LOCK_FILES = [
 ]
 
 RUBY_LOCK_FILES = ["Gemfile.lock"]
-GO_LOCK_FILES = ["go.mod"]
+
+GO_LOCK_FILES = [
+    "go.mod",
+    "go.sum",
+]
+
 DART_LOCK_FILES = ["pubspec.lock"]
 CPP_LOCK_FILES = ["conan.lock"]
-JAVA_LOCK_FILES = ["pom.xml"]
+
+JAVA_LOCK_FILES = [
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "gradle.lockfile",
+]
+
+PHP_LOCK_FILES = [
+    "composer.json",
+    "composer.lock",
+]
+
+DOTNET_LOCK_FILES = [
+    "packages.lock.json",
+]
+
+SWIFT_LOCK_FILES = [
+    "Package.swift",
+    "Package.resolved",
+]
+
+ELIXIR_LOCK_FILES = ["mix.lock"]
+
+SCALA_LOCK_FILES = ["build.sbt"]
+
+TERRAFORM_LOCK_FILES = [".terraform.lock.hcl"]
 
 # All supported lock files
 ALL_LOCK_FILES = (
@@ -41,10 +72,76 @@ ALL_LOCK_FILES = (
     + DART_LOCK_FILES
     + CPP_LOCK_FILES
     + JAVA_LOCK_FILES
+    + PHP_LOCK_FILES
+    + DOTNET_LOCK_FILES
+    + SWIFT_LOCK_FILES
+    + ELIXIR_LOCK_FILES
+    + SCALA_LOCK_FILES
+    + TERRAFORM_LOCK_FILES
+)
+
+# =============================================================================
+# Tool-specific lock file support
+# Each tool supports different ecosystems - this drives generator selection
+# =============================================================================
+
+# cyclonedx-py: Native Python generator - Python only
+CYCLONEDX_PY_LOCK_FILES = PYTHON_LOCK_FILES
+
+# cdxgen: Comprehensive multi-ecosystem support
+# Excellent for Java (pom.xml, gradle), JavaScript, Python, Go, Rust, etc.
+CDXGEN_LOCK_FILES = (
+    PYTHON_LOCK_FILES
+    + JAVASCRIPT_LOCK_FILES
+    + JAVA_LOCK_FILES  # Best tool for Java/Gradle lock files
+    + GO_LOCK_FILES
+    + RUST_LOCK_FILES
+    + RUBY_LOCK_FILES
+    + DART_LOCK_FILES
+    + CPP_LOCK_FILES
+    + PHP_LOCK_FILES
+    + DOTNET_LOCK_FILES
+    + SWIFT_LOCK_FILES
+    + ELIXIR_LOCK_FILES
+    + SCALA_LOCK_FILES
+)
+
+# Trivy: Good multi-ecosystem support
+# Supports most common ecosystems but may have varying quality
+TRIVY_LOCK_FILES = (
+    PYTHON_LOCK_FILES
+    + JAVASCRIPT_LOCK_FILES
+    + GO_LOCK_FILES
+    + RUST_LOCK_FILES
+    + RUBY_LOCK_FILES
+    + JAVA_LOCK_FILES
+    + CPP_LOCK_FILES
+    + PHP_LOCK_FILES
+    + DOTNET_LOCK_FILES
+)
+
+# Syft: Good multi-ecosystem support
+# Note: Java support is for compiled artifacts (jar/war/ear), not pom.xml/gradle
+SYFT_LOCK_FILES = (
+    PYTHON_LOCK_FILES
+    + JAVASCRIPT_LOCK_FILES
+    + GO_LOCK_FILES
+    + RUST_LOCK_FILES
+    + RUBY_LOCK_FILES
+    + DART_LOCK_FILES
+    + CPP_LOCK_FILES
+    + PHP_LOCK_FILES
+    + DOTNET_LOCK_FILES
+    + SWIFT_LOCK_FILES
+    + ELIXIR_LOCK_FILES
+    + TERRAFORM_LOCK_FILES
 )
 
 # Default command timeout in seconds
-DEFAULT_TIMEOUT = 600  # 10 minutes
+DEFAULT_TIMEOUT = 1800  # 30 minutes (large Maven projects can take a while)
+
+# Progress indicator interval in seconds
+PROGRESS_INTERVAL = 60  # Log progress every minute
 
 
 def log_command_error(command_name: str, stderr: str) -> None:
@@ -68,6 +165,8 @@ def run_command(
     """
     Run a command and handle common error cases.
 
+    For long-running commands, logs progress every PROGRESS_INTERVAL seconds.
+
     Args:
         cmd: Command to run as a list
         command_name: Name of the command for error reporting
@@ -80,7 +179,27 @@ def run_command(
     Raises:
         SBOMGenerationError: If command fails or times out
     """
+    import threading
+    import time
+
     logger.info(f"Running command: {' '.join(cmd)}")
+
+    # Use Popen for progress tracking on long-running commands
+    start_time = time.time()
+    stop_progress = threading.Event()
+
+    def log_progress():
+        """Log progress periodically while command is running."""
+        timeout_minutes = timeout // 60
+        while not stop_progress.wait(PROGRESS_INTERVAL):
+            elapsed = int(time.time() - start_time)
+            minutes = elapsed // 60
+            seconds = elapsed % 60
+            logger.info(f"{command_name} still running... ({minutes}m {seconds}s elapsed, timeout: {timeout_minutes}m)")
+
+    # Start progress thread
+    progress_thread = threading.Thread(target=log_progress, daemon=True)
+    progress_thread.start()
 
     try:
         result = subprocess.run(
@@ -97,11 +216,16 @@ def run_command(
         log_command_error(command_name, e.stderr if e.stderr else "")
         raise SBOMGenerationError(f"{command_name} command failed with return code {e.returncode}")
     except subprocess.TimeoutExpired:
-        logger.error(f"{command_name} command timed out after {timeout}s")
+        elapsed = int(time.time() - start_time)
+        logger.error(f"{command_name} command timed out after {elapsed}s (limit: {timeout}s)")
         raise SBOMGenerationError(f"{command_name} command timed out")
     except FileNotFoundError:
         logger.error(f"{command_name} command not found")
         raise SBOMGenerationError(f"{command_name} command not found - is it installed?")
+    finally:
+        # Stop the progress thread
+        stop_progress.set()
+        progress_thread.join(timeout=1)
 
 
 def get_lock_file_ecosystem(lock_file_name: str) -> Optional[str]:
@@ -130,6 +254,18 @@ def get_lock_file_ecosystem(lock_file_name: str) -> Optional[str]:
         return "cpp"
     elif lock_file_name in JAVA_LOCK_FILES:
         return "java"
+    elif lock_file_name in PHP_LOCK_FILES:
+        return "php"
+    elif lock_file_name in DOTNET_LOCK_FILES:
+        return "dotnet"
+    elif lock_file_name in SWIFT_LOCK_FILES:
+        return "swift"
+    elif lock_file_name in ELIXIR_LOCK_FILES:
+        return "elixir"
+    elif lock_file_name in SCALA_LOCK_FILES:
+        return "scala"
+    elif lock_file_name in TERRAFORM_LOCK_FILES:
+        return "terraform"
     return None
 
 
