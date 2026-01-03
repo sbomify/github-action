@@ -127,7 +127,7 @@ COPY --from=builder /opt/venv /opt/venv
 
 ENV PATH="/root/.bun/bin:/opt/venv/bin:$PATH"
 
-# Alias node to bun for tools that expect node
+# Make 'node' invoke 'bun' so tools that expect 'node' actually run bun (compatibility shim)
 RUN ln -s /root/.bun/bin/bun /usr/local/bin/node
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
