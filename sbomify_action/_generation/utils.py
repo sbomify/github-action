@@ -135,7 +135,6 @@ SYFT_LOCK_FILES = (
     + SWIFT_LOCK_FILES
     + ELIXIR_LOCK_FILES
     + TERRAFORM_LOCK_FILES
-    # Note: Syft does NOT support pom.xml/gradle - only compiled Java artifacts
 )
 
 # Default command timeout in seconds

@@ -417,7 +417,7 @@ Generators are tried in priority order. Native tools (optimized for specific eco
 ### How It Works
 
 1. **Python lockfiles** → cyclonedx-py (native, most accurate for Python)
-2. **Java lockfiles** (pom.xml) → cdxgen (best Java support)
+2. **Java lockfiles** (pom.xml, build.gradle, gradle.lockfile) → cdxgen (best Java support)
 3. **Dart lockfiles** (pubspec.lock) → cdxgen or Syft (Trivy doesn't support Dart)
 4. **Other lockfiles** (Cargo.lock, package-lock.json, go.mod, etc.) → cdxgen (then Trivy, then Syft as fallbacks)
 5. **Docker images** → cdxgen (then Trivy, then Syft as fallbacks)
