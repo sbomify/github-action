@@ -363,6 +363,86 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         self.assertEqual(result.spec_version, "1.6")
         self.assertEqual(result.generator_name, "cdxgen-fs")
 
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_uses_no_recurse_flag_for_non_java(self, mock_exists, mock_run):
+        """Test that --no-recurse flag is passed for non-Java ecosystems."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        # Python should use --no-recurse (not a parent/child ecosystem)
+        input = GenerationInput(lock_file="/path/to/requirements.txt", output_file="sbom.json")
+        self.generator.generate(input)
+
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("--no-recurse", cmd)
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_allows_recurse_for_java(self, mock_exists, mock_run):
+        """Test that --no-recurse is NOT passed for Java (Maven parent POMs need recursion)."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        input = GenerationInput(lock_file="/path/to/pom.xml", output_file="sbom.json")
+        self.generator.generate(input)
+
+        cmd = mock_run.call_args[0][0]
+
+        # Java should NOT have --no-recurse (needs to follow parent POM modules)
+        self.assertNotIn("--no-recurse", cmd)
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_uses_type_flag_for_java(self, mock_exists, mock_run):
+        """Test that -t java flag is passed for pom.xml."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        input = GenerationInput(lock_file="/path/to/pom.xml", output_file="sbom.json")
+        self.generator.generate(input)
+
+        cmd = mock_run.call_args[0][0]
+
+        # Check -t java flag is present
+        self.assertIn("-t", cmd)
+        type_index = cmd.index("-t")
+        self.assertEqual(cmd[type_index + 1], "java")
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_uses_type_flag_for_python(self, mock_exists, mock_run):
+        """Test that -t python flag is passed for requirements.txt."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        input = GenerationInput(lock_file="/path/to/requirements.txt", output_file="sbom.json")
+        self.generator.generate(input)
+
+        cmd = mock_run.call_args[0][0]
+
+        # Check -t python flag is present
+        self.assertIn("-t", cmd)
+        type_index = cmd.index("-t")
+        self.assertEqual(cmd[type_index + 1], "python")
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_uses_type_flag_for_javascript(self, mock_exists, mock_run):
+        """Test that -t js flag is passed for package.json."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        input = GenerationInput(lock_file="/path/to/package.json", output_file="sbom.json")
+        self.generator.generate(input)
+
+        cmd = mock_run.call_args[0][0]
+
+        # Check -t js flag is present
+        self.assertIn("-t", cmd)
+        type_index = cmd.index("-t")
+        self.assertEqual(cmd[type_index + 1], "js")
+
 
 class TestCdxgenImageGenerator(unittest.TestCase):
     """Tests for CdxgenImageGenerator."""

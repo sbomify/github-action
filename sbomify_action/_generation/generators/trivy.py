@@ -21,7 +21,7 @@ from ..protocol import (
     GenerationInput,
 )
 from ..result import GenerationResult
-from ..utils import TRIVY_LOCK_FILES, run_command
+from ..utils import DEFAULT_TIMEOUT, TRIVY_LOCK_FILES, run_command
 
 # Trivy format flags
 TRIVY_FORMAT_MAP = {
@@ -121,7 +121,7 @@ class TrivyFsGenerator:
         logger.info(f"Running trivy fs for {input.lock_file_name} ({input.output_format})")
 
         try:
-            result = run_command(cmd, "trivy", timeout=600)
+            result = run_command(cmd, "trivy", timeout=DEFAULT_TIMEOUT)
 
             # Trivy outputs to stdout, save to file
             if result.returncode == 0:
@@ -253,7 +253,7 @@ class TrivyImageGenerator:
         logger.info(f"Running trivy image for {input.docker_image} ({input.output_format})")
 
         try:
-            result = run_command(cmd, "trivy", timeout=600)
+            result = run_command(cmd, "trivy", timeout=DEFAULT_TIMEOUT)
 
             # Trivy outputs to stdout, save to file
             if result.returncode == 0:

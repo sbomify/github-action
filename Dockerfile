@@ -110,6 +110,14 @@ LABEL com.sbomify.maintainer="sbomify <hello@sbomify.com>" \
       com.sbomify.vcs.branch="${VCS_REF}" \
       com.sbomify.vcs.commit="${COMMIT_SHA}"
 
+# Install runtime dependencies for SBOM generation
+# - Maven: Required by cdxgen for full Java dependency resolution
+# - default-jdk-headless: Java runtime for Maven
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends maven default-jdk-headless && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy tools from fetcher
 COPY --from=fetcher /usr/local/bin/trivy /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/bomctl /usr/local/bin/

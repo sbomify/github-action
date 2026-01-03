@@ -25,7 +25,7 @@ from ..protocol import (
     GenerationInput,
 )
 from ..result import GenerationResult
-from ..utils import SYFT_LOCK_FILES, run_command
+from ..utils import DEFAULT_TIMEOUT, SYFT_LOCK_FILES, run_command
 
 
 class SyftFsGenerator:
@@ -121,7 +121,7 @@ class SyftFsGenerator:
         logger.info(f"Running syft scan for {input.lock_file_name} ({input.output_format} {version})")
 
         try:
-            result = run_command(cmd, "syft", timeout=600)
+            result = run_command(cmd, "syft", timeout=DEFAULT_TIMEOUT)
 
             if result.returncode == 0:
                 # Verify output file was created
@@ -247,7 +247,7 @@ class SyftImageGenerator:
         logger.info(f"Running syft scan for {input.docker_image} ({input.output_format} {version})")
 
         try:
-            result = run_command(cmd, "syft", timeout=600)
+            result = run_command(cmd, "syft", timeout=DEFAULT_TIMEOUT)
 
             if result.returncode == 0:
                 # Verify output file was created

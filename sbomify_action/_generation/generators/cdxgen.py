@@ -23,7 +23,30 @@ from ..protocol import (
     GenerationInput,
 )
 from ..result import GenerationResult
-from ..utils import CDXGEN_LOCK_FILES, run_command
+from ..utils import CDXGEN_LOCK_FILES, DEFAULT_TIMEOUT, get_lock_file_ecosystem, run_command
+
+# Mapping from ecosystem names to cdxgen --type values
+# See: https://cyclonedx.github.io/cdxgen/#/PROJECT_TYPES
+CDXGEN_TYPE_MAP = {
+    "java": "java",
+    "python": "python",
+    "javascript": "js",
+    "go": "go",
+    "rust": "rust",
+    "ruby": "ruby",
+    "php": "php",
+    "dotnet": "dotnet",
+    "swift": "swift",
+    "dart": "dart",
+    "elixir": "elixir",
+    "scala": "scala",
+    "cpp": "cpp",
+}
+
+# Ecosystems that use parent/child project structures (e.g., Maven parent POMs, Gradle multi-project)
+# For these, we allow recursion so cdxgen can follow module references
+# The -t flag will still restrict scanning to only that ecosystem
+RECURSE_ECOSYSTEMS = {"java", "scala"}
 
 
 class CdxgenFsGenerator:
@@ -92,19 +115,34 @@ class CdxgenFsGenerator:
         lock_file_path = Path(input.lock_file)
         scan_path = str(lock_file_path.parent) if lock_file_path.parent != Path(".") else "."
 
+        # Detect ecosystem and map to cdxgen type
+        ecosystem = get_lock_file_ecosystem(input.lock_file_name)
+        cdxgen_type = CDXGEN_TYPE_MAP.get(ecosystem) if ecosystem else None
+
         cmd = [
             "cdxgen",
             "-o",
             input.output_file,
             "--spec-version",
             version,
-            scan_path,
         ]
 
-        logger.info(f"Running cdxgen for {input.lock_file_name} (cyclonedx {version})")
+        # Add type flag to restrict to detected ecosystem
+        if cdxgen_type:
+            cmd.extend(["-t", cdxgen_type])
+
+        # For ecosystems with parent/child structures (Maven, Gradle), allow recursion
+        # The -t flag will still restrict scanning to only that ecosystem
+        # For other ecosystems, disable recursion to avoid scanning unrelated subdirectories
+        if ecosystem not in RECURSE_ECOSYSTEMS:
+            cmd.append("--no-recurse")
+
+        cmd.append(scan_path)
+
+        logger.info(f"Running cdxgen for {input.lock_file_name} (cyclonedx {version}, type={cdxgen_type or 'auto'})")
 
         try:
-            result = run_command(cmd, "cdxgen", timeout=600)
+            result = run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT)
 
             if result.returncode == 0:
                 # Verify output file was created
@@ -210,7 +248,7 @@ class CdxgenImageGenerator:
         logger.info(f"Running cdxgen for {input.docker_image} (cyclonedx {version})")
 
         try:
-            result = run_command(cmd, "cdxgen", timeout=600)
+            result = run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT)
 
             if result.returncode == 0:
                 # Verify output file was created

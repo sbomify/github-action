@@ -139,7 +139,10 @@ SYFT_LOCK_FILES = (
 )
 
 # Default command timeout in seconds
-DEFAULT_TIMEOUT = 600  # 10 minutes
+DEFAULT_TIMEOUT = 1800  # 30 minutes (large Maven projects can take a while)
+
+# Progress indicator interval in seconds
+PROGRESS_INTERVAL = 60  # Log progress every minute
 
 
 def log_command_error(command_name: str, stderr: str) -> None:
@@ -163,6 +166,8 @@ def run_command(
     """
     Run a command and handle common error cases.
 
+    For long-running commands, logs progress every PROGRESS_INTERVAL seconds.
+
     Args:
         cmd: Command to run as a list
         command_name: Name of the command for error reporting
@@ -175,7 +180,27 @@ def run_command(
     Raises:
         SBOMGenerationError: If command fails or times out
     """
+    import threading
+    import time
+
     logger.info(f"Running command: {' '.join(cmd)}")
+
+    # Use Popen for progress tracking on long-running commands
+    start_time = time.time()
+    stop_progress = threading.Event()
+
+    def log_progress():
+        """Log progress periodically while command is running."""
+        timeout_minutes = timeout // 60
+        while not stop_progress.wait(PROGRESS_INTERVAL):
+            elapsed = int(time.time() - start_time)
+            minutes = elapsed // 60
+            seconds = elapsed % 60
+            logger.info(f"{command_name} still running... ({minutes}m {seconds}s elapsed, timeout: {timeout_minutes}m)")
+
+    # Start progress thread
+    progress_thread = threading.Thread(target=log_progress, daemon=True)
+    progress_thread.start()
 
     try:
         result = subprocess.run(
@@ -192,11 +217,16 @@ def run_command(
         log_command_error(command_name, e.stderr if e.stderr else "")
         raise SBOMGenerationError(f"{command_name} command failed with return code {e.returncode}")
     except subprocess.TimeoutExpired:
-        logger.error(f"{command_name} command timed out after {timeout}s")
+        elapsed = int(time.time() - start_time)
+        logger.error(f"{command_name} command timed out after {elapsed}s (limit: {timeout}s)")
         raise SBOMGenerationError(f"{command_name} command timed out")
     except FileNotFoundError:
         logger.error(f"{command_name} command not found")
         raise SBOMGenerationError(f"{command_name} command not found - is it installed?")
+    finally:
+        # Stop the progress thread
+        stop_progress.set()
+        progress_thread.join(timeout=1)
 
 
 def get_lock_file_ecosystem(lock_file_name: str) -> Optional[str]:
