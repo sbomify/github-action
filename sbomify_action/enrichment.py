@@ -75,7 +75,12 @@ def _sanitize_and_serialize_cyclonedx(bom: Bom, spec_version: str) -> str:
     Returns:
         Serialized JSON string
     """
-    sanitize_purls(bom)  # Returns (normalized, cleared) tuple, but we don't need it here
+    normalized_count, cleared_count = sanitize_purls(bom)
+    logger.debug(
+        "PURL sanitization completed: %d normalized, %d cleared",
+        normalized_count,
+        cleared_count,
+    )
     sanitize_dependency_graph(bom)
     return serialize_cyclonedx_bom(bom, spec_version)
 

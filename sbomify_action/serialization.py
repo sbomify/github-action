@@ -5,6 +5,7 @@ This module provides centralized serialization functions for both CycloneDX and 
 formats, supporting multiple versions and making it easy to add new versions in the future.
 """
 
+import re
 from typing import TYPE_CHECKING, Dict, Optional, Type
 
 from cyclonedx.model.bom import Bom
@@ -173,8 +174,6 @@ def normalize_purl(purl_str: str | None) -> tuple[str | None, bool]:
     normalized = purl_str
 
     # Collapse any sequence of consecutive %40 into a single %40
-    import re
-
     normalized = re.sub(r"(%40)+", "%40", normalized)
 
     # Decode to check for @@ issues
