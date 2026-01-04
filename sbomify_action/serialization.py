@@ -207,11 +207,12 @@ def normalize_purl(purl_str: str | None) -> tuple[str | None, bool]:
     return normalized, was_modified
 
 
-def _is_invalid_purl(purl_str: str) -> tuple[bool, str]:
+def _is_invalid_purl(purl_str: str | None) -> tuple[bool, str]:
     """
     Check if a PURL is invalid and cannot be fixed.
 
     Invalid PURLs include:
+    - Empty or None PURLs
     - PURLs with file: references in qualifiers (local workspace packages)
     - PURLs with path-based versions (e.g., @../../packages/foo)
     - PURLs with link: references (npm link)
@@ -220,13 +221,13 @@ def _is_invalid_purl(purl_str: str) -> tuple[bool, str]:
     Note: Double @@ encoding issues are fixed by normalize_purl() rather than rejected.
 
     Args:
-        purl_str: The PURL string to check
+        purl_str: The PURL string to check (may be None or empty)
 
     Returns:
         Tuple of (is_invalid, reason) where reason explains why it's invalid
     """
     if not purl_str:
-        return True, "empty PURL"
+        return True, "empty or None PURL"
 
     # Check for file: references anywhere in the PURL
     if "file:" in purl_str:
