@@ -451,20 +451,20 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         mock_exists.return_value = True
 
         # Test with JavaScript (pnpm-lock.yaml)
-        input = GenerationInput(lock_file="/path/to/pnpm-lock.yaml", output_file="sbom.json")
-        self.generator.generate(input)
+        js_input = GenerationInput(lock_file="/path/to/pnpm-lock.yaml", output_file="sbom.json")
+        self.generator.generate(js_input)
         cmd = mock_run.call_args[0][0]
         self.assertIn("--required-only", cmd)
 
         # Test with Python (requirements.txt)
-        input = GenerationInput(lock_file="/path/to/requirements.txt", output_file="sbom.json")
-        self.generator.generate(input)
+        python_input = GenerationInput(lock_file="/path/to/requirements.txt", output_file="sbom.json")
+        self.generator.generate(python_input)
         cmd = mock_run.call_args[0][0]
         self.assertIn("--required-only", cmd)
 
         # Test with Java (pom.xml)
-        input = GenerationInput(lock_file="/path/to/pom.xml", output_file="sbom.json")
-        self.generator.generate(input)
+        java_input = GenerationInput(lock_file="/path/to/pom.xml", output_file="sbom.json")
+        self.generator.generate(java_input)
         cmd = mock_run.call_args[0][0]
         self.assertIn("--required-only", cmd)
 

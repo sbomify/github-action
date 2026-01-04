@@ -149,7 +149,7 @@ PURL_TYPES_REQUIRING_VERSION = frozenset(
 )
 
 
-def normalize_purl(purl_str: str) -> tuple[str, bool]:
+def normalize_purl(purl_str: str | None) -> tuple[str | None, bool]:
     """
     Normalize a PURL string, fixing common encoding issues.
 
@@ -172,11 +172,7 @@ def normalize_purl(purl_str: str) -> tuple[str, bool]:
     original = purl_str
     normalized = purl_str
 
-    # Fix double-encoded @ (%40%40 → %40)
-    # The loop repeatedly collapses '%40%40' until no such pattern remains.
-    # This handles long runs like '%40%40%40%40' (which become '%40%40' after one
-    # replace, then '%40' after another) and cases where '%40%40' appears in
-    # multiple positions within the string.
+    # Repeatedly collapse cascading double-encoded @ symbols (%40%40 → %40) throughout the string.
     while "%40%40" in normalized:
         normalized = normalized.replace("%40%40", "%40")
 
