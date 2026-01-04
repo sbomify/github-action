@@ -343,6 +343,7 @@ class TestIsInvalidPurl:
         """Test that a valid Maven PURL is accepted."""
         is_invalid, reason = _is_invalid_purl("pkg:maven/org.apache.commons/commons-lang3@3.12.0")
         assert is_invalid is False
+        assert reason == ""
 
     def test_file_reference_in_purl(self):
         """Test that PURLs with file: references are rejected."""
@@ -415,8 +416,9 @@ class TestNormalizePurl:
         normalized, was_modified = normalize_purl(purl)
         assert was_modified is True
         assert "@@" not in normalized
-        # Should have single @ before version
-        assert "@1.0.0" in normalized or "%401.0.0" not in normalized
+        # Should have single @ before version and not be encoded
+        assert "@1.0.0" in normalized
+        assert "%401.0.0" not in normalized
 
     def test_fixes_double_encoded_at(self):
         """Test that double-encoded @ (%40%40) is fixed."""

@@ -134,6 +134,21 @@ def _extract_component_info_from_purl(
         return None, None, None, None
 
 
+# Package types that require a version in the PURL
+# These ecosystems always have versioned packages in standard usage
+PURL_TYPES_REQUIRING_VERSION = frozenset(
+    {
+        "npm",  # JavaScript/Node.js
+        "maven",  # Java
+        "pypi",  # Python
+        "cargo",  # Rust
+        "gem",  # Ruby
+        "golang",  # Go
+        "nuget",  # .NET
+    }
+)
+
+
 def normalize_purl(purl_str: str) -> tuple[str, bool]:
     """
     Normalize a PURL string, fixing common encoding issues.
@@ -158,6 +173,8 @@ def normalize_purl(purl_str: str) -> tuple[str, bool]:
     normalized = purl_str
 
     # Fix double-encoded @ (%40%40 → %40)
+    # Note: while loop is needed for consecutive patterns like %40%40%40%40
+    # which requires multiple passes: %40%40%40%40 → %40%40 → %40
     while "%40%40" in normalized:
         normalized = normalized.replace("%40%40", "%40")
 
@@ -242,8 +259,7 @@ def _is_invalid_purl(purl_str: str) -> tuple[bool, str]:
                     return True, f"qualifier '{key}' contains file:/link: reference"
 
         # Check for missing version in ecosystems that require it
-        # npm, maven, pypi packages should have versions
-        if purl.type in ("npm", "maven", "pypi", "cargo", "gem", "golang", "nuget"):
+        if purl.type in PURL_TYPES_REQUIRING_VERSION:
             if not purl.version:
                 return True, f"missing version for {purl.type} package"
 
@@ -287,9 +303,7 @@ def sanitize_purls(bom: Bom) -> tuple[int, int]:
                     comp.purl = PackageURL.from_string(normalized_str)
                     purl_str = normalized_str
                     purls_normalized += 1
-                    logger.info(
-                        f"Normalized PURL for component '{comp.name}': {purl_str}"
-                    )
+                    logger.info(f"Normalized PURL for component '{comp.name}': {purl_str}")
                 except ValueError:
                     # Normalization produced invalid PURL, will be caught below
                     pass
@@ -297,9 +311,7 @@ def sanitize_purls(bom: Bom) -> tuple[int, int]:
             # Then check if it's still invalid
             is_invalid, reason = _is_invalid_purl(purl_str)
             if is_invalid:
-                logger.warning(
-                    f"Clearing invalid PURL from component '{comp.name}': {purl_str} ({reason})"
-                )
+                logger.warning(f"Clearing invalid PURL from component '{comp.name}': {purl_str} ({reason})")
                 comp.purl = None
                 purls_cleared += 1
 
@@ -321,9 +333,7 @@ def sanitize_purls(bom: Bom) -> tuple[int, int]:
         # Then check if it's still invalid
         is_invalid, reason = _is_invalid_purl(purl_str)
         if is_invalid:
-            logger.warning(
-                f"Clearing invalid PURL from metadata component: {purl_str} ({reason})"
-            )
+            logger.warning(f"Clearing invalid PURL from metadata component: {purl_str} ({reason})")
             bom.metadata.component.purl = None
             purls_cleared += 1
 
