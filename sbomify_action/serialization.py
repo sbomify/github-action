@@ -134,6 +134,207 @@ def _extract_component_info_from_purl(
         return None, None, None, None
 
 
+def normalize_purl(purl_str: str) -> tuple[str, bool]:
+    """
+    Normalize a PURL string, fixing common encoding issues.
+
+    Fixes:
+    - Double @@ symbols (encoding bugs)
+    - Double-encoded @ symbols (%40%40 → %40)
+
+    Args:
+        purl_str: The PURL string to normalize
+
+    Returns:
+        Tuple of (normalized_purl, was_modified) where was_modified indicates
+        if any changes were made
+    """
+    from urllib.parse import unquote
+
+    if not purl_str:
+        return purl_str, False
+
+    original = purl_str
+    normalized = purl_str
+
+    # Fix double-encoded @ (%40%40 → %40)
+    while "%40%40" in normalized:
+        normalized = normalized.replace("%40%40", "%40")
+
+    # Decode to check for @@ issues
+    decoded = unquote(normalized)
+
+    # Fix double @@ in decoded form, but be careful:
+    # - Valid: @scope (namespace) + @ (version separator) = exactly 2 @ for scoped packages
+    # - Invalid: @@ appearing together
+    if "@@" in decoded:
+        # Replace @@ with single @
+        decoded = decoded.replace("@@", "@")
+
+        # Re-encode the namespace @ symbol (first @ after pkg:type/)
+        # Split on first / to get type, then handle namespace
+        try:
+            from packageurl import PackageURL
+
+            # Try to parse the fixed decoded PURL
+            # The namespace @ needs to be encoded as %40
+            purl = PackageURL.from_string(decoded)
+            normalized = str(purl)
+        except (ImportError, ValueError):
+            # If we can't parse, just do simple fix
+            normalized = decoded
+
+    was_modified = normalized != original
+
+    if was_modified:
+        logger.debug(f"Normalized PURL: {original} → {normalized}")
+
+    return normalized, was_modified
+
+
+def _is_invalid_purl(purl_str: str) -> tuple[bool, str]:
+    """
+    Check if a PURL is invalid and cannot be fixed.
+
+    Invalid PURLs include:
+    - PURLs with file: references in qualifiers (local workspace packages)
+    - PURLs with path-based versions (e.g., @../../packages/foo)
+    - PURLs with link: references (npm link)
+    - PURLs missing version (except for certain ecosystems where this is acceptable)
+
+    Note: Double @@ encoding issues are fixed by normalize_purl() rather than rejected.
+
+    Args:
+        purl_str: The PURL string to check
+
+    Returns:
+        Tuple of (is_invalid, reason) where reason explains why it's invalid
+    """
+    if not purl_str:
+        return True, "empty PURL"
+
+    # Check for file: references anywhere in the PURL
+    if "file:" in purl_str:
+        return True, "contains file: reference (local workspace package)"
+
+    # Check for link: references (npm link)
+    if "link:" in purl_str:
+        return True, "contains link: reference (npm link)"
+
+    # Check for path-based versions (e.g., @../../ or @../ or @./)
+    if "@../../" in purl_str or "@../" in purl_str or "@./" in purl_str:
+        return True, "contains path-based version"
+
+    # Check for root/ namespace (invalid namespace)
+    if "/root/" in purl_str or "%40root/" in purl_str:
+        return True, "contains invalid root/ namespace"
+
+    # Try to parse the PURL
+    try:
+        from packageurl import PackageURL
+
+        purl = PackageURL.from_string(purl_str)
+
+        # Check for file: in qualifiers
+        if purl.qualifiers:
+            for key, value in purl.qualifiers.items():
+                if isinstance(value, str) and ("file:" in value or "link:" in value):
+                    return True, f"qualifier '{key}' contains file:/link: reference"
+
+        # Check for missing version in ecosystems that require it
+        # npm, maven, pypi packages should have versions
+        if purl.type in ("npm", "maven", "pypi", "cargo", "gem", "golang", "nuget"):
+            if not purl.version:
+                return True, f"missing version for {purl.type} package"
+
+    except (ImportError, ValueError) as e:
+        return True, f"malformed PURL: {e}"
+
+    return False, ""
+
+
+def sanitize_purls(bom: Bom) -> tuple[int, int]:
+    """
+    Normalize and sanitize PURLs in the BOM.
+
+    This function:
+    1. Normalizes PURLs (fixes encoding issues like double @@)
+    2. Clears invalid PURLs that cannot be fixed (file: references, path-based versions, etc.)
+
+    Components are NOT removed (to preserve dependency graph integrity),
+    but their invalid PURLs are set to None.
+
+    Args:
+        bom: The CycloneDX BOM object to sanitize (modified in place)
+
+    Returns:
+        Tuple of (purls_normalized, purls_cleared)
+    """
+    from packageurl import PackageURL
+
+    purls_normalized = 0
+    purls_cleared = 0
+
+    # Process regular components
+    for comp in bom.components:
+        if comp.purl:
+            purl_str = str(comp.purl)
+
+            # First, try to normalize
+            normalized_str, was_normalized = normalize_purl(purl_str)
+            if was_normalized:
+                try:
+                    comp.purl = PackageURL.from_string(normalized_str)
+                    purl_str = normalized_str
+                    purls_normalized += 1
+                    logger.info(
+                        f"Normalized PURL for component '{comp.name}': {purl_str}"
+                    )
+                except ValueError:
+                    # Normalization produced invalid PURL, will be caught below
+                    pass
+
+            # Then check if it's still invalid
+            is_invalid, reason = _is_invalid_purl(purl_str)
+            if is_invalid:
+                logger.warning(
+                    f"Clearing invalid PURL from component '{comp.name}': {purl_str} ({reason})"
+                )
+                comp.purl = None
+                purls_cleared += 1
+
+    # Process metadata component
+    if bom.metadata and bom.metadata.component and bom.metadata.component.purl:
+        purl_str = str(bom.metadata.component.purl)
+
+        # First, try to normalize
+        normalized_str, was_normalized = normalize_purl(purl_str)
+        if was_normalized:
+            try:
+                bom.metadata.component.purl = PackageURL.from_string(normalized_str)
+                purl_str = normalized_str
+                purls_normalized += 1
+                logger.info(f"Normalized PURL for metadata component: {purl_str}")
+            except ValueError:
+                pass
+
+        # Then check if it's still invalid
+        is_invalid, reason = _is_invalid_purl(purl_str)
+        if is_invalid:
+            logger.warning(
+                f"Clearing invalid PURL from metadata component: {purl_str} ({reason})"
+            )
+            bom.metadata.component.purl = None
+            purls_cleared += 1
+
+    if purls_normalized:
+        logger.info(f"PURL sanitization: normalized {purls_normalized} PURL(s)")
+    if purls_cleared:
+        logger.info(f"PURL sanitization: cleared {purls_cleared} invalid PURL(s)")
+
+    return purls_normalized, purls_cleared
+
+
 def sanitize_dependency_graph(bom: Bom) -> int:
     """
     Fix orphaned dependency references by adding stub components for missing refs.
