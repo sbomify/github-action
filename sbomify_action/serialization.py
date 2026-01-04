@@ -172,9 +172,10 @@ def normalize_purl(purl_str: str | None) -> tuple[str | None, bool]:
     original = purl_str
     normalized = purl_str
 
-    # Repeatedly collapse cascading double-encoded @ symbols (%40%40 → %40) throughout the string.
-    while "%40%40" in normalized:
-        normalized = normalized.replace("%40%40", "%40")
+    # Collapse any sequence of consecutive %40 into a single %40
+    import re
+
+    normalized = re.sub(r"(%40)+", "%40", normalized)
 
     # Decode to check for @@ issues
     decoded = unquote(normalized)

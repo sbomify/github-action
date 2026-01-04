@@ -345,9 +345,16 @@ class TestIsInvalidPurl:
         assert not is_invalid
         assert reason == ""
 
-    def test_file_reference_in_purl(self):
-        """Test that PURLs with file: references are rejected."""
-        is_invalid, reason = _is_invalid_purl("pkg:npm/%40keycloak/admin-ui?vcs_url=file:apps/admin-ui")
+    def test_file_reference_in_purl_string(self):
+        """Test that PURLs with file: references in string are rejected early."""
+        is_invalid, reason = _is_invalid_purl("pkg:npm/%40keycloak/admin-ui@1.0.0?vcs_url=file:apps/admin-ui")
+        assert is_invalid
+        assert "file:" in reason
+
+    def test_file_reference_in_parsed_qualifiers(self):
+        """Test that file: references are detected in parsed qualifiers."""
+        # This tests the second validation path after PURL parsing
+        is_invalid, reason = _is_invalid_purl("pkg:npm/%40keycloak/admin-ui@1.0.0?repository_url=file:../local")
         assert is_invalid
         assert "file:" in reason
 
