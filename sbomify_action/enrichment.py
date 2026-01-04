@@ -55,17 +55,18 @@ from .generation import (
     RUST_LOCK_FILES,
 )
 from .logging_config import logger
-from .serialization import sanitize_dependency_graph, serialize_cyclonedx_bom
+from .serialization import sanitize_dependency_graph, sanitize_purls, serialize_cyclonedx_bom
 from .validation import validate_sbom_file_auto
 
 
 def _sanitize_and_serialize_cyclonedx(bom: Bom, spec_version: str) -> str:
     """
-    Sanitize dependency graph and serialize CycloneDX BOM.
+    Sanitize PURLs, dependency graph and serialize CycloneDX BOM.
 
-    This is the final modification step before serialization. It adds stub
-    components for any orphaned dependency references, ensuring the BOM
-    passes validation.
+    This is the final modification step before serialization. It:
+    1. Normalizes PURLs (fixes encoding issues like double @@)
+    2. Clears invalid PURLs that cannot be fixed (local workspace packages, path-based versions)
+    3. Adds stub components for any orphaned dependency references
 
     Args:
         bom: The CycloneDX BOM to sanitize and serialize
@@ -74,6 +75,7 @@ def _sanitize_and_serialize_cyclonedx(bom: Bom, spec_version: str) -> str:
     Returns:
         Serialized JSON string
     """
+    sanitize_purls(bom)  # Returns (normalized, cleared) tuple, but we don't need it here
     sanitize_dependency_graph(bom)
     return serialize_cyclonedx_bom(bom, spec_version)
 
