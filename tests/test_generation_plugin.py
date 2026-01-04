@@ -443,6 +443,31 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         type_index = cmd.index("-t")
         self.assertEqual(cmd[type_index + 1], "js")
 
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_uses_required_only_flag_for_all_ecosystems(self, mock_exists, mock_run):
+        """Test that --required-only flag is passed for all ecosystems to exclude dev dependencies."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        # Test with JavaScript (pnpm-lock.yaml)
+        js_input = GenerationInput(lock_file="/path/to/pnpm-lock.yaml", output_file="sbom.json")
+        self.generator.generate(js_input)
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("--required-only", cmd)
+
+        # Test with Python (requirements.txt)
+        python_input = GenerationInput(lock_file="/path/to/requirements.txt", output_file="sbom.json")
+        self.generator.generate(python_input)
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("--required-only", cmd)
+
+        # Test with Java (pom.xml)
+        java_input = GenerationInput(lock_file="/path/to/pom.xml", output_file="sbom.json")
+        self.generator.generate(java_input)
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("--required-only", cmd)
+
 
 class TestCdxgenImageGenerator(unittest.TestCase):
     """Tests for CdxgenImageGenerator."""

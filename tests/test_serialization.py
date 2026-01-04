@@ -9,7 +9,10 @@ from cyclonedx.model.dependency import Dependency
 from sbomify_action.serialization import (
     _UNKNOWN_VERSION,
     _extract_component_info_from_purl,
+    _is_invalid_purl,
+    normalize_purl,
     sanitize_dependency_graph,
+    sanitize_purls,
     serialize_cyclonedx_bom,
 )
 
@@ -325,3 +328,335 @@ class TestSerializeCycloneDxBom:
         bom = Bom()
         with pytest.raises(ValueError, match="spec_version is required"):
             serialize_cyclonedx_bom(bom, None)
+
+
+class TestIsInvalidPurl:
+    """Tests for PURL validation helper function."""
+
+    def test_valid_npm_purl(self):
+        """Test that a valid npm PURL is accepted."""
+        is_invalid, reason = _is_invalid_purl("pkg:npm/lodash@4.17.21")
+        assert not is_invalid
+        assert reason == ""
+
+    def test_valid_maven_purl(self):
+        """Test that a valid Maven PURL is accepted."""
+        is_invalid, reason = _is_invalid_purl("pkg:maven/org.apache.commons/commons-lang3@3.12.0")
+        assert not is_invalid
+        assert reason == ""
+
+    def test_file_reference_in_purl_string(self):
+        """Test that PURLs with file: references in string are rejected early."""
+        is_invalid, reason = _is_invalid_purl("pkg:npm/%40keycloak/admin-ui@1.0.0?vcs_url=file:apps/admin-ui")
+        assert is_invalid
+        assert "file:" in reason
+
+    def test_file_reference_in_parsed_qualifiers(self):
+        """Test that file: references are detected in parsed qualifiers."""
+        # This tests the second validation path after PURL parsing
+        is_invalid, reason = _is_invalid_purl("pkg:npm/%40keycloak/admin-ui@1.0.0?repository_url=file:../local")
+        assert is_invalid
+        assert "file:" in reason
+
+    def test_link_reference_in_purl(self):
+        """Test that PURLs with link: references are rejected."""
+        is_invalid, reason = _is_invalid_purl("pkg:npm/some-pkg@link:../packages/foo")
+        assert is_invalid
+        assert "link:" in reason
+
+    def test_path_based_version(self):
+        """Test that path-based versions are rejected."""
+        is_invalid, reason = _is_invalid_purl("pkg:npm/some-pkg@../../packages/foo")
+        assert is_invalid
+        assert "path-based" in reason
+
+    def test_root_namespace(self):
+        """Test that root namespace is rejected."""
+        # Test with @root namespace (proper npm scoped package format)
+        is_invalid, reason = _is_invalid_purl("pkg:npm/%40root/some-pkg@1.0.0")
+        assert is_invalid
+        assert "root" in reason
+
+        # Also test unscoped root namespace
+        is_invalid, reason = _is_invalid_purl("pkg:npm/root/some-pkg@1.0.0")
+        assert is_invalid
+        assert "root" in reason
+
+    def test_missing_version_npm(self):
+        """Test that npm packages without version are rejected."""
+        is_invalid, reason = _is_invalid_purl("pkg:npm/lodash")
+        assert is_invalid
+        assert "missing version" in reason
+
+    def test_missing_version_maven(self):
+        """Test that maven packages without version are rejected."""
+        is_invalid, reason = _is_invalid_purl("pkg:maven/org.apache/commons")
+        assert is_invalid
+        assert "missing version" in reason
+
+    def test_empty_purl_rejected(self):
+        """Test that empty PURL is rejected."""
+        is_invalid, reason = _is_invalid_purl("")
+        assert is_invalid
+        assert "empty" in reason
+
+    def test_malformed_purl(self):
+        """Test that malformed PURL is rejected."""
+        is_invalid, reason = _is_invalid_purl("not-a-purl")
+        assert is_invalid
+        assert "malformed" in reason
+
+    def test_deb_without_version_allowed(self):
+        """Test that deb packages without version are allowed (version may come from distro)."""
+        # deb is not in the list of types that require version
+        is_invalid, reason = _is_invalid_purl("pkg:deb/debian/openssl")
+        assert not is_invalid
+
+
+class TestNormalizePurl:
+    """Tests for PURL normalization function."""
+
+    def test_no_change_for_valid_purl(self):
+        """Test that valid PURLs are not modified."""
+        purl = "pkg:npm/%40scope/package@1.0.0"
+        normalized, was_modified = normalize_purl(purl)
+        assert not was_modified
+        assert normalized == purl
+
+    def test_fixes_double_at_in_version(self):
+        """Test that double @@ before version is fixed."""
+        purl = "pkg:npm/%40scope/pkg@@1.0.0"
+        normalized, was_modified = normalize_purl(purl)
+        assert was_modified
+        assert "@@" not in normalized
+        # Should have single @ before version and not be encoded
+        assert "@1.0.0" in normalized
+        assert "%401.0.0" not in normalized
+
+    def test_fixes_double_encoded_at(self):
+        """Test that double-encoded @ (%40%40) is fixed."""
+        purl = "pkg:npm/%40%40scope/pkg@1.0.0"
+        normalized, was_modified = normalize_purl(purl)
+        assert was_modified
+        assert "%40%40" not in normalized
+
+    def test_empty_purl(self):
+        """Test that empty PURL returns unchanged."""
+        normalized, was_modified = normalize_purl("")
+        assert not was_modified
+        assert normalized == ""
+
+    def test_none_purl(self):
+        """Test that None PURL returns unchanged."""
+        normalized, was_modified = normalize_purl(None)
+        assert not was_modified
+        assert normalized is None
+
+
+class TestSanitizePurls:
+    """Tests for PURL sanitization function."""
+
+    def test_clears_purl_with_file_reference(self):
+        """Test that PURLs with file: references are cleared but component kept."""
+        from packageurl import PackageURL
+
+        bom = Bom()
+        # Valid component
+        valid_comp = Component(
+            name="lodash",
+            type=ComponentType.LIBRARY,
+            version="4.17.21",
+            bom_ref=BomRef("pkg:npm/lodash@4.17.21"),
+            purl=PackageURL.from_string("pkg:npm/lodash@4.17.21"),
+        )
+        # Component with invalid file: reference in PURL
+        invalid_comp = Component(
+            name="admin-ui",
+            type=ComponentType.LIBRARY,
+            version="1.0.0",
+            bom_ref=BomRef("pkg:npm/%40keycloak/admin-ui@1.0.0"),
+            purl=PackageURL(
+                type="npm",
+                namespace="@keycloak",
+                name="admin-ui",
+                version="1.0.0",
+                qualifiers={"vcs_url": "file:apps/admin-ui"},
+            ),
+        )
+        bom.components.add(valid_comp)
+        bom.components.add(invalid_comp)
+
+        normalized, cleared = sanitize_purls(bom)
+        assert cleared == 1
+        # Both components are kept (preserves dependency graph)
+        assert len(bom.components) == 2
+
+        # Find the sanitized component
+        admin_ui = None
+        for comp in bom.components:
+            if comp.name == "admin-ui":
+                admin_ui = comp
+                break
+
+        assert admin_ui is not None
+        assert admin_ui.purl is None  # PURL cleared
+        assert admin_ui.version == "1.0.0"  # Other fields preserved
+
+    def test_clears_purl_without_version(self):
+        """Test that PURLs without version are cleared but component kept."""
+        from packageurl import PackageURL
+
+        bom = Bom()
+        # Valid component
+        valid_comp = Component(
+            name="lodash",
+            type=ComponentType.LIBRARY,
+            version="4.17.21",
+            bom_ref=BomRef("pkg:npm/lodash@4.17.21"),
+            purl=PackageURL.from_string("pkg:npm/lodash@4.17.21"),
+        )
+        # Component with PURL missing version
+        invalid_comp = Component(
+            name="no-version",
+            type=ComponentType.LIBRARY,
+            version="1.0.0",  # Component has version, but PURL doesn't
+            bom_ref=BomRef("pkg:npm/no-version"),
+            purl=PackageURL.from_string("pkg:npm/no-version"),
+        )
+        bom.components.add(valid_comp)
+        bom.components.add(invalid_comp)
+
+        normalized, cleared = sanitize_purls(bom)
+        assert cleared == 1
+        # Both components kept
+        assert len(bom.components) == 2
+
+        # Find the sanitized component
+        no_version = None
+        for comp in bom.components:
+            if comp.name == "no-version":
+                no_version = comp
+                break
+
+        assert no_version is not None
+        assert no_version.purl is None  # PURL cleared
+        assert no_version.version == "1.0.0"  # Component version preserved
+
+    def test_clears_invalid_metadata_component_purl(self):
+        """Test that invalid PURLs are cleared from metadata component."""
+        from packageurl import PackageURL
+
+        bom = Bom()
+        # Metadata component with invalid PURL
+        meta_comp = Component(
+            name="admin-ui",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+            bom_ref=BomRef("main"),
+            purl=PackageURL(
+                type="npm",
+                namespace="@keycloak",
+                name="admin-ui",
+                qualifiers={"vcs_url": "file:apps/admin-ui"},
+            ),
+        )
+        bom.metadata.component = meta_comp
+
+        normalized, cleared = sanitize_purls(bom)
+        assert cleared == 1
+        assert bom.metadata.component is not None
+        assert bom.metadata.component.purl is None
+        assert bom.metadata.component.name == "admin-ui"  # Other fields preserved
+
+    def test_keeps_valid_components_and_purls(self):
+        """Test that valid components keep their PURLs."""
+        from packageurl import PackageURL
+
+        bom = Bom()
+        for i in range(5):
+            comp = Component(
+                name=f"pkg{i}",
+                type=ComponentType.LIBRARY,
+                version="1.0.0",
+                bom_ref=BomRef(f"pkg:npm/pkg{i}@1.0.0"),
+                purl=PackageURL.from_string(f"pkg:npm/pkg{i}@1.0.0"),
+            )
+            bom.components.add(comp)
+
+        normalized, cleared = sanitize_purls(bom)
+        assert normalized == 0
+        assert cleared == 0
+        assert len(bom.components) == 5
+        # All PURLs preserved
+        for comp in bom.components:
+            assert comp.purl is not None
+
+    def test_returns_zero_for_empty_bom(self):
+        """Test that empty BOM returns zeros."""
+        bom = Bom()
+        normalized, cleared = sanitize_purls(bom)
+        assert normalized == 0
+        assert cleared == 0
+
+    def test_preserves_dependency_graph(self):
+        """Test that dependency graph is preserved when PURLs are cleared."""
+        from packageurl import PackageURL
+
+        bom = Bom()
+        # Parent component (valid)
+        parent = Component(
+            name="parent",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+            bom_ref=BomRef("pkg:npm/parent@1.0.0"),
+            purl=PackageURL.from_string("pkg:npm/parent@1.0.0"),
+        )
+        # Child component (invalid PURL - missing version)
+        child = Component(
+            name="child",
+            type=ComponentType.LIBRARY,
+            version="2.0.0",
+            bom_ref=BomRef("pkg:npm/child"),
+            purl=PackageURL.from_string("pkg:npm/child"),
+        )
+        bom.components.add(parent)
+        bom.components.add(child)
+
+        # Add dependency: parent depends on child
+        parent_dep = Dependency(ref=parent.bom_ref)
+        child_dep = Dependency(ref=child.bom_ref)
+        parent_dep.dependencies.add(child_dep)
+        bom.dependencies.add(parent_dep)
+
+        normalized, cleared = sanitize_purls(bom)
+        assert cleared == 1
+
+        # Both components still exist
+        assert len(bom.components) == 2
+
+        # Dependency graph intact
+        assert len(bom.dependencies) == 1
+        dep = list(bom.dependencies)[0]
+        assert dep.ref.value == "pkg:npm/parent@1.0.0"
+        assert len(dep.dependencies) == 1
+
+    def test_valid_scoped_purl_not_modified(self):
+        """Test that valid scoped PURLs are not modified by sanitization."""
+        from packageurl import PackageURL
+
+        bom = Bom()
+        # Valid scoped npm package - should not be touched
+        comp = Component(
+            name="pkg",
+            type=ComponentType.LIBRARY,
+            version="1.0.0",
+            bom_ref=BomRef("pkg:npm/%40scope/pkg@1.0.0"),
+            purl=PackageURL.from_string("pkg:npm/%40scope/pkg@1.0.0"),
+        )
+        bom.components.add(comp)
+
+        # Valid PURL should not be modified or cleared
+        normalized, cleared = sanitize_purls(bom)
+        assert normalized == 0
+        assert cleared == 0
+        assert comp.purl is not None

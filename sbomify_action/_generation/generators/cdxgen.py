@@ -137,6 +137,11 @@ class CdxgenFsGenerator:
         if ecosystem not in RECURSE_ECOSYSTEMS:
             cmd.append("--no-recurse")
 
+        # Exclude dev dependencies and local workspace packages across all ecosystems
+        # This filters out development-only dependencies, keeping only production dependencies
+        # For JavaScript, this also excludes local packages with path-based versions
+        cmd.append("--required-only")
+
         cmd.append(scan_path)
 
         logger.info(f"Running cdxgen for {input.lock_file_name} (cyclonedx {version}, type={cdxgen_type or 'auto'})")
