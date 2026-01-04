@@ -173,8 +173,10 @@ def normalize_purl(purl_str: str) -> tuple[str, bool]:
     normalized = purl_str
 
     # Fix double-encoded @ (%40%40 → %40)
-    # Note: while loop is needed for consecutive patterns like %40%40%40%40
-    # which requires multiple passes: %40%40%40%40 → %40%40 → %40
+    # The loop repeatedly collapses '%40%40' until no such pattern remains.
+    # This handles long runs like '%40%40%40%40' (which become '%40%40' after one
+    # replace, then '%40' after another) and cases where '%40%40' appears in
+    # multiple positions within the string.
     while "%40%40" in normalized:
         normalized = normalized.replace("%40%40", "%40")
 
@@ -242,15 +244,16 @@ def _is_invalid_purl(purl_str: str) -> tuple[bool, str]:
     if "@../../" in purl_str or "@../" in purl_str or "@./" in purl_str:
         return True, "contains path-based version"
 
-    # Check for root/ namespace (invalid namespace)
-    if "/root/" in purl_str or "%40root/" in purl_str:
-        return True, "contains invalid root/ namespace"
-
     # Try to parse the PURL
     try:
         from packageurl import PackageURL
 
         purl = PackageURL.from_string(purl_str)
+
+        # Check for invalid root namespace (common SBOM generator bug)
+        # Must check parsed namespace, not string matching, to avoid false positives
+        if purl.namespace in {"root", "@root"}:
+            return True, "contains invalid root namespace"
 
         # Check for file: in qualifiers
         if purl.qualifiers:

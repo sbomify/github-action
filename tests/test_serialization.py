@@ -364,10 +364,16 @@ class TestIsInvalidPurl:
         assert "path-based" in reason
 
     def test_root_namespace(self):
-        """Test that root/ namespace is rejected."""
+        """Test that root namespace is rejected."""
+        # Test with @root namespace (proper npm scoped package format)
+        is_invalid, reason = _is_invalid_purl("pkg:npm/%40root/some-pkg@1.0.0")
+        assert is_invalid
+        assert "root" in reason
+
+        # Also test unscoped root namespace
         is_invalid, reason = _is_invalid_purl("pkg:npm/root/some-pkg@1.0.0")
         assert is_invalid
-        assert "root/" in reason
+        assert "root" in reason
 
     def test_missing_version_npm(self):
         """Test that npm packages without version are rejected."""
@@ -627,13 +633,12 @@ class TestSanitizePurls:
         assert dep.ref.value == "pkg:npm/parent@1.0.0"
         assert len(dep.dependencies) == 1
 
-    def test_normalizes_double_at_purl(self):
-        """Test that PURLs with double @@ are normalized, not cleared."""
+    def test_valid_scoped_purl_not_modified(self):
+        """Test that valid scoped PURLs are not modified by sanitization."""
         from packageurl import PackageURL
 
         bom = Bom()
-        # Component with double @@ in PURL (encoding bug)
-        # We'll manually set a bad PURL string by creating the component first
+        # Valid scoped npm package - should not be touched
         comp = Component(
             name="pkg",
             type=ComponentType.LIBRARY,
@@ -643,7 +648,7 @@ class TestSanitizePurls:
         )
         bom.components.add(comp)
 
-        # This is a valid PURL, should not be modified
+        # Valid PURL should not be modified or cleared
         normalized, cleared = sanitize_purls(bom)
         assert normalized == 0
         assert cleared == 0
