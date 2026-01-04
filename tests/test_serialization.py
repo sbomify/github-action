@@ -336,68 +336,68 @@ class TestIsInvalidPurl:
     def test_valid_npm_purl(self):
         """Test that a valid npm PURL is accepted."""
         is_invalid, reason = _is_invalid_purl("pkg:npm/lodash@4.17.21")
-        assert is_invalid is False
+        assert not is_invalid
         assert reason == ""
 
     def test_valid_maven_purl(self):
         """Test that a valid Maven PURL is accepted."""
         is_invalid, reason = _is_invalid_purl("pkg:maven/org.apache.commons/commons-lang3@3.12.0")
-        assert is_invalid is False
+        assert not is_invalid
         assert reason == ""
 
     def test_file_reference_in_purl(self):
         """Test that PURLs with file: references are rejected."""
         is_invalid, reason = _is_invalid_purl("pkg:npm/%40keycloak/admin-ui?vcs_url=file:apps/admin-ui")
-        assert is_invalid is True
+        assert is_invalid
         assert "file:" in reason
 
     def test_link_reference_in_purl(self):
         """Test that PURLs with link: references are rejected."""
         is_invalid, reason = _is_invalid_purl("pkg:npm/some-pkg@link:../packages/foo")
-        assert is_invalid is True
+        assert is_invalid
         assert "link:" in reason
 
     def test_path_based_version(self):
         """Test that path-based versions are rejected."""
         is_invalid, reason = _is_invalid_purl("pkg:npm/some-pkg@../../packages/foo")
-        assert is_invalid is True
+        assert is_invalid
         assert "path-based" in reason
 
     def test_root_namespace(self):
         """Test that root/ namespace is rejected."""
         is_invalid, reason = _is_invalid_purl("pkg:npm/root/some-pkg@1.0.0")
-        assert is_invalid is True
+        assert is_invalid
         assert "root/" in reason
 
     def test_missing_version_npm(self):
         """Test that npm packages without version are rejected."""
         is_invalid, reason = _is_invalid_purl("pkg:npm/lodash")
-        assert is_invalid is True
+        assert is_invalid
         assert "missing version" in reason
 
     def test_missing_version_maven(self):
         """Test that maven packages without version are rejected."""
         is_invalid, reason = _is_invalid_purl("pkg:maven/org.apache/commons")
-        assert is_invalid is True
+        assert is_invalid
         assert "missing version" in reason
 
     def test_empty_purl_rejected(self):
         """Test that empty PURL is rejected."""
         is_invalid, reason = _is_invalid_purl("")
-        assert is_invalid is True
+        assert is_invalid
         assert "empty" in reason
 
     def test_malformed_purl(self):
         """Test that malformed PURL is rejected."""
         is_invalid, reason = _is_invalid_purl("not-a-purl")
-        assert is_invalid is True
+        assert is_invalid
         assert "malformed" in reason
 
     def test_deb_without_version_allowed(self):
         """Test that deb packages without version are allowed (version may come from distro)."""
         # deb is not in the list of types that require version
         is_invalid, reason = _is_invalid_purl("pkg:deb/debian/openssl")
-        assert is_invalid is False
+        assert not is_invalid
 
 
 class TestNormalizePurl:
@@ -407,14 +407,14 @@ class TestNormalizePurl:
         """Test that valid PURLs are not modified."""
         purl = "pkg:npm/%40scope/package@1.0.0"
         normalized, was_modified = normalize_purl(purl)
-        assert was_modified is False
+        assert not was_modified
         assert normalized == purl
 
     def test_fixes_double_at_in_version(self):
         """Test that double @@ before version is fixed."""
         purl = "pkg:npm/%40scope/pkg@@1.0.0"
         normalized, was_modified = normalize_purl(purl)
-        assert was_modified is True
+        assert was_modified
         assert "@@" not in normalized
         # Should have single @ before version and not be encoded
         assert "@1.0.0" in normalized
@@ -424,19 +424,19 @@ class TestNormalizePurl:
         """Test that double-encoded @ (%40%40) is fixed."""
         purl = "pkg:npm/%40%40scope/pkg@1.0.0"
         normalized, was_modified = normalize_purl(purl)
-        assert was_modified is True
+        assert was_modified
         assert "%40%40" not in normalized
 
     def test_empty_purl(self):
         """Test that empty PURL returns unchanged."""
         normalized, was_modified = normalize_purl("")
-        assert was_modified is False
+        assert not was_modified
         assert normalized == ""
 
     def test_none_purl(self):
         """Test that None PURL returns unchanged."""
         normalized, was_modified = normalize_purl(None)
-        assert was_modified is False
+        assert not was_modified
         assert normalized is None
 
 
