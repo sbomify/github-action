@@ -9,6 +9,7 @@ from packageurl import PackageURL
 from sbomify_action.logging_config import logger
 
 from ..metadata import NormalizedMetadata
+from ..sanitization import normalize_vcs_url
 
 DEBIAN_SOURCES_BASE = "https://sources.debian.org"
 DEFAULT_TIMEOUT = 10  # seconds
@@ -200,9 +201,10 @@ class DebianSource:
         registry_url = f"https://sources.debian.org/src/{package_name}/{version}/"
         field_sources["registry_url"] = self.name
 
-        # Extract VCS/repository URL
+        # Extract VCS/repository URL and normalize to SPDX VCS format
         repository_url = self._parse_vcs(pkg_infos.get("vcs"))
         if repository_url:
+            repository_url = normalize_vcs_url(repository_url)
             field_sources["repository_url"] = self.name
 
         logger.debug(f"Successfully parsed Debian package info for: {package_name}@{version}")

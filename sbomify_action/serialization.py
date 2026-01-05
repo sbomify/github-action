@@ -6,12 +6,10 @@ formats, supporting multiple versions and making it easy to add new versions in 
 """
 
 import re
-from typing import TYPE_CHECKING, Dict, Optional, Type
+from typing import Dict, Optional, Type
 
 from cyclonedx.model.bom import Bom
-
-if TYPE_CHECKING:
-    from packageurl import PackageURL
+from packageurl import PackageURL
 from spdx_tools.spdx.model import Document
 
 from .logging_config import logger
@@ -111,7 +109,7 @@ _UNKNOWN_VERSION = "unknown"
 
 def _extract_component_info_from_purl(
     purl_string: str,
-) -> tuple[Optional[str], Optional[str], Optional[str], Optional["PackageURL"]]:
+) -> tuple[Optional[str], Optional[str], Optional[str], Optional[PackageURL]]:
     """
     Extract component information from a PURL string for stub creation.
 
@@ -124,13 +122,9 @@ def _extract_component_info_from_purl(
         Tuple of (name, version, namespace, PackageURL) or (None, None, None, None) if parsing fails
     """
     try:
-        from packageurl import PackageURL
-
         purl_obj = PackageURL.from_string(purl_string)
         return purl_obj.name, purl_obj.version, purl_obj.namespace, purl_obj
-
-    except (ImportError, ValueError):
-        # ImportError: packageurl library is not installed
+    except ValueError:
         # ValueError: the provided PURL string is malformed
         return None, None, None, None
 
@@ -189,13 +183,11 @@ def normalize_purl(purl_str: str | None) -> tuple[str | None, bool]:
         # Re-encode the namespace @ symbol (first @ after pkg:type/)
         # Split on first / to get type, then handle namespace
         try:
-            from packageurl import PackageURL
-
             # Try to parse the fixed decoded PURL
             # The namespace @ needs to be encoded as %40
             purl = PackageURL.from_string(decoded)
             normalized = str(purl)
-        except (ImportError, ValueError):
+        except ValueError:
             # If we can't parse, just do simple fix
             normalized = decoded
 
@@ -243,8 +235,6 @@ def _is_invalid_purl(purl_str: str | None) -> tuple[bool, str]:
 
     # Try to parse the PURL
     try:
-        from packageurl import PackageURL
-
         purl = PackageURL.from_string(purl_str)
 
         # Check for invalid root namespace (common SBOM generator bug)
@@ -263,7 +253,7 @@ def _is_invalid_purl(purl_str: str | None) -> tuple[bool, str]:
             if not purl.version:
                 return True, f"missing version for {purl.type} package"
 
-    except (ImportError, ValueError) as e:
+    except ValueError as e:
         return True, f"malformed PURL: {e}"
 
     return False, ""
@@ -286,8 +276,6 @@ def sanitize_purls(bom: Bom) -> tuple[int, int]:
     Returns:
         Tuple of (purls_normalized, purls_cleared)
     """
-    from packageurl import PackageURL
-
     purls_normalized = 0
     purls_cleared = 0
 
@@ -336,6 +324,31 @@ def sanitize_purls(bom: Bom) -> tuple[int, int]:
             logger.warning(f"Clearing invalid PURL from metadata component: {purl_str} ({reason})")
             bom.metadata.component.purl = None
             purls_cleared += 1
+
+    # Process tools.components (CycloneDX 1.5+ modern format)
+    if bom.metadata and bom.metadata.tools and bom.metadata.tools.components:
+        for comp in bom.metadata.tools.components:
+            if comp.purl:
+                purl_str = str(comp.purl)
+
+                # First, try to normalize
+                normalized_str, was_normalized = normalize_purl(purl_str)
+                if was_normalized:
+                    try:
+                        comp.purl = PackageURL.from_string(normalized_str)
+                        purl_str = normalized_str
+                        purls_normalized += 1
+                        logger.info(f"Normalized PURL for tools.component '{comp.name}': {purl_str}")
+                    except ValueError:
+                        # Normalization produced invalid PURL, will be caught below
+                        pass
+
+                # Then check if it's still invalid
+                is_invalid, reason = _is_invalid_purl(purl_str)
+                if is_invalid:
+                    logger.warning(f"Clearing invalid PURL from tools.component '{comp.name}': {purl_str} ({reason})")
+                    comp.purl = None
+                    purls_cleared += 1
 
     if purls_normalized:
         logger.info(f"PURL sanitization: normalized {purls_normalized} PURL(s)")

@@ -95,7 +95,7 @@ class TestDebianSourceFetch:
         assert metadata.supplier == "Debian Project"
         assert metadata.homepage == "https://tracker.debian.org/pkg/bash"
         assert "sources.debian.org/src/bash" in metadata.registry_url
-        assert metadata.repository_url == "https://salsa.debian.org/debian/bash.git"
+        assert metadata.repository_url == "git+https://salsa.debian.org/debian/bash.git"
 
     def test_fetch_with_description(self):
         """Test that description is extracted from API response."""
@@ -348,7 +348,7 @@ class TestDebianSourceVCSParsing:
 
         metadata = source.fetch(purl, mock_session)
 
-        assert metadata.repository_url == "https://salsa.debian.org/debian/bash.git"
+        assert metadata.repository_url == "git+https://salsa.debian.org/debian/bash.git"
 
     def test_vcs_plain_url(self):
         """Test parsing VCS field with plain URL."""
@@ -368,7 +368,7 @@ class TestDebianSourceVCSParsing:
 
         metadata = source.fetch(purl, mock_session)
 
-        assert metadata.repository_url == "https://salsa.debian.org/debian/bash.git"
+        assert metadata.repository_url == "git+https://salsa.debian.org/debian/bash.git"
 
     def test_vcs_git_protocol(self):
         """Test parsing VCS field with git:// protocol."""
@@ -411,7 +411,7 @@ class TestDebianSourceVCSParsing:
 
         metadata = source.fetch(purl, mock_session)
 
-        assert metadata.repository_url == "https://salsa.debian.org/debian/bash.git"
+        assert metadata.repository_url == "git+https://salsa.debian.org/debian/bash.git"
 
     def test_vcs_dict_format_browser_key(self):
         """Test parsing VCS field as dict with only 'browser' key."""
@@ -433,7 +433,7 @@ class TestDebianSourceVCSParsing:
 
         metadata = source.fetch(purl, mock_session)
 
-        assert metadata.repository_url == "https://salsa.debian.org/debian/bash"
+        assert metadata.repository_url == "git+https://salsa.debian.org/debian/bash"
 
     def test_vcs_empty(self):
         """Test handling when VCS field is empty."""
@@ -567,7 +567,7 @@ class TestDebianSourceVersionHandling:
 
         assert metadata is not None
         assert metadata.description == "GNU Bourne Again SHell"
-        assert metadata.repository_url == "https://salsa.debian.org/debian/bash.git"
+        assert metadata.repository_url == "git+https://salsa.debian.org/debian/bash.git"
         assert metadata.supplier == "Debian Project"
 
 

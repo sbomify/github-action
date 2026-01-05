@@ -660,3 +660,74 @@ class TestSanitizePurls:
         assert normalized == 0
         assert cleared == 0
         assert comp.purl is not None
+
+    def test_clears_invalid_tools_component_purl(self):
+        """Test that invalid PURLs are cleared from tools.components (CycloneDX 1.5+)."""
+        from packageurl import PackageURL
+
+        bom = Bom()
+        # Add a valid tool component
+        valid_tool = Component(
+            name="trivy",
+            type=ComponentType.APPLICATION,
+            version="0.67.2",
+            purl=PackageURL.from_string("pkg:golang/github.com/aquasecurity/trivy@0.67.2"),
+        )
+        valid_tool.group = "aquasecurity"
+        bom.metadata.tools.components.add(valid_tool)
+
+        # Add a tool component with invalid PURL (missing version)
+        invalid_tool = Component(
+            name="cdxgen",
+            type=ComponentType.APPLICATION,
+            version="11.0.0",  # Component has version, but PURL doesn't
+            purl=PackageURL.from_string("pkg:npm/cdxgen"),
+        )
+        bom.metadata.tools.components.add(invalid_tool)
+
+        normalized, cleared = sanitize_purls(bom)
+        assert cleared == 1
+
+        # Both tool components are kept
+        assert len(bom.metadata.tools.components) == 2
+
+        # Find the sanitized tool component
+        cdxgen_tool = None
+        for comp in bom.metadata.tools.components:
+            if comp.name == "cdxgen":
+                cdxgen_tool = comp
+                break
+
+        assert cdxgen_tool is not None
+        assert cdxgen_tool.purl is None  # PURL cleared
+        assert cdxgen_tool.version == "11.0.0"  # Other fields preserved
+
+        # Valid tool component should still have its PURL
+        trivy_tool = None
+        for comp in bom.metadata.tools.components:
+            if comp.name == "trivy":
+                trivy_tool = comp
+                break
+        assert trivy_tool is not None
+        assert trivy_tool.purl is not None
+
+    def test_normalizes_tools_component_purl_encoding(self):
+        """Test that double %40 encoding is normalized in tools.components."""
+        from packageurl import PackageURL
+
+        bom = Bom()
+        # Tool component with double-encoded @ (%40%40 issue)
+        tool = Component(
+            name="scoped-tool",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+        )
+        # Manually create a PURL with double %40 encoding issue
+        tool.purl = PackageURL.from_string("pkg:npm/%40scope/tool@1.0.0")
+        bom.metadata.tools.components.add(tool)
+
+        # Valid scoped PURL should not be modified
+        normalized, cleared = sanitize_purls(bom)
+        assert cleared == 0
+        # The PURL should still be valid
+        assert tool.purl is not None

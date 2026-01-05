@@ -282,7 +282,7 @@ class TestPyPISource:
         assert metadata.homepage == "https://www.djangoproject.com/"
         assert "BSD-3-Clause" in metadata.licenses
         assert metadata.supplier == "Django Software Foundation"
-        assert metadata.repository_url == "https://github.com/django/django"
+        assert metadata.repository_url == "git+https://github.com/django/django"
 
     def test_fetch_not_found(self, mock_session):
         """Test handling of 404 response."""
@@ -453,7 +453,7 @@ class TestPubDevSource:
         assert metadata is not None
         assert metadata.description == "A composable, Future-based library for making HTTP requests."
         assert metadata.homepage == "https://github.com/dart-lang/http"
-        assert metadata.repository_url == "https://github.com/dart-lang/http"
+        assert metadata.repository_url == "git+https://github.com/dart-lang/http"
         assert metadata.issue_tracker_url == "https://github.com/dart-lang/http/issues"
         assert metadata.supplier == "dart.dev"
         assert metadata.registry_url == "https://pub.dev/packages/http"
@@ -1940,86 +1940,98 @@ class TestClearlyDefinedSource:
 # =============================================================================
 
 
-class TestDepsDevVcsUrlNormalization:
-    """Test VCS URL normalization in DepsDevSource."""
+class TestVcsUrlNormalization:
+    """Test VCS URL normalization (now in sanitization module)."""
 
-    def test_normalize_ssh_shorthand_to_git_ssh(self):
-        """Test that SSH shorthand URLs are normalized to git+ssh://."""
-        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+    def test_normalize_ssh_shorthand_to_git_https(self):
+        """Test that SSH shorthand URLs are normalized to git+https://."""
+        from sbomify_action._enrichment.sanitization import normalize_vcs_url
 
         url = "git@github.com:user/repo.git"
-        result = _normalize_vcs_url(url)
-        assert result == "git+ssh://git@github.com/user/repo.git"
+        result = normalize_vcs_url(url)
+        assert result == "git+https://github.com/user/repo.git"
 
-    def test_normalize_scm_git_ssh_to_git_ssh(self):
-        """Test that scm:git:git@... URLs are normalized to git+ssh://."""
-        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+    def test_normalize_scm_git_ssh_to_git_https(self):
+        """Test that scm:git:git@... URLs are normalized to git+https://."""
+        from sbomify_action._enrichment.sanitization import normalize_vcs_url
 
         url = "scm:git:git@github.com:user/repo.git"
-        result = _normalize_vcs_url(url)
-        assert result == "git+ssh://git@github.com/user/repo.git"
+        result = normalize_vcs_url(url)
+        assert result == "git+https://github.com/user/repo.git"
 
-    def test_normalize_scm_git_protocol_to_git(self):
-        """Test that scm:git:git://... URLs are normalized to git://."""
-        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+    def test_normalize_scm_git_protocol_strips_prefix(self):
+        """Test that scm:git:git://... strips the scm:git: prefix but keeps git://."""
+        from sbomify_action._enrichment.sanitization import normalize_vcs_url
 
         url = "scm:git:git://github.com/user/repo.git"
-        result = _normalize_vcs_url(url)
+        result = normalize_vcs_url(url)
+        # git:// is already a valid SPDX VCS scheme, don't change protocol
         assert result == "git://github.com/user/repo.git"
 
     def test_normalize_scm_git_https_to_git_https(self):
         """Test that scm:git:https://... URLs are normalized to git+https://."""
-        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+        from sbomify_action._enrichment.sanitization import normalize_vcs_url
 
         url = "scm:git:https://github.com/user/repo.git"
-        result = _normalize_vcs_url(url)
+        result = normalize_vcs_url(url)
         assert result == "git+https://github.com/user/repo.git"
 
     def test_normalize_scm_git_http_to_git_http(self):
         """Test that scm:git:http://... URLs are normalized to git+http://."""
-        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+        from sbomify_action._enrichment.sanitization import normalize_vcs_url
 
         url = "scm:git:http://github.com/user/repo.git"
-        result = _normalize_vcs_url(url)
+        result = normalize_vcs_url(url)
         assert result == "git+http://github.com/user/repo.git"
 
     def test_normalize_git_protocol_unchanged(self):
-        """Test that git:// URLs are not changed."""
-        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+        """Test that git:// URLs are left unchanged (already valid SPDX VCS scheme)."""
+        from sbomify_action._enrichment.sanitization import normalize_vcs_url
 
         url = "git://github.com/user/repo.git"
-        result = _normalize_vcs_url(url)
+        result = normalize_vcs_url(url)
+        # git:// is the git protocol (port 9418), already valid - don't change it
         assert result == "git://github.com/user/repo.git"
 
-    def test_normalize_https_unchanged(self):
-        """Test that https:// URLs are not changed."""
-        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+    def test_normalize_known_git_host_https(self):
+        """Test that https:// URLs from known git hosts are normalized."""
+        from sbomify_action._enrichment.sanitization import normalize_vcs_url
 
+        # GitHub is a known git host, so we can safely add git+ prefix
         url = "https://github.com/user/repo.git"
-        result = _normalize_vcs_url(url)
-        assert result == "https://github.com/user/repo.git"
+        result = normalize_vcs_url(url)
+        assert result == "git+https://github.com/user/repo.git"
+
+    def test_normalize_unknown_host_unchanged(self):
+        """Test that https:// URLs from unknown hosts are NOT modified."""
+        from sbomify_action._enrichment.sanitization import normalize_vcs_url
+
+        # Unknown domain - could be Mercurial, SVN, or just a website
+        url = "https://example.com/some/repo"
+        result = normalize_vcs_url(url)
+        assert result == "https://example.com/some/repo"
 
     def test_normalize_empty_string(self):
         """Test that empty strings are returned unchanged."""
-        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+        from sbomify_action._enrichment.sanitization import normalize_vcs_url
 
-        assert _normalize_vcs_url("") == ""
+        assert normalize_vcs_url("") == ""
 
     def test_normalize_gitlab_ssh(self):
         """Test normalization of GitLab SSH URLs."""
-        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+        from sbomify_action._enrichment.sanitization import normalize_vcs_url
 
         url = "git@gitlab.com:group/project.git"
-        result = _normalize_vcs_url(url)
-        assert result == "git+ssh://git@gitlab.com/group/project.git"
+        result = normalize_vcs_url(url)
+        assert result == "git+https://gitlab.com/group/project.git"
 
     def test_normalize_bitbucket_ssh(self):
         """Test normalization of Bitbucket SSH URLs."""
-        from sbomify_action._enrichment.sources.depsdev import _normalize_vcs_url
+        from sbomify_action._enrichment.sanitization import normalize_vcs_url
 
         url = "git@bitbucket.org:user/repo.git"
-        result = _normalize_vcs_url(url)
-        assert result == "git+ssh://git@bitbucket.org/user/repo.git"
+        result = normalize_vcs_url(url)
+        assert result == "git+https://bitbucket.org/user/repo.git"
 
 
 class TestDepsDevSource:
