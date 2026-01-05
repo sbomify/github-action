@@ -252,7 +252,8 @@ def _is_known_git_host(url: Optional[str]) -> bool:
         if host.startswith("www."):
             host = host[4:]
         return host in _KNOWN_GIT_HOSTS
-    except Exception:
+    except (ValueError, TypeError, AttributeError):
+        # urlparse or string handling failed; treat as not a known git host
         return False
 
 
