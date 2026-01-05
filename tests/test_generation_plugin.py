@@ -1,6 +1,7 @@
 """Tests for the SBOM generation plugin architecture."""
 
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sbomify_action._generation import (
@@ -468,6 +469,104 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         cmd = mock_run.call_args[0][0]
         self.assertIn("--required-only", cmd)
 
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_uses_fail_on_error_flag(self, mock_exists, mock_run):
+        """Test that --fail-on-error flag is passed to catch issues early."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        gen_input = GenerationInput(lock_file="/path/to/requirements.txt", output_file="sbom.json")
+        self.generator.generate(gen_input)
+
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("--fail-on-error", cmd)
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_changes_to_lock_file_directory(self, mock_exists, mock_run):
+        """Test that cdxgen runs from the lock file's directory using cwd parameter."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        gen_input = GenerationInput(lock_file="/path/to/project/requirements.txt", output_file="sbom.json")
+        self.generator.generate(gen_input)
+
+        # Verify cwd is passed to run_command
+        call_kwargs = mock_run.call_args[1]
+        self.assertIn("cwd", call_kwargs)
+        self.assertEqual(call_kwargs["cwd"], "/path/to/project")
+
+        # Verify scan path is "." (current directory)
+        cmd = mock_run.call_args[0][0]
+        self.assertEqual(cmd[-1], ".")
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_uses_absolute_output_path(self, mock_exists, mock_run):
+        """Test that output file is converted to absolute path when using cwd."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        gen_input = GenerationInput(lock_file="/path/to/project/requirements.txt", output_file="sbom.json")
+        result = self.generator.generate(gen_input)
+
+        # Verify the command uses an absolute path for output
+        cmd = mock_run.call_args[0][0]
+        output_index = cmd.index("-o") + 1
+        output_path = cmd[output_index]
+
+        # Output path should be absolute
+        self.assertTrue(Path(output_path).is_absolute())
+
+        # Result should also have absolute path
+        self.assertTrue(Path(result.output_file).is_absolute())
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_preserves_absolute_output_path(self, mock_exists, mock_run):
+        """Test that already-absolute output paths are preserved correctly."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        gen_input = GenerationInput(
+            lock_file="/path/to/project/requirements.txt",
+            output_file="/absolute/output/sbom.json",
+        )
+        result = self.generator.generate(gen_input)
+
+        # Verify the command uses the absolute path
+        cmd = mock_run.call_args[0][0]
+        output_index = cmd.index("-o") + 1
+        output_path = cmd[output_index]
+
+        # Output path should remain absolute and match the input
+        self.assertTrue(Path(output_path).is_absolute())
+        self.assertEqual(output_path, "/absolute/output/sbom.json")
+
+        # Result should also have the same absolute path
+        self.assertEqual(result.output_file, "/absolute/output/sbom.json")
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_handles_relative_lock_file_path(self, mock_exists, mock_run):
+        """Test that relative lock file paths are handled correctly."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        gen_input = GenerationInput(lock_file="src/requirements.txt", output_file="sbom.json")
+        self.generator.generate(gen_input)
+
+        # Verify cwd is passed and resolved to absolute path
+        call_kwargs = mock_run.call_args[1]
+        self.assertIn("cwd", call_kwargs)
+        # The cwd should be an absolute path (resolved from relative)
+        self.assertTrue(Path(call_kwargs["cwd"]).is_absolute())
+
+        # Verify scan path is "." (current directory)
+        cmd = mock_run.call_args[0][0]
+        self.assertEqual(cmd[-1], ".")
+
 
 class TestCdxgenImageGenerator(unittest.TestCase):
     """Tests for CdxgenImageGenerator."""
@@ -508,13 +607,31 @@ class TestCdxgenImageGenerator(unittest.TestCase):
         mock_run.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
 
-        input = GenerationInput(docker_image="alpine:3.18", output_file="/tmp/sbom.json", output_format="cyclonedx")
-        result = self.generator.generate(input)
+        gen_input = GenerationInput(
+            docker_image="alpine:3.18", output_file="/output/sbom.json", output_format="cyclonedx"
+        )
+        result = self.generator.generate(gen_input)
 
         self.assertTrue(result.success)
         self.assertEqual(result.sbom_format, "cyclonedx")
         self.assertEqual(result.spec_version, "1.6")
         self.assertEqual(result.generator_name, "cdxgen-image")
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_uses_required_only_and_fail_on_error_flags(self, mock_exists, mock_run):
+        """Test that --required-only and --fail-on-error flags are passed for image scanning."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        gen_input = GenerationInput(
+            docker_image="alpine:3.18", output_file="/output/sbom.json", output_format="cyclonedx"
+        )
+        self.generator.generate(gen_input)
+
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("--required-only", cmd)
+        self.assertIn("--fail-on-error", cmd)
 
 
 class TestSyftFsGenerator(unittest.TestCase):

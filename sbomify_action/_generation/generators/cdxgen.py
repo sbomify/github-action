@@ -111,9 +111,12 @@ class CdxgenFsGenerator:
         """Generate an SBOM using cdxgen command."""
         version = input.spec_version or CDXGEN_CYCLONEDX_DEFAULT
 
-        # Get the directory containing the lock file
+        # Get the directory containing the lock file - we'll cd into it
         lock_file_path = Path(input.lock_file)
-        scan_path = str(lock_file_path.parent) if lock_file_path.parent != Path(".") else "."
+        lock_file_directory = lock_file_path.parent.resolve()
+
+        # Convert output file to absolute path since we're changing cwd
+        output_file_abs = str(Path(input.output_file).resolve())
 
         # Detect ecosystem and map to cdxgen type
         ecosystem = get_lock_file_ecosystem(input.lock_file_name)
@@ -122,7 +125,7 @@ class CdxgenFsGenerator:
         cmd = [
             "cdxgen",
             "-o",
-            input.output_file,
+            output_file_abs,
             "--spec-version",
             version,
         ]
@@ -142,16 +145,20 @@ class CdxgenFsGenerator:
         # For JavaScript, this also excludes local packages with path-based versions
         cmd.append("--required-only")
 
-        cmd.append(scan_path)
+        # Fail on error to ensure we catch issues early
+        cmd.append("--fail-on-error")
+
+        # Scan current directory (we'll cd into lock file directory)
+        cmd.append(".")
 
         logger.info(f"Running cdxgen for {input.lock_file_name} (cyclonedx {version}, type={cdxgen_type or 'auto'})")
 
         try:
-            result = run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT)
+            result = run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT, cwd=str(lock_file_directory))
 
             if result.returncode == 0:
                 # Verify output file was created
-                if not Path(input.output_file).exists():
+                if not Path(output_file_abs).exists():
                     return GenerationResult.failure_result(
                         error_message="cdxgen completed but output file not created",
                         sbom_format="cyclonedx",
@@ -160,7 +167,7 @@ class CdxgenFsGenerator:
                     )
 
                 return GenerationResult.success_result(
-                    output_file=input.output_file,
+                    output_file=output_file_abs,
                     sbom_format="cyclonedx",
                     spec_version=version,
                     generator_name=self.name,
@@ -247,6 +254,8 @@ class CdxgenImageGenerator:
             input.output_file,
             "--spec-version",
             version,
+            "--required-only",
+            "--fail-on-error",
             input.docker_image,
         ]
 
