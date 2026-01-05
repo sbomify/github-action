@@ -1944,7 +1944,7 @@ class TestVcsUrlNormalization:
     """Test VCS URL normalization (now in sanitization module)."""
 
     def test_normalize_ssh_shorthand_to_git_https(self):
-        """Test that SSH shorthand URLs are normalized to git+https://."""
+        """Test that SSH shorthand URLs (git@host:path) are normalized to git+https://host/path."""
         from sbomify_action._enrichment.sanitization import normalize_vcs_url
 
         url = "git@github.com:user/repo.git"

@@ -255,7 +255,7 @@ def normalize_vcs_url(url: str) -> str:
     Normalizes URLs that are explicitly git-related or from known git hosts:
     - scm:git:... -> strips prefix, normalizes inner URL
     - git@host:path -> git+https://host/path
-    - git://host/path -> git+https://host/path
+    - git://host/path -> unchanged (already valid SPDX VCS scheme)
     - https://github.com/... (known git hosts) -> git+https://...
 
     Plain https:// URLs from unknown domains are NOT modified since we can't
@@ -265,7 +265,9 @@ def normalize_vcs_url(url: str) -> str:
         url: The URL to normalize
 
     Returns:
-        Normalized URL in SPDX VCS format, or original if no normalization needed
+        Normalized URL in SPDX VCS format, or original URL unchanged if:
+        - Input is None or empty
+        - URL is from an unknown host and doesn't have git-specific markers
     """
     if not url:
         return url
