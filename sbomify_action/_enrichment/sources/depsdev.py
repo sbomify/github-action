@@ -1,7 +1,6 @@
 """deps.dev data source for package metadata (Google Open Source Insights)."""
 
 import json
-import re
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
@@ -11,6 +10,7 @@ from packageurl import PackageURL
 from sbomify_action.logging_config import logger
 
 from ..metadata import NormalizedMetadata
+from ..sanitization import normalize_vcs_url
 from ..utils import get_qualified_name
 
 DEPSDEV_API_BASE = "https://api.deps.dev/v3"
@@ -29,69 +29,6 @@ PURL_TYPE_TO_SYSTEM: Dict[str, str] = {
 
 # Simple in-memory cache
 _cache: Dict[str, Optional[NormalizedMetadata]] = {}
-
-# Pattern for SSH-style git URLs: git@host:path
-_SSH_GIT_PATTERN = re.compile(r"^git@([^:]+):(.+)$")
-
-# Pattern for Maven SCM URLs: scm:git:...
-_SCM_GIT_PATTERN = re.compile(r"^scm:git:(.+)$", re.IGNORECASE)
-
-
-def _normalize_vcs_url(url: str) -> str:
-    """
-    Normalize VCS URLs to SPDX-standard format.
-
-    Converts Maven SCM URLs and SSH shorthand to SPDX VCS URL schemes:
-    - scm:git:git@host:path -> git+ssh://git@host/path
-    - scm:git:git://host/path -> git://host/path
-    - scm:git:https://host/path -> git+https://host/path
-    - git@host:path -> git+ssh://git@host/path
-    - git://host/path -> unchanged (already valid)
-
-    Args:
-        url: The URL to normalize
-
-    Returns:
-        Normalized URL in SPDX VCS format, or original if no normalization needed
-    """
-    if not url:
-        return url
-
-    original_url = url
-
-    # Step 1: Strip Maven SCM prefix if present
-    scm_match = _SCM_GIT_PATTERN.match(url)
-    if scm_match:
-        url = scm_match.group(1)
-
-    # Step 2: Handle SSH shorthand (git@host:path)
-    ssh_match = _SSH_GIT_PATTERN.match(url)
-    if ssh_match:
-        host = ssh_match.group(1)
-        path = ssh_match.group(2)
-        normalized = f"git+ssh://git@{host}/{path}"
-        logger.info(f"Normalized VCS URL: {original_url} -> {normalized}")
-        return normalized
-
-    # Step 3: Handle git:// protocol (already valid, but if it came from scm:git:, log it)
-    if url.startswith("git://"):
-        if original_url != url:
-            logger.info(f"Normalized VCS URL: {original_url} -> {url}")
-        return url
-
-    # Step 4: Handle https:// or http:// from SCM prefix -> convert to git+https:// or git+http://
-    if scm_match:
-        if url.startswith("https://"):
-            normalized = f"git+{url}"
-            logger.info(f"Normalized VCS URL: {original_url} -> {normalized}")
-            return normalized
-        elif url.startswith("http://"):
-            normalized = f"git+{url}"
-            logger.info(f"Normalized VCS URL: {original_url} -> {normalized}")
-            return normalized
-
-    # No normalization needed
-    return url
 
 
 def clear_cache() -> None:
@@ -240,7 +177,7 @@ class DepsDevSource:
 
         # Normalize repository URL to SPDX VCS standard format
         if repository_url:
-            repository_url = _normalize_vcs_url(repository_url)
+            repository_url = normalize_vcs_url(repository_url)
 
         # Build field_sources for attribution
         field_sources = {}

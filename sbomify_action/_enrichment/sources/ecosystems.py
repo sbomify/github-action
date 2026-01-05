@@ -9,6 +9,7 @@ from packageurl import PackageURL
 from sbomify_action.logging_config import logger
 
 from ..metadata import NormalizedMetadata
+from ..sanitization import normalize_vcs_url
 
 ECOSYSTEMS_API_BASE = "https://packages.ecosyste.ms/api/v1"
 DEFAULT_TIMEOUT = 15  # seconds - ecosyste.ms can be slower
@@ -185,12 +186,17 @@ class EcosystemsSource:
         if issue_tracker_url:
             field_sources["issue_tracker_url"] = self.name
 
+        # Normalize repository URL to consistent SPDX VCS format
+        repository_url = data.get("repository_url")
+        if repository_url:
+            repository_url = normalize_vcs_url(repository_url)
+
         metadata = NormalizedMetadata(
             description=data.get("description"),
             licenses=licenses,
             supplier=supplier,
             homepage=data.get("homepage"),
-            repository_url=data.get("repository_url"),
+            repository_url=repository_url,
             documentation_url=data.get("documentation_url"),
             registry_url=data.get("registry_url"),
             issue_tracker_url=issue_tracker_url,

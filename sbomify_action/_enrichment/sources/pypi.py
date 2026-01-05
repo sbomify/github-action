@@ -10,6 +10,7 @@ from sbomify_action.logging_config import logger
 
 from ..license_utils import normalize_license_list
 from ..metadata import NormalizedMetadata
+from ..sanitization import normalize_vcs_url
 from ..utils import parse_author_string
 
 PYPI_API_BASE = "https://pypi.org/pypi"
@@ -152,7 +153,7 @@ class PyPISource:
         for key, url_value in project_urls.items():
             key_lower = key.lower()
             if "source" in key_lower or "repository" in key_lower or "github" in key_lower:
-                repository_url = url_value
+                repository_url = normalize_vcs_url(url_value)
             elif "issue" in key_lower or "bug" in key_lower or "tracker" in key_lower:
                 issue_tracker_url = url_value
             elif "documentation" in key_lower or "docs" in key_lower:

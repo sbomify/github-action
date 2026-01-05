@@ -36,6 +36,32 @@ EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 # Pattern to detect HTML-like content in URLs (potential XSS vectors)
 HTML_PATTERN = re.compile(r"<[a-zA-Z][^>]*>", re.IGNORECASE)
 
+# Pattern for SSH-style git URLs: git@host:path
+_SSH_GIT_PATTERN = re.compile(r"^git@([^:]+):(.+)$")
+
+# Pattern for Maven SCM URLs: scm:git:...
+_SCM_GIT_PATTERN = re.compile(r"^scm:git:(.+)$", re.IGNORECASE)
+
+# Known git hosting providers - we can safely assume URLs from these are git repos
+_KNOWN_GIT_HOSTS = frozenset(
+    {
+        "github.com",
+        "gitlab.com",
+        "bitbucket.org",
+        "codeberg.org",
+        "sr.ht",
+        "git.sr.ht",
+        "gitea.com",
+        "gitee.com",
+        "salsa.debian.org",  # Debian's GitLab
+        "gitlab.gnome.org",
+        "gitlab.freedesktop.org",
+        "git.kernel.org",
+        "git.savannah.gnu.org",
+        "git.savannah.nongnu.org",
+    }
+)
+
 
 def sanitize_string(
     value: Optional[str],
@@ -207,3 +233,101 @@ def sanitize_supplier(value: Optional[str]) -> Optional[str]:
 def sanitize_license(value: Optional[str]) -> Optional[str]:
     """Sanitize a license string."""
     return sanitize_string(value, MAX_LICENSE_LENGTH, allow_newlines=False, field_name="license")
+
+
+def _is_known_git_host(url: str) -> bool:
+    """Check if URL is from a known git hosting provider.
+
+    Args:
+        url: A non-empty URL string (caller must validate)
+
+    Returns:
+        True if the URL's host is in the known git hosting providers list
+    """
+    try:
+        parsed = urlparse(url)
+        host = parsed.netloc.lower()
+        # Handle www. prefix
+        if host.startswith("www."):
+            host = host[4:]
+        return host in _KNOWN_GIT_HOSTS
+    except (ValueError, TypeError, AttributeError):
+        # urlparse or string handling failed; treat as not a known git host
+        return False
+
+
+def normalize_vcs_url(url: str) -> str:
+    """
+    Normalize VCS URLs to SPDX-standard format.
+
+    Normalizes URLs that are explicitly git-related or from known git hosts:
+    - scm:git:... -> strips prefix, normalizes inner URL
+    - git@host:path -> git+https://host/path
+    - git://host/path -> unchanged (already valid SPDX VCS scheme)
+    - https://github.com/... (known git hosts) -> git+https://...
+
+    Plain https:// URLs from unknown domains are NOT modified since we can't
+    assume they are git repositories (could be Mercurial, SVN, or just a website).
+
+    Args:
+        url: The URL to normalize
+
+    Returns:
+        Normalized URL in SPDX VCS format, or original URL unchanged if:
+        - Input is None or empty
+        - URL is from an unknown host and doesn't have git-specific markers
+    """
+    if not url:
+        return url
+
+    original_url = url
+    had_scm_prefix = False
+
+    # Step 1: Strip Maven SCM prefix if present
+    scm_match = _SCM_GIT_PATTERN.match(url)
+    if scm_match:
+        url = scm_match.group(1)
+        had_scm_prefix = True
+
+    # Step 2: Handle SSH shorthand (git@host:path) -> git+https://host/path
+    # We convert to HTTPS because:
+    # 1. SBOM metadata is for public reference, not for cloning
+    # 2. HTTPS URLs are universally accessible without SSH keys
+    # 3. Major hosting providers (GitHub, GitLab, etc.) support both protocols
+    ssh_match = _SSH_GIT_PATTERN.match(url)
+    if ssh_match:
+        host = ssh_match.group(1)
+        path = ssh_match.group(2)
+        normalized = f"git+https://{host}/{path}"
+        logger.info(f"Normalized VCS URL: {original_url} -> {normalized}")
+        return normalized
+
+    # Step 3: git:// is already a valid SPDX VCS URL scheme - leave it as-is
+    # (git:// is the git protocol on port 9418, NOT https)
+    # Note: git:// is unencrypted and largely deprecated by hosting providers,
+    # but we preserve it for accuracy when it appears in upstream metadata
+    if url.startswith("git://"):
+        # Only log if we stripped an scm: prefix
+        if original_url != url:
+            logger.info(f"Normalized VCS URL: {original_url} -> {url}")
+        return url
+
+    # Step 4: Add git+ prefix if we KNOW it's git:
+    # - Had scm:git: prefix, OR
+    # - URL is from a known git hosting provider
+    is_known_git = had_scm_prefix or _is_known_git_host(url)
+
+    if is_known_git:
+        if url.startswith("https://"):
+            normalized = f"git+{url}"
+            if original_url != normalized:
+                logger.info(f"Normalized VCS URL: {original_url} -> {normalized}")
+            return normalized
+        elif url.startswith("http://"):
+            normalized = f"git+{url}"
+            if original_url != normalized:
+                logger.info(f"Normalized VCS URL: {original_url} -> {normalized}")
+            return normalized
+
+    # No normalization needed - return URL as-is
+    return url

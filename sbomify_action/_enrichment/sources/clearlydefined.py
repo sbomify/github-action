@@ -9,6 +9,7 @@ from packageurl import PackageURL
 from sbomify_action.logging_config import logger
 
 from ..metadata import NormalizedMetadata
+from ..sanitization import normalize_vcs_url
 
 CLEARLYDEFINED_API_BASE = "https://api.clearlydefined.io"
 DEFAULT_TIMEOUT = 10  # seconds - short timeout, API can be slow/unreliable
@@ -164,7 +165,7 @@ class ClearlyDefinedSource:
         if source_info:
             repo_url = source_info.get("url")
             if repo_url:
-                repository_url = repo_url
+                repository_url = normalize_vcs_url(repo_url)
 
         # Extract supplier from attribution
         supplier = None

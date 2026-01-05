@@ -10,6 +10,7 @@ from sbomify_action.logging_config import logger
 
 from ..license_utils import normalize_license_list
 from ..metadata import NormalizedMetadata
+from ..sanitization import normalize_vcs_url
 from ..utils import parse_author_string
 
 PUBDEV_API_BASE = "https://pub.dev/api/packages"
@@ -128,6 +129,8 @@ class PubDevSource:
         # Extract URLs
         homepage = pubspec.get("homepage")
         repository_url = pubspec.get("repository")
+        if repository_url:
+            repository_url = normalize_vcs_url(repository_url)
         documentation_url = pubspec.get("documentation")
         issue_tracker_url = pubspec.get("issue_tracker")
 

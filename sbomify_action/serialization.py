@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING, Dict, Optional, Type
 from cyclonedx.model.bom import Bom
 
 if TYPE_CHECKING:
-    from packageurl import PackageURL
+    from cyclonedx.model.component import Component
+from packageurl import PackageURL
 from spdx_tools.spdx.model import Document
 
 from .logging_config import logger
@@ -111,7 +112,7 @@ _UNKNOWN_VERSION = "unknown"
 
 def _extract_component_info_from_purl(
     purl_string: str,
-) -> tuple[Optional[str], Optional[str], Optional[str], Optional["PackageURL"]]:
+) -> tuple[Optional[str], Optional[str], Optional[str], Optional[PackageURL]]:
     """
     Extract component information from a PURL string for stub creation.
 
@@ -124,13 +125,9 @@ def _extract_component_info_from_purl(
         Tuple of (name, version, namespace, PackageURL) or (None, None, None, None) if parsing fails
     """
     try:
-        from packageurl import PackageURL
-
         purl_obj = PackageURL.from_string(purl_string)
         return purl_obj.name, purl_obj.version, purl_obj.namespace, purl_obj
-
-    except (ImportError, ValueError):
-        # ImportError: packageurl library is not installed
+    except ValueError:
         # ValueError: the provided PURL string is malformed
         return None, None, None, None
 
@@ -189,13 +186,11 @@ def normalize_purl(purl_str: str | None) -> tuple[str | None, bool]:
         # Re-encode the namespace @ symbol (first @ after pkg:type/)
         # Split on first / to get type, then handle namespace
         try:
-            from packageurl import PackageURL
-
             # Try to parse the fixed decoded PURL
             # The namespace @ needs to be encoded as %40
             purl = PackageURL.from_string(decoded)
             normalized = str(purl)
-        except (ImportError, ValueError):
+        except ValueError:
             # If we can't parse, just do simple fix
             normalized = decoded
 
@@ -243,8 +238,6 @@ def _is_invalid_purl(purl_str: str | None) -> tuple[bool, str]:
 
     # Try to parse the PURL
     try:
-        from packageurl import PackageURL
-
         purl = PackageURL.from_string(purl_str)
 
         # Check for invalid root namespace (common SBOM generator bug)
@@ -263,10 +256,50 @@ def _is_invalid_purl(purl_str: str | None) -> tuple[bool, str]:
             if not purl.version:
                 return True, f"missing version for {purl.type} package"
 
-    except (ImportError, ValueError) as e:
+    except ValueError as e:
         return True, f"malformed PURL: {e}"
 
     return False, ""
+
+
+def _sanitize_component_purl(comp: "Component", comp_type: str) -> tuple[int, int]:
+    """
+    Sanitize a single component's PURL.
+
+    Args:
+        comp: CycloneDX Component object with optional purl attribute
+        comp_type: Description of component type for logging (e.g., "component", "metadata component")
+
+    Returns:
+        Tuple of (purls_normalized, purls_cleared) counts for this component
+    """
+    if not comp.purl:
+        return 0, 0
+
+    purls_normalized = 0
+    purls_cleared = 0
+    purl_str = str(comp.purl)
+
+    # First, try to normalize
+    normalized_str, was_normalized = normalize_purl(purl_str)
+    if was_normalized:
+        try:
+            comp.purl = PackageURL.from_string(normalized_str)
+            purl_str = normalized_str
+            purls_normalized = 1
+            logger.info(f"Normalized PURL for {comp_type} '{comp.name}': {purl_str}")
+        except ValueError:
+            # Normalization produced invalid PURL, will be caught below
+            pass
+
+    # Then check if it's still invalid
+    is_invalid, reason = _is_invalid_purl(purl_str)
+    if is_invalid:
+        logger.warning(f"Clearing invalid PURL from {comp_type} '{comp.name}': {purl_str} ({reason})")
+        comp.purl = None
+        purls_cleared = 1
+
+    return purls_normalized, purls_cleared
 
 
 def sanitize_purls(bom: Bom) -> tuple[int, int]:
@@ -286,56 +319,27 @@ def sanitize_purls(bom: Bom) -> tuple[int, int]:
     Returns:
         Tuple of (purls_normalized, purls_cleared)
     """
-    from packageurl import PackageURL
-
     purls_normalized = 0
     purls_cleared = 0
 
     # Process regular components
     for comp in bom.components:
-        if comp.purl:
-            purl_str = str(comp.purl)
-
-            # First, try to normalize
-            normalized_str, was_normalized = normalize_purl(purl_str)
-            if was_normalized:
-                try:
-                    comp.purl = PackageURL.from_string(normalized_str)
-                    purl_str = normalized_str
-                    purls_normalized += 1
-                    logger.info(f"Normalized PURL for component '{comp.name}': {purl_str}")
-                except ValueError:
-                    # Normalization produced invalid PURL, will be caught below
-                    pass
-
-            # Then check if it's still invalid
-            is_invalid, reason = _is_invalid_purl(purl_str)
-            if is_invalid:
-                logger.warning(f"Clearing invalid PURL from component '{comp.name}': {purl_str} ({reason})")
-                comp.purl = None
-                purls_cleared += 1
+        normalized, cleared = _sanitize_component_purl(comp, "component")
+        purls_normalized += normalized
+        purls_cleared += cleared
 
     # Process metadata component
-    if bom.metadata and bom.metadata.component and bom.metadata.component.purl:
-        purl_str = str(bom.metadata.component.purl)
+    if bom.metadata and bom.metadata.component:
+        normalized, cleared = _sanitize_component_purl(bom.metadata.component, "metadata component")
+        purls_normalized += normalized
+        purls_cleared += cleared
 
-        # First, try to normalize
-        normalized_str, was_normalized = normalize_purl(purl_str)
-        if was_normalized:
-            try:
-                bom.metadata.component.purl = PackageURL.from_string(normalized_str)
-                purl_str = normalized_str
-                purls_normalized += 1
-                logger.info(f"Normalized PURL for metadata component: {purl_str}")
-            except ValueError:
-                pass
-
-        # Then check if it's still invalid
-        is_invalid, reason = _is_invalid_purl(purl_str)
-        if is_invalid:
-            logger.warning(f"Clearing invalid PURL from metadata component: {purl_str} ({reason})")
-            bom.metadata.component.purl = None
-            purls_cleared += 1
+    # Process tools.components (CycloneDX 1.5+ modern format)
+    if bom.metadata and bom.metadata.tools and bom.metadata.tools.components:
+        for comp in bom.metadata.tools.components:
+            normalized, cleared = _sanitize_component_purl(comp, "tools.component")
+            purls_normalized += normalized
+            purls_cleared += cleared
 
     if purls_normalized:
         logger.info(f"PURL sanitization: normalized {purls_normalized} PURL(s)")
