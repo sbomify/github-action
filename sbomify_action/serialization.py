@@ -6,9 +6,12 @@ formats, supporting multiple versions and making it easy to add new versions in 
 """
 
 import re
-from typing import Dict, Optional, Type
+from typing import TYPE_CHECKING, Dict, Optional, Type
 
 from cyclonedx.model.bom import Bom
+
+if TYPE_CHECKING:
+    from cyclonedx.model.component import Component
 from packageurl import PackageURL
 from spdx_tools.spdx.model import Document
 
@@ -259,12 +262,12 @@ def _is_invalid_purl(purl_str: str | None) -> tuple[bool, str]:
     return False, ""
 
 
-def _sanitize_component_purl(comp, comp_type: str) -> tuple[int, int]:
+def _sanitize_component_purl(comp: "Component", comp_type: str) -> tuple[int, int]:
     """
     Sanitize a single component's PURL.
 
     Args:
-        comp: Component object with optional purl attribute
+        comp: CycloneDX Component object with optional purl attribute
         comp_type: Description of component type for logging (e.g., "component", "metadata component")
 
     Returns:

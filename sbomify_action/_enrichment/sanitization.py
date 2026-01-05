@@ -291,6 +291,10 @@ def normalize_vcs_url(url: str) -> str:
         had_scm_prefix = True
 
     # Step 2: Handle SSH shorthand (git@host:path) -> git+https://host/path
+    # We convert to HTTPS because:
+    # 1. SBOM metadata is for public reference, not for cloning
+    # 2. HTTPS URLs are universally accessible without SSH keys
+    # 3. Major hosting providers (GitHub, GitLab, etc.) support both protocols
     ssh_match = _SSH_GIT_PATTERN.match(url)
     if ssh_match:
         host = ssh_match.group(1)
@@ -301,6 +305,8 @@ def normalize_vcs_url(url: str) -> str:
 
     # Step 3: git:// is already a valid SPDX VCS URL scheme - leave it as-is
     # (git:// is the git protocol on port 9418, NOT https)
+    # Note: git:// is unencrypted and largely deprecated by hosting providers,
+    # but we preserve it for accuracy when it appears in upstream metadata
     if url.startswith("git://"):
         # Only log if we stripped an scm: prefix
         if original_url != url:
