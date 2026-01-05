@@ -471,6 +471,19 @@ class TestCdxgenFsGenerator(unittest.TestCase):
 
     @patch("sbomify_action._generation.generators.cdxgen.run_command")
     @patch("pathlib.Path.exists")
+    def test_generate_uses_fail_on_error_flag(self, mock_exists, mock_run):
+        """Test that --fail-on-error flag is passed to catch issues early."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        gen_input = GenerationInput(lock_file="/path/to/requirements.txt", output_file="sbom.json")
+        self.generator.generate(gen_input)
+
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("--fail-on-error", cmd)
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
     def test_generate_changes_to_lock_file_directory(self, mock_exists, mock_run):
         """Test that cdxgen runs from the lock file's directory using cwd parameter."""
         mock_run.return_value = MagicMock(returncode=0)
@@ -594,13 +607,31 @@ class TestCdxgenImageGenerator(unittest.TestCase):
         mock_run.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
 
-        input = GenerationInput(docker_image="alpine:3.18", output_file="/tmp/sbom.json", output_format="cyclonedx")
-        result = self.generator.generate(input)
+        gen_input = GenerationInput(
+            docker_image="alpine:3.18", output_file="/output/sbom.json", output_format="cyclonedx"
+        )
+        result = self.generator.generate(gen_input)
 
         self.assertTrue(result.success)
         self.assertEqual(result.sbom_format, "cyclonedx")
         self.assertEqual(result.spec_version, "1.6")
         self.assertEqual(result.generator_name, "cdxgen-image")
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_uses_required_only_and_fail_on_error_flags(self, mock_exists, mock_run):
+        """Test that --required-only and --fail-on-error flags are passed for image scanning."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        gen_input = GenerationInput(
+            docker_image="alpine:3.18", output_file="/output/sbom.json", output_format="cyclonedx"
+        )
+        self.generator.generate(gen_input)
+
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("--required-only", cmd)
+        self.assertIn("--fail-on-error", cmd)
 
 
 class TestSyftFsGenerator(unittest.TestCase):
