@@ -145,6 +145,9 @@ class CdxgenFsGenerator:
         # For JavaScript, this also excludes local packages with path-based versions
         cmd.append("--required-only")
 
+        # Fail on error to ensure we catch issues early
+        cmd.append("--fail-on-error")
+
         # Scan current directory (we'll cd into lock file directory)
         cmd.append(".")
 
@@ -251,6 +254,8 @@ class CdxgenImageGenerator:
             input.output_file,
             "--spec-version",
             version,
+            "--required-only",
+            "--fail-on-error",
             input.docker_image,
         ]
 
