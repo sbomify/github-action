@@ -468,6 +468,48 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         cmd = mock_run.call_args[0][0]
         self.assertIn("--required-only", cmd)
 
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_changes_to_lock_file_directory(self, mock_exists, mock_run):
+        """Test that cdxgen runs from the lock file's directory using cwd parameter."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        input = GenerationInput(lock_file="/path/to/project/requirements.txt", output_file="sbom.json")
+        self.generator.generate(input)
+
+        # Verify cwd is passed to run_command
+        call_kwargs = mock_run.call_args[1]
+        self.assertIn("cwd", call_kwargs)
+        self.assertEqual(call_kwargs["cwd"], "/path/to/project")
+
+        # Verify scan path is "." (current directory)
+        cmd = mock_run.call_args[0][0]
+        self.assertEqual(cmd[-1], ".")
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_uses_absolute_output_path(self, mock_exists, mock_run):
+        """Test that output file is converted to absolute path when using cwd."""
+        import os
+
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        input = GenerationInput(lock_file="/path/to/project/requirements.txt", output_file="sbom.json")
+        result = self.generator.generate(input)
+
+        # Verify the command uses an absolute path for output
+        cmd = mock_run.call_args[0][0]
+        output_index = cmd.index("-o") + 1
+        output_path = cmd[output_index]
+
+        # Output path should be absolute
+        self.assertTrue(os.path.isabs(output_path))
+
+        # Result should also have absolute path
+        self.assertTrue(os.path.isabs(result.output_file))
+
 
 class TestCdxgenImageGenerator(unittest.TestCase):
     """Tests for CdxgenImageGenerator."""

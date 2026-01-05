@@ -161,6 +161,7 @@ def run_command(
     command_name: str,
     timeout: int = DEFAULT_TIMEOUT,
     capture_output: bool = True,
+    cwd: str | None = None,
 ) -> subprocess.CompletedProcess:
     """
     Run a command and handle common error cases.
@@ -172,6 +173,7 @@ def run_command(
         command_name: Name of the command for error reporting
         timeout: Command timeout in seconds
         capture_output: Whether to capture stdout/stderr
+        cwd: Working directory for the command (optional)
 
     Returns:
         CompletedProcess result
@@ -182,7 +184,8 @@ def run_command(
     import threading
     import time
 
-    logger.info(f"Running command: {' '.join(cmd)}")
+    cwd_info = f" (cwd: {cwd})" if cwd else ""
+    logger.info(f"Running command: {' '.join(cmd)}{cwd_info}")
 
     # Use Popen for progress tracking on long-running commands
     start_time = time.time()
@@ -209,6 +212,7 @@ def run_command(
             text=True,
             shell=False,
             timeout=timeout,
+            cwd=cwd,
         )
         return result
     except subprocess.CalledProcessError as e:
