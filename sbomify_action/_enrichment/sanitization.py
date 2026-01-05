@@ -235,16 +235,15 @@ def sanitize_license(value: Optional[str]) -> Optional[str]:
     return sanitize_string(value, MAX_LICENSE_LENGTH, allow_newlines=False, field_name="license")
 
 
-def _is_known_git_host(url: Optional[str]) -> bool:
+def _is_known_git_host(url: str) -> bool:
     """Check if URL is from a known git hosting provider.
 
-    The function is defensive and will return False for None, non-string, or
-    otherwise unparsable URL values.
-    """
-    # Reject None, non-string, or empty values early
-    if not isinstance(url, str) or not url:
-        return False
+    Args:
+        url: A non-empty URL string (caller must validate)
 
+    Returns:
+        True if the URL's host is in the known git hosting providers list
+    """
     try:
         parsed = urlparse(url)
         host = parsed.netloc.lower()
