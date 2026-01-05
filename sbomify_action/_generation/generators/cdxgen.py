@@ -113,7 +113,7 @@ class CdxgenFsGenerator:
 
         # Get the directory containing the lock file - we'll cd into it
         lock_file_path = Path(input.lock_file)
-        lock_file_dir = lock_file_path.parent.resolve()
+        lock_file_directory = lock_file_path.parent.resolve()
 
         # Convert output file to absolute path since we're changing cwd
         output_file_abs = str(Path(input.output_file).resolve())
@@ -151,7 +151,7 @@ class CdxgenFsGenerator:
         logger.info(f"Running cdxgen for {input.lock_file_name} (cyclonedx {version}, type={cdxgen_type or 'auto'})")
 
         try:
-            result = run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT, cwd=str(lock_file_dir))
+            result = run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT, cwd=str(lock_file_directory))
 
             if result.returncode == 0:
                 # Verify output file was created

@@ -491,7 +491,7 @@ class TestCdxgenFsGenerator(unittest.TestCase):
     @patch("pathlib.Path.exists")
     def test_generate_uses_absolute_output_path(self, mock_exists, mock_run):
         """Test that output file is converted to absolute path when using cwd."""
-        import os
+        from pathlib import Path
 
         mock_run.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
@@ -505,10 +505,10 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         output_path = cmd[output_index]
 
         # Output path should be absolute
-        self.assertTrue(os.path.isabs(output_path))
+        self.assertTrue(Path(output_path).is_absolute())
 
         # Result should also have absolute path
-        self.assertTrue(os.path.isabs(result.output_file))
+        self.assertTrue(Path(result.output_file).is_absolute())
 
 
 class TestCdxgenImageGenerator(unittest.TestCase):
