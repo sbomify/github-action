@@ -475,8 +475,8 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         mock_run.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
 
-        input = GenerationInput(lock_file="/path/to/project/requirements.txt", output_file="sbom.json")
-        self.generator.generate(input)
+        gen_input = GenerationInput(lock_file="/path/to/project/requirements.txt", output_file="sbom.json")
+        self.generator.generate(gen_input)
 
         # Verify cwd is passed to run_command
         call_kwargs = mock_run.call_args[1]
@@ -496,8 +496,8 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         mock_run.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
 
-        input = GenerationInput(lock_file="/path/to/project/requirements.txt", output_file="sbom.json")
-        result = self.generator.generate(input)
+        gen_input = GenerationInput(lock_file="/path/to/project/requirements.txt", output_file="sbom.json")
+        result = self.generator.generate(gen_input)
 
         # Verify the command uses an absolute path for output
         cmd = mock_run.call_args[0][0]
