@@ -509,6 +509,51 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         # Result should also have absolute path
         self.assertTrue(Path(result.output_file).is_absolute())
 
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_preserves_absolute_output_path(self, mock_exists, mock_run):
+        """Test that already-absolute output paths are preserved correctly."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        gen_input = GenerationInput(
+            lock_file="/path/to/project/requirements.txt",
+            output_file="/absolute/output/sbom.json",
+        )
+        result = self.generator.generate(gen_input)
+
+        # Verify the command uses the absolute path
+        cmd = mock_run.call_args[0][0]
+        output_index = cmd.index("-o") + 1
+        output_path = cmd[output_index]
+
+        # Output path should remain absolute and match the input
+        self.assertTrue(Path(output_path).is_absolute())
+        self.assertEqual(output_path, "/absolute/output/sbom.json")
+
+        # Result should also have the same absolute path
+        self.assertEqual(result.output_file, "/absolute/output/sbom.json")
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    @patch("pathlib.Path.exists")
+    def test_generate_handles_relative_lock_file_path(self, mock_exists, mock_run):
+        """Test that relative lock file paths are handled correctly."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_exists.return_value = True
+
+        gen_input = GenerationInput(lock_file="src/requirements.txt", output_file="sbom.json")
+        self.generator.generate(gen_input)
+
+        # Verify cwd is passed and resolved to absolute path
+        call_kwargs = mock_run.call_args[1]
+        self.assertIn("cwd", call_kwargs)
+        # The cwd should be an absolute path (resolved from relative)
+        self.assertTrue(Path(call_kwargs["cwd"]).is_absolute())
+
+        # Verify scan path is "." (current directory)
+        cmd = mock_run.call_args[0][0]
+        self.assertEqual(cmd[-1], ".")
+
 
 class TestCdxgenImageGenerator(unittest.TestCase):
     """Tests for CdxgenImageGenerator."""
