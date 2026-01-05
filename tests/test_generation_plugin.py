@@ -1,6 +1,7 @@
 """Tests for the SBOM generation plugin architecture."""
 
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sbomify_action._generation import (
@@ -491,8 +492,6 @@ class TestCdxgenFsGenerator(unittest.TestCase):
     @patch("pathlib.Path.exists")
     def test_generate_uses_absolute_output_path(self, mock_exists, mock_run):
         """Test that output file is converted to absolute path when using cwd."""
-        from pathlib import Path
-
         mock_run.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
 
