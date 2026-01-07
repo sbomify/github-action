@@ -121,7 +121,7 @@ LABEL com.sbomify.maintainer="sbomify <hello@sbomify.com>" \
       com.sbomify.vcs.commit="${COMMIT_SHA}"
 
 # Note: Java/Maven is installed on-demand at runtime when processing Java/Scala projects
-# This reduces the base image size by ~300-400MB for non-Java workloads
+# This reduces the base image size by ~330MB for non-Java workloads
 
 # Copy tools from fetcher
 COPY --from=fetcher /usr/local/bin/trivy /usr/local/bin/
