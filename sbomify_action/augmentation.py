@@ -490,14 +490,15 @@ def augment_cyclonedx_sbom(
     if component_name:
         if hasattr(bom.metadata, "component") and bom.metadata.component:
             existing_name = bom.metadata.component.name or "unknown"
-            bom.metadata.component.name = component_name
+            if existing_name != component_name:
+                bom.metadata.component.name = component_name
+                logger.info(f"Overriding component name: '{existing_name}' -> '{component_name}'")
         else:
             # Create component if it doesn't exist
-            existing_name = "none (creating new component)"
             bom.metadata.component = Component(
                 name=component_name, type=ComponentType.APPLICATION, version=component_version or "unknown"
             )
-        logger.info(f"Overriding component name: '{existing_name}' -> '{component_name}'")
+            logger.info(f"Overriding component name: 'none (creating new component)' -> '{component_name}'")
 
     # Apply component version override if specified
     if component_version:

@@ -1546,35 +1546,42 @@ def _apply_sbom_name_override(sbom_file: str, config: "Config") -> None:
 
             if isinstance(parsed_object, Bom):
                 # Apply name override to CycloneDX BOM object
+                needs_update = False
                 if hasattr(parsed_object.metadata, "component") and parsed_object.metadata.component:
                     existing_name = parsed_object.metadata.component.name or "unknown"
-                    parsed_object.metadata.component.name = config.component_name
+                    if existing_name != config.component_name:
+                        parsed_object.metadata.component.name = config.component_name
+                        logger.info(f"Overriding component name: '{existing_name}' -> '{config.component_name}'")
+                        needs_update = True
                 else:
                     # Create component if it doesn't exist
-                    existing_name = "none (creating new component)"
                     component_version = original_json.get("metadata", {}).get("component", {}).get("version", "unknown")
                     parsed_object.metadata.component = Component(
                         name=config.component_name, type=ComponentType.APPLICATION, version=component_version
                     )
+                    logger.info(
+                        f"Overriding component name: 'none (creating new component)' -> '{config.component_name}'"
+                    )
+                    needs_update = True
 
-                logger.info(f"Overriding component name: '{existing_name}' -> '{config.component_name}'")
-
-                # Serialize the BOM back to JSON using version-aware serializer
-                spec_version = original_json.get("specVersion")
-                if spec_version is None:
-                    raise SBOMValidationError("CycloneDX SBOM is missing required 'specVersion' field")
-                serialized = serialize_cyclonedx_bom(parsed_object, spec_version)
-                with Path(sbom_file).open("w") as f:
-                    f.write(serialized)
+                if needs_update:
+                    # Serialize the BOM back to JSON using version-aware serializer
+                    spec_version = original_json.get("specVersion")
+                    if spec_version is None:
+                        raise SBOMValidationError("CycloneDX SBOM is missing required 'specVersion' field")
+                    serialized = serialize_cyclonedx_bom(parsed_object, spec_version)
+                    with Path(sbom_file).open("w") as f:
+                        f.write(serialized)
 
         elif sbom_format == "spdx":
             # For SPDX, apply name override to the top-level "name" field
             existing_name = original_json.get("name", "unknown")
-            original_json["name"] = config.component_name
-            logger.info(f"Overriding SPDX component name: '{existing_name}' -> '{config.component_name}'")
+            if existing_name != config.component_name:
+                original_json["name"] = config.component_name
+                logger.info(f"Overriding SPDX component name: '{existing_name}' -> '{config.component_name}'")
 
-            with Path(sbom_file).open("w") as f:
-                json.dump(original_json, f, indent=2)
+                with Path(sbom_file).open("w") as f:
+                    json.dump(original_json, f, indent=2)
 
     except Exception as e:
         logger.warning(f"Failed to apply component name override: {e}")
