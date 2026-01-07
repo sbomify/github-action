@@ -1,4 +1,7 @@
-FROM python:3-slim-bullseye AS fetcher
+FROM python:3.13-slim-trixie AS fetcher
+
+# Use Docker's automatic platform detection
+ARG TARGETARCH
 
 WORKDIR /tmp
 
@@ -10,58 +13,63 @@ ENV BOMCTL_VERSION=0.4.3 \
 RUN apt-get update && \
     apt-get install -y curl unzip
 
-# Install Trivy
-RUN curl -sL \
-    -o trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz \
-    "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-RUN curl -sL \
-    -o trivy_checksum.txt \
-    "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
-RUN sha256sum --ignore-missing -c trivy_checksum.txt
-RUN tar xvfz trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
-RUN chmod +x /tmp/trivy
-RUN mv trivy /usr/local/bin
-RUN rm -rf /tmp/*
+# Install Trivy (uses Linux-64bit / Linux-ARM64 naming)
+RUN TRIVY_ARCH=$(case ${TARGETARCH} in \
+        amd64) echo "64bit" ;; \
+        arm64) echo "ARM64" ;; \
+        *) echo "64bit" ;; \
+    esac) && \
+    curl -sL \
+        -o trivy_${TRIVY_VERSION}_Linux-${TRIVY_ARCH}.tar.gz \
+        "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${TRIVY_ARCH}.tar.gz" && \
+    curl -sL \
+        -o trivy_checksum.txt \
+        "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt" && \
+    sha256sum --ignore-missing -c trivy_checksum.txt && \
+    tar xvfz trivy_${TRIVY_VERSION}_Linux-${TRIVY_ARCH}.tar.gz && \
+    chmod +x /tmp/trivy && \
+    mv trivy /usr/local/bin && \
+    rm -rf /tmp/*
 
-# Install bomctl
+# Install bomctl (uses linux_amd64 / linux_arm64 naming)
 RUN curl -sL \
-    -o bomctl_${BOMCTL_VERSION}_linux_amd64.tar.gz \
-    "https://github.com/bomctl/bomctl/releases/download/v${BOMCTL_VERSION}/bomctl_${BOMCTL_VERSION}_linux_amd64.tar.gz"
-RUN curl -sL \
-    -o bomctl_checksum.txt \
-    "https://github.com/bomctl/bomctl/releases/download/v${BOMCTL_VERSION}/bomctl_${BOMCTL_VERSION}_checksums.txt"
-RUN sha256sum --ignore-missing -c bomctl_checksum.txt
-RUN tar xvfz bomctl_${BOMCTL_VERSION}_linux_amd64.tar.gz
-RUN chmod +x /tmp/bomctl
-RUN mv bomctl /usr/local/bin
-RUN rm -rf /tmp/*
+        -o bomctl_${BOMCTL_VERSION}_linux_${TARGETARCH}.tar.gz \
+        "https://github.com/bomctl/bomctl/releases/download/v${BOMCTL_VERSION}/bomctl_${BOMCTL_VERSION}_linux_${TARGETARCH}.tar.gz" && \
+    curl -sL \
+        -o bomctl_checksum.txt \
+        "https://github.com/bomctl/bomctl/releases/download/v${BOMCTL_VERSION}/bomctl_${BOMCTL_VERSION}_checksums.txt" && \
+    sha256sum --ignore-missing -c bomctl_checksum.txt && \
+    tar xvfz bomctl_${BOMCTL_VERSION}_linux_${TARGETARCH}.tar.gz && \
+    chmod +x /tmp/bomctl && \
+    mv bomctl /usr/local/bin && \
+    rm -rf /tmp/*
 
-# Install Syft
+# Install Syft (uses linux_amd64 / linux_arm64 naming)
 RUN curl -sL \
-    -o syft_${SYFT_VERSION}_linux_amd64.tar.gz \
-    "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz"
-RUN curl -sL \
-    -o syft_checksum.txt \
-    "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_checksums.txt"
-RUN sha256sum --ignore-missing -c syft_checksum.txt
-RUN tar xvfz syft_${SYFT_VERSION}_linux_amd64.tar.gz
-RUN chmod +x /tmp/syft
-RUN mv syft /usr/local/bin
-RUN rm -rf /tmp/*
+        -o syft_${SYFT_VERSION}_linux_${TARGETARCH}.tar.gz \
+        "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_${TARGETARCH}.tar.gz" && \
+    curl -sL \
+        -o syft_checksum.txt \
+        "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_checksums.txt" && \
+    sha256sum --ignore-missing -c syft_checksum.txt && \
+    tar xvfz syft_${SYFT_VERSION}_linux_${TARGETARCH}.tar.gz && \
+    chmod +x /tmp/syft && \
+    mv syft /usr/local/bin && \
+    rm -rf /tmp/*
 
-# Install bun and cdxgen (from lockfile)
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
+# Node/Bun stage for cdxgen
+FROM oven/bun:debian AS node-fetcher
+
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
 # Python builder stage
-FROM python:3-slim-bullseye AS builder
+FROM python:3.13-slim-trixie AS builder
 
 # Install build dependencies and UV
 RUN apt-get update && \
-    apt-get install -y curl build-essential
+    apt-get install -y curl build-essential libxml2-dev libxslt-dev
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ENV PATH="/root/.local/bin:${PATH}"
@@ -74,12 +82,12 @@ ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 RUN uv venv /opt/venv
-RUN uv sync --locked
+RUN uv sync --locked --active
 RUN rm -rf dist/ && uv build
 RUN uv pip install dist/sbomify_github_action-*.whl
 
 # Final stage
-FROM python:3-slim-bullseye
+FROM python:3.13-slim-trixie
 
 # Build arguments for dynamic labels (passed at build time)
 ARG VERSION=dev
@@ -100,7 +108,7 @@ LABEL org.opencontainers.image.title="sbomify GitHub Action" \
       org.opencontainers.image.vendor="sbomify" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.authors="sbomify <hello@sbomify.com>" \
-      org.opencontainers.image.base.name="python:3-slim-bullseye"
+      org.opencontainers.image.base.name="python:3.13-slim-trixie"
 
 # Additional metadata labels
 LABEL com.sbomify.maintainer="sbomify <hello@sbomify.com>" \
@@ -123,14 +131,14 @@ RUN apt-get update && \
 COPY --from=fetcher /usr/local/bin/trivy /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/bomctl /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/syft /usr/local/bin/
-COPY --from=fetcher /root/.bun /root/.bun
-COPY --from=fetcher /app/node_modules /app/node_modules
+COPY --from=node-fetcher /usr/local/bin/bun /usr/local/bin/
+COPY --from=node-fetcher /app/node_modules /app/node_modules
 COPY --from=builder /opt/venv /opt/venv
 
-ENV PATH="/app/node_modules/.bin:/root/.bun/bin:/opt/venv/bin:$PATH"
+ENV PATH="/app/node_modules/.bin:/opt/venv/bin:$PATH"
 
 # Make 'node' invoke 'bun' so tools that expect 'node' actually run bun (compatibility shim)
-RUN ln -s /root/.bun/bin/bun /usr/local/bin/node
+RUN ln -s /usr/local/bin/bun /usr/local/bin/node
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
@@ -138,9 +146,5 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV SBOMIFY_GITHUB_ACTION_VERSION=${VERSION}
 ENV SBOMIFY_GITHUB_ACTION_COMMIT_SHA=${COMMIT_SHA}
 ENV SBOMIFY_GITHUB_ACTION_VCS_REF=${VCS_REF}
-
-# Verify cyclonedx-py is installed and working
-RUN pip install --no-cache-dir cyclonedx-bom && \
-    cyclonedx-py --version
 
 CMD ["sbomify-action"]
