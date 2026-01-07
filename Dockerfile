@@ -5,8 +5,7 @@ WORKDIR /tmp
 # Define tool versions
 ENV BOMCTL_VERSION=0.4.3 \
     TRIVY_VERSION=0.67.2 \
-    SYFT_VERSION=1.39.0 \
-    CDXGEN_VERSION=12.0.0
+    SYFT_VERSION=1.39.0
 
 RUN apt-get update && \
     apt-get install -y curl unzip
@@ -50,10 +49,12 @@ RUN chmod +x /tmp/syft
 RUN mv syft /usr/local/bin
 RUN rm -rf /tmp/*
 
-# Install bun and cdxgen
+# Install bun and cdxgen (from lockfile)
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
-RUN bun install -g @cyclonedx/cdxgen@${CDXGEN_VERSION}
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 
 # Python builder stage
 FROM python:3-slim-bullseye AS builder
@@ -123,9 +124,10 @@ COPY --from=fetcher /usr/local/bin/trivy /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/bomctl /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/syft /usr/local/bin/
 COPY --from=fetcher /root/.bun /root/.bun
+COPY --from=fetcher /app/node_modules /app/node_modules
 COPY --from=builder /opt/venv /opt/venv
 
-ENV PATH="/root/.bun/bin:/opt/venv/bin:$PATH"
+ENV PATH="/app/node_modules/.bin:/root/.bun/bin:/opt/venv/bin:$PATH"
 
 # Make 'node' invoke 'bun' so tools that expect 'node' actually run bun (compatibility shim)
 RUN ln -s /root/.bun/bin/bun /usr/local/bin/node
