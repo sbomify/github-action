@@ -119,13 +119,8 @@ LABEL com.sbomify.maintainer="sbomify <hello@sbomify.com>" \
       com.sbomify.vcs.branch="${VCS_REF}" \
       com.sbomify.vcs.commit="${COMMIT_SHA}"
 
-# Install runtime dependencies for SBOM generation
-# - Maven: Required by cdxgen for full Java dependency resolution
-# - default-jdk-headless: Java runtime for Maven
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends maven default-jdk-headless && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# Note: Java/Maven is installed on-demand at runtime when processing Java/Scala projects
+# This reduces the base image size by ~300-400MB for non-Java workloads
 
 # Copy tools from fetcher
 COPY --from=fetcher /usr/local/bin/trivy /usr/local/bin/
