@@ -9,3 +9,5 @@ sbom_output.json
 .coverage
 step_1.json
 additional_packages.txt
+.cursor
+node_modules
