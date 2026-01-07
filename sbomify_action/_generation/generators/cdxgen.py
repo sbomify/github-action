@@ -23,7 +23,13 @@ from ..protocol import (
     GenerationInput,
 )
 from ..result import GenerationResult
-from ..utils import CDXGEN_LOCK_FILES, DEFAULT_TIMEOUT, get_lock_file_ecosystem, run_command
+from ..utils import (
+    CDXGEN_LOCK_FILES,
+    DEFAULT_TIMEOUT,
+    ensure_java_maven_installed,
+    get_lock_file_ecosystem,
+    run_command,
+)
 
 # Mapping from ecosystem names to cdxgen --type values
 # See: https://cyclonedx.github.io/cdxgen/#/PROJECT_TYPES
@@ -121,6 +127,10 @@ class CdxgenFsGenerator:
         # Detect ecosystem and map to cdxgen type
         ecosystem = get_lock_file_ecosystem(input.lock_file_name)
         cdxgen_type = CDXGEN_TYPE_MAP.get(ecosystem) if ecosystem else None
+
+        # Install Java/Maven on-demand for Java/Scala ecosystems
+        if ecosystem in ("java", "scala"):
+            ensure_java_maven_installed()
 
         cmd = [
             "cdxgen",

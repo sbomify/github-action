@@ -378,9 +378,10 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         cmd = mock_run.call_args[0][0]
         self.assertIn("--no-recurse", cmd)
 
+    @patch("sbomify_action._generation.generators.cdxgen.ensure_java_maven_installed")
     @patch("sbomify_action._generation.generators.cdxgen.run_command")
     @patch("pathlib.Path.exists")
-    def test_generate_allows_recurse_for_java(self, mock_exists, mock_run):
+    def test_generate_allows_recurse_for_java(self, mock_exists, mock_run, mock_java_install):
         """Test that --no-recurse is NOT passed for Java (Maven parent POMs need recursion)."""
         mock_run.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
@@ -393,9 +394,10 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         # Java should NOT have --no-recurse (needs to follow parent POM modules)
         self.assertNotIn("--no-recurse", cmd)
 
+    @patch("sbomify_action._generation.generators.cdxgen.ensure_java_maven_installed")
     @patch("sbomify_action._generation.generators.cdxgen.run_command")
     @patch("pathlib.Path.exists")
-    def test_generate_uses_type_flag_for_java(self, mock_exists, mock_run):
+    def test_generate_uses_type_flag_for_java(self, mock_exists, mock_run, mock_java_install):
         """Test that -t java flag is passed for pom.xml."""
         mock_run.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
@@ -444,9 +446,10 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         type_index = cmd.index("-t")
         self.assertEqual(cmd[type_index + 1], "js")
 
+    @patch("sbomify_action._generation.generators.cdxgen.ensure_java_maven_installed")
     @patch("sbomify_action._generation.generators.cdxgen.run_command")
     @patch("pathlib.Path.exists")
-    def test_generate_uses_required_only_flag_for_all_ecosystems(self, mock_exists, mock_run):
+    def test_generate_uses_required_only_flag_for_all_ecosystems(self, mock_exists, mock_run, mock_java_install):
         """Test that --required-only flag is passed for all ecosystems to exclude dev dependencies."""
         mock_run.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True

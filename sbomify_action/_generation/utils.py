@@ -1,10 +1,16 @@
 """Shared utilities for SBOM generation."""
 
+import shutil
 import subprocess
+import threading
 from typing import Optional
 
 from sbomify_action.exceptions import SBOMGenerationError
 from sbomify_action.logging_config import logger
+
+# Track whether Java/Maven has been installed on-demand
+_java_maven_installed = False
+_java_maven_lock = threading.Lock()
 
 # Lock file constants by ecosystem
 PYTHON_LOCK_FILES = [
@@ -276,3 +282,75 @@ def get_lock_file_ecosystem(lock_file_name: str) -> Optional[str]:
 def is_supported_lock_file(lock_file_name: str) -> bool:
     """Check if a lock file is supported."""
     return lock_file_name in ALL_LOCK_FILES
+
+
+def ensure_java_maven_installed() -> None:
+    """
+    Install Maven + JDK on-demand if not already present.
+
+    This function is called lazily when processing Java/Scala projects
+    to avoid bloating the Docker image with Java dependencies that are
+    only needed for a subset of ecosystems.
+
+    The installation state is cached to avoid repeated checks.
+    Thread-safe: uses a lock to prevent concurrent installation attempts.
+
+    Raises:
+        SBOMGenerationError: If installation fails
+    """
+    global _java_maven_installed
+
+    # Fast path: skip if already confirmed installed (no lock needed)
+    if _java_maven_installed:
+        return
+
+    # Use lock to prevent race conditions if multiple threads try to install
+    with _java_maven_lock:
+        # Double-check after acquiring lock (another thread may have installed)
+        if _java_maven_installed:
+            return
+
+        # Check if Maven is already available
+        if shutil.which("mvn"):
+            logger.debug("Maven already installed, skipping on-demand installation")
+            _java_maven_installed = True
+            return
+
+        logger.info("Java/Maven not found - installing for Java dependency resolution...")
+
+        try:
+            # Update package lists
+            subprocess.run(
+                ["apt-get", "update"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+            # Install Maven and JDK
+            subprocess.run(
+                [
+                    "apt-get",
+                    "install",
+                    "-y",
+                    "--no-install-recommends",
+                    "maven",
+                    "default-jdk-headless",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minutes for package installation
+            )
+
+            _java_maven_installed = True
+            logger.info("Java/Maven installed successfully")
+
+        except subprocess.CalledProcessError as e:
+            error_msg = e.stderr if e.stderr else str(e)
+            logger.error(f"Failed to install Java/Maven: {error_msg}")
+            raise SBOMGenerationError(f"Failed to install Java/Maven for dependency resolution: {error_msg}")
+        except subprocess.TimeoutExpired:
+            logger.error("Java/Maven installation timed out")
+            raise SBOMGenerationError("Java/Maven installation timed out")
