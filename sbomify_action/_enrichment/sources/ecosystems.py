@@ -165,7 +165,7 @@ class EcosystemsSource:
 
         # Extract issue tracker URL from repo metadata
         issue_tracker_url = None
-        repo_metadata = data.get("repo_metadata", {})
+        repo_metadata = data.get("repo_metadata") or {}
         if repo_metadata.get("html_url") and repo_metadata.get("has_issues"):
             issue_tracker_url = f"{repo_metadata['html_url']}/issues"
 
