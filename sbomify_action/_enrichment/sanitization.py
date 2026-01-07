@@ -62,6 +62,17 @@ _KNOWN_GIT_HOSTS = frozenset(
     }
 )
 
+# Track already-logged VCS normalizations to avoid duplicate messages
+_logged_vcs_normalizations: set[str] = set()
+
+
+def _log_vcs_normalization(original: str, normalized: str) -> None:
+    """Log VCS URL normalization only if not previously logged."""
+    key = f"{original} -> {normalized}"
+    if key not in _logged_vcs_normalizations:
+        _logged_vcs_normalizations.add(key)
+        logger.info(f"Normalized VCS URL: {original} -> {normalized}")
+
 
 def sanitize_string(
     value: Optional[str],
@@ -299,7 +310,7 @@ def normalize_vcs_url(url: str) -> str:
         host = ssh_match.group(1)
         path = ssh_match.group(2)
         normalized = f"git+https://{host}/{path}"
-        logger.info(f"Normalized VCS URL: {original_url} -> {normalized}")
+        _log_vcs_normalization(original_url, normalized)
         return normalized
 
     # Step 3: git:// is already a valid SPDX VCS URL scheme - leave it as-is
@@ -309,7 +320,7 @@ def normalize_vcs_url(url: str) -> str:
     if url.startswith("git://"):
         # Only log if we stripped an scm: prefix
         if original_url != url:
-            logger.info(f"Normalized VCS URL: {original_url} -> {url}")
+            _log_vcs_normalization(original_url, url)
         return url
 
     # Step 4: Add git+ prefix if we KNOW it's git:
@@ -321,12 +332,12 @@ def normalize_vcs_url(url: str) -> str:
         if url.startswith("https://"):
             normalized = f"git+{url}"
             if original_url != normalized:
-                logger.info(f"Normalized VCS URL: {original_url} -> {normalized}")
+                _log_vcs_normalization(original_url, normalized)
             return normalized
         elif url.startswith("http://"):
             normalized = f"git+{url}"
             if original_url != normalized:
-                logger.info(f"Normalized VCS URL: {original_url} -> {normalized}")
+                _log_vcs_normalization(original_url, normalized)
             return normalized
 
     # No normalization needed - return URL as-is
