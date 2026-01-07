@@ -17,7 +17,7 @@ RUN apt-get update && \
 RUN TRIVY_ARCH=$(case ${TARGETARCH} in \
         amd64) echo "64bit" ;; \
         arm64) echo "ARM64" ;; \
-        *) echo "64bit" ;; \
+        *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
     esac) && \
     curl -sL \
         -o trivy_${TRIVY_VERSION}_Linux-${TRIVY_ARCH}.tar.gz \
@@ -82,6 +82,7 @@ ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 RUN uv venv /opt/venv
+# Use --active so uv installs into the existing VIRTUAL_ENV (/opt/venv) instead of .venv
 RUN uv sync --locked --active
 RUN rm -rf dist/ && uv build
 RUN uv pip install dist/sbomify_github_action-*.whl
