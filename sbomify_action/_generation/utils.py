@@ -12,6 +12,10 @@ from sbomify_action.logging_config import logger
 _java_maven_installed = False
 _java_maven_lock = threading.Lock()
 
+# Track whether Go has been installed on-demand
+_go_installed = False
+_go_lock = threading.Lock()
+
 # Lock file constants by ecosystem
 PYTHON_LOCK_FILES = [
     "Pipfile.lock",
@@ -354,3 +358,74 @@ def ensure_java_maven_installed() -> None:
         except subprocess.TimeoutExpired:
             logger.error("Java/Maven installation timed out")
             raise SBOMGenerationError("Java/Maven installation timed out")
+
+
+def ensure_go_installed() -> None:
+    """
+    Install Go on-demand if not already present.
+
+    This function is called lazily when processing Go projects
+    to avoid bloating the Docker image with Go dependencies that are
+    only needed for a subset of ecosystems.
+
+    The installation state is cached to avoid repeated checks.
+    Thread-safe: uses a lock to prevent concurrent installation attempts.
+
+    Raises:
+        SBOMGenerationError: If installation fails
+    """
+    global _go_installed
+
+    # Fast path: skip if already confirmed installed (no lock needed)
+    if _go_installed:
+        return
+
+    # Use lock to prevent race conditions if multiple threads try to install
+    with _go_lock:
+        # Double-check after acquiring lock (another thread may have installed)
+        if _go_installed:
+            return
+
+        # Check if Go is already available
+        if shutil.which("go"):
+            logger.debug("Go already installed, skipping on-demand installation")
+            _go_installed = True
+            return
+
+        logger.info("Go not found - installing for Go dependency resolution...")
+
+        try:
+            # Update package lists
+            subprocess.run(
+                ["apt-get", "update"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+            # Install Go
+            subprocess.run(
+                [
+                    "apt-get",
+                    "install",
+                    "-y",
+                    "--no-install-recommends",
+                    "golang",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minutes for package installation
+            )
+
+            _go_installed = True
+            logger.info("Go installed successfully")
+
+        except subprocess.CalledProcessError as e:
+            error_msg = e.stderr if e.stderr else str(e)
+            logger.error(f"Failed to install Go: {error_msg}")
+            raise SBOMGenerationError(f"Failed to install Go for dependency resolution: {error_msg}")
+        except subprocess.TimeoutExpired:
+            logger.error("Go installation timed out")
+            raise SBOMGenerationError("Go installation timed out")

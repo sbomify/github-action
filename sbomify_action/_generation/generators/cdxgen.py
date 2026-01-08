@@ -26,6 +26,7 @@ from ..result import GenerationResult
 from ..utils import (
     CDXGEN_LOCK_FILES,
     DEFAULT_TIMEOUT,
+    ensure_go_installed,
     ensure_java_maven_installed,
     get_lock_file_ecosystem,
     run_command,
@@ -131,6 +132,10 @@ class CdxgenFsGenerator:
         # Install Java/Maven on-demand for Java/Scala ecosystems
         if ecosystem in ("java", "scala"):
             ensure_java_maven_installed()
+
+        # Install Go on-demand for Go ecosystem
+        if ecosystem == "go":
+            ensure_go_installed()
 
         cmd = [
             "cdxgen",
