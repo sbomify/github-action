@@ -79,10 +79,11 @@ class NTIAComplianceChecker:
         else:
             missing.append("Timestamp")
 
-        # 2. Author of SBOM Data (tools)
-        tools = data.get("metadata", {}).get("tools", {})
-        has_tools = bool(tools.get("components") or tools.get("services") or (isinstance(tools, list) and tools))
-        if has_tools:
+        # 2. Author of SBOM Data (authors - not tools, per NTIA standard)
+        # NTIA defines "Author" as the entity that creates the SBOM, not the tool
+        authors = data.get("metadata", {}).get("authors", [])
+        has_author = bool(authors)
+        if has_author:
             present.append("Author of SBOM Data")
         else:
             missing.append("Author of SBOM Data")
@@ -97,8 +98,20 @@ class NTIAComplianceChecker:
         # Check each component for required fields
         all_have_name = all(c.get("name") for c in components)
         all_have_version = all(c.get("version") for c in components)
-        all_have_supplier = all(c.get("publisher") or c.get("supplier") for c in components)
-        all_have_identifiers = all(c.get("purl") or c.get("cpe") for c in components)
+
+        # Supplier validation: publisher (string) or supplier.name (dict) or supplier (string)
+        def has_valid_supplier(c):
+            if c.get("publisher"):
+                return True
+            supplier = c.get("supplier")
+            if isinstance(supplier, dict) and supplier.get("name"):
+                return True
+            if isinstance(supplier, str) and supplier:
+                return True
+            return False
+
+        all_have_supplier = all(has_valid_supplier(c) for c in components)
+        all_have_identifiers = all(c.get("purl") or c.get("cpe") or c.get("swid") for c in components)
 
         # 3. Component Name
         if all_have_name:
@@ -174,14 +187,15 @@ class NTIAComplianceChecker:
 
         all_have_supplier = all(has_valid_supplier(p) for p in packages)
 
-        # Check for PURL in external references
-        def has_purl(p):
+        # Check for unique identifiers (PURL, CPE, or SWID) in external references
+        def has_unique_id(p):
+            valid_types = {"purl", "cpe22Type", "cpe23Type", "swid"}
             for ref in p.get("externalRefs", []):
-                if ref.get("referenceType") == "purl":
+                if ref.get("referenceType") in valid_types:
                     return True
             return False
 
-        all_have_identifiers = all(has_purl(p) for p in packages)
+        all_have_identifiers = all(has_unique_id(p) for p in packages)
 
         # 3. Component Name
         if all_have_name:
@@ -207,8 +221,10 @@ class NTIAComplianceChecker:
         else:
             missing.append("Unique Identifiers")
 
-        # 7. Dependency Relationship
-        if data.get("relationships"):
+        # 7. Dependency Relationship (must be DEPENDS_ON or CONTAINS, not just DESCRIBES)
+        relationships = data.get("relationships", [])
+        has_deps = any(rel.get("relationshipType", "").upper() in ["DEPENDS_ON", "CONTAINS"] for rel in relationships)
+        if has_deps:
             present.append("Dependency Relationships")
         else:
             missing.append("Dependency Relationships")
@@ -383,19 +399,20 @@ class TestNTIAComplianceCycloneDX:
 
         is_compliant, present, missing = NTIAComplianceChecker.check_cyclonedx(enriched_data)
 
-        print("\nFull NTIA Compliance Check:")
+        print("\nNTIA Compliance Check After Enrichment:")
         print(f"  Compliant: {is_compliant}")
         print(f"  Present: {present}")
         print(f"  Missing: {missing}")
 
-        # All elements should be present
+        # Enrichment adds supplier, licenses, description, etc. but NOT authors
+        # Full NTIA compliance requires augmentation to add authors
         assert "Timestamp" in present
-        assert "Author of SBOM Data" in present
         assert "Component Name" in present
         assert "Version" in present
         assert "Supplier Name" in present
         assert "Unique Identifiers" in present
         assert "Dependency Relationships" in present
+        # Note: "Author of SBOM Data" requires metadata.authors which comes from augmentation, not enrichment
 
 
 class TestNTIAComplianceSPDX:
@@ -802,6 +819,7 @@ class TestNTIAValidationFunction:
             "metadata": {
                 "timestamp": "2024-01-01T00:00:00Z",
                 "tools": {"components": [{"type": "application", "name": "test-tool"}]},
+                "authors": [{"name": "Test Author", "email": "test@example.com"}],
             },
             "components": [
                 {
@@ -867,13 +885,25 @@ class TestNTIAValidationFunction:
                     ],
                 },
             ],
-            "relationships": [{"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES"}],
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Package",
+                },
+                {
+                    "spdxElementId": "SPDXRef-Package",
+                    "relationshipType": "DEPENDS_ON",
+                    "relatedSpdxElement": "SPDXRef-Dep",
+                },
+            ],
         }
 
         is_compliant, present, missing = NTIAComplianceChecker.check_spdx(compliant_sbom)
 
         assert is_compliant, f"SBOM should be compliant. Missing: {missing}"
         assert "Supplier Name" in present
+        assert "Dependency Relationships" in present
 
     def test_compliance_checker_spdx_noassertion_supplier(self):
         """Test compliance checker detects NOASSERTION as invalid supplier."""

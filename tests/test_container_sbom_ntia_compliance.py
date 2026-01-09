@@ -69,10 +69,11 @@ class NTIAComplianceChecker:
         else:
             missing.append("Timestamp")
 
-        # 2. Author of SBOM Data (tools)
-        tools = data.get("metadata", {}).get("tools", {})
-        has_tools = bool(tools.get("components") or tools.get("services") or (isinstance(tools, list) and tools))
-        if has_tools:
+        # 2. Author of SBOM Data (authors - not tools, per NTIA standard)
+        # NTIA defines "Author" as the entity that creates the SBOM, not the tool
+        authors = data.get("metadata", {}).get("authors", [])
+        has_author = bool(authors)
+        if has_author:
             present.append("Author of SBOM Data")
         else:
             missing.append("Author of SBOM Data")
@@ -104,7 +105,7 @@ class NTIAComplianceChecker:
                     has_supplier = True
             if has_supplier:
                 stats["components_with_supplier"] += 1
-            if c.get("purl") or c.get("cpe"):
+            if c.get("purl") or c.get("cpe") or c.get("swid"):
                 stats["components_with_purl"] += 1
 
         # 3. Component Name
@@ -201,9 +202,10 @@ class NTIAComplianceChecker:
             supplier = p.get("supplier")
             if supplier and supplier != "NOASSERTION":
                 stats["packages_with_supplier"] += 1
-            # Check for PURL in external refs
+            # Check for unique identifiers (PURL, CPE, or SWID) in external refs
+            valid_id_types = {"purl", "cpe22Type", "cpe23Type", "swid"}
             for ref in p.get("externalRefs", []):
-                if ref.get("referenceType") == "purl":
+                if ref.get("referenceType") in valid_id_types:
                     stats["packages_with_purl"] += 1
                     break
 
@@ -231,8 +233,10 @@ class NTIAComplianceChecker:
         else:
             missing.append(f"Unique Identifiers ({stats['packages_with_purl']}/{stats['total_packages']})")
 
-        # 7. Dependency Relationship
-        if data.get("relationships"):
+        # 7. Dependency Relationship (must be DEPENDS_ON or CONTAINS, not just DESCRIBES)
+        relationships = data.get("relationships", [])
+        has_deps = any(rel.get("relationshipType", "").upper() in ["DEPENDS_ON", "CONTAINS"] for rel in relationships)
+        if has_deps:
             present.append("Dependency Relationships")
         else:
             missing.append("Dependency Relationships")
