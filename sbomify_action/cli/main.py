@@ -14,6 +14,7 @@ import sentry_sdk
 # Add cyclonedx imports for proper SBOM handling
 from cyclonedx.model.bom import Bom
 
+from .._augmentation import VALID_AUGMENTATION_SOURCES
 from .._generation.utils import log_command_error
 from .._upload import VALID_DESTINATIONS
 from ..additional_packages import inject_additional_packages
@@ -190,11 +191,15 @@ class Config:
     component_name: Optional[str] = None
     product_releases: Optional[str | list[str]] = None
     api_base_url: str = SBOMIFY_PRODUCTION_API
+    augmentation_file: Optional[str] = None  # Path to local augmentation JSON file
+    augmentation_sources: list[str] | None = None  # Sources for augmentation data
 
     def __post_init__(self) -> None:
         """Set default values that depend on other fields."""
         if self.upload_destinations is None:
             self.upload_destinations = ["sbomify"]  # Default to sbomify only
+        if self.augmentation_sources is None:
+            self.augmentation_sources = ["sbomify"]  # Default to sbomify only
 
     def validate(self) -> None:
         """
@@ -205,18 +210,19 @@ class Config:
         """
         # Check if sbomify API access is required:
         # - Uploading to sbomify destination
-        # - Augmenting (uses sbomify API)
+        # - Augmenting with sbomify source
         # - Managing releases (uses sbomify API)
         uploads_to_sbomify = self.upload and "sbomify" in self.upload_destinations
-        requires_sbomify_api = uploads_to_sbomify or self.augment or self.product_releases
+        augments_from_sbomify = self.augment and "sbomify" in self.augmentation_sources
+        requires_sbomify_api = uploads_to_sbomify or augments_from_sbomify or self.product_releases
 
         if requires_sbomify_api:
             if not self.token:
                 operations = []
                 if uploads_to_sbomify:
                     operations.append("uploading to sbomify")
-                if self.augment:
-                    operations.append("AUGMENT=true")
+                if augments_from_sbomify:
+                    operations.append("augmenting from sbomify")
                 if self.product_releases:
                     operations.append("PRODUCT_RELEASE is set")
                 reason = " or ".join(operations)
@@ -225,8 +231,8 @@ class Config:
                 operations = []
                 if uploads_to_sbomify:
                     operations.append("uploading to sbomify")
-                if self.augment:
-                    operations.append("AUGMENT=true")
+                if augments_from_sbomify:
+                    operations.append("augmenting from sbomify")
                 if self.product_releases:
                     operations.append("PRODUCT_RELEASE is set")
                 reason = " or ".join(operations)
@@ -394,6 +400,24 @@ def load_config() -> Config:
             sys.exit(1)
         logger.info(f"Upload destinations: {upload_destinations}")
 
+    # Handle augmentation sources (similar to upload destinations)
+    augmentation_sources: list[str] | None = None
+    augmentation_sources_env = os.getenv("AUGMENTATION_SOURCES")
+    if augmentation_sources_env:
+        augmentation_sources = [s.strip() for s in augmentation_sources_env.split(",") if s.strip()]
+        # Validate source names using centralized constant
+        invalid_sources = [s for s in augmentation_sources if s not in VALID_AUGMENTATION_SOURCES]
+        if invalid_sources:
+            logger.error(f"Invalid augmentation sources: {invalid_sources}")
+            logger.error(f"Valid sources are: {sorted(VALID_AUGMENTATION_SOURCES)}")
+            sys.exit(1)
+        logger.info(f"Augmentation sources: {augmentation_sources}")
+
+    # Handle augmentation file (used by local_json source)
+    augmentation_file = os.getenv("AUGMENTATION_FILE")
+    if augmentation_file:
+        logger.info(f"Using augmentation file: {augmentation_file}")
+
     config = Config(
         token=os.getenv("TOKEN", ""),
         component_id=os.getenv("COMPONENT_ID", ""),
@@ -411,6 +435,8 @@ def load_config() -> Config:
         component_name=final_component_name,
         product_releases=product_releases,
         api_base_url=os.getenv("API_BASE_URL", SBOMIFY_PRODUCTION_API),
+        augmentation_file=augmentation_file,
+        augmentation_sources=augmentation_sources,
     )
 
     try:
@@ -1260,9 +1286,10 @@ def main() -> None:
             if not sbom_input_file:
                 raise FileProcessingError("No SBOM file found from previous step")
 
-            logger.info("Augmenting SBOM with backend metadata")
+            logger.info("Augmenting SBOM with metadata from available sources")
 
             # Use augmentation module's file-based function
+            # Now supports multiple sources: sbomify API, local JSON, package manifests
             sbom_format = augment_sbom_from_file(
                 input_file=sbom_input_file,
                 output_file=STEP_2_FILE,
@@ -1272,6 +1299,8 @@ def main() -> None:
                 override_sbom_metadata=config.override_sbom_metadata,
                 component_name=config.component_name,
                 component_version=config.component_version,
+                augmentation_file=config.augmentation_file,
+                augmentation_sources=config.augmentation_sources,
             )
 
             logger.info(f"{sbom_format.upper()} SBOM augmentation completed")

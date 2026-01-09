@@ -141,7 +141,7 @@ class TestConfig(unittest.TestCase):
             config.validate()
 
         self.assertIn("sbomify API token is not defined", str(cm.exception))
-        self.assertIn("AUGMENT=true", str(cm.exception))
+        self.assertIn("augmenting from sbomify", str(cm.exception))
 
     def test_config_validation_product_release_requires_token(self):
         """Test that TOKEN is required when PRODUCT_RELEASE is set even if UPLOAD=false."""
@@ -190,7 +190,40 @@ class TestConfig(unittest.TestCase):
             config.validate()
 
         self.assertIn("Component ID is not defined", str(cm.exception))
-        self.assertIn("AUGMENT=true", str(cm.exception))
+        self.assertIn("augmenting from sbomify", str(cm.exception))
+
+    def test_config_validation_augment_local_sources_no_credentials(self):
+        """Test that AUGMENT with local sources doesn't require sbomify credentials."""
+        # When using only local sources (local_json, manifest), no token or component_id required
+        config = Config(
+            token="",
+            component_id="",
+            sbom_file="/path/to/sbom.json",
+            upload=False,
+            augment=True,
+            augmentation_sources=["local_json", "manifest"],
+        )
+
+        # Should NOT raise - local sources don't need sbomify credentials
+        config.validate()  # No exception expected
+
+    def test_config_validation_augment_sbomify_source_requires_credentials(self):
+        """Test that AUGMENT with sbomify source requires credentials."""
+        # When sbomify is in augmentation_sources, credentials are required
+        config = Config(
+            token="",
+            component_id="",
+            sbom_file="/path/to/sbom.json",
+            upload=False,
+            augment=True,
+            augmentation_sources=["sbomify", "local_json"],  # sbomify is included
+        )
+
+        with self.assertRaises(ConfigurationError) as cm:
+            config.validate()
+
+        self.assertIn("sbomify API token is not defined", str(cm.exception))
+        self.assertIn("augmenting from sbomify", str(cm.exception))
 
     def test_config_url_validation_invalid_scheme(self):
         """Test that Config raises ConfigurationError for invalid URL schemes."""

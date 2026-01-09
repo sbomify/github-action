@@ -45,6 +45,7 @@ That's it! This generates an SBOM from your lockfile and enriches it with metada
     UPLOAD: false
     COMPONENT_NAME: my-app
     COMPONENT_VERSION: ${{ github.ref_name }}
+    AUGMENT: true  # Uses .sbomify.json and package manifests
     ENRICH: true
 ```
 
@@ -101,38 +102,40 @@ That's it! This generates an SBOM from your lockfile and enriches it with metada
 
 ## Configuration
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `LOCK_FILE` | † | Path to lockfile (requirements.txt, poetry.lock, Cargo.lock, etc.) |
-| `SBOM_FILE` | † | Path to existing SBOM file |
-| `DOCKER_IMAGE` | † | Docker image name |
-| `OUTPUT_FILE` | No | Write final SBOM to this path |
-| `ENRICH` | No | Add metadata from package registries |
-| `TOKEN` | ‡ | sbomify API token |
-| `COMPONENT_ID` | ‡ | sbomify component ID |
-| `AUGMENT` | No | Add metadata from sbomify |
-| `COMPONENT_NAME` | No | Override component name in SBOM |
-| `COMPONENT_VERSION` | No | Override component version in SBOM |
-| `PRODUCT_RELEASE` | No | Tag SBOM with releases: `'["product_id:v1.0.0"]'` |
-| `UPLOAD` | No | Upload SBOM (default: true) |
-| `UPLOAD_DESTINATIONS` | No | Comma-separated destinations: `sbomify`, `dependency-track` (default: `sbomify`) |
-| `API_BASE_URL` | No | Override sbomify API URL for self-hosted instances |
-| `ADDITIONAL_PACKAGES_FILE` | No | Custom path to additional packages file |
-| `ADDITIONAL_PACKAGES` | No | Inline PURLs to inject (comma or newline separated) |
+| Variable                   | Required | Description                                                                       |
+| -------------------------- | -------- | --------------------------------------------------------------------------------- |
+| `LOCK_FILE`                | †        | Path to lockfile (requirements.txt, poetry.lock, Cargo.lock, etc.)                |
+| `SBOM_FILE`                | †        | Path to existing SBOM file                                                        |
+| `DOCKER_IMAGE`             | †        | Docker image name                                                                 |
+| `OUTPUT_FILE`              | No       | Write final SBOM to this path                                                     |
+| `ENRICH`                   | No       | Add metadata from package registries                                              |
+| `TOKEN`                    | ‡        | sbomify API token                                                                 |
+| `COMPONENT_ID`             | ‡        | sbomify component ID                                                              |
+| `AUGMENT`                  | No       | Add metadata from sbomify                                                         |
+| `COMPONENT_NAME`           | No       | Override component name in SBOM                                                   |
+| `COMPONENT_VERSION`        | No       | Override component version in SBOM                                                |
+| `PRODUCT_RELEASE`          | No       | Tag SBOM with releases: `'["product_id:v1.0.0"]'`                                 |
+| `UPLOAD`                   | No       | Upload SBOM (default: true)                                                       |
+| `UPLOAD_DESTINATIONS`      | No       | Comma-separated destinations: `sbomify`, `dependency-track` (default: `sbomify`)  |
+| `API_BASE_URL`             | No       | Override sbomify API URL for self-hosted instances                                |
+| `AUGMENTATION_SOURCES`     | No       | Comma-separated sources: `sbomify`, `local_json`, `manifest` (default: `sbomify`) |
+| `AUGMENTATION_FILE`        | No       | Path to local augmentation JSON file (default: `.sbomify.json`)                   |
+| `ADDITIONAL_PACKAGES_FILE` | No       | Custom path to additional packages file                                           |
+| `ADDITIONAL_PACKAGES`      | No       | Inline PURLs to inject (comma or newline separated)                               |
 
 † **One** of `LOCK_FILE`, `SBOM_FILE`, or `DOCKER_IMAGE` is required (pick one)
-‡ Required when uploading to sbomify or using sbomify features (`AUGMENT`, `PRODUCT_RELEASE`)
+‡ Required when uploading to sbomify or using `PRODUCT_RELEASE` (not required for `AUGMENT` with local sources)
 
 ### Dependency Track Configuration
 
 When uploading to Dependency Track (`UPLOAD_DESTINATIONS=dependency-track`), configure with `DTRACK_*` prefixed environment variables:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DTRACK_API_KEY` | Yes | Dependency Track API key |
-| `DTRACK_API_URL` | Yes | Full API base URL (e.g., `https://dtrack.example.com/api`) |
-| `DTRACK_PROJECT_ID` | § | Project UUID (alternative to using `COMPONENT_NAME`/`COMPONENT_VERSION`) |
-| `DTRACK_AUTO_CREATE` | No | Auto-create project if it doesn't exist (default: false) |
+| Variable             | Required | Description                                                              |
+| -------------------- | -------- | ------------------------------------------------------------------------ |
+| `DTRACK_API_KEY`     | Yes      | Dependency Track API key                                                 |
+| `DTRACK_API_URL`     | Yes      | Full API base URL (e.g., `https://dtrack.example.com/api`)               |
+| `DTRACK_PROJECT_ID`  | §        | Project UUID (alternative to using `COMPONENT_NAME`/`COMPONENT_VERSION`) |
+| `DTRACK_AUTO_CREATE` | No       | Auto-create project if it doesn't exist (default: false)                 |
 
 § Either `DTRACK_PROJECT_ID` **or** both `COMPONENT_NAME` and `COMPONENT_VERSION` are required
 
@@ -179,22 +182,22 @@ When uploading to Dependency Track (`UPLOAD_DESTINATIONS=dependency-track`), con
 
 ## Supported Lockfiles
 
-| Language | Files |
-|----------|-------|
-| Python | `requirements.txt`, `poetry.lock`, `Pipfile.lock`, `uv.lock`, `pyproject.toml` |
+| Language   | Files                                                                          |
+| ---------- | ------------------------------------------------------------------------------ |
+| Python     | `requirements.txt`, `poetry.lock`, `Pipfile.lock`, `uv.lock`, `pyproject.toml` |
 | JavaScript | `package.json`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `bun.lock` |
-| Java | `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle.lockfile` |
-| Go | `go.mod`, `go.sum` |
-| Rust | `Cargo.lock` |
-| Ruby | `Gemfile.lock` |
-| PHP | `composer.json`, `composer.lock` |
-| .NET/C# | `packages.lock.json` |
-| Swift | `Package.swift`, `Package.resolved` |
-| Dart | `pubspec.lock` |
-| Elixir | `mix.lock` |
-| Scala | `build.sbt` |
-| C++ | `conan.lock` |
-| Terraform | `.terraform.lock.hcl` |
+| Java       | `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle.lockfile`               |
+| Go         | `go.mod`, `go.sum`                                                             |
+| Rust       | `Cargo.lock`                                                                   |
+| Ruby       | `Gemfile.lock`                                                                 |
+| PHP        | `composer.json`, `composer.lock`                                               |
+| .NET/C#    | `packages.lock.json`                                                           |
+| Swift      | `Package.swift`, `Package.resolved`                                            |
+| Dart       | `pubspec.lock`                                                                 |
+| Elixir     | `mix.lock`                                                                     |
+| Scala      | `build.sbt`                                                                    |
+| C++        | `conan.lock`                                                                   |
+| Terraform  | `.terraform.lock.hcl`                                                          |
 
 ## Additional Packages
 
@@ -215,6 +218,7 @@ pkg:deb/debian/openssl@3.0.11
 ```
 
 **File format:**
+
 - One [PURL](https://github.com/package-url/purl-spec) per line
 - Lines starting with `#` are comments
 - Empty lines are ignored
@@ -304,20 +308,73 @@ docker run --rm -v $(pwd):/code \
 
 ## Augmentation vs Enrichment
 
-**Augmentation** (`AUGMENT=true`) adds your business metadata from sbomify—supplier info, authors, and licenses you've configured for your component. This requires a sbomify account.
+**Augmentation** (`AUGMENT=true`) adds your business metadata—supplier info, authors, and licenses. Data can be collected from multiple sources, configurable via `AUGMENTATION_SOURCES`:
+
+| Source       | Name              | Description                                                       |
+| ------------ | ----------------- | ----------------------------------------------------------------- |
+| `sbomify`    | sbomify API       | Fetch from sbomify backend (requires `TOKEN` and `COMPONENT_ID`)  |
+| `local_json` | Local JSON        | Read from `.sbomify.json` or custom path via `AUGMENTATION_FILE`  |
+| `manifest`   | Package Manifests | Auto-discover from `pyproject.toml`, `package.json`, `Cargo.toml` |
+
+By default, only `sbomify` is enabled. To use multiple sources:
+
+```yaml
+AUGMENTATION_SOURCES: "sbomify,local_json,manifest"
+```
+
+When multiple sources are enabled, data is merged in priority order (sbomify > local_json > manifest).
 
 **Enrichment** (`ENRICH=true`) fetches package metadata from public registries. No account needed.
 
-| Source | Package Types | Data |
-|--------|---------------|------|
-| PyPI | Python | License, author, homepage |
-| pub.dev | Dart | License, author, homepage, repo |
-| RPM Repos | Rocky, Alma, CentOS, Fedora, Amazon Linux | License, vendor, description, homepage |
-| Ubuntu APT | Ubuntu packages | Maintainer, description, homepage, download URL |
-| deps.dev | Python, npm, Maven, Go, Rust, Ruby, NuGet | License, homepage, repo |
-| ecosyste.ms | All major ecosystems | License, description, maintainer |
-| Debian Sources | Debian packages | Maintainer, description, homepage |
-| Repology | Linux distros | License, homepage |
+| Source         | Package Types                             | Data                                            |
+| -------------- | ----------------------------------------- | ----------------------------------------------- |
+| PyPI           | Python                                    | License, author, homepage                       |
+| pub.dev        | Dart                                      | License, author, homepage, repo                 |
+| RPM Repos      | Rocky, Alma, CentOS, Fedora, Amazon Linux | License, vendor, description, homepage          |
+| Ubuntu APT     | Ubuntu packages                           | Maintainer, description, homepage, download URL |
+| deps.dev       | Python, npm, Maven, Go, Rust, Ruby, NuGet | License, homepage, repo                         |
+| ecosyste.ms    | All major ecosystems                      | License, description, maintainer                |
+| Debian Sources | Debian packages                           | Maintainer, description, homepage               |
+| Repology       | Linux distros                             | License, homepage                               |
+
+### Local Augmentation (.sbomify.json)
+
+Add business metadata without a sbomify account by creating `.sbomify.json` in your repository:
+
+```json
+{
+  "supplier": {
+    "name": "Acme Corp",
+    "url": ["https://acme.com"],
+    "contact": [{"name": "Security Team", "email": "security@acme.com"}]
+  },
+  "authors": [
+    {"name": "Jane Doe", "email": "jane@acme.com"}
+  ],
+  "licenses": ["Apache-2.0"]
+}
+```
+
+All fields are optional. The schema supports:
+
+- `supplier` - Organization distributing the software (name, urls, contacts with name/email/phone)
+- `manufacturer` - Organization that created the software (same structure as supplier)
+- `authors` - Individual creators (name, email, phone)
+- `licenses` - SPDX identifiers or custom license objects (`{"name": "...", "url": "...", "text": "..."}`)
+
+**Priority order**: sbomify API (if configured) > `.sbomify.json` > package manifests
+
+Use a custom file path:
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: requirements.txt
+    AUGMENT: true
+    AUGMENTATION_SOURCES: "local_json"  # Use local file instead of sbomify API
+    AUGMENTATION_FILE: config/sbom-metadata.json
+    UPLOAD: false
+```
 
 ## SBOM Quality Improvement
 
@@ -359,15 +416,15 @@ After sbomify enrichment, the same component includes supplier, license, and ref
 
 sbomify attempts to populate these fields for each component:
 
-| Field | Description | Coverage |
-|-------|-------------|----------|
-| **Supplier/Publisher** | Package maintainer or organization | High for popular registries |
-| **License** | SPDX license expression | High (most registries require it) |
-| **Description** | Package summary | High |
-| **Homepage** | Project website | Medium-High |
-| **Repository** | Source code URL | Medium-High |
-| **Download URL** | Registry/distribution link | High |
-| **Issue Tracker** | Bug reporting URL | Medium |
+| Field                  | Description                        | Coverage                          |
+| ---------------------- | ---------------------------------- | --------------------------------- |
+| **Supplier/Publisher** | Package maintainer or organization | High for popular registries       |
+| **License**            | SPDX license expression            | High (most registries require it) |
+| **Description**        | Package summary                    | High                              |
+| **Homepage**           | Project website                    | Medium-High                       |
+| **Repository**         | Source code URL                    | Medium-High                       |
+| **Download URL**       | Registry/distribution link         | High                              |
+| **Issue Tracker**      | Bug reporting URL                  | Medium                            |
 
 **Coverage varies by ecosystem.** Popular packages on PyPI, npm, and crates.io have excellent metadata. RPM-based distros (Rocky, Alma, CentOS, Fedora, Amazon Linux) and Debian/Ubuntu have high coverage through direct repository queries. Alpine and less common registries may have partial data. sbomify queries multiple sources with fallbacks, but some fields may remain empty for obscure packages.
 
@@ -375,21 +432,21 @@ sbomify attempts to populate these fields for each component:
 
 sbomify queries sources in priority order, stopping when data is found:
 
-| Ecosystem | Primary Source | Fallback Sources |
-|-----------|----------------|------------------|
-| Python | PyPI API | deps.dev → ecosyste.ms |
-| JavaScript | deps.dev | ecosyste.ms |
-| Rust | deps.dev | ecosyste.ms |
-| Go | deps.dev | ecosyste.ms |
-| Ruby | deps.dev | ecosyste.ms |
-| Java/Maven | deps.dev | ecosyste.ms |
-| Dart | pub.dev API | ecosyste.ms |
-| Debian | Debian Sources | Repology → ecosyste.ms |
-| Ubuntu | Ubuntu APT | Repology → ecosyste.ms |
-| Alpine | Repology | ecosyste.ms |
-| Rocky/Alma/CentOS | RPM Repos | Repology → ecosyste.ms |
-| Fedora | RPM Repos | Repology → ecosyste.ms |
-| Amazon Linux | RPM Repos | Repology → ecosyste.ms |
+| Ecosystem         | Primary Source | Fallback Sources       |
+| ----------------- | -------------- | ---------------------- |
+| Python            | PyPI API       | deps.dev → ecosyste.ms |
+| JavaScript        | deps.dev       | ecosyste.ms            |
+| Rust              | deps.dev       | ecosyste.ms            |
+| Go                | deps.dev       | ecosyste.ms            |
+| Ruby              | deps.dev       | ecosyste.ms            |
+| Java/Maven        | deps.dev       | ecosyste.ms            |
+| Dart              | pub.dev API    | ecosyste.ms            |
+| Debian            | Debian Sources | Repology → ecosyste.ms |
+| Ubuntu            | Ubuntu APT     | Repology → ecosyste.ms |
+| Alpine            | Repology       | ecosyste.ms            |
+| Rocky/Alma/CentOS | RPM Repos      | Repology → ecosyste.ms |
+| Fedora            | RPM Repos      | Repology → ecosyste.ms |
+| Amazon Linux      | RPM Repos      | Repology → ecosyste.ms |
 
 ### Limitations
 
@@ -407,12 +464,12 @@ sbomify uses a plugin architecture for SBOM generation, automatically selecting 
 
 Generators are tried in priority order. Native tools (optimized for specific ecosystems) are preferred over generic scanners. Each tool supports different ecosystems:
 
-| Priority | Generator | Supported Ecosystems | Output Formats |
-|----------|-----------|---------------------|----------------|
-| 10 | **cyclonedx-py** | Python only | CycloneDX 1.0–1.7 |
-| 20 | **cdxgen** | Python, JavaScript, **Java/Gradle**, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Scala, Docker images | CycloneDX 1.4–1.7 |
-| 30 | **Trivy** | Python, JavaScript, Java/Gradle, Go, Rust, Ruby, C++, PHP, .NET, Docker images | CycloneDX 1.6, SPDX 2.3 |
-| 35 | **Syft** | Python, JavaScript, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Terraform, Docker images | CycloneDX 1.2–1.6, SPDX 2.2–2.3 |
+| Priority | Generator        | Supported Ecosystems                                                                                           | Output Formats                  |
+| -------- | ---------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| 10       | **cyclonedx-py** | Python only                                                                                                    | CycloneDX 1.0–1.7               |
+| 20       | **cdxgen**       | Python, JavaScript, **Java/Gradle**, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Scala, Docker images | CycloneDX 1.4–1.7               |
+| 30       | **Trivy**        | Python, JavaScript, Java/Gradle, Go, Rust, Ruby, C++, PHP, .NET, Docker images                                 | CycloneDX 1.6, SPDX 2.3         |
+| 35       | **Syft**         | Python, JavaScript, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Terraform, Docker images              | CycloneDX 1.2–1.6, SPDX 2.2–2.3 |
 
 ### How It Works
 

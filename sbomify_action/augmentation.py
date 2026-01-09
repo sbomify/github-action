@@ -99,6 +99,11 @@ def fetch_backend_metadata(api_base_url: str, token: str, component_id: str) -> 
     """
     Fetch metadata from backend API.
 
+    .. deprecated:: 0.11
+        Use :class:`sbomify_action._augmentation.sources.sbomify_api.SbomifyAPISource` instead.
+        This function is kept for backward compatibility but is no longer used by the main
+        augmentation flow, which now uses the plugin-based architecture.
+
     Args:
         api_base_url: Base URL for the API
         token: Authentication token
@@ -110,6 +115,14 @@ def fetch_backend_metadata(api_base_url: str, token: str, component_id: str) -> 
     Raises:
         APIError: If API call fails
     """
+    import warnings
+
+    warnings.warn(
+        "fetch_backend_metadata is deprecated. Use SbomifyAPISource from "
+        "sbomify_action._augmentation.sources.sbomify_api instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     from .exceptions import APIError
 
     url = f"{api_base_url}/api/v1/sboms/component/{component_id}/meta"
@@ -796,16 +809,24 @@ def augment_spdx_sbom(
 def augment_sbom_from_file(
     input_file: str,
     output_file: str,
-    api_base_url: str,
-    token: str,
-    component_id: str,
+    api_base_url: str = "",
+    token: str = "",
+    component_id: str = "",
     override_sbom_metadata: bool = False,
     component_name: Optional[str] = None,
     component_version: Optional[str] = None,
     validate: bool = True,
+    augmentation_file: Optional[str] = None,
+    working_dir: Optional[str] = None,
+    augmentation_sources: Optional[List[str]] = None,
 ) -> Literal["cyclonedx", "spdx"]:
     """
-    Augment SBOM file with backend metadata.
+    Augment SBOM file with metadata from multiple sources.
+
+    Sources are queried in priority order (when enabled):
+    1. sbomify API (if token and component_id are provided)
+    2. Local JSON file (.sbomify.json or custom path)
+    3. Package manifests (pyproject.toml, package.json, Cargo.toml)
 
     After augmentation, the output SBOM is validated against its JSON schema
     (when validate=True).
@@ -813,13 +834,17 @@ def augment_sbom_from_file(
     Args:
         input_file: Path to input SBOM file
         output_file: Path to save augmented SBOM
-        api_base_url: Backend API base URL
-        token: Authentication token
-        component_id: Component ID to fetch metadata for
+        api_base_url: Backend API base URL (optional, for sbomify API)
+        token: Authentication token (optional, for sbomify API)
+        component_id: Component ID to fetch metadata for (optional, for sbomify API)
         override_sbom_metadata: Whether to override existing metadata
         component_name: Optional component name override
         component_version: Optional component version override
         validate: Whether to validate the output SBOM (default: True)
+        augmentation_file: Path to local augmentation JSON file (default: .sbomify.json)
+        working_dir: Working directory for source discovery (default: current directory)
+        augmentation_sources: List of sources to use (default: ["sbomify"]).
+                             Valid values: "sbomify", "local_json", "manifest"
 
     Returns:
         SBOM format ('cyclonedx' or 'spdx')
@@ -829,9 +854,38 @@ def augment_sbom_from_file(
         SBOMValidationError: If output validation fails
         Exception: For other errors during augmentation
     """
-    # Fetch backend metadata
-    logger.info("Fetching component metadata from sbomify API")
-    augmentation_data = fetch_backend_metadata(api_base_url, token, component_id)
+    from ._augmentation import AugmentationCollector, create_default_registry
+
+    # Determine working directory
+    if working_dir:
+        work_path = Path(working_dir)
+    else:
+        work_path = Path.cwd()
+
+    # Build configuration for augmentation sources
+    config = {
+        "token": token,
+        "component_id": component_id,
+        "api_base_url": api_base_url or "https://app.sbomify.com",
+    }
+    if augmentation_file:
+        config["augmentation_file"] = augmentation_file
+
+    # Collect augmentation data from enabled sources
+    # Default to sbomify only (consistent with upload_destinations default)
+    sources = augmentation_sources or ["sbomify"]
+    logger.info(f"Collecting augmentation data from sources: {sources}")
+    registry = create_default_registry(enabled_sources=sources)
+    collector = AugmentationCollector(registry)
+    collected_data = collector.collect(work_path, config)
+
+    # Convert to dict format for existing augmentation functions
+    if collected_data and collected_data.has_data():
+        augmentation_data = collected_data.to_dict()
+        logger.info(f"Augmentation data collected (primary source: {collected_data.source})")
+    else:
+        augmentation_data = {}
+        logger.warning("No augmentation data found from any source")
 
     # Detect format and parse
     input_path = Path(input_file)

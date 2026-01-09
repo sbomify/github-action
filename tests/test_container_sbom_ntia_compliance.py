@@ -434,9 +434,13 @@ class TestAugmentationNTIACompliance:
 
         output_file = tmp_path / "augmented.cdx.json"
 
-        # Mock the backend API call
-        with patch("sbomify_action.augmentation.fetch_backend_metadata") as mock_fetch:
-            mock_fetch.return_value = mock_backend_response
+        # Mock the sbomify API HTTP call
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = mock_backend_response
+        mock_response.headers = {"content-type": "application/json"}
+
+        with patch("sbomify_action._augmentation.sources.sbomify_api.requests.get", return_value=mock_response):
             sbom_format = augment_sbom_from_file(
                 str(sbom_path),
                 str(output_file),
@@ -444,6 +448,7 @@ class TestAugmentationNTIACompliance:
                 token="test-token",
                 component_id="test-component",
                 validate=False,
+                augmentation_sources=["sbomify"],
             )
 
         assert sbom_format == "cyclonedx"
@@ -477,8 +482,13 @@ class TestAugmentationNTIACompliance:
 
         output_file = tmp_path / "augmented.spdx.json"
 
-        with patch("sbomify_action.augmentation.fetch_backend_metadata") as mock_fetch:
-            mock_fetch.return_value = mock_backend_response
+        # Mock the sbomify API HTTP call
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = mock_backend_response
+        mock_response.headers = {"content-type": "application/json"}
+
+        with patch("sbomify_action._augmentation.sources.sbomify_api.requests.get", return_value=mock_response):
             sbom_format = augment_sbom_from_file(
                 str(sbom_path),
                 str(output_file),
@@ -486,6 +496,7 @@ class TestAugmentationNTIACompliance:
                 token="test-token",
                 component_id="test-component",
                 validate=False,
+                augmentation_sources=["sbomify"],
             )
 
         assert sbom_format == "spdx"
@@ -524,8 +535,13 @@ class TestFullPipelineNTIACompliance:
             enrich_sbom(str(sbom_path), str(enriched_file), validate=False)
 
         # Step 2: Augment
-        with patch("sbomify_action.augmentation.fetch_backend_metadata") as mock_fetch:
-            mock_fetch.return_value = SAMPLE_BACKEND_METADATA
+        # Mock the sbomify API HTTP call
+        augment_mock_response = Mock()
+        augment_mock_response.ok = True
+        augment_mock_response.json.return_value = SAMPLE_BACKEND_METADATA
+        augment_mock_response.headers = {"content-type": "application/json"}
+
+        with patch("sbomify_action._augmentation.sources.sbomify_api.requests.get", return_value=augment_mock_response):
             augment_sbom_from_file(
                 str(enriched_file),
                 str(augmented_file),
@@ -533,6 +549,7 @@ class TestFullPipelineNTIACompliance:
                 token="test-token",
                 component_id="test-component",
                 validate=False,
+                augmentation_sources=["sbomify"],
             )
 
         with open(augmented_file) as f:
