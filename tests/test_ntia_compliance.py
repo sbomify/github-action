@@ -111,7 +111,17 @@ class NTIAComplianceChecker:
             return False
 
         all_have_supplier = all(has_valid_supplier(c) for c in components)
-        all_have_identifiers = all(c.get("purl") or c.get("cpe") or c.get("swid") for c in components)
+
+        # Unique identifier validation: PURL, CPE, or valid SWID (object with tagId and name)
+        def has_valid_identifier(c):
+            if c.get("purl") or c.get("cpe"):
+                return True
+            swid = c.get("swid")
+            if isinstance(swid, dict) and swid.get("tagId") and swid.get("name"):
+                return True
+            return False
+
+        all_have_identifiers = all(has_valid_identifier(c) for c in components)
 
         # 3. Component Name
         if all_have_name:

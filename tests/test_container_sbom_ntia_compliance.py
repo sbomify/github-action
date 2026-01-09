@@ -60,7 +60,7 @@ class NTIAComplianceChecker:
             "components_with_supplier": 0,
             "components_with_name": 0,
             "components_with_version": 0,
-            "components_with_purl": 0,
+            "components_with_identifiers": 0,
         }
 
         # 1. Timestamp
@@ -105,8 +105,16 @@ class NTIAComplianceChecker:
                     has_supplier = True
             if has_supplier:
                 stats["components_with_supplier"] += 1
-            if c.get("purl") or c.get("cpe") or c.get("swid"):
-                stats["components_with_purl"] += 1
+            # Unique identifier validation: PURL, CPE, or valid SWID (object with tagId and name)
+            has_identifier = False
+            if c.get("purl") or c.get("cpe"):
+                has_identifier = True
+            else:
+                swid = c.get("swid")
+                if isinstance(swid, dict) and swid.get("tagId") and swid.get("name"):
+                    has_identifier = True
+            if has_identifier:
+                stats["components_with_identifiers"] += 1
 
         # 3. Component Name
         if stats["components_with_name"] == stats["total_components"]:
@@ -127,10 +135,10 @@ class NTIAComplianceChecker:
             missing.append(f"Supplier Name ({stats['components_with_supplier']}/{stats['total_components']})")
 
         # 6. Other Unique Identifiers
-        if stats["components_with_purl"] == stats["total_components"]:
+        if stats["components_with_identifiers"] == stats["total_components"]:
             present.append("Unique Identifiers")
         else:
-            missing.append(f"Unique Identifiers ({stats['components_with_purl']}/{stats['total_components']})")
+            missing.append(f"Unique Identifiers ({stats['components_with_identifiers']}/{stats['total_components']})")
 
         # 7. Dependency Relationship
         if data.get("dependencies"):
@@ -158,7 +166,7 @@ class NTIAComplianceChecker:
             "packages_with_supplier": 0,
             "packages_with_name": 0,
             "packages_with_version": 0,
-            "packages_with_purl": 0,
+            "packages_with_identifiers": 0,
         }
 
         # 1. Timestamp
@@ -206,7 +214,7 @@ class NTIAComplianceChecker:
             valid_id_types = {"purl", "cpe22Type", "cpe23Type", "swid"}
             for ref in p.get("externalRefs", []):
                 if ref.get("referenceType") in valid_id_types:
-                    stats["packages_with_purl"] += 1
+                    stats["packages_with_identifiers"] += 1
                     break
 
         # 3. Component Name
@@ -228,10 +236,10 @@ class NTIAComplianceChecker:
             missing.append(f"Supplier Name ({stats['packages_with_supplier']}/{stats['total_packages']})")
 
         # 6. Other Unique Identifiers
-        if stats["packages_with_purl"] == stats["total_packages"]:
+        if stats["packages_with_identifiers"] == stats["total_packages"]:
             present.append("Unique Identifiers")
         else:
-            missing.append(f"Unique Identifiers ({stats['packages_with_purl']}/{stats['total_packages']})")
+            missing.append(f"Unique Identifiers ({stats['packages_with_identifiers']}/{stats['total_packages']})")
 
         # 7. Dependency Relationship (must be DEPENDS_ON or CONTAINS, not just DESCRIBES)
         relationships = data.get("relationships", [])
