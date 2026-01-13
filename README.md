@@ -27,7 +27,7 @@ That's it! This generates an SBOM from your lockfile and enriches it with metada
 - **Generate** SBOMs from lockfiles (Python, Node, Rust, Go, Ruby, Dart, C++)
 - **Generate** SBOMs from Docker images
 - **Inject** additional packages not in lockfiles (vendored code, runtime deps, system libraries)
-- **Augment** with business metadata (supplier, authors, licenses) from sbomify
+- **Augment** with business metadata (supplier, authors, licenses, lifecycle phase) from config file or sbomify
 - **Enrich** with package metadata from PyPI, pub.dev, npm, Maven, deps.dev, and more
 - **Upload** to sbomify for collaboration and vulnerability management
 - **Tag** SBOMs with product releases
@@ -47,6 +47,22 @@ That's it! This generates an SBOM from your lockfile and enriches it with metada
     COMPONENT_VERSION: ${{ github.ref_name }}
     ENRICH: true
 ```
+
+### Standalone with Augmentation
+
+Add business metadata without a sbomify account using a local config file:
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: requirements.txt
+    OUTPUT_FILE: sbom.cdx.json
+    UPLOAD: false
+    AUGMENT: true  # Uses sbomify.json in project root
+    ENRICH: true
+```
+
+See [Augmentation Config File](#augmentation-config-file) for the config format.
 
 ### With sbomify
 
@@ -215,6 +231,7 @@ pkg:deb/debian/openssl@3.0.11
 ```
 
 **File format:**
+
 - One [PURL](https://github.com/package-url/purl-spec) per line
 - Lines starting with `#` are comments
 - Empty lines are ignored
@@ -304,9 +321,48 @@ docker run --rm -v $(pwd):/code \
 
 ## Augmentation vs Enrichment
 
-**Augmentation** (`AUGMENT=true`) adds your business metadata from sbomify—supplier info, authors, and licenses you've configured for your component. This requires a sbomify account.
+**Augmentation** (`AUGMENT=true`) adds organizational metadata to your SBOM—supplier info, authors, licenses, and lifecycle phase. This addresses [NTIA Minimum Elements](https://sbomify.com/compliance/ntia-minimum-elements/) and [CISA 2025](https://sbomify.com/compliance/cisa-minimum-elements/) requirements.
+
+Augmentation sources (in priority order):
+
+1. **Local config file** (`sbomify.json`) — No account needed. Local values take precedence.
+2. **sbomify API** — Fetches metadata configured in your sbomify component. Requires account.
 
 **Enrichment** (`ENRICH=true`) fetches package metadata from public registries. No account needed.
+
+### Augmentation Config File
+
+Create `sbomify.json` in your project root to provide augmentation metadata:
+
+```json
+{
+  "lifecycle_phase": "build",
+  "supplier": {
+    "name": "My Company",
+    "url": ["https://example.com"],
+    "contacts": [{"name": "Support", "email": "support@example.com"}]
+  },
+  "authors": [
+    {"name": "John Doe", "email": "john@example.com"}
+  ],
+  "licenses": ["MIT"]
+}
+```
+
+**Supported fields:**
+
+| Field | Description | SBOM Mapping |
+|-------|-------------|--------------|
+| `lifecycle_phase` | Generation context (CISA 2025) | CycloneDX 1.5+: `metadata.lifecycles[].phase`; SPDX: `creationInfo.comment` |
+| `supplier` | Organization that supplies the component | CycloneDX: `metadata.supplier`; SPDX: `packages[].supplier` |
+| `authors` | List of component authors | CycloneDX: `metadata.authors[]`; SPDX: `creationInfo.creators[]` |
+| `licenses` | SPDX license identifiers | CycloneDX: `metadata.licenses[]`; SPDX: Document-level licenses |
+
+**Valid `lifecycle_phase` values:** `design`, `pre-build`, `build`, `post-build`, `operations`, `discovery`, `decommission`
+
+**Priority:** Local config values override sbomify API values when both are available.
+
+### Enrichment Data Sources
 
 | Source | Package Types | Data |
 |--------|---------------|------|

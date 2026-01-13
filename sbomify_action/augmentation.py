@@ -1,13 +1,43 @@
-"""SBOM augmentation with backend metadata using native libraries."""
+"""SBOM augmentation with organizational metadata using plugin architecture.
+
+This module augments SBOMs with organizational metadata from multiple sources,
+addressing NTIA Minimum Elements and CISA 2025 requirements.
+
+Metadata Providers (in priority order):
+    1. JSON config file (sbomify.json) - local config takes precedence
+    2. sbomify API - backend organizational metadata
+
+NTIA Minimum Elements (July 2021):
+    https://sbomify.com/compliance/ntia-minimum-elements/
+
+    Augmentation adds:
+    - Supplier Name: CycloneDX metadata.supplier / SPDX packages[].supplier
+    - SBOM Author: CycloneDX metadata.authors[] / SPDX creationInfo.creators[]
+    - Tool Name/Version: CycloneDX metadata.tools / SPDX creationInfo.creators[]
+
+CISA 2025 Additional Fields:
+    https://sbomify.com/compliance/cisa-minimum-elements/
+
+    Augmentation adds:
+    - Generation Context: CycloneDX metadata.lifecycles[].phase (1.5+ only)
+                         SPDX creationInfo.creatorComment
+
+Field mappings per schema crosswalk:
+    https://sbomify.com/compliance/schema-crosswalk/
+
+Version support:
+    - CycloneDX: 1.3, 1.4, 1.5, 1.6, 1.7
+    - SPDX: 2.2, 2.3
+"""
 
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
-import requests
 from cyclonedx.model import AttachedText, ExternalReference, ExternalReferenceType, XsUri
 from cyclonedx.model.bom import Bom, OrganizationalContact, OrganizationalEntity, Tool
 from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.license import DisjunctiveLicense, LicenseExpression
+from cyclonedx.model.lifecycle import LifecyclePhase, PredefinedLifecycle
 from cyclonedx.model.service import Service
 from spdx_tools.spdx.model import (
     Actor,
@@ -21,10 +51,12 @@ from spdx_tools.spdx.parser.jsonlikedict.license_expression_parser import Licens
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
+# Import augmentation plugin architecture
+from ._augmentation import create_default_registry
+
 # Import lockfile constants from generation utils (single source of truth)
 from ._generation.utils import ALL_LOCK_FILES
 from .exceptions import SBOMValidationError
-from .http_client import get_default_headers
 from .logging_config import logger
 from .serialization import sanitize_dependency_graph, serialize_cyclonedx_bom
 from .validation import validate_sbom_file_auto
@@ -95,45 +127,52 @@ SBOMIFY_TOOL_NAME = "sbomify GitHub Action"
 SBOMIFY_VENDOR_NAME = "sbomify"
 
 
-def fetch_backend_metadata(api_base_url: str, token: str, component_id: str) -> Dict[str, Any]:
+def fetch_augmentation_metadata(
+    api_base_url: Optional[str] = None,
+    token: Optional[str] = None,
+    component_id: Optional[str] = None,
+    config_path: Optional[str] = None,
+) -> Dict[str, Any]:
     """
-    Fetch metadata from backend API.
+    Fetch augmentation metadata from multiple providers.
+
+    Uses the plugin architecture to query metadata from multiple sources
+    in priority order:
+    1. JSON config file (sbomify.json) - priority 10
+    2. sbomify API - priority 50
+
+    Higher priority providers' values take precedence. This allows local
+    config to override backend settings.
 
     Args:
-        api_base_url: Base URL for the API
-        token: Authentication token
-        component_id: Component ID to fetch metadata for
+        api_base_url: Base URL for the sbomify API (optional)
+        token: Authentication token for sbomify API (optional)
+        component_id: Component ID for sbomify API (optional)
+        config_path: Path to JSON config file (optional, defaults to sbomify.json)
 
     Returns:
-        Backend metadata dict
-
-    Raises:
-        APIError: If API call fails
+        Merged augmentation metadata dict from all providers
     """
-    from .exceptions import APIError
+    registry = create_default_registry()
 
-    url = f"{api_base_url}/api/v1/sboms/component/{component_id}/meta"
-    headers = get_default_headers(token)
+    # Log registered providers
+    providers = registry.list_providers()
+    logger.debug(f"Registered augmentation providers: {[p['name'] for p in providers]}")
 
-    try:
-        response = requests.get(url, headers=headers, timeout=60)
-    except requests.exceptions.ConnectionError:
-        raise APIError("Failed to connect to sbomify API")
-    except requests.exceptions.Timeout:
-        raise APIError("API request timed out")
+    # Fetch from all providers (merged by priority)
+    metadata = registry.fetch_metadata(
+        component_id=component_id,
+        api_base_url=api_base_url,
+        token=token,
+        config_path=config_path,
+    )
 
-    if not response.ok:
-        err_msg = f"Failed to retrieve component metadata from sbomify. [{response.status_code}]"
-        if response.headers.get("content-type") == "application/json":
-            try:
-                error_data = response.json()
-                if "detail" in error_data:
-                    err_msg += f" - {error_data['detail']}"
-            except (ValueError, KeyError):
-                pass
-        raise APIError(err_msg)
-
-    return response.json()
+    if metadata and metadata.has_data():
+        logger.info(f"Fetched augmentation metadata from: {metadata.source}")
+        return metadata.to_dict()
+    else:
+        logger.debug("No augmentation metadata available from any provider")
+        return {}
 
 
 def _process_license_data(license_data: Any) -> Optional[Any]:
@@ -511,6 +550,39 @@ def augment_cyclonedx_sbom(
             )
         logger.info(f"Set component version from configuration: {component_version}")
 
+    # Add lifecycle phase if present (CISA 2025 Generation Context requirement)
+    # See: https://sbomify.com/compliance/cisa-minimum-elements/
+    # Crosswalk: https://sbomify.com/compliance/schema-crosswalk/
+    # Only supported in CycloneDX 1.5+ (metadata.lifecycles field not available in 1.3/1.4)
+    if "lifecycle_phase" in augmentation_data and augmentation_data["lifecycle_phase"]:
+        # Parse spec version to check if 1.5+
+        if spec_version:
+            spec_parts = spec_version.split(".")
+            major = int(spec_parts[0]) if len(spec_parts) > 0 else 1
+            minor = int(spec_parts[1]) if len(spec_parts) > 1 else 4
+            is_v15_or_later = (major > 1) or (major == 1 and minor >= 5)
+
+            if is_v15_or_later:
+                phase_value = augmentation_data["lifecycle_phase"].lower().replace("_", "-")
+                # Map to CycloneDX LifecyclePhase enum
+                phase_mapping = {
+                    "design": LifecyclePhase.DESIGN,
+                    "pre-build": LifecyclePhase.PRE_BUILD,
+                    "build": LifecyclePhase.BUILD,
+                    "post-build": LifecyclePhase.POST_BUILD,
+                    "operations": LifecyclePhase.OPERATIONS,
+                    "discovery": LifecyclePhase.DISCOVERY,
+                    "decommission": LifecyclePhase.DECOMMISSION,
+                }
+                if phase_value in phase_mapping:
+                    lifecycle = PredefinedLifecycle(phase=phase_mapping[phase_value])
+                    bom.metadata.lifecycles.add(lifecycle)
+                    logger.info(f"Added lifecycle phase: {phase_value}")
+                else:
+                    logger.warning(f"Unknown lifecycle phase '{phase_value}', skipping")
+            else:
+                logger.debug(f"Lifecycle phase not supported in CycloneDX {spec_version} (requires 1.5+)")
+
     return bom
 
 
@@ -790,22 +862,40 @@ def augment_spdx_sbom(
         main_package.version = component_version
         logger.info(f"Set package version from configuration: {component_version}")
 
+    # Add lifecycle phase if present (CISA 2025 Generation Context requirement)
+    # See: https://sbomify.com/compliance/cisa-minimum-elements/
+    # Crosswalk: https://sbomify.com/compliance/schema-crosswalk/
+    # For SPDX, we add this to creator_comment since there's no dedicated field
+    if "lifecycle_phase" in augmentation_data and augmentation_data["lifecycle_phase"]:
+        phase_value = augmentation_data["lifecycle_phase"]
+        lifecycle_comment = f"Lifecycle phase: {phase_value}"
+        if document.creation_info.creator_comment:
+            document.creation_info.creator_comment += f" | {lifecycle_comment}"
+        else:
+            document.creation_info.creator_comment = lifecycle_comment
+        logger.info(f"Added lifecycle phase to SPDX creator comment: {phase_value}")
+
     return document
 
 
 def augment_sbom_from_file(
     input_file: str,
     output_file: str,
-    api_base_url: str,
-    token: str,
-    component_id: str,
+    api_base_url: Optional[str] = None,
+    token: Optional[str] = None,
+    component_id: Optional[str] = None,
     override_sbom_metadata: bool = False,
     component_name: Optional[str] = None,
     component_version: Optional[str] = None,
     validate: bool = True,
+    config_path: Optional[str] = None,
 ) -> Literal["cyclonedx", "spdx"]:
     """
-    Augment SBOM file with backend metadata.
+    Augment SBOM file with metadata from multiple providers.
+
+    Uses the plugin architecture to fetch metadata from:
+    1. JSON config file (sbomify.json) - higher priority
+    2. sbomify API - lower priority (fallback)
 
     After augmentation, the output SBOM is validated against its JSON schema
     (when validate=True).
@@ -813,13 +903,14 @@ def augment_sbom_from_file(
     Args:
         input_file: Path to input SBOM file
         output_file: Path to save augmented SBOM
-        api_base_url: Backend API base URL
-        token: Authentication token
-        component_id: Component ID to fetch metadata for
+        api_base_url: Backend API base URL (optional, for sbomify API provider)
+        token: Authentication token (optional, for sbomify API provider)
+        component_id: Component ID (optional, for sbomify API provider)
         override_sbom_metadata: Whether to override existing metadata
         component_name: Optional component name override
         component_version: Optional component version override
         validate: Whether to validate the output SBOM (default: True)
+        config_path: Path to JSON config file (optional, defaults to sbomify.json)
 
     Returns:
         SBOM format ('cyclonedx' or 'spdx')
@@ -829,9 +920,14 @@ def augment_sbom_from_file(
         SBOMValidationError: If output validation fails
         Exception: For other errors during augmentation
     """
-    # Fetch backend metadata
-    logger.info("Fetching component metadata from sbomify API")
-    augmentation_data = fetch_backend_metadata(api_base_url, token, component_id)
+    # Fetch metadata from all providers (merged by priority)
+    logger.info("Fetching augmentation metadata from providers")
+    augmentation_data = fetch_augmentation_metadata(
+        api_base_url=api_base_url,
+        token=token,
+        component_id=component_id,
+        config_path=config_path,
+    )
 
     # Detect format and parse
     input_path = Path(input_file)

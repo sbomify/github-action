@@ -1,4 +1,12 @@
-"""Main Enricher class for SBOM enrichment orchestration."""
+"""Main Enricher class for SBOM enrichment orchestration.
+
+Enriches SBOM components with metadata from authoritative package registries
+to satisfy NTIA Minimum Elements requirements.
+
+References:
+    NTIA Minimum Elements: https://sbomify.com/compliance/ntia-minimum-elements/
+    Schema Crosswalk: https://sbomify.com/compliance/schema-crosswalk/
+"""
 
 from typing import Dict, List, Optional
 

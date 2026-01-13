@@ -3,6 +3,23 @@
 This module provides SBOM enrichment through a plugin architecture that queries
 multiple data sources in priority order to populate NTIA-required fields.
 
+NTIA Minimum Elements (July 2021):
+    https://sbomify.com/compliance/ntia-minimum-elements/
+
+    Enrichment adds to each component:
+    - Supplier Name: CycloneDX components[].publisher / SPDX packages[].supplier
+    - License: CycloneDX components[].licenses[] / SPDX packages[].licenseDeclared
+
+CISA 2025 Additional Fields:
+    https://sbomify.com/compliance/cisa-minimum-elements/
+
+    Enrichment adds:
+    - Component Hash: From generators (not enrichment)
+    - License: CycloneDX components[].licenses[] / SPDX packages[].licenseDeclared
+
+Field mappings per schema crosswalk:
+    https://sbomify.com/compliance/schema-crosswalk/
+
 Plugin architecture is in sbomify_action/_enrichment/:
 - metadata.py: NormalizedMetadata dataclass
 - protocol.py: DataSource protocol

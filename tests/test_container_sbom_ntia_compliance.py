@@ -1,6 +1,9 @@
 """
 Tests for NTIA compliance on real container image SBOMs.
 
+Reference: https://sbomify.com/compliance/ntia-minimum-elements/
+Crosswalk: https://sbomify.com/compliance/schema-crosswalk/
+
 This module tests enrichment and augmentation on SBOMs generated from:
 - Ubuntu 22.04
 - Alpine 3.19
@@ -8,6 +11,14 @@ This module tests enrichment and augmentation on SBOMs generated from:
 - Red Hat UBI9
 
 Both CycloneDX and SPDX formats are tested with Trivy and Syft outputs.
+
+NTIA Minimum Elements validated:
+- Supplier Name: CycloneDX publisher/supplier.name, SPDX packages[].supplier
+- Component Name/Version: Always present from generators
+- Unique Identifiers: PURLs from generators
+- Dependency Relationship: dependencies[]/relationships[]
+- SBOM Author: metadata.authors[]/creationInfo.creators[]
+- Timestamp: metadata.timestamp/creationInfo.created
 """
 
 import json

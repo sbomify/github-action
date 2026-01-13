@@ -15,7 +15,7 @@ from sbomify_action.augmentation import (
     augment_cyclonedx_sbom,
     augment_sbom_from_file,
     augment_spdx_sbom,
-    fetch_backend_metadata,
+    fetch_augmentation_metadata,
 )
 
 
@@ -149,9 +149,9 @@ class TestLicenseHandling:
         assert enriched_bom.metadata.component.name == "overridden-name"
         assert enriched_bom.metadata.component.version == "2.0.0"
 
-    @patch("sbomify_action.augmentation.requests.get")
-    def test_fetch_backend_metadata(self, mock_get, sample_backend_metadata_with_mixed_licenses):
-        """Test fetching metadata from backend API."""
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
+    def test_fetch_augmentation_metadata(self, mock_get, sample_backend_metadata_with_mixed_licenses):
+        """Test fetching metadata from providers (sbomify API)."""
         # Setup mock
         mock_response = Mock()
         mock_response.ok = True
@@ -159,7 +159,7 @@ class TestLicenseHandling:
         mock_get.return_value = mock_response
 
         # Fetch metadata
-        result = fetch_backend_metadata(
+        result = fetch_augmentation_metadata(
             api_base_url="https://api.test.com",
             token="test-token",
             component_id="test-component-123",
@@ -167,9 +167,10 @@ class TestLicenseHandling:
 
         # Verify API call
         mock_get.assert_called_once()
-        assert result == sample_backend_metadata_with_mixed_licenses
+        assert result["supplier"] == sample_backend_metadata_with_mixed_licenses["supplier"]
+        assert result["authors"] == sample_backend_metadata_with_mixed_licenses["authors"]
 
-    @patch("sbomify_action.augmentation.requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_augment_sbom_from_file_cyclonedx(
         self, mock_get, sample_cyclonedx_bom, sample_backend_metadata_with_mixed_licenses
     ):
@@ -388,7 +389,7 @@ class TestSPDXAugmentation:
         assert enriched_doc.packages[0].name == "overridden-spdx-name"
         assert enriched_doc.packages[0].version == "2.0.0-spdx"
 
-    @patch("sbomify_action.augmentation.requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_augment_sbom_from_file_spdx(self, mock_get, spdx_document):
         """Test augmenting SPDX SBOM from file."""
         backend_data = {
@@ -687,7 +688,7 @@ class TestSPDXAugmentation:
 class TestErrorHandling:
     """Test error handling in augmentation."""
 
-    @patch("requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_file_not_found_error(self, mock_get):
         """Test handling of missing input file."""
         mock_response = Mock()
@@ -707,7 +708,7 @@ class TestErrorHandling:
         assert "Input SBOM file not found" in str(exc_info.value)
         assert "/nonexistent/file.json" in str(exc_info.value)
 
-    @patch("requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_invalid_json_error(self, mock_get):
         """Test handling of invalid JSON in input file."""
         mock_response = Mock()
@@ -734,47 +735,44 @@ class TestErrorHandling:
 
             assert "Invalid JSON in SBOM file" in str(exc_info.value)
 
-    @patch("requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_api_connection_error(self, mock_get):
-        """Test handling of API connection errors."""
+        """Test handling of API connection errors (provider returns None, not exception)."""
         import requests
-
-        from sbomify_action.exceptions import APIError
 
         mock_get.side_effect = requests.exceptions.ConnectionError("Connection failed")
 
-        with pytest.raises(APIError) as exc_info:
-            fetch_backend_metadata(
-                api_base_url="https://api.test.com",
-                token="test-token",
-                component_id="test-component",
-            )
+        # With the provider architecture, API errors are caught and logged,
+        # the provider returns None, and fetch_augmentation_metadata returns {}
+        result = fetch_augmentation_metadata(
+            api_base_url="https://api.test.com",
+            token="test-token",
+            component_id="test-component",
+        )
 
-        assert "Failed to connect" in str(exc_info.value)
+        # Provider catches the error and returns None, which results in empty dict
+        assert result == {}
 
-    @patch("requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_api_timeout_error(self, mock_get):
-        """Test handling of API timeout errors."""
+        """Test handling of API timeout errors (provider returns None, not exception)."""
         import requests
-
-        from sbomify_action.exceptions import APIError
 
         mock_get.side_effect = requests.exceptions.Timeout("Timeout")
 
-        with pytest.raises(APIError) as exc_info:
-            fetch_backend_metadata(
-                api_base_url="https://api.test.com",
-                token="test-token",
-                component_id="test-component",
-            )
+        # With the provider architecture, API errors are caught and logged
+        result = fetch_augmentation_metadata(
+            api_base_url="https://api.test.com",
+            token="test-token",
+            component_id="test-component",
+        )
 
-        assert "timed out" in str(exc_info.value)
+        # Provider catches the error and returns None, which results in empty dict
+        assert result == {}
 
-    @patch("requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_api_404_error(self, mock_get):
-        """Test handling of API 404 errors."""
-        from sbomify_action.exceptions import APIError
-
+        """Test handling of API 404 errors (provider returns None, not exception)."""
         mock_response = Mock()
         mock_response.ok = False
         mock_response.status_code = 404
@@ -782,17 +780,17 @@ class TestErrorHandling:
         mock_response.json.return_value = {"detail": "Component not found"}
         mock_get.return_value = mock_response
 
-        with pytest.raises(APIError) as exc_info:
-            fetch_backend_metadata(
-                api_base_url="https://api.test.com",
-                token="test-token",
-                component_id="nonexistent",
-            )
+        # With the provider architecture, API errors are caught and logged
+        result = fetch_augmentation_metadata(
+            api_base_url="https://api.test.com",
+            token="test-token",
+            component_id="nonexistent",
+        )
 
-        assert "404" in str(exc_info.value)
-        assert "Component not found" in str(exc_info.value)
+        # Provider catches the error and returns None, which results in empty dict
+        assert result == {}
 
-    @patch("requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_missing_spec_version_error(self, mock_get):
         """Test handling of missing specVersion in CycloneDX SBOM."""
         from sbomify_action.exceptions import SBOMValidationError
@@ -1266,7 +1264,7 @@ class TestAugmentationValidation:
 
         return Document(creation_info=creation_info, packages=[package])
 
-    @patch("sbomify_action.augmentation.requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_augment_cyclonedx_validates_output_by_default(self, mock_get, sample_cyclonedx_bom):
         """Test that CycloneDX augmentation validates output by default."""
         mock_response = Mock()
@@ -1296,7 +1294,7 @@ class TestAugmentationValidation:
             assert format_result == "cyclonedx"
             assert output_file.exists()
 
-    @patch("sbomify_action.augmentation.requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_augment_cyclonedx_validation_failure_raises_error(self, mock_get, sample_cyclonedx_bom):
         """Test that CycloneDX validation failure raises SBOMValidationError."""
         from sbomify_action.exceptions import SBOMValidationError
@@ -1335,7 +1333,7 @@ class TestAugmentationValidation:
 
                 assert "Augmented SBOM failed validation" in str(exc_info.value)
 
-    @patch("sbomify_action.augmentation.requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_augment_cyclonedx_skips_validation_when_disabled(self, mock_get, sample_cyclonedx_bom):
         """Test that CycloneDX validation is skipped when validate=False."""
         mock_response = Mock()
@@ -1368,7 +1366,7 @@ class TestAugmentationValidation:
 
             assert output_file.exists()
 
-    @patch("sbomify_action.augmentation.requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_augment_spdx_validates_output_by_default(self, mock_get, sample_spdx_document):
         """Test that SPDX augmentation validates output by default."""
         mock_response = Mock()
@@ -1396,7 +1394,7 @@ class TestAugmentationValidation:
             assert format_result == "spdx"
             assert output_file.exists()
 
-    @patch("sbomify_action.augmentation.requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_augment_spdx_validation_failure_raises_error(self, mock_get, sample_spdx_document):
         """Test that SPDX validation failure raises SBOMValidationError."""
         from sbomify_action.exceptions import SBOMValidationError
@@ -1433,7 +1431,7 @@ class TestAugmentationValidation:
 
                 assert "Augmented SBOM failed validation" in str(exc_info.value)
 
-    @patch("sbomify_action.augmentation.requests.get")
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_augment_spdx_skips_validation_when_disabled(self, mock_get, sample_spdx_document):
         """Test that SPDX validation is skipped when validate=False."""
         mock_response = Mock()

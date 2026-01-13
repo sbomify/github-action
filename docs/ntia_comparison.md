@@ -4,10 +4,29 @@ SBOM generators like Trivy and Syft produce minimal component data—typically j
 sbomify enriches every component with metadata from authoritative package registries, making your SBOMs
 more useful for vulnerability management, license compliance, and supply chain analysis.
 
-### What sbomify Adds
+### NTIA Minimum Elements
 
-Most SBOM generators only include basic package identification (name, version, PURL).
-sbomify enriches each component with **7 additional fields** from authoritative sources:
+sbomify helps you achieve compliance with the [NTIA Minimum Elements for SBOM](https://sbomify.com/compliance/ntia-minimum-elements/),
+the foundational US baseline for SBOM data fields. The table below shows how sbomify contributes to each required element:
+
+| NTIA Element | CycloneDX Field | SPDX Field | Provided By |
+|--------------|-----------------|------------|-------------|
+| **Supplier Name** | `components[].publisher` or `supplier.name` | `packages[].supplier` | Enrichment |
+| **Component Name** | `components[].name` | `packages[].name` | Generator |
+| **Component Version** | `components[].version` | `packages[].versionInfo` | Generator |
+| **Unique Identifiers** | `components[].purl` | `packages[].externalRefs[].purl` | Generator |
+| **Dependency Relationship** | `dependencies[]` | `relationships[]` | Generator |
+| **SBOM Author** | `metadata.authors[]` | `creationInfo.creators[]` | Augmentation |
+| **Timestamp** | `metadata.timestamp` | `creationInfo.created` | Generator |
+
+For the complete field mapping across CycloneDX and SPDX versions, see the
+[Schema Crosswalk](https://sbomify.com/compliance/schema-crosswalk/).
+
+### Enrichment: Beyond NTIA Minimums
+
+Beyond the NTIA minimum elements, sbomify enriches each component with **7 additional metadata fields**
+from authoritative package registries. These fields improve SBOM utility for vulnerability management,
+license compliance, and supply chain analysis:
 
 | Ecosystem | Scanner | Metadata Fields |  |  |
 |-----------|---------|-----------------|--|--|
@@ -102,5 +121,17 @@ sbomify queries multiple authoritative sources in priority order:
   ]
 }
 ```
+
+### CISA 2025 Additional Fields
+
+The [CISA 2025 Minimum Elements](https://sbomify.com/compliance/cisa-minimum-elements/) draft introduces
+additional fields beyond NTIA 2021. sbomify supports these where applicable:
+
+| CISA 2025 Field | CycloneDX Field | SPDX Field | Status |
+|-----------------|-----------------|------------|--------|
+| **Component Hash** | `components[].hashes[]` | `packages[].checksums[]` | From generators |
+| **License** | `components[].licenses[]` | `packages[].licenseDeclared` | Enrichment adds |
+| **Tool Name/Version** | `metadata.tools` | `creationInfo.creators[]` | Augmentation adds sbomify |
+| **Generation Context** | `metadata.lifecycles[].phase` (1.5+) | `creationInfo.creatorComment` | Augmentation adds from backend |
 
 *Generated: 2025-12-17 — Run `uv run scripts/generate_ntia_comparison.py` to update*
