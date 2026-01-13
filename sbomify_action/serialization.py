@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 from packageurl import PackageURL
 from spdx_tools.spdx.model import Document
 
+from .console import get_transformation_tracker
 from .logging_config import logger
 
 # ============================================================================
@@ -280,6 +281,9 @@ def _sanitize_component_purl(comp: "Component", comp_type: str) -> tuple[int, in
     purls_cleared = 0
     purl_str = str(comp.purl)
 
+    tracker = get_transformation_tracker()
+    original_purl = purl_str
+
     # First, try to normalize
     normalized_str, was_normalized = normalize_purl(purl_str)
     if was_normalized:
@@ -287,7 +291,8 @@ def _sanitize_component_purl(comp: "Component", comp_type: str) -> tuple[int, in
             comp.purl = PackageURL.from_string(normalized_str)
             purl_str = normalized_str
             purls_normalized = 1
-            logger.info(f"Normalized PURL for {comp_type} '{comp.name}': {purl_str}")
+            # Record for attestation
+            tracker.record_purl_normalization(comp.name, original_purl, normalized_str)
         except ValueError:
             # Normalization produced invalid PURL, will be caught below
             pass
@@ -295,7 +300,8 @@ def _sanitize_component_purl(comp: "Component", comp_type: str) -> tuple[int, in
     # Then check if it's still invalid
     is_invalid, reason = _is_invalid_purl(purl_str)
     if is_invalid:
-        logger.warning(f"Clearing invalid PURL from {comp_type} '{comp.name}': {purl_str} ({reason})")
+        # Record for attestation
+        tracker.record_purl_cleared(comp.name, purl_str, reason)
         comp.purl = None
         purls_cleared = 1
 
@@ -401,6 +407,7 @@ def sanitize_dependency_graph(bom: Bom) -> int:
     if not orphaned_refs:
         return 0
 
+    tracker = get_transformation_tracker()
     stubs_added = 0
 
     for ref_value in orphaned_refs:
@@ -420,13 +427,8 @@ def sanitize_dependency_graph(bom: Bom) -> int:
             if purl_obj:
                 stub.purl = purl_obj
 
-            group_display = namespace or _NO_NAMESPACE_DISPLAY
-            logger.warning(
-                f"Adding stub component for orphaned dependency reference: {ref_value} "
-                f"(name={name}, version={version or _UNKNOWN_VERSION}, group={group_display}). "
-                "This component was referenced in the dependency graph but missing from components list. "
-                "The upstream SBOM generator may have a bug."
-            )
+            # Record for attestation
+            tracker.record_stub_added(ref_value, name, version or _UNKNOWN_VERSION)
         else:
             # Can't parse as PURL - create minimal stub with ref as name
             stub = Component(
@@ -435,12 +437,8 @@ def sanitize_dependency_graph(bom: Bom) -> int:
                 version=_UNKNOWN_VERSION,
                 bom_ref=BomRef(ref_value),
             )
-            logger.warning(
-                f"Adding stub component for orphaned dependency reference: {ref_value} "
-                "(could not parse as PURL, using ref as component name). "
-                "This component was referenced in the dependency graph but missing from components list. "
-                "The upstream SBOM generator may have a bug."
-            )
+            # Record for attestation
+            tracker.record_stub_added(ref_value, ref_value, _UNKNOWN_VERSION)
 
         bom.components.add(stub)
         stubs_added += 1

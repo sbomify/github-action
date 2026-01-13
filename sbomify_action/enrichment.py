@@ -655,7 +655,13 @@ def _enrich_cyclonedx_bom_with_plugin_architecture(bom: Bom, enricher: Enricher)
         "sources": {},
     }
 
-    for component in bom.components:
+    total_components = len(bom.components)
+    progress_interval = max(1, total_components // 4)  # Report progress at 25%, 50%, 75%
+
+    for idx, component in enumerate(bom.components):
+        # Log progress at intervals (CI-friendly, no progress bars)
+        if idx > 0 and idx % progress_interval == 0:
+            logger.info(f"  Processed {idx}/{total_components} components...")
         added_fields = []
         enrichment_source = None
         purl_str = str(component.purl) if component.purl else None
@@ -730,7 +736,13 @@ def _enrich_spdx_document_with_plugin_architecture(document: Document, enricher:
         "sources": {},
     }
 
-    for package in document.packages:
+    total_packages = len(document.packages)
+    progress_interval = max(1, total_packages // 4)  # Report progress at 25%, 50%, 75%
+
+    for idx, package in enumerate(document.packages):
+        # Log progress at intervals (CI-friendly, no progress bars)
+        if idx > 0 and idx % progress_interval == 0:
+            logger.info(f"  Processed {idx}/{total_packages} packages...")
         added_fields = []
         enrichment_source = None
 
@@ -958,52 +970,14 @@ def _enrich_spdx_sbom(input_path: Path, output_path: Path, enricher: Enricher) -
 
 
 def _log_cyclonedx_enrichment_summary(stats: Dict[str, int], total_components: int) -> None:
-    """Log enrichment summary for CycloneDX."""
-    logger.info("Enrichment Summary:")
-    logger.info(f"  Components enriched: {stats['components_enriched']}/{total_components}")
+    """Log enrichment summary for CycloneDX using Rich table."""
+    from .console import print_enrichment_summary
 
-    # Log by source
-    for source, count in sorted(stats.get("sources", {}).items()):
-        logger.info(f"  Enriched from {source}: {count}")
-
-    if stats.get("os_components_enriched", 0) > 0:
-        logger.info(f"  OS components enriched: {stats['os_components_enriched']}")
-    if stats["descriptions_added"] > 0:
-        logger.info(f"  Descriptions added: {stats['descriptions_added']}")
-    if stats["licenses_added"] > 0:
-        logger.info(f"  Licenses added: {stats['licenses_added']}")
-    if stats["publishers_added"] > 0:
-        logger.info(f"  Publishers added: {stats['publishers_added']}")
-    if stats["homepages_added"] > 0:
-        logger.info(f"  Homepage URLs added: {stats['homepages_added']}")
-    if stats["repositories_added"] > 0:
-        logger.info(f"  Repository URLs added: {stats['repositories_added']}")
-    if stats["distributions_added"] > 0:
-        logger.info(f"  Distribution URLs added: {stats['distributions_added']}")
-    if stats["issue_trackers_added"] > 0:
-        logger.info(f"  Issue tracker URLs added: {stats['issue_trackers_added']}")
+    print_enrichment_summary(stats, total_components)
 
 
 def _log_spdx_enrichment_summary(stats: Dict[str, int], total_packages: int) -> None:
-    """Log enrichment summary for SPDX."""
-    logger.info("Enrichment Summary:")
-    logger.info(f"  Packages enriched: {stats['components_enriched']}/{total_packages}")
+    """Log enrichment summary for SPDX using Rich table."""
+    from .console import print_enrichment_summary
 
-    # Log by source
-    for source, count in sorted(stats.get("sources", {}).items()):
-        logger.info(f"  Enriched from {source}: {count}")
-
-    if stats["descriptions_added"] > 0:
-        logger.info(f"  Descriptions added: {stats['descriptions_added']}")
-    if stats["licenses_added"] > 0:
-        logger.info(f"  Licenses added: {stats['licenses_added']}")
-    if stats["homepages_added"] > 0:
-        logger.info(f"  Homepage URLs added: {stats['homepages_added']}")
-    if stats["originators_added"] > 0:
-        logger.info(f"  Originators added: {stats['originators_added']}")
-    if stats["suppliers_added"] > 0:
-        logger.info(f"  Suppliers added: {stats['suppliers_added']}")
-    if stats["source_info_added"] > 0:
-        logger.info(f"  Source info added: {stats['source_info_added']}")
-    if stats["external_refs_added"] > 0:
-        logger.info(f"  External references added: {stats['external_refs_added']}")
+    print_enrichment_summary(stats, total_packages)

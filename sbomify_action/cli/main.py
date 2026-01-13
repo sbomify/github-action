@@ -18,6 +18,16 @@ from .._generation.utils import log_command_error
 from .._upload import VALID_DESTINATIONS
 from ..additional_packages import inject_additional_packages
 from ..augmentation import augment_sbom_from_file
+from ..console import (
+    print_banner as console_print_banner,
+)
+from ..console import (
+    print_final_success,
+    print_step_end,
+    print_step_header,
+    print_transformation_summary,
+    reset_transformation_tracker,
+)
 from ..exceptions import (
     APIError,
     ConfigurationError,
@@ -775,20 +785,8 @@ def enrich_sbom(input_file: str, output_file: str) -> None:
 
 
 def print_banner() -> None:
-    """Print the sbomify banner."""
-    ascii_art = """
-
-      _                     _  __
-     | |                   (_)/ _|
-  ___| |__   ___  _ __ ___  _| |_ _   _
- / __| '_ \\ / _ \\| '_ ' _ \\| |  _| | | |
- \\__ \\ |_) | (_) | | | | | | | | | |_| |
- |___/_.__/ \\___/|_| |_| |_|_|_|  \\__, |
-                                   __/ |
- The SBOM hub for secure          |___/
- sharing and distribution.
-"""
-    logger.info(ascii_art)
+    """Print the sbomify banner with gradient colors."""
+    console_print_banner(SBOMIFY_VERSION)
 
 
 def _log_step_header(step_num: int, title: str, emoji: str = "") -> None:
@@ -796,32 +794,11 @@ def _log_step_header(step_num: int, title: str, emoji: str = "") -> None:
     Log a nicely formatted step header optimized for GitHub Actions.
 
     Args:
-        step_num: Step number (1-5)
+        step_num: Step number (1-6)
         title: Step title
         emoji: Optional emoji to include (deprecated, will be ignored)
     """
-    import os
-
-    # Check if we're running in GitHub Actions
-    is_github_actions = os.getenv("GITHUB_ACTIONS") == "true"
-
-    # Create a shorter border optimized for GitHub Actions (max 60 chars)
-    title_with_step = f"STEP {step_num}: {title}"
-    border_length = min(60, max(50, len(title_with_step) + 4))
-    border = "=" * border_length
-
-    # Use GitHub Actions grouping if available
-    if is_github_actions:
-        # GitHub Actions group syntax
-        print(f"::group::{title_with_step}")
-        logger.info(f"{title_with_step}")
-        logger.info(border)
-    else:
-        # Local/standard logging with full ASCII art
-        logger.info("")
-        logger.info(border)
-        logger.info(f"{title_with_step.center(border_length - 2)}")
-        logger.info(border)
+    print_step_header(step_num, title)
 
 
 def _log_step_end(step_num: int, success: bool = True) -> None:
@@ -829,23 +806,10 @@ def _log_step_end(step_num: int, success: bool = True) -> None:
     Log step completion and close GitHub Actions group if applicable.
 
     Args:
-        step_num: Step number (1-5)
+        step_num: Step number (1-6)
         success: Whether the step completed successfully
     """
-    import os
-
-    is_github_actions = os.getenv("GITHUB_ACTIONS") == "true"
-
-    if success:
-        logger.info(f"Step {step_num} completed successfully")
-    else:
-        logger.error(f"Step {step_num} failed")
-
-    # Close GitHub Actions group
-    if is_github_actions:
-        print("::endgroup::")
-    else:
-        logger.info("")  # Add spacing for local runs
+    print_step_end(step_num, success)
 
 
 def _check_release_exists(config: "Config", product_id: str, version: str) -> bool:
@@ -1131,6 +1095,9 @@ def _process_product_releases(config: "Config", sbom_id: str) -> None:
 
 def main() -> None:
     """Main entry point for the sbomify action."""
+    # Reset transformation tracker for this run (tracks all SBOM modifications for attestation)
+    reset_transformation_tracker()
+
     print_banner()
 
     # Setup dependencies
@@ -1404,21 +1371,11 @@ def main() -> None:
         logger.info("No product releases specified")
         _log_step_end(6)
 
-    # Final success message optimized for both local and GitHub Actions
-    import os
+    # Print transformation summary for attestation (shows all SBOM modifications)
+    print_transformation_summary()
 
-    if os.getenv("GITHUB_ACTIONS") == "true":
-        # Simple success message for GitHub Actions
-        logger.info("")
-        logger.info("SUCCESS! All steps completed successfully!")
-        logger.info("")
-    else:
-        # ASCII art for local runs (without emojis)
-        logger.info("")
-        logger.info("=" * 60)
-        logger.info(" SUCCESS! All steps completed successfully! ".center(60))
-        logger.info("=" * 60)
-        logger.info("")
+    # Final success message
+    print_final_success()
 
 
 def _validate_cyclonedx_sbom(sbom_file_path: str) -> bool | None:
