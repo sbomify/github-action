@@ -248,7 +248,11 @@ class TestCratesIOSourceLicenseParsing:
         assert metadata.licenses == ["MIT"]
 
     def test_dual_license_or(self, mock_session):
-        """Test parsing dual MIT OR Apache-2.0 license."""
+        """Test parsing dual MIT OR Apache-2.0 license.
+
+        SPDX expressions like 'MIT OR Apache-2.0' are kept as-is by normalize_license_list
+        since they are valid SPDX expressions.
+        """
         source = CratesIOSource()
         purl = PackageURL.from_string("pkg:cargo/serde@1.0.0")
 
@@ -266,8 +270,9 @@ class TestCratesIOSourceLicenseParsing:
         metadata = source.fetch(purl, mock_session)
 
         assert metadata is not None
-        # The normalize_license_list should handle SPDX expressions
-        assert "MIT" in metadata.licenses or "MIT OR Apache-2.0" in metadata.licenses
+        # SPDX expressions are preserved as-is
+        assert len(metadata.licenses) == 1
+        assert metadata.licenses[0] == "MIT OR Apache-2.0"
 
     def test_no_license_field(self, mock_session):
         """Test handling when license field is missing."""

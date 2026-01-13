@@ -143,7 +143,7 @@ class CratesIOSource:
 
         # Maintainer/Supplier info from published_by
         published_by = version_data.get("published_by", {})
-        maintainer_name = published_by.get("name") if published_by else None
+        maintainer_name = published_by.get("name")
 
         # URLs - available in both version and crate data
         homepage = version_data.get("homepage") or crate_data.get("homepage")
