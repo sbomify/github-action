@@ -25,6 +25,7 @@ fi
 TRIVY_VERSION=$(extract_version "TRIVY" "$DOCKERFILE")
 BOMCTL_VERSION=$(extract_version "BOMCTL" "$DOCKERFILE")
 SYFT_VERSION=$(extract_version "SYFT" "$DOCKERFILE")
+CARGO_CYCLONEDX_VERSION=$(extract_version "CARGO_CYCLONEDX" "$DOCKERFILE")
 
 if [ -z "$TRIVY_VERSION" ]; then
   echo "ERROR: Could not extract TRIVY_VERSION from Dockerfile" >&2
@@ -41,14 +42,21 @@ if [ -z "$SYFT_VERSION" ]; then
   exit 1
 fi
 
+if [ -z "$CARGO_CYCLONEDX_VERSION" ]; then
+  echo "ERROR: Could not extract CARGO_CYCLONEDX_VERSION from Dockerfile" >&2
+  exit 1
+fi
+
 # Export for sourcing
 export TRIVY_VERSION
 export BOMCTL_VERSION
 export SYFT_VERSION
+export CARGO_CYCLONEDX_VERSION
 
 # When executed directly (not sourced), output PURLs
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   echo "pkg:golang/github.com/aquasecurity/trivy@v${TRIVY_VERSION}"
   echo "pkg:golang/github.com/bomctl/bomctl@v${BOMCTL_VERSION}"
   echo "pkg:golang/github.com/anchore/syft@v${SYFT_VERSION}"
+  echo "pkg:cargo/cargo-cyclonedx@${CARGO_CYCLONEDX_VERSION}"
 fi

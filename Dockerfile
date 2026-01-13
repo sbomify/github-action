@@ -8,7 +8,8 @@ WORKDIR /tmp
 # Define tool versions
 ENV BOMCTL_VERSION=0.4.3 \
     TRIVY_VERSION=0.67.2 \
-    SYFT_VERSION=1.39.0
+    SYFT_VERSION=1.39.0 \
+    CARGO_CYCLONEDX_VERSION=0.5.7
 
 RUN apt-get update && \
     apt-get install -y curl unzip
@@ -63,6 +64,29 @@ FROM oven/bun:debian AS node-fetcher
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
+
+# cargo-cyclonedx builder stage
+# Downloads pre-built binary for amd64, compiles from source for arm64
+FROM rust:1-slim AS rust-builder
+
+ARG TARGETARCH
+ARG CARGO_CYCLONEDX_VERSION=0.5.7
+
+RUN apt-get update && apt-get install -y curl xz-utils && \
+    if [ "${TARGETARCH}" = "amd64" ]; then \
+        curl -sL \
+            -o cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz \
+            "https://github.com/CycloneDX/cyclonedx-rust-cargo/releases/download/cargo-cyclonedx-${CARGO_CYCLONEDX_VERSION}/cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz" && \
+        curl -sL \
+            -o cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz.sha256 \
+            "https://github.com/CycloneDX/cyclonedx-rust-cargo/releases/download/cargo-cyclonedx-${CARGO_CYCLONEDX_VERSION}/cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz.sha256" && \
+        echo "$(cat cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz.sha256)  cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz" | sha256sum -c && \
+        tar xvf cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz && \
+        chmod +x cargo-cyclonedx && \
+        mv cargo-cyclonedx /usr/local/cargo/bin/; \
+    else \
+        cargo install cargo-cyclonedx@${CARGO_CYCLONEDX_VERSION}; \
+    fi
 
 # Python builder stage
 FROM python:3.13-slim-trixie AS builder
@@ -127,6 +151,8 @@ LABEL com.sbomify.maintainer="sbomify <hello@sbomify.com>" \
 COPY --from=fetcher /usr/local/bin/trivy /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/bomctl /usr/local/bin/
 COPY --from=fetcher /usr/local/bin/syft /usr/local/bin/
+# cargo-cyclonedx: pre-built for amd64, compiled for arm64
+COPY --from=rust-builder /usr/local/cargo/bin/cargo-cyclonedx /usr/local/bin/
 COPY --from=node-fetcher /usr/local/bin/bun /usr/local/bin/
 COPY --from=node-fetcher /app/node_modules /app/node_modules
 COPY --from=builder /opt/venv /opt/venv

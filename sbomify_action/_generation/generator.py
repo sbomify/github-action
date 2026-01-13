@@ -7,6 +7,7 @@ from sbomify_action.logging_config import logger
 from .generators import (
     CdxgenFsGenerator,
     CdxgenImageGenerator,
+    CycloneDXCargoGenerator,
     CycloneDXPyGenerator,
     SyftFsGenerator,
     SyftImageGenerator,
@@ -28,6 +29,9 @@ def create_default_registry() -> GeneratorRegistry:
     - CycloneDXPyGenerator: Native Python CycloneDX generator
       - Input: Python lock files only (requirements.txt, poetry.lock, Pipfile.lock, pyproject.toml)
       - Output: CycloneDX 1.0-1.7
+    - CycloneDXCargoGenerator: Native Rust/Cargo CycloneDX generator
+      - Input: Rust lock files only (Cargo.lock)
+      - Output: CycloneDX 1.4-1.6
 
     Priority 20 - Comprehensive Multi-Ecosystem (cdxgen):
     - CdxgenFsGenerator: Filesystem/lock file scanning
@@ -66,6 +70,7 @@ def create_default_registry() -> GeneratorRegistry:
 
     # Priority 10: Native generators
     registry.register(CycloneDXPyGenerator())
+    registry.register(CycloneDXCargoGenerator())
 
     # Priority 20: cdxgen generators (comprehensive multi-ecosystem)
     registry.register(CdxgenFsGenerator())
