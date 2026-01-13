@@ -13,6 +13,7 @@ import re
 from typing import Optional
 from urllib.parse import urlparse
 
+from sbomify_action.console import get_transformation_tracker
 from sbomify_action.logging_config import logger
 
 # Maximum lengths for various fields
@@ -67,11 +68,13 @@ _logged_vcs_normalizations: set[str] = set()
 
 
 def _log_vcs_normalization(original: str, normalized: str) -> None:
-    """Log VCS URL normalization only if not previously logged."""
+    """Record VCS URL normalization for attestation."""
     key = f"{original} -> {normalized}"
     if key not in _logged_vcs_normalizations:
         _logged_vcs_normalizations.add(key)
-        logger.info(f"Normalized VCS URL: {original} -> {normalized}")
+        # Record for attestation via transformation tracker
+        tracker = get_transformation_tracker()
+        tracker.record_vcs_normalization(original, normalized)
 
 
 def sanitize_string(
@@ -149,11 +152,14 @@ def sanitize_url(value: Optional[str], field_name: str = "url") -> Optional[str]
     Returns:
         Sanitized URL or None if invalid/empty
     """
+    tracker = get_transformation_tracker()
+
     if value is None:
         return None
 
     if not isinstance(value, str):
-        logger.warning(f"Non-string URL for {field_name}: {type(value)}")
+        # Record for attestation - non-string values are data quality issues
+        tracker.record_url_rejected(field_name, str(value)[:100], f"non-string type: {type(value).__name__}")
         return None
 
     # Strip whitespace
@@ -164,7 +170,7 @@ def sanitize_url(value: Optional[str], field_name: str = "url") -> Optional[str]
 
     # Enforce length limit
     if len(url) > MAX_URL_LENGTH:
-        logger.warning(f"URL too long for {field_name}: {len(url)} chars")
+        tracker.record_url_rejected(field_name, url[:100], f"too long: {len(url)} chars")
         return None
 
     # Parse and validate URL
@@ -173,17 +179,17 @@ def sanitize_url(value: Optional[str], field_name: str = "url") -> Optional[str]
 
         # Check scheme
         if parsed.scheme.lower() not in ALLOWED_URL_SCHEMES:
-            logger.warning(f"Disallowed URL scheme for {field_name}: '{parsed.scheme}' in URL: {url[:200]}")
+            tracker.record_url_rejected(field_name, url[:100], f"disallowed scheme: {parsed.scheme}")
             return None
 
         # Must have a netloc (host)
         if not parsed.netloc:
-            logger.warning(f"Invalid URL (no host) for {field_name}: {url[:100]}")
+            tracker.record_url_rejected(field_name, url[:100], "no host")
             return None
 
         # Reject URLs with HTML-like content (potential XSS vectors)
         if HTML_PATTERN.search(url):
-            logger.warning(f"URL contains HTML-like content for {field_name}")
+            tracker.record_url_rejected(field_name, url[:100], "contains HTML-like content")
             return None
 
         # Reconstruct URL to normalize it
@@ -191,7 +197,7 @@ def sanitize_url(value: Optional[str], field_name: str = "url") -> Optional[str]
         return url
 
     except Exception as e:
-        logger.warning(f"Failed to parse URL for {field_name}: {e}")
+        tracker.record_url_rejected(field_name, url[:100], f"parse error: {e}")
         return None
 
 

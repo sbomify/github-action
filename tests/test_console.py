@@ -1,0 +1,441 @@
+"""Tests for the console module."""
+
+import os
+import unittest
+from unittest.mock import patch
+
+from sbomify_action.console import (
+    BRAND_COLORS,
+    BRAND_COLORS_ADAPTIVE,
+    BRAND_COLORS_HEX,
+    IS_CI,
+    IS_GITHUB_ACTIONS,
+    TransformationTracker,
+    console,
+    get_transformation_tracker,
+    gha_error,
+    gha_group,
+    gha_notice,
+    gha_warning,
+    print_banner,
+    print_enrichment_summary,
+    print_final_failure,
+    print_final_success,
+    print_sanitization_summary,
+    print_step_end,
+    print_step_header,
+    print_summary_table,
+    print_transformation_summary,
+    print_upload_summary,
+    reset_transformation_tracker,
+)
+
+
+class TestBrandColors(unittest.TestCase):
+    """Tests for brand color constants."""
+
+    def test_brand_colors_defined(self):
+        """Test that all brand colors are defined."""
+        expected_colors = ["blue", "purple_light", "purple", "pink", "peach", "orange"]
+        for color in expected_colors:
+            self.assertIn(color, BRAND_COLORS)
+            self.assertIn(color, BRAND_COLORS_HEX)
+            self.assertIn(color, BRAND_COLORS_ADAPTIVE)
+
+    def test_brand_colors_hex_are_valid_hex(self):
+        """Test that hex colors are valid hex format."""
+        for name, color in BRAND_COLORS_HEX.items():
+            self.assertTrue(color.startswith("#"), f"{name} should start with #")
+            self.assertEqual(len(color), 7, f"{name} should be 7 chars (#RRGGBB)")
+
+    def test_brand_colors_adaptive_are_ansi_names(self):
+        """Test that adaptive colors are standard ANSI color names."""
+        valid_ansi_colors = {
+            "black",
+            "red",
+            "green",
+            "yellow",
+            "blue",
+            "magenta",
+            "cyan",
+            "white",
+            "bright_black",
+            "bright_red",
+            "bright_green",
+            "bright_yellow",
+            "bright_blue",
+            "bright_magenta",
+            "bright_cyan",
+            "bright_white",
+        }
+        for name, color in BRAND_COLORS_ADAPTIVE.items():
+            self.assertIn(
+                color, valid_ansi_colors, f"{name}: '{color}' should be a valid ANSI color name for theme adaptability"
+            )
+
+    def test_brand_colors_selected_based_on_ci(self):
+        """Test that BRAND_COLORS is selected based on CI environment."""
+        # BRAND_COLORS should be either HEX or ADAPTIVE based on IS_CI
+        if IS_CI:
+            self.assertEqual(BRAND_COLORS, BRAND_COLORS_ADAPTIVE)
+        else:
+            self.assertEqual(BRAND_COLORS, BRAND_COLORS_HEX)
+
+
+class TestCIDetection(unittest.TestCase):
+    """Tests for CI environment detection."""
+
+    def test_ci_detection_constants_exist(self):
+        """Test that CI detection constants are defined."""
+        # These are boolean values
+        self.assertIsInstance(IS_CI, bool)
+        self.assertIsInstance(IS_GITHUB_ACTIONS, bool)
+
+
+class TestConsoleInstance(unittest.TestCase):
+    """Tests for the shared console instance."""
+
+    def test_console_exists(self):
+        """Test that console instance is created."""
+        self.assertIsNotNone(console)
+
+
+class TestPrintBanner(unittest.TestCase):
+    """Tests for print_banner function."""
+
+    def test_print_banner_runs(self):
+        """Test that print_banner runs without error."""
+        # Just verify it doesn't raise an exception
+        print_banner("1.0.0")
+
+    def test_print_banner_unknown_version(self):
+        """Test that print_banner works with unknown version."""
+        print_banner("unknown")
+
+
+class TestStepHeader(unittest.TestCase):
+    """Tests for step header functions."""
+
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}, clear=False)
+    def test_step_header_local(self):
+        """Test step header in local mode."""
+        # Should not raise
+        print_step_header(1, "Test Step")
+
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=False)
+    def test_step_header_gha(self):
+        """Test step header in GitHub Actions mode."""
+        with patch("builtins.print") as mock_print:
+            # Re-import to get fresh GHA detection
+            from sbomify_action import console as c
+
+            # Force GHA detection
+            original = c.IS_GITHUB_ACTIONS
+            c.IS_GITHUB_ACTIONS = True
+            try:
+                c.print_step_header(1, "Test Step")
+                # Should have printed ::group::
+                mock_print.assert_called()
+            finally:
+                c.IS_GITHUB_ACTIONS = original
+
+
+class TestStepEnd(unittest.TestCase):
+    """Tests for step end function."""
+
+    def test_step_end_success(self):
+        """Test step end with success."""
+        print_step_end(1, success=True)
+
+    def test_step_end_failure(self):
+        """Test step end with failure."""
+        print_step_end(1, success=False)
+
+
+class TestGHAAnnotations(unittest.TestCase):
+    """Tests for GitHub Actions annotation functions."""
+
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}, clear=False)
+    def test_gha_warning_local(self):
+        """Test gha_warning in local mode."""
+        gha_warning("Test warning")
+        gha_warning("Test warning with title", title="Warning Title")
+
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}, clear=False)
+    def test_gha_error_local(self):
+        """Test gha_error in local mode."""
+        gha_error("Test error")
+        gha_error("Test error with title", title="Error Title")
+
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}, clear=False)
+    def test_gha_notice_local(self):
+        """Test gha_notice in local mode."""
+        gha_notice("Test notice")
+        gha_notice("Test notice with title", title="Notice Title")
+
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=False)
+    def test_gha_warning_gha_mode(self):
+        """Test gha_warning in GitHub Actions mode."""
+        with patch("builtins.print") as mock_print:
+            from sbomify_action import console as c
+
+            original = c.IS_GITHUB_ACTIONS
+            c.IS_GITHUB_ACTIONS = True
+            try:
+                c.gha_warning("Test warning")
+                mock_print.assert_called_with("::warning::Test warning")
+            finally:
+                c.IS_GITHUB_ACTIONS = original
+
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=False)
+    def test_gha_error_gha_mode(self):
+        """Test gha_error in GitHub Actions mode."""
+        with patch("builtins.print") as mock_print:
+            from sbomify_action import console as c
+
+            original = c.IS_GITHUB_ACTIONS
+            c.IS_GITHUB_ACTIONS = True
+            try:
+                c.gha_error("Test error")
+                mock_print.assert_called_with("::error::Test error")
+            finally:
+                c.IS_GITHUB_ACTIONS = original
+
+
+class TestGHAGroup(unittest.TestCase):
+    """Tests for gha_group context manager."""
+
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}, clear=False)
+    def test_gha_group_local(self):
+        """Test gha_group in local mode."""
+        with gha_group("Test Group"):
+            pass  # Should not raise
+
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=False)
+    def test_gha_group_gha_mode(self):
+        """Test gha_group in GitHub Actions mode."""
+        with patch("builtins.print") as mock_print:
+            from sbomify_action import console as c
+
+            original = c.IS_GITHUB_ACTIONS
+            c.IS_GITHUB_ACTIONS = True
+            try:
+                with c.gha_group("Test Group"):
+                    pass
+                # Should have printed ::group:: and ::endgroup::
+                self.assertEqual(mock_print.call_count, 2)
+            finally:
+                c.IS_GITHUB_ACTIONS = original
+
+
+class TestSummaryTable(unittest.TestCase):
+    """Tests for summary table function."""
+
+    def test_summary_table_with_data(self):
+        """Test summary table with data."""
+        data = [("Metric 1", 10), ("Metric 2", 20)]
+        print_summary_table("Test Summary", data)
+
+    def test_summary_table_empty(self):
+        """Test summary table with empty data."""
+        print_summary_table("Test Summary", [])
+
+    def test_summary_table_filters_zeros(self):
+        """Test that zeros are filtered by default."""
+        data = [("Metric 1", 10), ("Metric 2", 0), ("Metric 3", 5)]
+        print_summary_table("Test Summary", data)
+
+    def test_summary_table_show_if_empty(self):
+        """Test showing table even with zero values."""
+        data = [("Metric 1", 0), ("Metric 2", 0)]
+        print_summary_table("Test Summary", data, show_if_empty=True)
+
+
+class TestEnrichmentSummary(unittest.TestCase):
+    """Tests for enrichment summary function."""
+
+    def test_enrichment_summary_basic(self):
+        """Test basic enrichment summary."""
+        stats = {
+            "components_enriched": 45,
+            "descriptions_added": 42,
+            "licenses_added": 38,
+            "publishers_added": 10,
+        }
+        print_enrichment_summary(stats, 50)
+
+    def test_enrichment_summary_with_sources(self):
+        """Test enrichment summary with sources breakdown."""
+        stats = {
+            "components_enriched": 45,
+            "descriptions_added": 42,
+            "licenses_added": 38,
+            "sources": {"pypi": 20, "depsdev": 15, "ecosystems": 10},
+        }
+        print_enrichment_summary(stats, 50)
+
+    def test_enrichment_summary_empty(self):
+        """Test enrichment summary with empty stats."""
+        stats = {"components_enriched": 0}
+        print_enrichment_summary(stats, 0)
+
+
+class TestSanitizationSummary(unittest.TestCase):
+    """Tests for sanitization summary function."""
+
+    def test_sanitization_summary_basic(self):
+        """Test basic sanitization summary."""
+        print_sanitization_summary(
+            vcs_normalized=23,
+            purls_normalized=5,
+            purls_cleared=3,
+            urls_rejected=2,
+        )
+
+    def test_sanitization_summary_with_details(self):
+        """Test sanitization summary with details."""
+        details = [
+            "VCS: git@github.com:foo/bar -> git+https://github.com/foo/bar",
+            "PURL cleared: pkg:npm/foo (missing version)",
+        ]
+        print_sanitization_summary(
+            vcs_normalized=1,
+            purls_cleared=1,
+            details=details,
+        )
+
+    def test_sanitization_summary_empty(self):
+        """Test sanitization summary with all zeros."""
+        print_sanitization_summary()
+
+
+class TestUploadSummary(unittest.TestCase):
+    """Tests for upload summary function."""
+
+    def test_upload_summary_success(self):
+        """Test upload summary for successful upload."""
+        print_upload_summary(
+            destination="sbomify",
+            success=True,
+            sbom_format="cyclonedx",
+            sbom_id="abc123",
+        )
+
+    def test_upload_summary_failure(self):
+        """Test upload summary for failed upload."""
+        print_upload_summary(
+            destination="sbomify",
+            success=False,
+            sbom_format="cyclonedx",
+            error_message="Connection timeout",
+        )
+
+
+class TestFinalMessages(unittest.TestCase):
+    """Tests for final success/failure messages."""
+
+    def test_final_success(self):
+        """Test final success message."""
+        print_final_success()
+
+    def test_final_failure(self):
+        """Test final failure message."""
+        print_final_failure("Test failure message")
+
+
+class TestTransformationTracker(unittest.TestCase):
+    """Tests for the TransformationTracker class."""
+
+    def setUp(self):
+        """Reset the global tracker before each test."""
+        reset_transformation_tracker()
+
+    def test_tracker_initially_empty(self):
+        """Test that a new tracker has no transformations."""
+        tracker = TransformationTracker()
+        self.assertFalse(tracker.has_transformations())
+
+    def test_record_vcs_normalization(self):
+        """Test recording VCS URL normalization."""
+        tracker = TransformationTracker()
+        tracker.record_vcs_normalization("git@github.com:foo/bar.git", "git+https://github.com/foo/bar")
+        self.assertTrue(tracker.has_transformations())
+        self.assertEqual(len(tracker.vcs_normalizations), 1)
+
+    def test_record_purl_normalization(self):
+        """Test recording PURL normalization."""
+        tracker = TransformationTracker()
+        tracker.record_purl_normalization("my-package", "pkg:npm/my-package@@1.0.0", "pkg:npm/my-package@1.0.0")
+        self.assertTrue(tracker.has_transformations())
+        self.assertEqual(len(tracker.purl_normalizations), 1)
+
+    def test_record_purl_cleared(self):
+        """Test recording cleared PURL."""
+        tracker = TransformationTracker()
+        tracker.record_purl_cleared("my-package", "pkg:file:/local/path", "file: scheme not allowed")
+        self.assertTrue(tracker.has_transformations())
+        self.assertEqual(len(tracker.purls_cleared), 1)
+
+    def test_record_url_rejected(self):
+        """Test recording rejected URL."""
+        tracker = TransformationTracker()
+        tracker.record_url_rejected("homepage", "javascript:alert('xss')", "disallowed scheme: javascript")
+        self.assertTrue(tracker.has_transformations())
+        self.assertEqual(len(tracker.urls_rejected), 1)
+
+    def test_record_stub_added(self):
+        """Test recording stub component added."""
+        tracker = TransformationTracker()
+        tracker.record_stub_added("pkg:npm/orphan@1.0.0", "orphan", "1.0.0")
+        self.assertTrue(tracker.has_transformations())
+        self.assertEqual(len(tracker.stubs_added), 1)
+
+    def test_format_details(self):
+        """Test formatting transformation details."""
+        tracker = TransformationTracker()
+        tracker.record_vcs_normalization("git@github.com:a/b", "git+https://github.com/a/b")
+        tracker.record_purl_cleared("pkg", "pkg:file:/x", "invalid")
+
+        details = tracker._format_details()
+        self.assertEqual(len(details), 2)
+        self.assertIn("VCS:", details[0])
+        self.assertIn("PURL cleared", details[1])
+
+    def test_print_summary_no_transformations(self):
+        """Test that print_summary does nothing when empty."""
+        tracker = TransformationTracker()
+        # Should not raise
+        tracker.print_summary()
+
+    def test_print_summary_with_transformations(self):
+        """Test print_summary with transformations."""
+        tracker = TransformationTracker()
+        tracker.record_vcs_normalization("git@example.com:a/b", "git+https://example.com/a/b")
+        # Should not raise
+        tracker.print_summary()
+
+    def test_global_tracker_functions(self):
+        """Test get_transformation_tracker and reset_transformation_tracker."""
+        # Get tracker
+        tracker1 = get_transformation_tracker()
+        tracker1.record_vcs_normalization("a", "b")
+
+        # Get again should return same instance
+        tracker2 = get_transformation_tracker()
+        self.assertEqual(len(tracker2.vcs_normalizations), 1)
+
+        # Reset should clear
+        tracker3 = reset_transformation_tracker()
+        self.assertFalse(tracker3.has_transformations())
+
+    def test_print_transformation_summary(self):
+        """Test the convenience function."""
+        reset_transformation_tracker()
+        tracker = get_transformation_tracker()
+        tracker.record_stub_added("ref", "name", "1.0")
+        # Should not raise
+        print_transformation_summary()
+
+
+if __name__ == "__main__":
+    unittest.main()
