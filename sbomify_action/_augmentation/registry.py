@@ -46,7 +46,7 @@ class ProviderRegistry:
 
         Returns:
             List of AugmentationProvider instances sorted by priority
-            (lowest/highest priority first)
+            (sorted by ascending numeric priority: lower number = higher priority, returned first)
         """
         return sorted(self._providers, key=lambda p: p.priority)
 
