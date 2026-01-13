@@ -80,7 +80,7 @@ RUN apt-get update && apt-get install -y curl xz-utils && \
         curl -sL \
             -o cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz.sha256 \
             "https://github.com/CycloneDX/cyclonedx-rust-cargo/releases/download/cargo-cyclonedx-${CARGO_CYCLONEDX_VERSION}/cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz.sha256" && \
-        echo "$(cat cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz.sha256)  cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz" | sha256sum -c && \
+        sha256sum -c cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz.sha256 && \
         tar xvf cargo-cyclonedx-x86_64-unknown-linux-gnu.tar.xz && \
         chmod +x cargo-cyclonedx && \
         mv cargo-cyclonedx /usr/local/cargo/bin/; \
