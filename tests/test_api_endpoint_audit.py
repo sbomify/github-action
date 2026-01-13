@@ -8,7 +8,7 @@ updated SBOMIFY_PRODUCTION_API base URL.
 import unittest
 from unittest.mock import Mock, patch
 
-from sbomify_action.augmentation import fetch_backend_metadata
+from sbomify_action._augmentation.providers.sbomify_api import SbomifyApiProvider
 from sbomify_action.cli.main import (
     SBOMIFY_PRODUCTION_API,
     Config,
@@ -128,29 +128,28 @@ class TestAPIEndpointAudit(unittest.TestCase):
         self.assertEqual(actual_url, expected_url)
         self.assertNotIn("/api/v1/api/v1", actual_url)
 
-    @patch("requests.get")
-    def test_fetch_backend_metadata_endpoint(self, mock_get):
-        """Test fetch_backend_metadata API endpoint URL construction."""
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
+    def test_sbomify_api_provider_endpoint(self, mock_get):
+        """Test SbomifyApiProvider API endpoint URL construction."""
         mock_response = Mock()
         mock_response.ok = True
         mock_response.json.return_value = {"supplier": {}, "authors": [], "licenses": []}
         mock_get.return_value = mock_response
 
-        try:
-            fetch_backend_metadata(
-                api_base_url=self.config.api_base_url, token=self.config.token, component_id=self.config.component_id
-            )
-        except Exception:
-            # We don't care if the function fails, we just want to check the URL
-            pass
+        provider = SbomifyApiProvider()
+        provider.fetch(
+            api_base_url=self.config.api_base_url,
+            token=self.config.token,
+            component_id=self.config.component_id,
+        )
 
-        if mock_get.called:
-            call_args = mock_get.call_args
-            actual_url = call_args[0][0]
+        mock_get.assert_called_once()
+        call_args = mock_get.call_args
+        actual_url = call_args[0][0]
 
-            expected_url = "https://app.sbomify.com/api/v1/sboms/component/test-component/meta"
-            self.assertEqual(actual_url, expected_url)
-            self.assertNotIn("/api/v1/api/v1", actual_url)
+        expected_url = "https://app.sbomify.com/api/v1/sboms/component/test-component/meta"
+        self.assertEqual(actual_url, expected_url)
+        self.assertNotIn("/api/v1/api/v1", actual_url)
 
     def test_sbom_upload_url_construction(self):
         """Test SBOM upload URL construction pattern."""

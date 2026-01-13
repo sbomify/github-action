@@ -457,9 +457,12 @@ class TestAugmentationNTIACompliance:
 
         output_file = tmp_path / "augmented.cdx.json"
 
-        # Mock the backend API call
-        with patch("sbomify_action.augmentation.fetch_backend_metadata") as mock_fetch:
-            mock_fetch.return_value = mock_backend_response
+        # Mock the sbomify API provider
+        mock_api_response = Mock()
+        mock_api_response.ok = True
+        mock_api_response.json.return_value = mock_backend_response
+
+        with patch("sbomify_action._augmentation.providers.sbomify_api.requests.get", return_value=mock_api_response):
             sbom_format = augment_sbom_from_file(
                 str(sbom_path),
                 str(output_file),
@@ -500,8 +503,11 @@ class TestAugmentationNTIACompliance:
 
         output_file = tmp_path / "augmented.spdx.json"
 
-        with patch("sbomify_action.augmentation.fetch_backend_metadata") as mock_fetch:
-            mock_fetch.return_value = mock_backend_response
+        mock_api_response = Mock()
+        mock_api_response.ok = True
+        mock_api_response.json.return_value = mock_backend_response
+
+        with patch("sbomify_action._augmentation.providers.sbomify_api.requests.get", return_value=mock_api_response):
             sbom_format = augment_sbom_from_file(
                 str(sbom_path),
                 str(output_file),
@@ -547,8 +553,11 @@ class TestFullPipelineNTIACompliance:
             enrich_sbom(str(sbom_path), str(enriched_file), validate=False)
 
         # Step 2: Augment
-        with patch("sbomify_action.augmentation.fetch_backend_metadata") as mock_fetch:
-            mock_fetch.return_value = SAMPLE_BACKEND_METADATA
+        mock_api_response = Mock()
+        mock_api_response.ok = True
+        mock_api_response.json.return_value = SAMPLE_BACKEND_METADATA
+
+        with patch("sbomify_action._augmentation.providers.sbomify_api.requests.get", return_value=mock_api_response):
             augment_sbom_from_file(
                 str(enriched_file),
                 str(augmented_file),
