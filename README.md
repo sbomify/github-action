@@ -371,7 +371,7 @@ Create `sbomify.json` in your project root to provide augmentation metadata:
 | crates.io | Rust/Cargo | License, author, homepage, repo, description |
 | RPM Repos | Rocky, Alma, CentOS, Fedora, Amazon Linux | License, vendor, description, homepage |
 | Ubuntu APT | Ubuntu packages | Maintainer, description, homepage, download URL |
-| deps.dev | Python, npm, Maven, Go, Ruby, NuGet | License, homepage, repo |
+| deps.dev | Python, npm, Maven, Go, Ruby, NuGet (+ Rust fallback) | License, homepage, repo |
 | ecosyste.ms | All major ecosystems | License, description, maintainer |
 | Debian Sources | Debian packages | Maintainer, description, homepage |
 | Repology | Linux distros | License, homepage |
