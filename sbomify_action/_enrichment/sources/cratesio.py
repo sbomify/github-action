@@ -174,6 +174,8 @@ class CratesIOSource:
             description=description,
             licenses=licenses,
             license_texts=license_texts,
+            # supplier is the NTIA-required field; maintainer_name provides additional detail.
+            # For crates.io, the publisher (published_by) serves as both.
             supplier=maintainer_name,
             homepage=homepage,
             repository_url=repository_url,
