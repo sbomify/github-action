@@ -1,4 +1,14 @@
-"""PURL-based data source for OS package metadata extraction."""
+"""PURL-based data source for OS package metadata extraction.
+
+Provides supplier fallback for OS packages (deb, rpm, apk) when registry
+lookups fail, using the PURL namespace to derive the distribution supplier.
+
+This ensures NTIA Supplier Name requirement is met for all OS packages.
+
+References:
+    NTIA Minimum Elements: https://sbomify.com/compliance/ntia-minimum-elements/
+    Schema Crosswalk: https://sbomify.com/compliance/schema-crosswalk/
+"""
 
 from typing import Dict, Optional
 

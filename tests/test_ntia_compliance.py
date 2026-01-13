@@ -1,6 +1,8 @@
 """
 Tests for NTIA Minimum Elements compliance validation.
 
+Reference: https://sbomify.com/compliance/ntia-minimum-elements/
+
 NTIA Minimum Elements for SBOM (July 2021):
 1. Supplier Name - Entity that created/distributed the component
 2. Component Name - Designation assigned by original supplier
@@ -9,6 +11,32 @@ NTIA Minimum Elements for SBOM (July 2021):
 5. Dependency Relationship - How components relate
 6. Author of SBOM Data - Entity that created the SBOM
 7. Timestamp - Date/time SBOM was assembled
+
+Field Mappings (per https://sbomify.com/compliance/schema-crosswalk/):
+
+CycloneDX (all versions 1.3-1.7):
+- Supplier Name: components[].publisher OR components[].supplier.name
+- Component Name: components[].name
+- Component Version: components[].version
+- Unique Identifiers: components[].purl, components[].cpe
+- Dependency Relationship: dependencies[].ref + dependencies[].dependsOn[]
+- SBOM Author: metadata.authors[]
+- Timestamp: metadata.timestamp
+
+SPDX (2.2 and 2.3):
+- Supplier Name: packages[].supplier
+- Component Name: packages[].name
+- Component Version: packages[].versionInfo
+- Unique Identifiers: packages[].externalRefs[] (referenceType: purl, cpe22Type, cpe23Type)
+- Dependency Relationship: relationships[] (DEPENDS_ON, CONTAINS)
+- SBOM Author: creationInfo.creators[]
+- Timestamp: creationInfo.created
+
+CISA 2025 Additional Fields:
+- Component Hash: CycloneDX components[].hashes[] / SPDX packages[].checksums[]
+- License: CycloneDX components[].licenses[] / SPDX packages[].licenseDeclared
+- Tool Name/Version: CycloneDX metadata.tools / SPDX creationInfo.creators[]
+- Generation Context: CycloneDX metadata.lifecycles[].phase (1.5+) / SPDX creationInfo.creatorComment
 """
 
 import json
@@ -816,6 +844,119 @@ class TestNTIAAugmentation:
         print("\nAugmentation Results (SPDX):")
         print(f"  Supplier: {main_package.supplier.name}")
         print(f"  Creators: {creator_names}")
+
+    def test_augmentation_adds_lifecycle_phase_cyclonedx(self, sample_backend_metadata):
+        """Test that augmentation adds lifecycle_phase to CycloneDX 1.5+ SBOM.
+
+        CISA 2025 requires Generation Context (metadata.lifecycles[].phase).
+        This is only available in CycloneDX 1.5+.
+        """
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+
+        # Add lifecycle_phase to backend metadata
+        backend_metadata_with_lifecycle = dict(sample_backend_metadata)
+        backend_metadata_with_lifecycle["lifecycle_phase"] = "build"
+
+        # Create a CycloneDX 1.6 BOM
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:55555555-5555-5555-5555-555555555555",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "tools": {"components": [{"type": "application", "name": "test-tool", "version": "1.0"}]},
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augment with lifecycle phase
+        augmented_bom = augment_cyclonedx_sbom(bom, backend_metadata_with_lifecycle, spec_version="1.6")
+
+        # Check lifecycle was added
+        lifecycles = list(augmented_bom.metadata.lifecycles)
+        assert len(lifecycles) == 1, "Should have one lifecycle"
+        assert lifecycles[0].phase.value == "build", f"Lifecycle phase should be 'build', got {lifecycles[0].phase}"
+
+        print("\nLifecycle Phase Augmentation Results (CycloneDX 1.6):")
+        print(f"  Lifecycles: {lifecycles}")
+
+    def test_augmentation_skips_lifecycle_phase_cyclonedx_14(self, sample_backend_metadata):
+        """Test that lifecycle_phase is skipped for CycloneDX 1.4 (not supported in schema)."""
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+
+        # Add lifecycle_phase to backend metadata
+        backend_metadata_with_lifecycle = dict(sample_backend_metadata)
+        backend_metadata_with_lifecycle["lifecycle_phase"] = "build"
+
+        # Create a CycloneDX 1.4 BOM
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.4",
+            "serialNumber": "urn:uuid:66666666-6666-6666-6666-666666666666",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "tools": [{"vendor": "test", "name": "test-tool", "version": "1.0"}],
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augment with lifecycle phase - should skip for 1.4
+        augmented_bom = augment_cyclonedx_sbom(bom, backend_metadata_with_lifecycle, spec_version="1.4")
+
+        # Check lifecycle was NOT added (not supported in 1.4)
+        lifecycles = list(augmented_bom.metadata.lifecycles)
+        assert len(lifecycles) == 0, "Lifecycle should not be added for CycloneDX 1.4"
+
+    def test_augmentation_adds_lifecycle_phase_spdx(self, sample_backend_metadata):
+        """Test that augmentation adds lifecycle_phase to SPDX creator comment."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import CreationInfo, Document, Package
+
+        from sbomify_action.augmentation import augment_spdx_sbom
+
+        # Add lifecycle_phase to backend metadata
+        backend_metadata_with_lifecycle = dict(sample_backend_metadata)
+        backend_metadata_with_lifecycle["lifecycle_phase"] = "post-build"
+
+        # Create a minimal SPDX document
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-sbom",
+            document_namespace="https://example.com/test-lifecycle",
+            creators=[],
+            created=datetime.now(),
+        )
+        document = Document(
+            creation_info=creation_info,
+            packages=[
+                Package(
+                    spdx_id="SPDXRef-main",
+                    name="my-app",
+                    download_location="https://example.com/download",
+                    version="1.0.0",
+                ),
+            ],
+            relationships=[],
+        )
+
+        # Augment with lifecycle phase
+        augmented_doc = augment_spdx_sbom(document, backend_metadata_with_lifecycle)
+
+        # Check lifecycle was added to creator comment
+        creator_comment = augmented_doc.creation_info.creator_comment
+        assert creator_comment is not None, "Creator comment should be set"
+        assert "Lifecycle phase: post-build" in creator_comment, (
+            f"Creator comment should contain lifecycle phase. Got: {creator_comment}"
+        )
+
+        print("\nLifecycle Phase Augmentation Results (SPDX):")
+        print(f"  Creator comment: {creator_comment}")
 
 
 class TestNTIAValidationFunction:

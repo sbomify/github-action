@@ -79,9 +79,15 @@ def test_cyclonedx_full_flow_compliance(version, tmp_path):
         "supplier": {"name": "Augmented Supplier", "url": "https://supplier.com"},
         "authors": [{"name": "Augmented Author", "email": "author@example.com"}],
         "licenses": ["MIT"],
+        "lifecycle_phase": "build",  # CISA 2025 Generation Context
     }
 
-    with patch("sbomify_action.augmentation.fetch_backend_metadata", return_value=augmentation_data):
+    # Mock the sbomify API provider
+    mock_api_response = Mock()
+    mock_api_response.ok = True
+    mock_api_response.json.return_value = augmentation_data
+
+    with patch("sbomify_action._augmentation.providers.sbomify_api.requests.get", return_value=mock_api_response):
         augment_sbom_from_file(
             input_file=str(input_file),
             output_file=str(augmented_file),
@@ -124,6 +130,20 @@ def test_cyclonedx_full_flow_compliance(version, tmp_path):
         jsonschema.validate(instance=bom_data, schema=schema)
     except jsonschema.ValidationError as e:
         pytest.fail(f"CycloneDX {version} schema validation failed: {e}")
+
+    # 5. Verify version-specific lifecycle handling
+    metadata = bom_data.get("metadata", {})
+    if version in ["1.5", "1.6", "1.7"]:
+        # Lifecycle should be present in CycloneDX 1.5+
+        assert "lifecycles" in metadata, f"CycloneDX {version} should have lifecycles field"
+        lifecycles = metadata.get("lifecycles", [])
+        assert len(lifecycles) > 0, f"CycloneDX {version} should have at least one lifecycle entry"
+        assert lifecycles[0].get("phase") == "build", "Lifecycle phase should be 'build'"
+    else:
+        # Lifecycle should NOT be present in CycloneDX 1.3/1.4
+        assert "lifecycles" not in metadata or len(metadata.get("lifecycles", [])) == 0, (
+            f"CycloneDX {version} should NOT have lifecycles (not supported in schema)"
+        )
 
 
 @pytest.mark.parametrize("version", ["2.2", "2.3"])
@@ -184,9 +204,15 @@ def test_spdx_full_flow_compliance(version, tmp_path):
         "supplier": {"name": "Augmented Supplier", "url": "https://supplier.com"},
         "authors": [{"name": "Augmented Author", "email": "author@example.com"}],
         "licenses": ["MIT"],
+        "lifecycle_phase": "build",  # CISA 2025 Generation Context
     }
 
-    with patch("sbomify_action.augmentation.fetch_backend_metadata", return_value=augmentation_data):
+    # Mock the sbomify API provider
+    mock_api_response = Mock()
+    mock_api_response.ok = True
+    mock_api_response.json.return_value = augmentation_data
+
+    with patch("sbomify_action._augmentation.providers.sbomify_api.requests.get", return_value=mock_api_response):
         augment_sbom_from_file(
             input_file=str(input_file),
             output_file=str(augmented_file),
@@ -228,3 +254,10 @@ def test_spdx_full_flow_compliance(version, tmp_path):
         jsonschema.validate(instance=spdx_data, schema=schema)
     except jsonschema.ValidationError as e:
         pytest.fail(f"SPDX {version} schema validation failed: {e}")
+
+    # 5. Verify lifecycle phase in SPDX creator comment
+    creation_info = spdx_data.get("creationInfo", {})
+    creator_comment = creation_info.get("comment", "")
+    assert "Lifecycle phase: build" in creator_comment, (
+        f"SPDX {version} should have lifecycle phase in creator comment. Got: {creator_comment}"
+    )
