@@ -467,6 +467,7 @@ Generators are tried in priority order. Native tools (optimized for specific eco
 | Priority | Generator | Supported Ecosystems | Output Formats |
 |----------|-----------|---------------------|----------------|
 | 10 | **cyclonedx-py** | Python only | CycloneDX 1.0–1.7 |
+| 10 | **cargo-cyclonedx** | Rust only | CycloneDX 1.4–1.6 |
 | 20 | **cdxgen** | Python, JavaScript, **Java/Gradle**, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Scala, Docker images | CycloneDX 1.4–1.7 |
 | 30 | **Trivy** | Python, JavaScript, Java/Gradle, Go, Rust, Ruby, C++, PHP, .NET, Docker images | CycloneDX 1.6, SPDX 2.3 |
 | 35 | **Syft** | Python, JavaScript, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Terraform, Docker images | CycloneDX 1.2–1.6, SPDX 2.2–2.3 |
@@ -474,10 +475,11 @@ Generators are tried in priority order. Native tools (optimized for specific eco
 ### How It Works
 
 1. **Python lockfiles** → cyclonedx-py (native, most accurate for Python)
-2. **Java lockfiles** (pom.xml, build.gradle, gradle.lockfile) → cdxgen (best Java support)
-3. **Dart lockfiles** (pubspec.lock) → cdxgen or Syft (Trivy doesn't support Dart)
-4. **Other lockfiles** (Cargo.lock, package-lock.json, go.mod, etc.) → cdxgen (then Trivy, then Syft as fallbacks)
-5. **Docker images** → cdxgen (then Trivy, then Syft as fallbacks)
+2. **Rust lockfiles** (Cargo.lock) → cargo-cyclonedx (native, most accurate for Rust)
+3. **Java lockfiles** (pom.xml, build.gradle, gradle.lockfile) → cdxgen (best Java support)
+4. **Dart lockfiles** (pubspec.lock) → cdxgen or Syft (Trivy doesn't support Dart)
+5. **Other lockfiles** (package-lock.json, go.mod, etc.) → cdxgen (then Trivy, then Syft as fallbacks)
+6. **Docker images** → cdxgen (then Trivy, then Syft as fallbacks)
 
 If the primary generator fails or doesn't support the input, the next one in priority order is tried automatically.
 
