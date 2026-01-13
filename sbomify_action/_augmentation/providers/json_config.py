@@ -9,7 +9,7 @@ Example config file:
     "supplier": {
         "name": "My Company",
         "url": ["https://example.com"],
-        "contact": [{"name": "Support", "email": "support@example.com"}]
+        "contacts": [{"name": "Support", "email": "support@example.com"}]
     },
     "authors": [
         {"name": "John Doe", "email": "john@example.com"}

@@ -353,7 +353,7 @@ Create `sbomify.json` in your project root to provide augmentation metadata:
 
 | Field | Description | SBOM Mapping |
 |-------|-------------|--------------|
-| `lifecycle_phase` | Generation context (CISA 2025) | CycloneDX 1.5+: `metadata.lifecycles[].phase`; SPDX: `creationInfo.comment` |
+| `lifecycle_phase` | Generation context (CISA 2025) | CycloneDX 1.5+: `metadata.lifecycles[].phase`; SPDX: `creationInfo.creatorComment` |
 | `supplier` | Organization that supplies the component | CycloneDX: `metadata.supplier`; SPDX: `packages[].supplier` |
 | `authors` | List of component authors | CycloneDX: `metadata.authors[]`; SPDX: `creationInfo.creators[]` |
 | `licenses` | SPDX license identifiers | CycloneDX: `metadata.licenses[]`; SPDX: Document-level licenses |
