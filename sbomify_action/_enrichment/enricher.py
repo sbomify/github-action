@@ -20,6 +20,7 @@ from .metadata import NormalizedMetadata
 from .registry import SourceRegistry
 from .sources import (
     ClearlyDefinedSource,
+    CratesIOSource,
     DebianSource,
     DepsDevSource,
     EcosystemsSource,
@@ -41,6 +42,7 @@ def create_default_registry() -> SourceRegistry:
     Tier 1 - Native Sources (10-19):
     - PyPISource (10) - direct from PyPI for Python packages
     - PubDevSource (10) - direct from pub.dev for Dart packages
+    - CratesIOSource (10) - direct from crates.io for Rust packages
     - DebianSource (10) - direct from sources.debian.org
     - UbuntuSource (12) - Ubuntu APT repo Packages.gz for Ubuntu packages
     - RpmRepoSource (15) - RPM repo primary.xml for Rocky/Alma/CentOS/Fedora/Amazon Linux
@@ -64,6 +66,7 @@ def create_default_registry() -> SourceRegistry:
     registry = SourceRegistry()
     registry.register(PyPISource())
     registry.register(PubDevSource())
+    registry.register(CratesIOSource())
     registry.register(DebianSource())
     registry.register(UbuntuSource())
     registry.register(RpmRepoSource())
@@ -243,6 +246,7 @@ class Enricher:
 def clear_all_caches() -> None:
     """Clear all data source caches."""
     from .sources.clearlydefined import clear_cache as clear_clearlydefined
+    from .sources.cratesio import clear_cache as clear_cratesio
     from .sources.debian import clear_cache as clear_debian
     from .sources.depsdev import clear_cache as clear_depsdev
     from .sources.ecosystems import clear_cache as clear_ecosystems
@@ -254,6 +258,7 @@ def clear_all_caches() -> None:
 
     clear_pypi()
     clear_pubdev()
+    clear_cratesio()
     clear_debian()
     clear_ubuntu()
     clear_rpmrepo()

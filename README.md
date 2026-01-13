@@ -368,9 +368,10 @@ Create `sbomify.json` in your project root to provide augmentation metadata:
 |--------|---------------|------|
 | PyPI | Python | License, author, homepage |
 | pub.dev | Dart | License, author, homepage, repo |
+| crates.io | Rust/Cargo | License, author, homepage, repo, description |
 | RPM Repos | Rocky, Alma, CentOS, Fedora, Amazon Linux | License, vendor, description, homepage |
 | Ubuntu APT | Ubuntu packages | Maintainer, description, homepage, download URL |
-| deps.dev | Python, npm, Maven, Go, Rust, Ruby, NuGet | License, homepage, repo |
+| deps.dev | Python, npm, Maven, Go, Ruby, NuGet (+ Rust fallback) | License, homepage, repo |
 | ecosyste.ms | All major ecosystems | License, description, maintainer |
 | Debian Sources | Debian packages | Maintainer, description, homepage |
 | Repology | Linux distros | License, homepage |
@@ -435,7 +436,7 @@ sbomify queries sources in priority order, stopping when data is found:
 |-----------|----------------|------------------|
 | Python | PyPI API | deps.dev → ecosyste.ms |
 | JavaScript | deps.dev | ecosyste.ms |
-| Rust | deps.dev | ecosyste.ms |
+| Rust | crates.io API | deps.dev → ecosyste.ms |
 | Go | deps.dev | ecosyste.ms |
 | Ruby | deps.dev | ecosyste.ms |
 | Java/Maven | deps.dev | ecosyste.ms |

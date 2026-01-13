@@ -1,6 +1,7 @@
 """Data source implementations for SBOM enrichment."""
 
 from .clearlydefined import ClearlyDefinedSource
+from .cratesio import CratesIOSource
 from .debian import DebianSource
 from .depsdev import DepsDevSource
 from .ecosystems import EcosystemsSource
@@ -14,6 +15,7 @@ from .ubuntu import UbuntuSource
 __all__ = [
     "PyPISource",
     "PubDevSource",
+    "CratesIOSource",
     "DebianSource",
     "UbuntuSource",
     "DepsDevSource",
