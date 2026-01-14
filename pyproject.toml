@@ -1,10 +1,28 @@
 [project]
-name = "sbomify-github-action"
+name = "sbomify-action"
 version = "0.10"
-description = "GitHub Actions module for generating, augmenting, enriching and distributing SBOMs"
+description = "Generate, augment, enrich, and manage SBOMs in your CI/CD pipeline"
 authors = [{ name = "sbomify", email = "hello@sbomify.com" }]
 requires-python = ">=3.10"
 readme = "README.md"
+license = { text = "Apache-2.0" }
+keywords = ["sbom", "cyclonedx", "spdx", "supply-chain", "security", "bom", "software-composition-analysis"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Quality Assurance",
+]
 dependencies = [
     "requests>=2.32.3,<3",
     "cyclonedx-bom>=7.2.1,<8",
@@ -13,6 +31,13 @@ dependencies = [
     "spdx-tools>=0.8.3",
     "rich>=14.2.0",
 ]
+
+[project.urls]
+Homepage = "https://sbomify.com"
+Repository = "https://github.com/sbomify/github-action"
+Documentation = "https://github.com/sbomify/github-action#readme"
+"Bug Tracker" = "https://github.com/sbomify/github-action/issues"
+Changelog = "https://github.com/sbomify/github-action/releases"
 
 [project.scripts]
 sbomify-action = "sbomify_action.cli.main:main"
@@ -28,10 +53,19 @@ dev = [
 ]
 
 [tool.hatch.build.targets.sdist]
-include = ["sbomify_action"]
+include = [
+    "sbomify_action/**/*.py",
+    "sbomify_action/**/*.json",
+]
 
 [tool.hatch.build.targets.wheel]
-include = ["sbomify_action"]
+packages = ["sbomify_action"]
+
+[tool.hatch.build]
+include = [
+    "sbomify_action/**/*.py",
+    "sbomify_action/**/*.json",
+]
 
 [build-system]
 requires = ["hatchling"]

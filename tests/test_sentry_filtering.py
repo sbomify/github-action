@@ -154,7 +154,7 @@ class TestSentryFiltering(unittest.TestCase):
         client = sentry_sdk.get_client()
 
         # Verify the release is set with the action version
-        self.assertEqual(client.options.get("release"), f"sbomify-github-action@{SBOMIFY_VERSION}")
+        self.assertEqual(client.options.get("release"), f"sbomify-action@{SBOMIFY_VERSION}")
 
         # Capture an event to verify tags and context
         captured_event = None
@@ -226,7 +226,7 @@ class TestSentryFiltering(unittest.TestCase):
         client = sentry_sdk.get_client()
 
         # Verify the release is set with the action version (always safe)
-        self.assertEqual(client.options.get("release"), f"sbomify-github-action@{SBOMIFY_VERSION}")
+        self.assertEqual(client.options.get("release"), f"sbomify-action@{SBOMIFY_VERSION}")
 
         # Capture an event to verify tags and context
         captured_event = None
@@ -282,7 +282,7 @@ class TestSentryFiltering(unittest.TestCase):
             client = sentry_sdk.get_client()
 
             # Verify the release is set with the action version (always safe)
-            self.assertEqual(client.options.get("release"), f"sbomify-github-action@{SBOMIFY_VERSION}")
+            self.assertEqual(client.options.get("release"), f"sbomify-action@{SBOMIFY_VERSION}")
 
             # Capture an event to verify tags and context
             captured_event = None
@@ -350,7 +350,7 @@ class TestSentryFiltering(unittest.TestCase):
         client = sentry_sdk.get_client()
 
         # Verify the release is set with the action version
-        self.assertEqual(client.options.get("release"), f"sbomify-github-action@{SBOMIFY_VERSION}")
+        self.assertEqual(client.options.get("release"), f"sbomify-action@{SBOMIFY_VERSION}")
 
         # Capture an event to verify tags and context
         captured_event = None
@@ -518,7 +518,7 @@ class TestSentryFiltering(unittest.TestCase):
         # Verify the release is not our custom release string
         self.assertNotEqual(
             release_after,
-            f"sbomify-github-action@{SBOMIFY_VERSION}",
+            f"sbomify-action@{SBOMIFY_VERSION}",
             "Custom release should not be set when telemetry is disabled",
         )
 

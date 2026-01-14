@@ -16,6 +16,7 @@ from pathlib import Path
 
 from sbomify_action.exceptions import SBOMGenerationError
 from sbomify_action.logging_config import logger
+from sbomify_action.tool_checks import check_tool_available
 
 from ..protocol import (
     CYCLONEDX_PY_DEFAULT,
@@ -25,6 +26,9 @@ from ..protocol import (
 )
 from ..result import GenerationResult
 from ..utils import log_command_error, run_command
+
+# Check tool availability once at module load
+_CYCLONEDX_PY_AVAILABLE, _CYCLONEDX_PY_PATH = check_tool_available("cyclonedx-py")
 
 
 class CycloneDXPyGenerator:
@@ -75,6 +79,10 @@ class CycloneDXPyGenerator:
         Supports Python lock files when requesting CycloneDX format.
         Does not support Docker images or SPDX format.
         """
+        # Check if cyclonedx-py is installed
+        if not _CYCLONEDX_PY_AVAILABLE:
+            return False
+
         # Only supports lock files, not Docker images
         if not input.is_lock_file:
             return False

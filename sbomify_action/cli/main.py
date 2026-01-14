@@ -1,7 +1,6 @@
 import json
 import os
 import shutil
-import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -14,7 +13,6 @@ import sentry_sdk
 # Add cyclonedx imports for proper SBOM handling
 from cyclonedx.model.bom import Bom
 
-from .._generation.utils import log_command_error
 from .._upload import VALID_DESTINATIONS
 from ..additional_packages import inject_additional_packages
 from ..augmentation import augment_sbom_from_file
@@ -67,13 +65,13 @@ def _get_package_version() -> str:
     try:
         from importlib.metadata import version
 
-        return version("sbomify-github-action")
+        return version("sbomify-action")
     except ImportError:
         pass
     except Exception:
         pass
 
-    # Method 3: Try reading from pyproject.toml directly
+    # Method 3: Try reading from pyproject.toml directly (Python 3.11+)
     try:
         import tomllib
 
@@ -81,7 +79,7 @@ def _get_package_version() -> str:
         if pyproject_path.exists():
             with open(pyproject_path, "rb") as f:
                 pyproject_data = tomllib.load(f)
-            return pyproject_data.get("tool", {}).get("poetry", {}).get("version", "unknown")
+            return pyproject_data.get("project", {}).get("version", "unknown")
     except ImportError:
         # Python < 3.11 doesn't have tomllib
         pass
@@ -96,7 +94,7 @@ def _get_package_version() -> str:
         if pyproject_path.exists():
             with open(pyproject_path, "r") as f:
                 pyproject_data = toml.load(f)
-            return pyproject_data.get("tool", {}).get("poetry", {}).get("version", "unknown")
+            return pyproject_data.get("project", {}).get("version", "unknown")
     except ImportError:
         pass
     except Exception:
@@ -119,7 +117,7 @@ SBOMIFY_VERSION = _get_package_version()
 # Constants for magic strings/numbers
 SPDX_LOGICAL_OPERATORS = [" OR ", " AND ", " WITH "]
 SBOMIFY_PRODUCTION_API = "https://app.sbomify.com"
-SBOMIFY_TOOL_NAME = "sbomify-github-action"
+SBOMIFY_TOOL_NAME = "sbomify-action"
 SBOMIFY_VENDOR_NAME = "sbomify"
 LOCALHOST_PATTERNS = ["127.0.0.1", "localhost", "0.0.0.0"]
 
@@ -434,44 +432,27 @@ def load_config() -> Config:
 
 def setup_dependencies() -> None:
     """
-    Check and install required dependencies.
+    Check available SBOM generation tools and log their status.
 
-    Raises:
-        SBOMGenerationError: If dependency setup fails
+    This function no longer auto-installs tools. Instead, it logs
+    which tools are available and provides guidance when tools are missing.
     """
-    try:
-        result = subprocess.run(
-            ["cyclonedx-py", "--version"],
-            capture_output=True,
-            check=True,
-            text=True,
-            shell=False,  # Security: explicit shell=False
-            timeout=30,  # Security: add timeout
-        )
-        logger.info(f"cyclonedx-py version: {result.stdout.strip()}")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"cyclonedx-py command failed: {e}")
-        logger.error(f"Command output: {e.stdout if hasattr(e, 'stdout') else 'No output'}")
-        log_command_error("cyclonedx-py", e.stderr if hasattr(e, "stderr") else "No error")
-    except FileNotFoundError:
-        logger.error("cyclonedx-py command not found. Make sure it's installed.")
-        try:
-            logger.info("Attempting to install cyclonedx-py...")
-            result = subprocess.run(
-                ["pip", "install", "cyclonedx-bom"],
-                check=True,
-                capture_output=True,
-                shell=False,  # Security: explicit shell=False
-                timeout=120,  # Security: add timeout for installation
-            )
-            logger.info("cyclonedx-py installed successfully.")
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to install cyclonedx-py: {e}")
-            log_command_error("pip", e.stderr if hasattr(e, "stderr") else "No error")
-            raise SBOMGenerationError("Failed to install required cyclonedx-py dependency")
-    except subprocess.TimeoutExpired:
-        logger.error("cyclonedx-py version check timed out")
-        raise SBOMGenerationError("Dependency check timed out")
+    from ..tool_checks import get_available_tools, get_missing_tools
+
+    # Check all tools and log status
+    available = get_available_tools()
+    missing = get_missing_tools()
+
+    if available:
+        logger.info(f"Available SBOM generators: {', '.join(available)}")
+    else:
+        logger.warning("No external SBOM generators found.")
+        logger.warning("SBOM generation may fail. Install trivy, syft, or cdxgen for full functionality.")
+        logger.warning("The Docker image (sbomifyhub/sbomify-action) includes all tools pre-installed.")
+
+    if missing and available:
+        # Some tools available, some missing - just log for information
+        logger.debug(f"Additional tools not installed: {', '.join(missing)}")
 
 
 def initialize_sentry() -> None:
@@ -506,7 +487,7 @@ def initialize_sentry() -> None:
         traces_sample_rate=1.0,
         profiles_sample_rate=1.0,
         before_send=before_send,
-        release=f"sbomify-github-action@{SBOMIFY_VERSION}",
+        release=f"sbomify-action@{SBOMIFY_VERSION}",
     )
 
     # Set the action version as a tag (always safe to send)
@@ -890,7 +871,7 @@ def _create_release(config: "Config", product_id: str, version: str) -> str:
         "product_id": product_id,
         "version": version,
         "name": f"Release {version}",
-        "description": f"Release {version} created by sbomify-github-action",
+        "description": f"Release {version} created by sbomify-action",
     }
 
     try:

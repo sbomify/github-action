@@ -7,13 +7,13 @@ def _get_version() -> str:
     try:
         from importlib.metadata import version
 
-        return version("sbomify-github-action")
+        return version("sbomify-action")
     except ImportError:
         pass
     except Exception:
         pass
 
-    # Method 2: Try reading from pyproject.toml directly
+    # Method 2: Try reading from pyproject.toml directly (Python 3.11+)
     try:
         from pathlib import Path
 
@@ -23,7 +23,7 @@ def _get_version() -> str:
         if pyproject_path.exists():
             with open(pyproject_path, "rb") as f:
                 pyproject_data = tomllib.load(f)
-            return pyproject_data.get("tool", {}).get("poetry", {}).get("version", "unknown")
+            return pyproject_data.get("project", {}).get("version", "unknown")
     except ImportError:
         # Python < 3.11 doesn't have tomllib
         pass
@@ -40,7 +40,7 @@ def _get_version() -> str:
         if pyproject_path.exists():
             with open(pyproject_path, "r") as f:
                 pyproject_data = toml.load(f)
-            return pyproject_data.get("tool", {}).get("poetry", {}).get("version", "unknown")
+            return pyproject_data.get("project", {}).get("version", "unknown")
     except ImportError:
         pass
     except Exception:
