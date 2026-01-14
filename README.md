@@ -2,6 +2,7 @@
 
 [![sbomified](https://sbomify.com/assets/images/logo/badge.svg)](https://app.sbomify.com/public/component/Gu9wem8mkX)
 [![CI/CD Pipeline](https://github.com/sbomify/github-action/actions/workflows/sbomify.yaml/badge.svg)](https://github.com/sbomify/github-action/actions/workflows/sbomify.yaml)
+[![Slack](https://img.shields.io/badge/Slack-Join%20Community-4A154B?logo=slack)](https://join.slack.com/t/sbomify/shared_invite/zt-3na54pa1f-MXrFWhotmZr0YxXc8sABTw)
 
 Generate, augment, enrich, and manage SBOMs in your CI/CD pipeline. Works standalone or with [sbomify](https://sbomify.com).
 
