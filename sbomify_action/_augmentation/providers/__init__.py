@@ -1,13 +1,12 @@
 """Augmentation providers for fetching organizational metadata."""
 
+# Re-export utility from parent module for backwards compatibility
+from ..utils import is_vcs_augmentation_disabled
 from .bitbucket import BitbucketPipelinesProvider
 from .github import GitHubActionsProvider
 from .gitlab import GitLabCIProvider
 from .json_config import JsonConfigProvider
 from .sbomify_api import SbomifyApiProvider
-
-# Re-export utility from parent module for backwards compatibility
-from ..utils import is_vcs_augmentation_disabled
 
 __all__ = [
     "BitbucketPipelinesProvider",
