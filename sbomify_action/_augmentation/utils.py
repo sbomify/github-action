@@ -4,6 +4,24 @@ import os
 from typing import Optional
 
 
+def truncate_sha(sha: Optional[str], length: int = 7) -> str:
+    """
+    Safely truncate a commit SHA to the specified length.
+
+    Args:
+        sha: The commit SHA to truncate, or None
+        length: Target length (default 7 for short SHA display)
+
+    Returns:
+        Truncated SHA if long enough, full SHA if shorter, or "unknown" if None
+    """
+    if not sha:
+        return "unknown"
+    if len(sha) <= length:
+        return sha
+    return sha[:length]
+
+
 def is_vcs_augmentation_disabled() -> bool:
     """
     Check if VCS augmentation is disabled via environment variable.

@@ -25,7 +25,7 @@ from typing import Optional
 from sbomify_action.logging_config import logger
 
 from ..metadata import AugmentationMetadata
-from ..utils import is_vcs_augmentation_disabled
+from ..utils import is_vcs_augmentation_disabled, truncate_sha
 
 
 class BitbucketPipelinesProvider:
@@ -94,7 +94,7 @@ class BitbucketPipelinesProvider:
         # Construct commit URL
         vcs_commit_url = f"{vcs_url}/commits/{commit_sha}" if commit_sha else None
 
-        logger.info(f"Detected Bitbucket Pipelines: {vcs_url} @ {commit_sha[:7] if commit_sha else 'unknown'}")
+        logger.info(f"Detected Bitbucket Pipelines: {vcs_url} @ {truncate_sha(commit_sha)}")
 
         return AugmentationMetadata(
             source=self.name,

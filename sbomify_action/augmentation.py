@@ -53,7 +53,7 @@ from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
 # Import augmentation plugin architecture
 from ._augmentation import create_default_registry
-from ._augmentation.utils import build_vcs_url_with_commit
+from ._augmentation.utils import build_vcs_url_with_commit, truncate_sha
 
 # Import lockfile constants from generation utils (single source of truth)
 from ._generation.utils import ALL_LOCK_FILES
@@ -642,7 +642,7 @@ def _add_vcs_info_to_cyclonedx(bom: Bom, augmentation_data: Dict[str, Any]) -> N
 
         log_msg = f"Added VCS external reference: {vcs_url}"
         if vcs_commit_sha:
-            log_msg += f" @ {vcs_commit_sha[:7]}"
+            log_msg += f" @ {truncate_sha(vcs_commit_sha)}"
         if vcs_ref:
             log_msg += f" ({vcs_ref})"
         logger.info(log_msg)
@@ -989,7 +989,7 @@ def _add_vcs_info_to_spdx(document: Document, augmentation_data: Dict[str, Any])
     # Add sourceInfo with build context
     source_info_parts = []
     if vcs_commit_sha:
-        source_info_parts.append(f"Built from commit {vcs_commit_sha[:12]}")
+        source_info_parts.append(f"Built from commit {truncate_sha(vcs_commit_sha, 12)}")
     if vcs_ref:
         source_info_parts.append(f"on {vcs_ref}")
 
@@ -1008,7 +1008,7 @@ def _add_vcs_info_to_spdx(document: Document, augmentation_data: Dict[str, Any])
     if not existing_vcs_refs:
         comment = None
         if vcs_commit_sha:
-            comment = f"commit: {vcs_commit_sha[:7]}"
+            comment = f"commit: {truncate_sha(vcs_commit_sha)}"
             if vcs_ref:
                 comment += f", ref: {vcs_ref}"
 
@@ -1024,7 +1024,7 @@ def _add_vcs_info_to_spdx(document: Document, augmentation_data: Dict[str, Any])
     # Add VCS info to document creation comment
     vcs_comment_parts = [f"Source: {vcs_url}"]
     if vcs_commit_sha:
-        vcs_comment_parts.append(f"@ {vcs_commit_sha[:7]}")
+        vcs_comment_parts.append(f"@ {truncate_sha(vcs_commit_sha)}")
     if vcs_ref:
         vcs_comment_parts.append(f"({vcs_ref})")
 
@@ -1036,7 +1036,7 @@ def _add_vcs_info_to_spdx(document: Document, augmentation_data: Dict[str, Any])
 
     log_msg = f"Added VCS info to SPDX: {vcs_url}"
     if vcs_commit_sha:
-        log_msg += f" @ {vcs_commit_sha[:7]}"
+        log_msg += f" @ {truncate_sha(vcs_commit_sha)}"
     if vcs_ref:
         log_msg += f" ({vcs_ref})"
     logger.info(log_msg)

@@ -21,7 +21,7 @@ from typing import Optional
 from sbomify_action.logging_config import logger
 
 from ..metadata import AugmentationMetadata
-from ..utils import is_vcs_augmentation_disabled
+from ..utils import is_vcs_augmentation_disabled, truncate_sha
 
 
 class GitHubActionsProvider:
@@ -86,7 +86,7 @@ class GitHubActionsProvider:
             elif ref.startswith("refs/tags/"):
                 ref = ref[len("refs/tags/") :]
 
-        logger.info(f"Detected GitHub Actions: {repository} @ {commit_sha[:7] if commit_sha else 'unknown'}")
+        logger.info(f"Detected GitHub Actions: {repository} @ {truncate_sha(commit_sha)}")
 
         return AugmentationMetadata(
             source=self.name,

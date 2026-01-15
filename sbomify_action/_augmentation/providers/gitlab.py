@@ -21,7 +21,7 @@ from typing import Optional
 from sbomify_action.logging_config import logger
 
 from ..metadata import AugmentationMetadata
-from ..utils import is_vcs_augmentation_disabled
+from ..utils import is_vcs_augmentation_disabled, truncate_sha
 
 
 class GitLabCIProvider:
@@ -85,7 +85,7 @@ class GitLabCIProvider:
         # Construct commit URL
         vcs_commit_url = f"{project_url}/-/commit/{commit_sha}" if commit_sha else None
 
-        logger.info(f"Detected GitLab CI: {project_url} @ {commit_sha[:7] if commit_sha else 'unknown'}")
+        logger.info(f"Detected GitLab CI: {project_url} @ {truncate_sha(commit_sha)}")
 
         return AugmentationMetadata(
             source=self.name,

@@ -11,7 +11,7 @@ from sbomify_action._augmentation.providers import (
     GitLabCIProvider,
     is_vcs_augmentation_disabled,
 )
-from sbomify_action._augmentation.utils import build_vcs_url_with_commit
+from sbomify_action._augmentation.utils import build_vcs_url_with_commit, truncate_sha
 
 
 class TestIsVcsAugmentationDisabled(unittest.TestCase):
@@ -51,6 +51,40 @@ class TestIsVcsAugmentationDisabled(unittest.TestCase):
     def test_enabled_when_empty(self):
         """VCS augmentation is enabled when env var is empty."""
         self.assertFalse(is_vcs_augmentation_disabled())
+
+
+class TestTruncateSha(unittest.TestCase):
+    """Tests for the truncate_sha helper function."""
+
+    def test_truncates_long_sha(self):
+        """Long SHA is truncated to default 7 characters."""
+        result = truncate_sha("abc123def456789")
+        self.assertEqual(result, "abc123d")
+
+    def test_truncates_to_custom_length(self):
+        """SHA is truncated to custom length."""
+        result = truncate_sha("abc123def456789", 12)
+        self.assertEqual(result, "abc123def456")
+
+    def test_short_sha_unchanged(self):
+        """Short SHA is returned unchanged."""
+        result = truncate_sha("abc", 7)
+        self.assertEqual(result, "abc")
+
+    def test_exact_length_sha(self):
+        """SHA exactly matching length is returned unchanged."""
+        result = truncate_sha("abc1234", 7)
+        self.assertEqual(result, "abc1234")
+
+    def test_none_returns_unknown(self):
+        """None returns 'unknown'."""
+        result = truncate_sha(None)
+        self.assertEqual(result, "unknown")
+
+    def test_empty_string_returns_unknown(self):
+        """Empty string returns 'unknown'."""
+        result = truncate_sha("")
+        self.assertEqual(result, "unknown")
 
 
 class TestGitHubActionsProvider(unittest.TestCase):
@@ -147,6 +181,26 @@ class TestGitHubActionsProvider(unittest.TestCase):
         result = self.provider.fetch()
         self.assertIsNone(result)
 
+    @patch.dict(
+        os.environ,
+        {
+            "GITHUB_ACTIONS": "true",
+            "GITHUB_SERVER_URL": "https://github.com",
+            "GITHUB_REPOSITORY": "owner/repo",
+            # GITHUB_SHA and GITHUB_REF_NAME intentionally missing
+        },
+        clear=True,
+    )
+    def test_handles_missing_sha_and_ref(self):
+        """Provider handles missing SHA and ref gracefully."""
+        result = self.provider.fetch()
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.vcs_url, "https://github.com/owner/repo")
+        self.assertIsNone(result.vcs_commit_sha)
+        self.assertIsNone(result.vcs_ref)
+        self.assertIsNone(result.vcs_commit_url)
+
 
 class TestGitLabCIProvider(unittest.TestCase):
     """Tests for GitLabCIProvider."""
@@ -217,6 +271,19 @@ class TestGitLabCIProvider(unittest.TestCase):
     )
     def test_respects_disable_vcs_augmentation(self):
         """Provider returns None when VCS augmentation is disabled."""
+        result = self.provider.fetch()
+        self.assertIsNone(result)
+
+    @patch.dict(
+        os.environ,
+        {
+            "GITLAB_CI": "true",
+            # CI_PROJECT_URL, CI_SERVER_URL, and CI_PROJECT_PATH all missing
+        },
+        clear=True,
+    )
+    def test_returns_none_when_url_cannot_be_determined(self):
+        """Provider returns None when project URL cannot be determined."""
         result = self.provider.fetch()
         self.assertIsNone(result)
 
@@ -306,6 +373,20 @@ class TestBitbucketPipelinesProvider(unittest.TestCase):
     )
     def test_respects_disable_vcs_augmentation(self):
         """Provider returns None when VCS augmentation is disabled."""
+        result = self.provider.fetch()
+        self.assertIsNone(result)
+
+    @patch.dict(
+        os.environ,
+        {
+            "BITBUCKET_PIPELINE_UUID": "{12345}",
+            # BITBUCKET_GIT_HTTP_ORIGIN, BITBUCKET_WORKSPACE, and BITBUCKET_REPO_SLUG all missing
+            "BITBUCKET_COMMIT": "abc123",
+        },
+        clear=True,
+    )
+    def test_returns_none_when_url_cannot_be_determined(self):
+        """Provider returns None when repository URL cannot be determined."""
         result = self.provider.fetch()
         self.assertIsNone(result)
 
