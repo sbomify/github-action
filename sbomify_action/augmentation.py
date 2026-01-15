@@ -1015,11 +1015,11 @@ def _add_vcs_info_to_spdx(document: Document, augmentation_data: Dict[str, Any])
         vcs_ext_ref = ExternalPackageRef(
             category=ExternalPackageRefCategory.OTHER,
             reference_type="vcs",
-            locator=vcs_url,
+            locator=vcs_url_with_commit,
             comment=comment,
         )
         main_package.external_references.append(vcs_ext_ref)
-        logger.debug(f"Added SPDX VCS external reference: {vcs_url}")
+        logger.debug(f"Added SPDX VCS external reference: {vcs_url_with_commit}")
 
     # Add VCS info to document creation comment
     vcs_comment_parts = [f"Source: {vcs_url}"]

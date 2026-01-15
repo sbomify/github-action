@@ -18,7 +18,7 @@ class TestIsVcsAugmentationDisabled(unittest.TestCase):
     """Tests for the VCS augmentation disable check."""
 
     @patch.dict(os.environ, {}, clear=True)
-    def test_disabled_when_not_set(self):
+    def test_enabled_when_not_set(self):
         """VCS augmentation is enabled when env var is not set."""
         self.assertFalse(is_vcs_augmentation_disabled())
 
@@ -599,10 +599,10 @@ class TestVcsAugmentationIntegration(unittest.TestCase):
         self.assertIn("Built from commit abc123def456", document.packages[0].source_info)
         self.assertIn("on main", document.packages[0].source_info)
 
-        # Verify VCS external reference was added
+        # Verify VCS external reference was added with normalized URL
         vcs_refs = [ref for ref in document.packages[0].external_references if ref.reference_type == "vcs"]
         self.assertEqual(len(vcs_refs), 1)
-        self.assertEqual(vcs_refs[0].locator, "https://github.com/owner/repo")
+        self.assertEqual(vcs_refs[0].locator, "git+https://github.com/owner/repo@abc123def456789")
 
         # Verify document creation comment was updated
         self.assertIn("Source: https://github.com/owner/repo", document.creation_info.creator_comment)

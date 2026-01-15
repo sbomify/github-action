@@ -59,7 +59,4 @@ def build_vcs_url_with_commit(vcs_url: str, commit_sha: Optional[str]) -> str:
     # Build URL with commit pinning
     if vcs_url.startswith("https://"):
         return f"git+{vcs_url}@{commit_sha}"
-    elif vcs_url.startswith("git+"):
-        return f"{vcs_url}@{commit_sha}"
-    else:
-        return f"{vcs_url}@{commit_sha}"
+    return f"{vcs_url}@{commit_sha}"
