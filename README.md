@@ -65,6 +65,7 @@ That's it! This generates an SBOM from your lockfile and enriches it with metada
 - **Generate** SBOMs from Docker images
 - **Inject** additional packages not in lockfiles (vendored code, runtime deps, system libraries)
 - **Augment** with business metadata (supplier, authors, licenses, lifecycle phase) from config file or sbomify
+- **VCS Auto-Detection** — Automatically adds repository URL, commit SHA, and branch info from CI environment
 - **Enrich** with package metadata from PyPI, pub.dev, npm, Maven, deps.dev, and more
 - **Upload** to sbomify for collaboration and vulnerability management
 - **Tag** SBOMs with product releases
@@ -172,6 +173,7 @@ See [Augmentation Config File](#augmentation-config-file) for the config format.
 | `API_BASE_URL` | No | Override sbomify API URL for self-hosted instances |
 | `ADDITIONAL_PACKAGES_FILE` | No | Custom path to additional packages file |
 | `ADDITIONAL_PACKAGES` | No | Inline PURLs to inject (comma or newline separated) |
+| `DISABLE_VCS_AUGMENTATION` | No | Set to `true` to disable auto-detection of VCS info from CI environment |
 
 † **One** of `LOCK_FILE`, `SBOM_FILE`, or `DOCKER_IMAGE` is required (pick one)
 ‡ Required when uploading to sbomify or using sbomify features (`AUGMENT`, `PRODUCT_RELEASE`)
@@ -394,10 +396,49 @@ Create `sbomify.json` in your project root to provide augmentation metadata:
 | `supplier` | Organization that supplies the component | CycloneDX: `metadata.supplier`; SPDX: `packages[].supplier` |
 | `authors` | List of component authors | CycloneDX: `metadata.authors[]`; SPDX: `creationInfo.creators[]` |
 | `licenses` | SPDX license identifiers | CycloneDX: `metadata.licenses[]`; SPDX: Document-level licenses |
+| `vcs_url` | Repository URL (overrides CI auto-detection) | CycloneDX: `externalReferences[type=vcs]`; SPDX: `downloadLocation` |
+| `vcs_commit_sha` | Full commit SHA | Appended to VCS URL as `@sha` |
+| `vcs_ref` | Branch or tag name | Added as comment/context |
 
 **Valid `lifecycle_phase` values:** `design`, `pre-build`, `build`, `post-build`, `operations`, `discovery`, `decommission`
 
 **Priority:** Local config values override sbomify API values when both are available.
+
+### VCS Information (Auto-Detected)
+
+When running in CI environments, sbomify automatically detects and adds VCS (Version Control System) information to your SBOM:
+
+| CI Platform | Auto-Detected Fields |
+|-------------|---------------------|
+| GitHub Actions | Repository URL, commit SHA, branch/tag (supports GitHub Enterprise Server) |
+| GitLab CI | Project URL, commit SHA, ref name (supports self-managed instances) |
+| Bitbucket Pipelines | Repository URL, commit SHA, branch/tag |
+
+**What's added to the SBOM:**
+
+- **CycloneDX**: VCS external reference on root component with `git+https://...@sha` format
+- **SPDX**: `downloadLocation` with commit-pinned URL, `sourceInfo` with build context, VCS external reference
+
+**Overriding auto-detected values:**
+
+Add VCS fields to `sbomify.json` to override auto-detected values (useful for self-hosted instances):
+
+```json
+{
+  "vcs_url": "https://github.mycompany.com/org/repo",
+  "vcs_commit_sha": "abc123def456",
+  "vcs_ref": "main"
+}
+```
+
+**Disabling VCS augmentation:**
+
+Set the environment variable to disable VCS information entirely:
+
+```yaml
+env:
+  DISABLE_VCS_AUGMENTATION: "true"
+```
 
 ### Enrichment Data Sources
 
