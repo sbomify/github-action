@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-import requests
 import sentry_sdk
 
 # Add cyclonedx imports for proper SBOM handling
@@ -40,7 +39,6 @@ from ..generation import (
     generate_sbom,
     process_lock_file,
 )
-from ..http_client import get_default_headers
 from ..logging_config import logger
 from ..serialization import serialize_cyclonedx_bom
 from ..upload import upload_sbom
@@ -812,287 +810,6 @@ def _log_step_end(step_num: int, success: bool = True) -> None:
     print_step_end(step_num, success)
 
 
-def _check_release_exists(config: "Config", product_id: str, version: str) -> bool:
-    """
-    Check if a release exists for a product.
-
-    Args:
-        config: Configuration object with API details
-        product_id: The product ID
-        version: The release version
-
-    Returns:
-        True if release exists, False otherwise
-
-    Raises:
-        APIError: If API call fails
-    """
-    url = config.api_base_url + "/api/v1/releases"
-    headers = get_default_headers(config.token)
-
-    params = {"product_id": product_id, "version": version}
-
-    try:
-        response = requests.get(
-            url,
-            headers=headers,
-            params=params,
-            timeout=60,
-        )
-    except requests.exceptions.ConnectionError:
-        raise APIError("Failed to connect to sbomify API")
-    except requests.exceptions.Timeout:
-        raise APIError("API request timed out")
-
-    if response.status_code == 404:
-        return False
-    elif response.ok:
-        # Check if any releases match our criteria
-        try:
-            releases = response.json().get("items", [])
-            for release in releases:
-                if release.get("version") == version:
-                    return True
-            return False
-        except (ValueError, KeyError):
-            return False
-    else:
-        err_msg = f"Failed to check release existence. [{response.status_code}]"
-        if response.headers.get("content-type") == "application/json":
-            try:
-                error_data = response.json()
-                if "detail" in error_data:
-                    err_msg += f" - {error_data['detail']}"
-            except (ValueError, KeyError):
-                pass
-        raise APIError(err_msg)
-
-
-def _create_release(config: "Config", product_id: str, version: str) -> str:
-    """
-    Create a release for a product.
-
-    Args:
-        config: Configuration object with API details
-        product_id: The product ID
-        version: The release version
-
-    Returns:
-        The created release ID
-
-    Raises:
-        APIError: If API call fails
-    """
-    url = config.api_base_url + "/api/v1/releases"
-    headers = get_default_headers(config.token, content_type="application/json")
-
-    payload = {
-        "product_id": product_id,
-        "version": version,
-        "name": f"Release {version}",
-        "description": f"Release {version} created by sbomify-github-action",
-    }
-
-    try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=payload,
-            timeout=60,
-        )
-    except requests.exceptions.ConnectionError:
-        raise APIError("Failed to connect to sbomify API")
-    except requests.exceptions.Timeout:
-        raise APIError("API request timed out")
-
-    if not response.ok:
-        err_msg = f"Failed to create release. [{response.status_code}]"
-        if response.headers.get("content-type") == "application/json":
-            try:
-                error_data = response.json()
-                if "detail" in error_data:
-                    err_msg += f" - {error_data['detail']}"
-                else:
-                    # Log full error response for debugging when detail is missing
-                    err_msg += f" - {error_data}"
-            except (ValueError, KeyError):
-                pass
-        else:
-            # Log response text for non-JSON responses
-            try:
-                response_text = response.text[:500]  # Limit to first 500 chars
-                if response_text:
-                    err_msg += f" - Response: {response_text}"
-            except Exception:
-                pass
-        raise APIError(err_msg)
-
-    try:
-        return response.json().get("id")
-    except (ValueError, KeyError):
-        raise APIError("Invalid response format when creating release")
-
-
-def _tag_sbom_with_release(config: "Config", sbom_id: str, release_id: str) -> None:
-    """
-    Associate/tag an SBOM with a release.
-
-    Args:
-        config: Configuration object with API details
-        sbom_id: The SBOM ID from upload response
-        release_id: The release ID to associate with
-
-    Raises:
-        APIError: If API call fails
-    """
-    url = config.api_base_url + f"/api/v1/releases/{release_id}/artifacts"
-    headers = get_default_headers(config.token, content_type="application/json")
-
-    payload = {"sbom_id": sbom_id}
-
-    try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=payload,
-            timeout=60,
-        )
-    except requests.exceptions.ConnectionError:
-        raise APIError("Failed to connect to sbomify API")
-    except requests.exceptions.Timeout:
-        raise APIError("API request timed out")
-
-    if not response.ok:
-        err_msg = f"Failed to tag SBOM with release. [{response.status_code}]"
-        if response.headers.get("content-type") == "application/json":
-            try:
-                error_data = response.json()
-                if "detail" in error_data:
-                    err_msg += f" - {error_data['detail']}"
-            except (ValueError, KeyError):
-                pass
-        raise APIError(err_msg)
-
-
-def _get_release_id(config: "Config", product_id: str, version: str) -> Optional[str]:
-    """
-    Get the release ID for a product and version.
-
-    Args:
-        config: Configuration object with API details
-        product_id: The product ID
-        version: The release version
-
-    Returns:
-        The release ID if found, None otherwise
-
-    Raises:
-        APIError: If API call fails
-    """
-    url = config.api_base_url + "/api/v1/releases"
-    headers = get_default_headers(config.token)
-
-    params = {"product_id": product_id, "version": version}
-
-    try:
-        response = requests.get(
-            url,
-            headers=headers,
-            params=params,
-            timeout=60,
-        )
-    except requests.exceptions.ConnectionError:
-        raise APIError("Failed to connect to sbomify API")
-    except requests.exceptions.Timeout:
-        raise APIError("API request timed out")
-
-    if response.ok:
-        try:
-            releases = response.json().get("items", [])
-            for release in releases:
-                if release.get("version") == version:
-                    return release.get("id")
-            return None
-        except (ValueError, KeyError):
-            return None
-    else:
-        err_msg = f"Failed to get release ID. [{response.status_code}]"
-        if response.headers.get("content-type") == "application/json":
-            try:
-                error_data = response.json()
-                if "detail" in error_data:
-                    err_msg += f" - {error_data['detail']}"
-            except (ValueError, KeyError):
-                pass
-        raise APIError(err_msg)
-
-
-def _process_product_releases(config: "Config", sbom_id: str) -> None:
-    """
-    Process product releases by checking if they exist, creating them if needed,
-    and tagging the SBOM with the releases.
-
-    Args:
-        config: Configuration object with product releases to process
-        sbom_id: The SBOM ID to tag with releases
-    """
-    if not config.product_releases:
-        return
-
-    # Ensure we have a list (should be converted during validation)
-    if isinstance(config.product_releases, str):
-        logger.error("Product releases not properly validated - still in string format")
-        return
-
-    for release in config.product_releases:
-        product_id, version = release.split(":", 1)
-
-        logger.info(f"Processing release {version} for product {product_id}")
-
-        # Track details and ID so we can tag without redundant lookups
-        release_exists = _check_release_exists(config, product_id, version)
-        release_details = None
-        release_id = None
-
-        if release_exists:
-            # Get release details for user-friendly logging
-            try:
-                release_details = _get_release_details(config, product_id, version)
-                friendly_name = _get_release_friendly_name(release_details, product_id, version)
-                logger.info(f"{friendly_name} already exists for product {product_id}")
-                release_id = release_details.get("id")
-            except APIError as e:
-                logger.warning(f"Could not get release details for logging: {e}")
-                logger.info(f"Release {version} already exists for product {product_id}")
-        else:
-            logger.info(f"Creating release {version} for product {product_id}")
-            created_release_id = _create_release(config, product_id, version)
-            if created_release_id:
-                release_id = created_release_id
-            # Get details after creation for consistent logging
-            try:
-                release_details = _get_release_details(config, product_id, version)
-                if not release_id and release_details:
-                    release_id = release_details.get("id")
-            except APIError as e:
-                logger.warning(f"Could not get release details after creation: {e}")
-
-        # Fall back to explicit lookup if we still don't know the release ID
-        if not release_id:
-            release_id = _get_release_id(config, product_id, version)
-
-        if release_id:
-            # Use friendly name if we have release details
-            if release_details:
-                friendly_name = _get_release_friendly_name(release_details, product_id, version)
-                logger.info(f"Tagging SBOM {sbom_id} with {friendly_name} (ID: {release_id})")
-            else:
-                logger.info(f"Tagging SBOM {sbom_id} with release {version} (ID: {release_id})")
-            _tag_sbom_with_release(config, sbom_id, release_id)
-        else:
-            logger.error(f"Could not get release ID for {product_id}:{version}")
-
-
 def main() -> None:
     """Main entry point for the sbomify action."""
     # Reset transformation tracker for this run (tracks all SBOM modifications for attestation)
@@ -1352,24 +1069,54 @@ def main() -> None:
         logger.info("SBOM upload disabled (UPLOAD=false)")
         _log_step_end(5)
 
-    # Step 6: Process Product Releases
-    if config.product_releases and sbom_id:
-        _log_step_header(6, "Processing Product Releases")
+    # Step 6: Post-upload Processing (releases, signing, etc.)
+    if sbom_id:
+        _log_step_header(6, "Post-upload Processing")
         try:
-            _process_product_releases(config, sbom_id)
-            _log_step_end(6)
-        except (APIError, Exception) as e:
-            logger.error(f"Step 6 (product releases) failed: {e}")
+            from sbomify_action._processors import ProcessorInput, ProcessorOrchestrator
+
+            orchestrator = ProcessorOrchestrator(
+                api_base_url=config.api_base_url,
+                token=config.token,
+            )
+            processor_input = ProcessorInput(
+                sbom_id=sbom_id,
+                sbom_file=config.output_file,
+                product_releases=config.product_releases,
+                api_base_url=config.api_base_url,
+                token=config.token,
+            )
+
+            # Check if any processors are enabled
+            enabled_processors = orchestrator.get_enabled_processors(processor_input)
+            if enabled_processors:
+                logger.info(f"Running {len(enabled_processors)} processor(s): {enabled_processors}")
+                results = orchestrator.process_all(processor_input)
+
+                # Log results
+                for result in results.enabled_processors:
+                    if result.success:
+                        logger.info(
+                            f"Processor '{result.processor_name}' completed: {result.processed_items} item(s) processed"
+                        )
+                    else:
+                        logger.error(f"Processor '{result.processor_name}' failed: {result.error_message}")
+
+                if results.any_failures:
+                    _log_step_end(6, success=False)
+                else:
+                    _log_step_end(6)
+            else:
+                logger.info("No processors enabled for this run")
+                _log_step_end(6)
+        except Exception as e:
+            logger.error(f"Step 6 (post-upload processing) failed: {e}")
             _log_step_end(6, success=False)
-            # Don't exit here - releases are optional, continue with success message
+            # Don't exit here - post-upload processing is optional
     elif config.product_releases and not sbom_id:
-        _log_step_header(6, "Processing Product Releases - SKIPPED")
+        _log_step_header(6, "Post-upload Processing - SKIPPED")
         logger.warning("Product releases specified but no SBOM ID available (upload may have been disabled or failed)")
         _log_step_end(6, success=False)
-    elif config.product_releases:
-        _log_step_header(6, "Processing Product Releases - SKIPPED")
-        logger.info("No product releases specified")
-        _log_step_end(6)
 
     # Print transformation summary for attestation (shows all SBOM modifications)
     print_transformation_summary()
@@ -1543,84 +1290,6 @@ def _apply_sbom_name_override(sbom_file: str, config: "Config") -> None:
     except Exception as e:
         logger.warning(f"Failed to apply component name override: {e}")
         # Don't fail the entire process for name override issues
-
-
-def _get_release_details(config: "Config", product_id: str, version: str) -> Optional[dict]:
-    """
-    Get full release details for a product and version.
-
-    Args:
-        config: Configuration object with API details
-        product_id: The product ID
-        version: The release version
-
-    Returns:
-        Full release details dict if found, None otherwise
-
-    Raises:
-        APIError: If API call fails
-    """
-    url = config.api_base_url + "/api/v1/releases"
-    headers = get_default_headers(config.token)
-
-    params = {"product_id": product_id, "version": version}
-
-    try:
-        response = requests.get(
-            url,
-            headers=headers,
-            params=params,
-            timeout=60,
-        )
-    except requests.exceptions.ConnectionError:
-        raise APIError("Failed to connect to sbomify API")
-    except requests.exceptions.Timeout:
-        raise APIError("API request timed out")
-
-    if response.ok:
-        try:
-            releases = response.json().get("items", [])
-            for release in releases:
-                if release.get("version") == version:
-                    return release
-            return None
-        except (ValueError, KeyError):
-            return None
-    else:
-        err_msg = f"Failed to get release details. [{response.status_code}]"
-        if response.headers.get("content-type") == "application/json":
-            try:
-                error_data = response.json()
-                if "detail" in error_data:
-                    err_msg += f" - {error_data['detail']}"
-            except (ValueError, KeyError):
-                pass
-        raise APIError(err_msg)
-
-
-def _get_release_friendly_name(release_details: dict, product_id: str, version: str) -> str:
-    """
-    Get a user-friendly name for a release.
-
-    Args:
-        release_details: Full release details from the API
-        product_id: The product ID (fallback)
-        version: The release version (fallback)
-
-    Returns:
-        User-friendly release name
-    """
-    if not release_details:
-        return f"Release {version}"
-
-    # Try to get the release name from the API response
-    release_name = release_details.get("name")
-    if release_name and release_name != f"Release {version}":
-        # Custom release name
-        return f"'{release_name}' ({version})"
-    else:
-        # Default release name format
-        return f"Release {version}"
 
 
 if __name__ == "__main__":
