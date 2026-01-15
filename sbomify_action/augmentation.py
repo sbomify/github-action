@@ -255,7 +255,8 @@ def fetch_augmentation_metadata(
 def _normalize_urls_to_list(urls: Any) -> List[str]:
     """Normalize URL field to a list format.
 
-    Handles both single URL strings and lists of URLs from API responses.
+    Handles both single URL strings and lists of URLs from augmentation
+    metadata sources (API responses and JSON config files).
 
     Args:
         urls: URL data - can be None, a string, or a list of strings
@@ -268,6 +269,25 @@ def _normalize_urls_to_list(urls: Any) -> List[str]:
     if isinstance(urls, list):
         return urls
     return [urls]
+
+
+def _is_cdx_version_at_least(spec_version: Optional[str], min_major: int, min_minor: int) -> bool:
+    """Check if CycloneDX spec version meets minimum requirement.
+
+    Args:
+        spec_version: CycloneDX spec version string (e.g., "1.4", "1.6")
+        min_major: Minimum major version required
+        min_minor: Minimum minor version required (when major equals min_major)
+
+    Returns:
+        True if spec_version >= min_major.min_minor
+    """
+    if spec_version is None:
+        spec_version = "1.4"
+    spec_parts = spec_version.split(".")
+    major = int(spec_parts[0]) if len(spec_parts) > 0 else 1
+    minor = int(spec_parts[1]) if len(spec_parts) > 1 else 4
+    return (major > min_major) or (major == min_major and minor >= min_minor)
 
 
 def _process_license_data(license_data: Any) -> Optional[Any]:
@@ -349,16 +369,7 @@ def _add_sbomify_tool_to_cyclonedx(bom: Bom, spec_version: Optional[str] = None)
         See: https://github.com/CycloneDX/cyclonedx-python-lib/issues/917
         See: https://cyclonedx.org/docs/1.7/json/#metadata_tools
     """
-    # Use provided spec_version or default to 1.4
-    if spec_version is None:
-        spec_version = "1.4"
-
-    spec_parts = spec_version.split(".")
-    major = int(spec_parts[0]) if len(spec_parts) > 0 else 1
-    minor = int(spec_parts[1]) if len(spec_parts) > 1 else 4
-    is_v15_or_later = (major > 1) or (major == 1 and minor >= 5)
-
-    if is_v15_or_later:
+    if _is_cdx_version_at_least(spec_version, 1, 5):
         # Modern format (1.5+): Use services for API/service-based tools
         # Keep existing components and services, add sbomify as a service
         logger.debug(f"Using modern tools format for CycloneDX {spec_version}")
@@ -587,10 +598,7 @@ def augment_cyclonedx_sbom(
                     backend_manufacturer.contacts.add(contact)
 
             # Determine version for field assignment
-            spec_parts = (spec_version or "1.4").split(".")
-            major = int(spec_parts[0]) if len(spec_parts) > 0 else 1
-            minor = int(spec_parts[1]) if len(spec_parts) > 1 else 4
-            is_v16_or_later = (major > 1) or (major == 1 and minor >= 6)
+            is_v16_or_later = _is_cdx_version_at_least(spec_version, 1, 6)
 
             if is_v16_or_later:
                 # CycloneDX 1.6+: Use metadata.component.manufacturer
@@ -712,33 +720,27 @@ def augment_cyclonedx_sbom(
     # Crosswalk: https://sbomify.com/compliance/schema-crosswalk/
     # Only supported in CycloneDX 1.5+ (metadata.lifecycles field not available in 1.3/1.4)
     if "lifecycle_phase" in augmentation_data and augmentation_data["lifecycle_phase"]:
-        # Parse spec version to check if 1.5+
-        if spec_version:
-            spec_parts = spec_version.split(".")
-            major = int(spec_parts[0]) if len(spec_parts) > 0 else 1
-            minor = int(spec_parts[1]) if len(spec_parts) > 1 else 4
-            is_v15_or_later = (major > 1) or (major == 1 and minor >= 5)
-
-            if is_v15_or_later:
-                phase_value = augmentation_data["lifecycle_phase"].lower().replace("_", "-")
-                # Map to CycloneDX LifecyclePhase enum
-                phase_mapping = {
-                    "design": LifecyclePhase.DESIGN,
-                    "pre-build": LifecyclePhase.PRE_BUILD,
-                    "build": LifecyclePhase.BUILD,
-                    "post-build": LifecyclePhase.POST_BUILD,
-                    "operations": LifecyclePhase.OPERATIONS,
-                    "discovery": LifecyclePhase.DISCOVERY,
-                    "decommission": LifecyclePhase.DECOMMISSION,
-                }
-                if phase_value in phase_mapping:
-                    lifecycle = PredefinedLifecycle(phase=phase_mapping[phase_value])
-                    bom.metadata.lifecycles.add(lifecycle)
-                    logger.info(f"Added lifecycle phase: {phase_value}")
-                else:
-                    logger.warning(f"Unknown lifecycle phase '{phase_value}', skipping")
+        # Only supported in CycloneDX 1.5+
+        if _is_cdx_version_at_least(spec_version, 1, 5):
+            phase_value = augmentation_data["lifecycle_phase"].lower().replace("_", "-")
+            # Map to CycloneDX LifecyclePhase enum
+            phase_mapping = {
+                "design": LifecyclePhase.DESIGN,
+                "pre-build": LifecyclePhase.PRE_BUILD,
+                "build": LifecyclePhase.BUILD,
+                "post-build": LifecyclePhase.POST_BUILD,
+                "operations": LifecyclePhase.OPERATIONS,
+                "discovery": LifecyclePhase.DISCOVERY,
+                "decommission": LifecyclePhase.DECOMMISSION,
+            }
+            if phase_value in phase_mapping:
+                lifecycle = PredefinedLifecycle(phase=phase_mapping[phase_value])
+                bom.metadata.lifecycles.add(lifecycle)
+                logger.info(f"Added lifecycle phase: {phase_value}")
             else:
-                logger.debug(f"Lifecycle phase not supported in CycloneDX {spec_version} (requires 1.5+)")
+                logger.warning(f"Unknown lifecycle phase '{phase_value}', skipping")
+        else:
+            logger.debug(f"Lifecycle phase not supported in CycloneDX {spec_version} (requires 1.5+)")
 
     # Add VCS information if present (from CI providers or sbomify.json config)
     # This adds repository URL and commit info to the root component
