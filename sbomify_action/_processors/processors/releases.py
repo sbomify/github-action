@@ -127,7 +127,6 @@ class SbomifyReleasesProcessor:
             processed_items=processed,
             metadata={
                 "release_ids": release_ids,
-                "failed_items": failed,
                 "errors": errors if errors else None,
             },
         )

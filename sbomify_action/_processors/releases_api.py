@@ -201,7 +201,9 @@ def create_release(api_base_url: str, token: str, product_id: str, version: str)
             try:
                 error_data = response.json()
                 if error_data.get("error_code") == "DUPLICATE_NAME":
-                    logger.info(f"Release {version} already exists, retrieving existing release ID")
+                    logger.info(
+                        f"Release {version} for product {product_id} already exists, retrieving existing release ID"
+                    )
                     existing_id = get_release_id(api_base_url, token, product_id, version)
                     if existing_id:
                         return existing_id
