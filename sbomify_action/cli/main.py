@@ -1171,9 +1171,8 @@ def _update_spdx_json_purl_version(package_json: dict, new_version: str) -> bool
                     qualifiers=old_purl.qualifiers,
                     subpath=old_purl.subpath,
                 )
-                old_locator = ref.get("referenceLocator")
                 ref["referenceLocator"] = str(new_purl)
-                logger.debug(f"Updated SPDX package PURL version in JSON: {old_locator} -> {ref['referenceLocator']}")
+                logger.debug(f"Updated SPDX package PURL version in JSON: {old_purl} -> {ref['referenceLocator']}")
                 return True
             except Exception as e:
                 logger.warning(f"Failed to update SPDX package PURL version in JSON: {e}")
