@@ -14,8 +14,14 @@ Example config file:
     "authors": [
         {"name": "John Doe", "email": "john@example.com"}
     ],
-    "licenses": ["MIT"]
+    "licenses": ["MIT"],
+    "vcs_url": "https://github.mycompany.com/org/repo",
+    "vcs_ref": "main"
 }
+
+VCS fields can be used to override auto-detected CI values or configure
+VCS info for self-hosted instances. Set DISABLE_VCS_AUGMENTATION=true
+to disable all VCS enrichment.
 """
 
 import json
@@ -25,6 +31,7 @@ from typing import Optional
 from sbomify_action.logging_config import logger
 
 from ..metadata import AugmentationMetadata
+from ..utils import is_vcs_augmentation_disabled
 
 # Default config file name
 DEFAULT_CONFIG_FILE = "sbomify.json"
@@ -77,6 +84,12 @@ class JsonConfigProvider:
             if not isinstance(data, dict):
                 logger.warning(f"Invalid JSON config format in {config_file}: expected object")
                 return None
+
+            # Strip VCS fields if VCS augmentation is disabled
+            if is_vcs_augmentation_disabled():
+                vcs_keys = {"vcs_url", "vcs_commit_sha", "vcs_ref", "vcs_commit_url"}
+                data = {k: v for k, v in data.items() if k not in vcs_keys}
+                logger.debug("VCS augmentation disabled, ignoring VCS fields from config")
 
             # Create metadata from config
             metadata = AugmentationMetadata.from_dict(data, source=self.name)

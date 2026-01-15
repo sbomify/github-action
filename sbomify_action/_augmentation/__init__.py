@@ -2,11 +2,20 @@
 
 This module provides a plugin-based approach to fetching organizational
 metadata for SBOM augmentation. Multiple providers can supply metadata
-(supplier, authors, licenses, lifecycle_phase), which is merged by priority.
+(supplier, authors, licenses, lifecycle_phase, VCS info), which is merged by priority.
 
-Providers:
+Providers (in priority order):
 - json-config: Reads from sbomify.json config file (priority 10)
+- github-actions: Auto-detects VCS info from GitHub Actions env (priority 20)
+- gitlab-ci: Auto-detects VCS info from GitLab CI env (priority 20)
+- bitbucket-pipelines: Auto-detects VCS info from Bitbucket Pipelines env (priority 20)
 - sbomify-api: Fetches from sbomify backend API (priority 50)
+
+VCS Augmentation:
+CI providers automatically detect repository URL, commit SHA, and branch/ref
+from CI environment variables. This can be:
+- Overridden via sbomify.json config (vcs_url, vcs_commit_sha, vcs_ref)
+- Disabled entirely via DISABLE_VCS_AUGMENTATION=true environment variable
 
 Usage:
     from sbomify_action._augmentation import create_default_registry
@@ -35,13 +44,33 @@ def create_default_registry() -> ProviderRegistry:
     """
     Create a registry with default augmentation providers.
 
+    Providers are registered in priority order (lower number = higher priority):
+    - Priority 10: JsonConfigProvider (local config, can override CI-detected VCS)
+    - Priority 20: CI providers (GitHub Actions, GitLab CI, Bitbucket Pipelines)
+    - Priority 50: SbomifyApiProvider (backend metadata)
+
     Returns:
         ProviderRegistry configured with standard providers
     """
-    from .providers import JsonConfigProvider, SbomifyApiProvider
+    from .providers import (
+        BitbucketPipelinesProvider,
+        GitHubActionsProvider,
+        GitLabCIProvider,
+        JsonConfigProvider,
+        SbomifyApiProvider,
+    )
 
     registry = ProviderRegistry()
+
+    # Priority 10: Local config (can override CI-detected VCS)
     registry.register(JsonConfigProvider())
+
+    # Priority 20: CI providers (auto-detect VCS from environment)
+    registry.register(GitHubActionsProvider())
+    registry.register(GitLabCIProvider())
+    registry.register(BitbucketPipelinesProvider())
+
+    # Priority 50: API provider (backend metadata)
     registry.register(SbomifyApiProvider())
 
     return registry

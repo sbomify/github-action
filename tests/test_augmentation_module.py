@@ -3,6 +3,7 @@ Tests for the new augmentation module with proper library usage.
 """
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -735,6 +736,7 @@ class TestErrorHandling:
 
             assert "Invalid JSON in SBOM file" in str(exc_info.value)
 
+    @patch.dict(os.environ, {}, clear=True)
     @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_api_connection_error(self, mock_get):
         """Test handling of API connection errors (provider returns None, not exception)."""
@@ -753,6 +755,7 @@ class TestErrorHandling:
         # Provider catches the error and returns None, which results in empty dict
         assert result == {}
 
+    @patch.dict(os.environ, {}, clear=True)
     @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_api_timeout_error(self, mock_get):
         """Test handling of API timeout errors (provider returns None, not exception)."""
@@ -770,6 +773,7 @@ class TestErrorHandling:
         # Provider catches the error and returns None, which results in empty dict
         assert result == {}
 
+    @patch.dict(os.environ, {}, clear=True)
     @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_api_404_error(self, mock_get):
         """Test handling of API 404 errors (provider returns None, not exception)."""
