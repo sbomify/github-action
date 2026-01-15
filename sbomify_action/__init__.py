@@ -2,8 +2,15 @@
 
 
 def _get_version() -> str:
-    """Get package version with fallback mechanisms."""
-    # Method 1: Try importlib.metadata (preferred for installed packages)
+    """Get package version with fallback mechanisms.
+
+    Tries the following methods in order until one succeeds:
+    - importlib.metadata (preferred for installed packages)
+    - tomllib/pyproject.toml (Python 3.11+, for development)
+    - toml library/pyproject.toml (older Python, for development)
+    - Returns "unknown" if all methods fail
+    """
+    # Try importlib.metadata (preferred for installed packages)
     try:
         from importlib.metadata import version
 
@@ -13,7 +20,7 @@ def _get_version() -> str:
     except Exception:
         pass
 
-    # Method 2: Try reading from pyproject.toml directly (Python 3.11+)
+    # Try reading from pyproject.toml using tomllib (Python 3.11+)
     try:
         from pathlib import Path
 
@@ -30,7 +37,7 @@ def _get_version() -> str:
     except Exception:
         pass
 
-    # Method 3: Try toml library as fallback for older Python
+    # Try toml library as fallback for older Python
     try:
         from pathlib import Path
 

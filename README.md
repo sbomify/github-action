@@ -531,12 +531,12 @@ When installed via pip, sbomify-action requires external SBOM generators. The Do
 
 | Tool | Install Command | Notes |
 |------|-----------------|-------|
-| **cyclonedx-py** | `pip install cyclonedx-bom` | Native Python generator, installed as a dependency |
+| **cyclonedx-py** | `pip install cyclonedx-bom` | Native Python generator; `cyclonedx-py` is the CLI command provided by the `cyclonedx-bom` package (installed as a dependency) |
 | **Trivy** | [Installation guide](https://aquasecurity.github.io/trivy/latest/getting-started/installation/) | macOS: `brew install trivy` |
 | **Syft** | [Installation guide](https://github.com/anchore/syft#installation) | macOS: `brew install syft` |
 | **cdxgen** | `npm install -g @cyclonedx/cdxgen` | Requires Node.js/Bun |
 
-**Minimum requirement**: At least one generator must be installed for SBOM generation. For Python projects, `cyclonedx-py` is automatically available. For other ecosystems or Docker images, install `trivy`, `syft`, or `cdxgen`.
+**Minimum requirement**: At least one generator must be installed for SBOM generation. For Python projects, `cyclonedx-bom` (which provides the `cyclonedx-py` command) is installed as a dependency when you install sbomify-action via pip. For other ecosystems or Docker images, install `trivy`, `syft`, or `cdxgen`.
 
 ## Format Support
 

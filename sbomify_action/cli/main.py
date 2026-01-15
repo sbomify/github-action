@@ -71,7 +71,7 @@ def _get_package_version() -> str:
     except Exception:
         pass
 
-    # Method 3: Try reading from pyproject.toml directly (Python 3.11+)
+    # Method 3: Try reading from pyproject.toml using tomllib when available (Python 3.11+; older versions fall back to other methods)
     try:
         import tomllib
 

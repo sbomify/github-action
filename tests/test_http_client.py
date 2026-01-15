@@ -1,5 +1,6 @@
 """Tests for http_client module."""
 
+import re
 import unittest
 
 from sbomify_action.http_client import USER_AGENT, get_default_headers
@@ -19,9 +20,18 @@ class TestUserAgent(unittest.TestCase):
         parts = USER_AGENT.split("/")
         self.assertEqual(len(parts), 2)
         self.assertEqual(parts[0], "sbomify-action")
-        # Version part should exist
+        # Version part should exist and be a valid version string
         version_part = parts[1].split(" ")[0]
         self.assertTrue(len(version_part) > 0)
+        # Verify it's either a valid semver-like version or "unknown"
+        # Valid versions match patterns like "1.0", "1.0.0", "1.0.0-beta", etc.
+        version_pattern = r"^\d+\.\d+(\.\d+)?(-[\w.]+)?$"
+        is_valid_version = re.match(version_pattern, version_part) is not None
+        is_unknown = version_part == "unknown"
+        self.assertTrue(
+            is_valid_version or is_unknown,
+            f"Version '{version_part}' is neither a valid version pattern nor 'unknown'",
+        )
 
 
 class TestGetDefaultHeaders(unittest.TestCase):

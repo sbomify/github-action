@@ -108,8 +108,19 @@ class GeneratorRegistry:
         generators = self.get_generators_for(input)
 
         if not generators:
+            # Determine input type for error messages
+            if input.is_docker_image:
+                input_type = "docker_image"
+            elif input.is_lock_file:
+                input_type = "lock_file"
+            else:
+                # SBOM file input or other - these don't need generation tools
+                raise ValueError(
+                    f"No generator found for input. "
+                    f"Requested: format={input.output_format}, version={input.spec_version}."
+                )
+
             # Check if this is due to missing tools
-            input_type = "docker_image" if input.is_docker_image else "lock_file"
             lock_file = input.lock_file if input.is_lock_file else None
             available_tools, missing_tools = check_tool_for_input(input_type, lock_file)
 
