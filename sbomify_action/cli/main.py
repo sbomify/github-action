@@ -1142,6 +1142,45 @@ def _validate_cyclonedx_sbom(sbom_file_path: str) -> bool | None:
         return False
 
 
+def _update_spdx_json_purl_version(package_json: dict, new_version: str) -> bool:
+    """
+    Update the version in an SPDX package's PURL external reference in JSON format.
+
+    This function operates on the raw JSON dict, not the SPDX model objects,
+    because it's used in the version override path which manipulates JSON directly.
+
+    Args:
+        package_json: The SPDX package dict with optional externalRefs
+        new_version: The new version to set in the PURL
+
+    Returns:
+        True if PURL was updated, False if package has no PURL ref or update failed
+    """
+    from packageurl import PackageURL
+
+    external_refs = package_json.get("externalRefs", [])
+    for ref in external_refs:
+        if ref.get("referenceType") == "purl":
+            try:
+                old_purl = PackageURL.from_string(ref.get("referenceLocator", ""))
+                new_purl = PackageURL(
+                    type=old_purl.type,
+                    namespace=old_purl.namespace,
+                    name=old_purl.name,
+                    version=new_version,
+                    qualifiers=old_purl.qualifiers,
+                    subpath=old_purl.subpath,
+                )
+                old_locator = ref.get("referenceLocator")
+                ref["referenceLocator"] = str(new_purl)
+                logger.debug(f"Updated SPDX package PURL version in JSON: {old_locator} -> {ref['referenceLocator']}")
+                return True
+            except Exception as e:
+                logger.warning(f"Failed to update SPDX package PURL version in JSON: {e}")
+                return False
+    return False
+
+
 def _apply_sbom_version_override(sbom_file: str, config: "Config") -> None:
     """
     Apply component version override based on configuration.
@@ -1166,10 +1205,14 @@ def _apply_sbom_version_override(sbom_file: str, config: "Config") -> None:
             from cyclonedx.model.bom import Bom
             from cyclonedx.model.component import Component, ComponentType
 
+            from ..augmentation import _update_component_purl_version
+
             if isinstance(parsed_object, Bom):
                 # Apply version override to CycloneDX BOM object
                 if hasattr(parsed_object.metadata, "component") and parsed_object.metadata.component:
                     parsed_object.metadata.component.version = config.component_version
+                    # Also update the PURL version to maintain consistency
+                    _update_component_purl_version(parsed_object.metadata.component, config.component_version)
                 else:
                     # Create component if it doesn't exist
                     component_name = original_json.get("metadata", {}).get("component", {}).get("name", "unknown")
@@ -1188,14 +1231,16 @@ def _apply_sbom_version_override(sbom_file: str, config: "Config") -> None:
                     f.write(serialized)
 
         elif sbom_format == "spdx":
-            # For SPDX, apply version override directly to JSON
-            if "metadata" not in original_json:
-                original_json["metadata"] = {}
-            if "component" not in original_json["metadata"]:
-                original_json["metadata"]["component"] = {}
-
-            original_json["metadata"]["component"]["version"] = config.component_version
-            logger.info(f"Set SPDX component version from configuration: {config.component_version}")
+            # For SPDX, apply version override to packages[0].versionInfo in JSON
+            # Note: SPDX stores the root package in packages array, not metadata.component
+            if "packages" in original_json and original_json["packages"]:
+                main_package = original_json["packages"][0]
+                main_package["versionInfo"] = config.component_version
+                # Also update PURL in externalRefs if present
+                _update_spdx_json_purl_version(main_package, config.component_version)
+                logger.info(f"Set SPDX package version from configuration: {config.component_version}")
+            else:
+                logger.warning("SPDX SBOM has no packages - cannot set version override")
 
             with Path(sbom_file).open("w") as f:
                 json.dump(original_json, f, indent=2)

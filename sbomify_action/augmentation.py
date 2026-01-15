@@ -39,6 +39,7 @@ from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.license import DisjunctiveLicense, LicenseExpression
 from cyclonedx.model.lifecycle import LifecyclePhase, PredefinedLifecycle
 from cyclonedx.model.service import Service
+from packageurl import PackageURL
 from spdx_tools.spdx.model import (
     Actor,
     ActorType,
@@ -46,6 +47,7 @@ from spdx_tools.spdx.model import (
     ExternalPackageRef,
     ExternalPackageRefCategory,
     ExtractedLicensingInfo,
+    Package,
 )
 from spdx_tools.spdx.parser.jsonlikedict.license_expression_parser import LicenseExpressionParser
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
@@ -100,6 +102,80 @@ def _propagate_supplier_to_lockfile_components(bom: Bom) -> None:
 
     if propagated_count > 0:
         logger.info(f"Propagated supplier to {propagated_count} lockfile component(s)")
+
+
+def _update_component_purl_version(component: Component, new_version: str) -> bool:
+    """
+    Update the version in a CycloneDX component's PURL if present.
+
+    When COMPONENT_VERSION is set to override the component version, this function
+    ensures the PURL is also updated to maintain consistency between the component's
+    version field and its PURL.
+
+    Args:
+        component: The CycloneDX Component object with optional purl attribute
+        new_version: The new version to set in the PURL
+
+    Returns:
+        True if PURL was updated, False if component has no PURL or update failed
+    """
+    if not component.purl:
+        return False
+
+    try:
+        old_purl = component.purl
+        # Create new PURL with updated version, preserving all other fields
+        new_purl = PackageURL(
+            type=old_purl.type,
+            namespace=old_purl.namespace,
+            name=old_purl.name,
+            version=new_version,
+            qualifiers=old_purl.qualifiers,
+            subpath=old_purl.subpath,
+        )
+        component.purl = new_purl
+        logger.debug(f"Updated component PURL version: {old_purl} -> {new_purl}")
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to update component PURL version: {e}")
+        return False
+
+
+def _update_spdx_package_purl_version(package: Package, new_version: str) -> bool:
+    """
+    Update the version in an SPDX package's PURL external reference if present.
+
+    When COMPONENT_VERSION is set to override the package version, this function
+    ensures the PURL in external_references is also updated to maintain consistency
+    between the package's version field and its PURL.
+
+    Args:
+        package: The SPDX Package object with external_references
+        new_version: The new version to set in the PURL
+
+    Returns:
+        True if PURL was updated, False if package has no PURL ref or update failed
+    """
+    for ref in package.external_references:
+        if ref.reference_type == "purl":
+            try:
+                old_purl = PackageURL.from_string(ref.locator)
+                new_purl = PackageURL(
+                    type=old_purl.type,
+                    namespace=old_purl.namespace,
+                    name=old_purl.name,
+                    version=new_version,
+                    qualifiers=old_purl.qualifiers,
+                    subpath=old_purl.subpath,
+                )
+                old_locator = ref.locator
+                ref.locator = str(new_purl)
+                logger.debug(f"Updated SPDX package PURL version: {old_locator} -> {ref.locator}")
+                return True
+            except Exception as e:
+                logger.warning(f"Failed to update SPDX package PURL version: {e}")
+                return False
+    return False
 
 
 def _get_package_version() -> str:
@@ -544,6 +620,8 @@ def augment_cyclonedx_sbom(
     if component_version:
         if hasattr(bom.metadata, "component") and bom.metadata.component:
             bom.metadata.component.version = component_version
+            # Also update the PURL version to maintain consistency
+            _update_component_purl_version(bom.metadata.component, component_version)
         else:
             # Create component if it doesn't exist
             bom.metadata.component = Component(
@@ -925,6 +1003,8 @@ def augment_spdx_sbom(
     if component_version and document.packages:
         main_package = document.packages[0]
         main_package.version = component_version
+        # Also update the PURL version in external references to maintain consistency
+        _update_spdx_package_purl_version(main_package, component_version)
         logger.info(f"Set package version from configuration: {component_version}")
 
     # Add lifecycle phase if present (CISA 2025 Generation Context requirement)
