@@ -100,6 +100,10 @@ class TestGenerationResult(unittest.TestCase):
         self.assertEqual(result.error_message, "Test error")
 
 
+@patch("sbomify_action._generation.generators.syft._SYFT_AVAILABLE", True)
+@patch("sbomify_action._generation.generators.cdxgen._CDXGEN_AVAILABLE", True)
+@patch("sbomify_action._generation.generators.trivy._TRIVY_AVAILABLE", True)
+@patch("sbomify_action._generation.generators.cyclonedx_py._CYCLONEDX_PY_AVAILABLE", True)
 class TestGeneratorRegistry(unittest.TestCase):
     """Tests for GeneratorRegistry."""
 
@@ -203,6 +207,7 @@ class TestGeneratorRegistry(unittest.TestCase):
         self.assertEqual(generators[2].name, "syft-image")  # Priority 35
 
 
+@patch("sbomify_action._generation.generators.cyclonedx_py._CYCLONEDX_PY_AVAILABLE", True)
 class TestCycloneDXPyGenerator(unittest.TestCase):
     """Tests for CycloneDXPyGenerator."""
 
@@ -257,6 +262,7 @@ class TestCycloneDXPyGenerator(unittest.TestCase):
         self.assertEqual(result.generator_name, "cyclonedx-py")
 
 
+@patch("sbomify_action._generation.generators.trivy._TRIVY_AVAILABLE", True)
 class TestTrivyFsGenerator(unittest.TestCase):
     """Tests for TrivyFsGenerator."""
 
@@ -298,6 +304,7 @@ class TestTrivyFsGenerator(unittest.TestCase):
         self.assertFalse(self.generator.supports(input))
 
 
+@patch("sbomify_action._generation.generators.cdxgen._CDXGEN_AVAILABLE", True)
 class TestCdxgenFsGenerator(unittest.TestCase):
     """Tests for CdxgenFsGenerator."""
 
@@ -571,6 +578,7 @@ class TestCdxgenFsGenerator(unittest.TestCase):
         self.assertEqual(cmd[-1], ".")
 
 
+@patch("sbomify_action._generation.generators.cdxgen._CDXGEN_AVAILABLE", True)
 class TestCdxgenImageGenerator(unittest.TestCase):
     """Tests for CdxgenImageGenerator."""
 
@@ -637,6 +645,7 @@ class TestCdxgenImageGenerator(unittest.TestCase):
         self.assertIn("--fail-on-error", cmd)
 
 
+@patch("sbomify_action._generation.generators.syft._SYFT_AVAILABLE", True)
 class TestSyftFsGenerator(unittest.TestCase):
     """Tests for SyftFsGenerator."""
 
@@ -722,6 +731,7 @@ class TestGeneratorOrchestrator(unittest.TestCase):
         self.assertEqual(result.generator_name, "cyclonedx-py")
 
 
+@patch("sbomify_action._generation.generators.trivy._TRIVY_AVAILABLE", True)
 class TestTrivyImageGenerator(unittest.TestCase):
     """Tests for TrivyImageGenerator."""
 
@@ -787,6 +797,7 @@ class TestTrivyImageGenerator(unittest.TestCase):
         self.assertEqual(result.spec_version, "2.3")
 
 
+@patch("sbomify_action._generation.generators.syft._SYFT_AVAILABLE", True)
 class TestSyftImageGenerator(unittest.TestCase):
     """Tests for SyftImageGenerator."""
 
@@ -915,6 +926,7 @@ class TestUtilsFunctions(unittest.TestCase):
         self.assertFalse(is_supported_lock_file("unknown.lock"))
 
 
+@patch("sbomify_action._generation.generators.cyclonedx_py._CYCLONEDX_PY_AVAILABLE", True)
 class TestCycloneDXPyGeneratorVersionValidation(unittest.TestCase):
     """Tests for CycloneDX-py generator version validation."""
 
