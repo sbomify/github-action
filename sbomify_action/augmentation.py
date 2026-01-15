@@ -252,6 +252,24 @@ def fetch_augmentation_metadata(
         return {}
 
 
+def _normalize_urls_to_list(urls: Any) -> List[str]:
+    """Normalize URL field to a list format.
+
+    Handles both single URL strings and lists of URLs from API responses.
+
+    Args:
+        urls: URL data - can be None, a string, or a list of strings
+
+    Returns:
+        List of URL strings (empty list if no URLs provided)
+    """
+    if not urls:
+        return []
+    if isinstance(urls, list):
+        return urls
+    return [urls]
+
+
 def _process_license_data(license_data: Any) -> Optional[Any]:
     """
     Process license data from backend into CycloneDX license objects.
@@ -551,19 +569,10 @@ def augment_cyclonedx_sbom(
         else:
             logger.info(f"Adding manufacturer information: {manufacturer_name}")
 
-            # Normalize URLs to list format
-            manufacturer_urls = manufacturer_data.get("url")
-            if isinstance(manufacturer_urls, list):
-                pass  # already a list
-            elif manufacturer_urls:
-                manufacturer_urls = [manufacturer_urls]
-            else:
-                manufacturer_urls = []
-
             # Create backend manufacturer entity
             backend_manufacturer = OrganizationalEntity(
                 name=manufacturer_name,
-                urls=manufacturer_urls,
+                urls=_normalize_urls_to_list(manufacturer_data.get("url")),
                 contacts=[],
             )
 
@@ -1007,13 +1016,7 @@ def augment_spdx_sbom(
                 logger.debug(f"Preserving existing originator: {main_package.originator}")
 
             # Add manufacturer URLs as external references
-            if manufacturer_data.get("url"):
-                urls = (
-                    manufacturer_data["url"]
-                    if isinstance(manufacturer_data["url"], list)
-                    else [manufacturer_data["url"]]
-                )
-                for url in urls:
+            for url in _normalize_urls_to_list(manufacturer_data.get("url")):
                     if url:
                         existing_refs = [ref.locator for ref in main_package.external_references]
                         if url not in existing_refs:
