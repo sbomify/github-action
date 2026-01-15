@@ -1465,3 +1465,350 @@ class TestAugmentationValidation:
                 mock_validate.assert_not_called()
 
             assert output_file.exists()
+
+
+class TestPurlVersionUpdate:
+    """Tests for PURL version update functionality when COMPONENT_VERSION is set."""
+
+    def test_update_component_purl_version_cyclonedx(self):
+        """Test that CycloneDX component PURL version is updated."""
+        from cyclonedx.model.component import Component, ComponentType
+        from packageurl import PackageURL
+
+        from sbomify_action.augmentation import _update_component_purl_version
+
+        # Create component with PURL
+        component = Component(
+            name="test-app",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+            purl=PackageURL.from_string("pkg:pypi/test-app@1.0.0"),
+        )
+
+        # Update PURL version
+        result = _update_component_purl_version(component, "2.0.0")
+
+        assert result is True
+        assert component.purl is not None
+        assert component.purl.version == "2.0.0"
+        assert str(component.purl) == "pkg:pypi/test-app@2.0.0"
+
+    def test_update_component_purl_version_no_purl(self):
+        """Test that function returns False when component has no PURL."""
+        from cyclonedx.model.component import Component, ComponentType
+
+        from sbomify_action.augmentation import _update_component_purl_version
+
+        # Create component without PURL
+        component = Component(
+            name="test-app",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+        )
+
+        # Update should return False
+        result = _update_component_purl_version(component, "2.0.0")
+
+        assert result is False
+        assert component.purl is None
+
+    def test_update_component_purl_version_preserves_qualifiers(self):
+        """Test that PURL qualifiers are preserved during version update."""
+        from cyclonedx.model.component import Component, ComponentType
+        from packageurl import PackageURL
+
+        from sbomify_action.augmentation import _update_component_purl_version
+
+        # Create component with PURL that has qualifiers
+        component = Component(
+            name="test-app",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+            purl=PackageURL.from_string("pkg:npm/%40scope/test-app@1.0.0?vcs_url=git%2Bhttps://github.com/test"),
+        )
+
+        # Update PURL version
+        result = _update_component_purl_version(component, "2.0.0")
+
+        assert result is True
+        assert component.purl.version == "2.0.0"
+        assert component.purl.namespace == "@scope"
+        assert "vcs_url" in component.purl.qualifiers
+
+    def test_update_spdx_package_purl_version(self):
+        """Test that SPDX package PURL external reference is updated."""
+        from spdx_tools.spdx.model import (
+            ExternalPackageRef,
+            ExternalPackageRefCategory,
+            Package,
+            SpdxNoAssertion,
+        )
+
+        from sbomify_action.augmentation import _update_spdx_package_purl_version
+
+        # Create SPDX package with PURL external reference
+        package = Package(
+            spdx_id="SPDXRef-Package",
+            name="test-app",
+            version="1.0.0",
+            download_location=SpdxNoAssertion(),
+        )
+        package.external_references.append(
+            ExternalPackageRef(
+                category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                reference_type="purl",
+                locator="pkg:pypi/test-app@1.0.0",
+            )
+        )
+
+        # Update PURL version
+        result = _update_spdx_package_purl_version(package, "2.0.0")
+
+        assert result is True
+        purl_ref = next(ref for ref in package.external_references if ref.reference_type == "purl")
+        assert purl_ref.locator == "pkg:pypi/test-app@2.0.0"
+
+    def test_update_spdx_package_purl_version_no_purl(self):
+        """Test that function returns False when package has no PURL external ref."""
+        from spdx_tools.spdx.model import Package, SpdxNoAssertion
+
+        from sbomify_action.augmentation import _update_spdx_package_purl_version
+
+        # Create SPDX package without PURL external reference
+        package = Package(
+            spdx_id="SPDXRef-Package",
+            name="test-app",
+            version="1.0.0",
+            download_location=SpdxNoAssertion(),
+        )
+
+        # Update should return False
+        result = _update_spdx_package_purl_version(package, "2.0.0")
+
+        assert result is False
+
+    def test_cyclonedx_augmentation_updates_purl_version(self):
+        """Test that CycloneDX augmentation updates PURL when component_version is set."""
+
+        # Create BOM with component that has PURL
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:12345678-1234-5678-1234-567812345678",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "component": {
+                    "type": "application",
+                    "name": "test-app",
+                    "version": "1.0.0",
+                    "purl": "pkg:pypi/test-app@1.0.0",
+                },
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augment with version override
+        enriched_bom = augment_cyclonedx_sbom(
+            bom=bom,
+            augmentation_data={},
+            override_sbom_metadata=False,
+            component_version="2.0.0",
+        )
+
+        # Verify both version and PURL are updated
+        assert enriched_bom.metadata.component.version == "2.0.0"
+        assert enriched_bom.metadata.component.purl is not None
+        assert enriched_bom.metadata.component.purl.version == "2.0.0"
+        assert str(enriched_bom.metadata.component.purl) == "pkg:pypi/test-app@2.0.0"
+
+    def test_spdx_augmentation_updates_purl_version(self):
+        """Test that SPDX augmentation updates PURL when component_version is set."""
+        from spdx_tools.spdx.model import (
+            CreationInfo,
+            Document,
+            ExternalPackageRef,
+            ExternalPackageRefCategory,
+            Package,
+            SpdxNoAssertion,
+        )
+
+        # Create SPDX document with package that has PURL
+        package = Package(
+            spdx_id="SPDXRef-Package",
+            name="test-app",
+            version="1.0.0",
+            download_location=SpdxNoAssertion(),
+        )
+        package.external_references.append(
+            ExternalPackageRef(
+                category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                reference_type="purl",
+                locator="pkg:pypi/test-app@1.0.0",
+            )
+        )
+
+        from datetime import datetime
+
+        document = Document(
+            creation_info=CreationInfo(
+                spdx_version="SPDX-2.3",
+                spdx_id="SPDXRef-DOCUMENT",
+                name="test-document",
+                document_namespace="https://example.com/test",
+                creators=[Actor(ActorType.TOOL, "test-tool")],
+                created=datetime.now(),
+            ),
+            packages=[package],
+        )
+
+        # Augment with version override
+        enriched_doc = augment_spdx_sbom(
+            document=document,
+            augmentation_data={},
+            component_version="2.0.0",
+        )
+
+        # Verify both version and PURL are updated
+        main_package = enriched_doc.packages[0]
+        assert main_package.version == "2.0.0"
+
+        purl_ref = next(ref for ref in main_package.external_references if ref.reference_type == "purl")
+        assert purl_ref.locator == "pkg:pypi/test-app@2.0.0"
+
+    def test_cyclonedx_version_override_without_purl(self):
+        """Test that CycloneDX version override works when component has no PURL."""
+        # Create BOM with component that has no PURL
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:12345678-1234-5678-1234-567812345678",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "component": {
+                    "type": "application",
+                    "name": "test-app",
+                    "version": "1.0.0",
+                    # No PURL
+                },
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augment with version override
+        enriched_bom = augment_cyclonedx_sbom(
+            bom=bom,
+            augmentation_data={},
+            override_sbom_metadata=False,
+            component_version="2.0.0",
+        )
+
+        # Verify version is updated and no PURL is added
+        assert enriched_bom.metadata.component.version == "2.0.0"
+        assert enriched_bom.metadata.component.purl is None
+
+
+class TestSpdxJsonPurlVersionUpdate:
+    """Tests for SPDX JSON PURL version update (used in main.py version override)."""
+
+    def test_update_spdx_json_purl_version(self):
+        """Test that SPDX package PURL is updated in JSON format."""
+        from sbomify_action.cli.main import _update_spdx_json_purl_version
+
+        # Create SPDX package JSON with PURL external reference
+        package_json = {
+            "SPDXID": "SPDXRef-Package",
+            "name": "test-app",
+            "versionInfo": "1.0.0",
+            "downloadLocation": "NOASSERTION",
+            "externalRefs": [
+                {
+                    "referenceCategory": "PACKAGE-MANAGER",
+                    "referenceType": "purl",
+                    "referenceLocator": "pkg:pypi/test-app@1.0.0",
+                }
+            ],
+        }
+
+        # Update PURL version
+        result = _update_spdx_json_purl_version(package_json, "2.0.0")
+
+        assert result is True
+        assert package_json["externalRefs"][0]["referenceLocator"] == "pkg:pypi/test-app@2.0.0"
+
+    def test_update_spdx_json_purl_version_no_purl(self):
+        """Test that function returns False when package has no PURL external ref."""
+        from sbomify_action.cli.main import _update_spdx_json_purl_version
+
+        # Create SPDX package JSON without PURL external reference
+        package_json = {
+            "SPDXID": "SPDXRef-Package",
+            "name": "test-app",
+            "versionInfo": "1.0.0",
+            "downloadLocation": "NOASSERTION",
+            "externalRefs": [
+                {
+                    "referenceCategory": "OTHER",
+                    "referenceType": "vcs",
+                    "referenceLocator": "https://github.com/test/test-app",
+                }
+            ],
+        }
+
+        # Update should return False
+        result = _update_spdx_json_purl_version(package_json, "2.0.0")
+
+        assert result is False
+
+    def test_update_spdx_json_purl_version_no_external_refs(self):
+        """Test that function returns False when package has no external refs."""
+        from sbomify_action.cli.main import _update_spdx_json_purl_version
+
+        # Create SPDX package JSON without external refs
+        package_json = {
+            "SPDXID": "SPDXRef-Package",
+            "name": "test-app",
+            "versionInfo": "1.0.0",
+            "downloadLocation": "NOASSERTION",
+        }
+
+        # Update should return False
+        result = _update_spdx_json_purl_version(package_json, "2.0.0")
+
+        assert result is False
+
+    def test_update_spdx_json_purl_version_preserves_other_refs(self):
+        """Test that other external refs are preserved during PURL update."""
+        from sbomify_action.cli.main import _update_spdx_json_purl_version
+
+        # Create SPDX package JSON with multiple external references
+        package_json = {
+            "SPDXID": "SPDXRef-Package",
+            "name": "test-app",
+            "versionInfo": "1.0.0",
+            "downloadLocation": "NOASSERTION",
+            "externalRefs": [
+                {
+                    "referenceCategory": "OTHER",
+                    "referenceType": "vcs",
+                    "referenceLocator": "https://github.com/test/test-app",
+                },
+                {
+                    "referenceCategory": "PACKAGE-MANAGER",
+                    "referenceType": "purl",
+                    "referenceLocator": "pkg:pypi/test-app@1.0.0",
+                },
+            ],
+        }
+
+        # Update PURL version
+        result = _update_spdx_json_purl_version(package_json, "2.0.0")
+
+        assert result is True
+        # VCS ref should be unchanged
+        assert package_json["externalRefs"][0]["referenceLocator"] == "https://github.com/test/test-app"
+        # PURL should be updated
+        assert package_json["externalRefs"][1]["referenceLocator"] == "pkg:pypi/test-app@2.0.0"
