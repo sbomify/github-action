@@ -926,7 +926,7 @@ wheels = [
 ]
 
 [[package]]
-name = "sbomify-github-action"
+name = "sbomify-action"
 version = "0.10"
 source = { editable = "." }
 dependencies = [

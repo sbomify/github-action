@@ -109,7 +109,7 @@ RUN uv venv /opt/venv
 # Use --active so uv installs into the existing VIRTUAL_ENV (/opt/venv) instead of .venv
 RUN uv sync --locked --active
 RUN rm -rf dist/ && uv build
-RUN uv pip install dist/sbomify_github_action-*.whl
+RUN uv pip install dist/sbomify_action-*.whl
 
 # Final stage
 FROM python:3.13-slim-trixie

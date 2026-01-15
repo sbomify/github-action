@@ -15,6 +15,7 @@ from pathlib import Path
 
 from sbomify_action.exceptions import SBOMGenerationError
 from sbomify_action.logging_config import logger
+from sbomify_action.tool_checks import check_tool_available
 
 from ..protocol import (
     CDXGEN_CYCLONEDX_DEFAULT,
@@ -31,6 +32,9 @@ from ..utils import (
     get_lock_file_ecosystem,
     run_command,
 )
+
+# Check tool availability once at module load
+_CDXGEN_AVAILABLE, _CDXGEN_PATH = check_tool_available("cdxgen")
 
 # Mapping from ecosystem names to cdxgen --type values
 # See: https://cyclonedx.github.io/cdxgen/#/PROJECT_TYPES
@@ -95,6 +99,10 @@ class CdxgenFsGenerator:
         Supports all lock files for CycloneDX format only.
         Does not support SPDX or Docker images (use CdxgenImageGenerator).
         """
+        # Check if cdxgen is installed
+        if not _CDXGEN_AVAILABLE:
+            return False
+
         # Only supports lock files
         if not input.is_lock_file:
             return False
@@ -242,6 +250,10 @@ class CdxgenImageGenerator:
         Supports Docker images for CycloneDX format only.
         Does not support SPDX or lock files (use CdxgenFsGenerator).
         """
+        # Check if cdxgen is installed
+        if not _CDXGEN_AVAILABLE:
+            return False
+
         # Only supports Docker images
         if not input.is_docker_image:
             return False

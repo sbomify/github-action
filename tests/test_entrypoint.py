@@ -77,6 +77,10 @@ class TestSBOMValidation(unittest.TestCase):
                 json.load(f)
 
 
+@patch("sbomify_action._generation.generators.syft._SYFT_AVAILABLE", True)
+@patch("sbomify_action._generation.generators.cdxgen._CDXGEN_AVAILABLE", True)
+@patch("sbomify_action._generation.generators.trivy._TRIVY_AVAILABLE", True)
+@patch("sbomify_action._generation.generators.cyclonedx_py._CYCLONEDX_PY_AVAILABLE", True)
 class TestSBOMGeneration(unittest.TestCase):
     """Test SBOM generation using the plugin architecture."""
 
