@@ -122,6 +122,12 @@ class SbomifyReleasesProcessor:
                 metadata={"release_ids": release_ids},
             )
 
+        # Log warning for partial success (some succeeded, some failed)
+        if failed > 0 and processed > 0:
+            logger.warning(
+                f"Partial success: {processed} release(s) processed, {failed} failed. Errors: {'; '.join(errors)}"
+            )
+
         return ProcessorResult.success_result(
             processor_name=self.name,
             processed_items=processed,
