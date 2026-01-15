@@ -218,14 +218,30 @@ jobs:
       - name: Generate additional packages from Dockerfile
         run: ./scripts/generate_additional_packages.sh > additional_packages.txt
 
-      - name: Upload SBOM
+      - name: Upload SBOM to Staging
+        if: github.ref == 'refs/heads/master'
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
+          API_BASE_URL: https://stage.sbomify.com
+          COMPONENT_ID: 'XNsX40tonzvv'
+          LOCK_FILE: 'uv.lock'
+          COMPONENT_NAME: 'sbomify Action'
+          COMPONENT_VERSION: ${{ format('{0}-{1}', github.ref_name, github.sha) }}
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: true
+          OUTPUT_FILE: github-action.cdx.json
+
+      - name: Upload SBOM to Production
+        if: startsWith(github.ref, 'refs/tags/')
         uses: sbomify/github-action@master
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'Gu9wem8mkX'
           LOCK_FILE: 'uv.lock'
-          COMPONENT_NAME: 'sbomify-github-action'
-          COMPONENT_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('{0}-{1}', github.ref_name, github.sha) }}
+          COMPONENT_NAME: 'sbomify Action'
+          COMPONENT_VERSION: ${{ github.ref_name }}
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
