@@ -1040,8 +1040,8 @@ class TestManufacturerHandling:
         assert len(contacts) == 1
         assert contacts[0].email == "existing@example.com"
 
-    def test_cyclonedx_manufacturer_with_single_url_string(self):
-        """Test manufacturer handling with single URL string instead of array."""
+    def test_cyclonedx_manufacturer_normalizes_single_url_to_list(self):
+        """Test manufacturer URL normalization from single string to list."""
         bom_json = {
             "bomFormat": "CycloneDX",
             "specVersion": "1.4",

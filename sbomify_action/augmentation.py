@@ -983,7 +983,8 @@ def augment_spdx_sbom(
     # Apply manufacturer information
     # SPDX has no dedicated manufacturer field - use originator which means
     # "The person or organization that originally created the package"
-    # Manufacturer takes precedence over authors for originator
+    # Track if manufacturer sets originator so authors section can respect precedence
+    manufacturer_set_originator = False
     if "manufacturer" in augmentation_data:
         manufacturer_data = augmentation_data["manufacturer"]
         manufacturer_name = manufacturer_data.get("name")
@@ -1000,6 +1001,7 @@ def augment_spdx_sbom(
             main_package = document.packages[0]
             if not main_package.originator or override_sbom_metadata:
                 main_package.originator = Actor(ActorType.ORGANIZATION, manufacturer_name)
+                manufacturer_set_originator = True
                 logger.info(f"Set manufacturer as originator: {manufacturer_name}")
             else:
                 logger.debug(f"Preserving existing originator: {main_package.originator}")
@@ -1042,6 +1044,7 @@ def augment_spdx_sbom(
 
         # Add first author as originator for main package only
         # Dependencies have their own originators, not the backend's authors
+        # Note: manufacturer takes precedence over authors for originator
         if authors_data and document.packages:
             first_author = authors_data[0]
             author_name = first_author.get("name")
@@ -1049,7 +1052,10 @@ def augment_spdx_sbom(
 
             if author_name:
                 main_package = document.packages[0]
-                if not main_package.originator or override_sbom_metadata:
+                # Skip if manufacturer already set originator (manufacturer takes precedence)
+                if manufacturer_set_originator:
+                    logger.debug("Skipping author as originator: manufacturer takes precedence")
+                elif not main_package.originator or override_sbom_metadata:
                     originator_name = author_name
                     if author_email:
                         originator_name += f" ({author_email})"
