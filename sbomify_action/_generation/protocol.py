@@ -47,6 +47,10 @@ SYFT_SPDX_DEFAULT = "2.3"
 CDXGEN_CYCLONEDX_VERSIONS = ("1.4", "1.5", "1.6", "1.7")
 CDXGEN_CYCLONEDX_DEFAULT = "1.6"
 
+# cargo-cyclonedx (native Rust generator) - CycloneDX only
+CARGO_CYCLONEDX_VERSIONS = ("1.4", "1.5", "1.6")
+CARGO_CYCLONEDX_DEFAULT = "1.6"
+
 
 @dataclass
 class FormatVersion:
