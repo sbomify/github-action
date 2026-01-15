@@ -41,62 +41,62 @@ class TestCycloneDXCargoGenerator(unittest.TestCase):
 
     def test_supports_cargo_lock(self):
         """Test support for Cargo.lock files."""
-        input = GenerationInput(lock_file="/path/to/Cargo.lock", output_format="cyclonedx")
-        self.assertTrue(self.generator.supports(input))
+        gen_input = GenerationInput(lock_file="/path/to/Cargo.lock", output_format="cyclonedx")
+        self.assertTrue(self.generator.supports(gen_input))
 
     def test_does_not_support_other_lock_files(self):
         """Test that other lock files are not supported."""
         for lock_file in ["requirements.txt", "poetry.lock", "package.json", "go.mod"]:
-            input = GenerationInput(lock_file=f"/path/{lock_file}", output_format="cyclonedx")
-            self.assertFalse(self.generator.supports(input), f"Should not support {lock_file}")
+            gen_input = GenerationInput(lock_file=f"/path/{lock_file}", output_format="cyclonedx")
+            self.assertFalse(self.generator.supports(gen_input), f"Should not support {lock_file}")
 
     def test_does_not_support_spdx(self):
         """Test that SPDX format is not supported."""
-        input = GenerationInput(lock_file="/path/Cargo.lock", output_format="spdx")
-        self.assertFalse(self.generator.supports(input))
+        gen_input = GenerationInput(lock_file="/path/Cargo.lock", output_format="spdx")
+        self.assertFalse(self.generator.supports(gen_input))
 
     def test_does_not_support_docker_images(self):
         """Test that Docker images are not supported."""
-        input = GenerationInput(docker_image="alpine:3.18", output_format="cyclonedx")
-        self.assertFalse(self.generator.supports(input))
+        gen_input = GenerationInput(docker_image="alpine:3.18", output_format="cyclonedx")
+        self.assertFalse(self.generator.supports(gen_input))
 
     def test_supports_version_1_4(self):
         """Test support for CycloneDX 1.4."""
-        input = GenerationInput(
+        gen_input = GenerationInput(
             lock_file="/path/Cargo.lock",
             output_format="cyclonedx",
             spec_version="1.4",
         )
-        self.assertTrue(self.generator.supports(input))
+        self.assertTrue(self.generator.supports(gen_input))
 
     def test_supports_version_1_5(self):
         """Test support for CycloneDX 1.5."""
-        input = GenerationInput(
+        gen_input = GenerationInput(
             lock_file="/path/Cargo.lock",
             output_format="cyclonedx",
             spec_version="1.5",
         )
-        self.assertTrue(self.generator.supports(input))
+        self.assertTrue(self.generator.supports(gen_input))
 
     def test_supports_version_1_6(self):
         """Test support for CycloneDX 1.6."""
-        input = GenerationInput(
+        gen_input = GenerationInput(
             lock_file="/path/Cargo.lock",
             output_format="cyclonedx",
             spec_version="1.6",
         )
-        self.assertTrue(self.generator.supports(input))
+        self.assertTrue(self.generator.supports(gen_input))
 
     def test_does_not_support_unsupported_versions(self):
         """Test that unsupported versions are rejected."""
         for version in ["1.0", "1.1", "1.2", "1.3", "1.7", "2.0"]:
-            input = GenerationInput(
+            gen_input = GenerationInput(
                 lock_file="/path/Cargo.lock",
                 output_format="cyclonedx",
                 spec_version=version,
             )
             self.assertFalse(
-                self.generator.supports(input),
+                self.generator.supports(gen_input),
                 f"Should not support version {version}",
             )
 
@@ -113,8 +113,8 @@ class TestCycloneDXCargoGenerator(unittest.TestCase):
         mock_path_instance.parent.resolve.return_value = "/path/to"
         mock_path_class.return_value = mock_path_instance
 
-        input = GenerationInput(lock_file="/path/to/Cargo.lock", output_file="sbom.json")
-        result = self.generator.generate(input)
+        gen_input = GenerationInput(lock_file="/path/to/Cargo.lock", output_file="sbom.json")
+        result = self.generator.generate(gen_input)
 
         self.assertTrue(result.success)
         self.assertEqual(result.sbom_format, "cyclonedx")
@@ -126,8 +126,8 @@ class TestCycloneDXCargoGenerator(unittest.TestCase):
         """Test generation failure."""
         mock_run.return_value = MagicMock(returncode=1, stderr="Error message")
 
-        input = GenerationInput(lock_file="/path/to/Cargo.lock", output_file="sbom.json")
-        result = self.generator.generate(input)
+        gen_input = GenerationInput(lock_file="/path/to/Cargo.lock", output_file="sbom.json")
+        result = self.generator.generate(gen_input)
 
         self.assertFalse(result.success)
         self.assertIsNotNone(result.error_message)
@@ -135,13 +135,13 @@ class TestCycloneDXCargoGenerator(unittest.TestCase):
 
     def test_unsupported_version_returns_failure(self):
         """Test that unsupported version returns failure result."""
-        input = GenerationInput(
+        gen_input = GenerationInput(
             lock_file="/path/Cargo.lock",
             output_format="cyclonedx",
             spec_version="2.0",  # Invalid version
         )
 
-        result = self.generator.generate(input)
+        result = self.generator.generate(gen_input)
 
         self.assertFalse(result.success)
         self.assertIn("Unsupported CycloneDX version", result.error_message)
@@ -170,17 +170,19 @@ class TestCycloneDXCargoGeneratorPriority(unittest.TestCase):
         """Test that CycloneDXCargoGenerator is preferred over cdxgen/Trivy/Syft for Cargo.lock."""
         registry = create_default_registry()
 
-        input = GenerationInput(
+        gen_input = GenerationInput(
             lock_file="/path/Cargo.lock",
             output_format="cyclonedx",
         )
 
-        generators = registry.get_generators_for(input)
+        generators = registry.get_generators_for(gen_input)
 
         # First generator should be cyclonedx-cargo (priority 10)
         self.assertGreater(len(generators), 0)
         self.assertEqual(generators[0].name, "cyclonedx-cargo")
 
+    @patch("sbomify_action._generation.generators.trivy._TRIVY_AVAILABLE", True)
+    @patch("sbomify_action._generation.generators.cdxgen._CDXGEN_AVAILABLE", True)
     def test_registry_order_for_cargo_lock(self):
         """Test the expected order of generators for Cargo.lock."""
         registry = GeneratorRegistry()
@@ -188,12 +190,12 @@ class TestCycloneDXCargoGeneratorPriority(unittest.TestCase):
         registry.register(CdxgenFsGenerator())  # Priority 20
         registry.register(CycloneDXCargoGenerator())  # Priority 10
 
-        input = GenerationInput(
+        gen_input = GenerationInput(
             lock_file="/path/Cargo.lock",
             output_format="cyclonedx",
         )
 
-        generators = registry.get_generators_for(input)
+        generators = registry.get_generators_for(gen_input)
 
         # Should be in priority order: cyclonedx-cargo (10), cdxgen (20), trivy (30)
         self.assertEqual(len(generators), 3)
@@ -221,12 +223,12 @@ class TestCycloneDXCargoGeneratorCommandLine(unittest.TestCase):
         mock_path_instance.parent.resolve.return_value = "/path/to"
         mock_path_class.return_value = mock_path_instance
 
-        input = GenerationInput(
+        gen_input = GenerationInput(
             lock_file="/path/to/Cargo.lock",
             output_file="sbom.json",
             spec_version="1.5",
         )
-        self.generator.generate(input)
+        self.generator.generate(gen_input)
 
         # Check that run_command was called with correct arguments
         mock_run.assert_called_once()
@@ -249,8 +251,8 @@ class TestCycloneDXCargoGeneratorCommandLine(unittest.TestCase):
         mock_path_instance.parent.resolve.return_value = "/path/to"
         mock_path_class.return_value = mock_path_instance
 
-        input = GenerationInput(lock_file="/path/to/Cargo.lock", output_file="sbom.json")
-        self.generator.generate(input)
+        gen_input = GenerationInput(lock_file="/path/to/Cargo.lock", output_file="sbom.json")
+        self.generator.generate(gen_input)
 
         cmd = mock_run.call_args[0][0]
         self.assertIn("--format", cmd)
@@ -268,11 +270,11 @@ class TestCycloneDXCargoGeneratorCommandLine(unittest.TestCase):
         mock_path_instance.parent.resolve.return_value = "/project/dir"
         mock_path_class.return_value = mock_path_instance
 
-        input = GenerationInput(
+        gen_input = GenerationInput(
             lock_file="/project/dir/Cargo.lock",
             output_file="sbom.json",
         )
-        self.generator.generate(input)
+        self.generator.generate(gen_input)
 
         # Check that cwd was passed to run_command
         mock_run.assert_called_once()
