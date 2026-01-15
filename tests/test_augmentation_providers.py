@@ -288,14 +288,26 @@ class TestCreateDefaultRegistry:
     """Tests for create_default_registry factory function."""
 
     def test_creates_registry_with_default_providers(self):
-        """Test factory creates registry with both providers."""
+        """Test factory creates registry with all default providers."""
         registry = create_default_registry()
         providers = registry.list_providers()
 
-        assert len(providers) == 2
+        # 5 providers: json-config, github-actions, gitlab-ci, bitbucket-pipelines, sbomify-api
+        assert len(providers) == 5
         provider_names = [p["name"] for p in providers]
         assert "json-config" in provider_names
+        assert "github-actions" in provider_names
+        assert "gitlab-ci" in provider_names
+        assert "bitbucket-pipelines" in provider_names
         assert "sbomify-api" in provider_names
+
+        # Verify priority ordering (lower = higher priority)
+        priorities = {p["name"]: p["priority"] for p in providers}
+        assert priorities["json-config"] == 10  # Highest priority
+        assert priorities["github-actions"] == 20
+        assert priorities["gitlab-ci"] == 20
+        assert priorities["bitbucket-pipelines"] == 20
+        assert priorities["sbomify-api"] == 50  # Lowest priority
 
 
 class TestJsonConfigProviderIntegration:

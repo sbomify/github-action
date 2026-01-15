@@ -19,6 +19,12 @@ class AugmentationMetadata:
         licenses: List of license data (strings or dicts)
         lifecycle_phase: CISA 2025 Generation Context (build, post-build, operations, etc.)
         source: Name of the provider that supplied this metadata
+
+        VCS fields (added by CI providers or sbomify.json config):
+        vcs_url: Repository URL (e.g., https://github.com/owner/repo)
+        vcs_commit_sha: Full commit SHA
+        vcs_ref: Branch or tag name (e.g., main, refs/heads/main, v1.0.0)
+        vcs_commit_url: URL to the specific commit
     """
 
     supplier: Optional[Dict[str, Any]] = None
@@ -26,6 +32,12 @@ class AugmentationMetadata:
     licenses: Optional[List[Any]] = None
     lifecycle_phase: Optional[str] = None
     source: Optional[str] = None
+
+    # VCS fields for CI environment enrichment
+    vcs_url: Optional[str] = None
+    vcs_commit_sha: Optional[str] = None
+    vcs_ref: Optional[str] = None
+    vcs_commit_url: Optional[str] = None
 
     # Additional fields that may be added in the future
     _extra: Dict[str, Any] = field(default_factory=dict)
@@ -38,6 +50,10 @@ class AugmentationMetadata:
                 self.authors,
                 self.licenses,
                 self.lifecycle_phase,
+                self.vcs_url,
+                self.vcs_commit_sha,
+                self.vcs_ref,
+                self.vcs_commit_url,
             ]
         )
 
@@ -68,6 +84,11 @@ class AugmentationMetadata:
             licenses=self.licenses if self.licenses else other.licenses,
             lifecycle_phase=self.lifecycle_phase if self.lifecycle_phase else other.lifecycle_phase,
             source=merged_source,
+            # VCS fields
+            vcs_url=self.vcs_url if self.vcs_url else other.vcs_url,
+            vcs_commit_sha=self.vcs_commit_sha if self.vcs_commit_sha else other.vcs_commit_sha,
+            vcs_ref=self.vcs_ref if self.vcs_ref else other.vcs_ref,
+            vcs_commit_url=self.vcs_commit_url if self.vcs_commit_url else other.vcs_commit_url,
             _extra={**other._extra, **self._extra},  # self takes precedence
         )
 
@@ -89,6 +110,16 @@ class AugmentationMetadata:
         if self.lifecycle_phase:
             result["lifecycle_phase"] = self.lifecycle_phase
 
+        # VCS fields
+        if self.vcs_url:
+            result["vcs_url"] = self.vcs_url
+        if self.vcs_commit_sha:
+            result["vcs_commit_sha"] = self.vcs_commit_sha
+        if self.vcs_ref:
+            result["vcs_ref"] = self.vcs_ref
+        if self.vcs_commit_url:
+            result["vcs_commit_url"] = self.vcs_commit_url
+
         # Include any extra fields
         result.update(self._extra)
 
@@ -106,7 +137,16 @@ class AugmentationMetadata:
         Returns:
             New AugmentationMetadata instance
         """
-        known_keys = {"supplier", "authors", "licenses", "lifecycle_phase"}
+        known_keys = {
+            "supplier",
+            "authors",
+            "licenses",
+            "lifecycle_phase",
+            "vcs_url",
+            "vcs_commit_sha",
+            "vcs_ref",
+            "vcs_commit_url",
+        }
         extra = {k: v for k, v in data.items() if k not in known_keys}
 
         return cls(
@@ -115,5 +155,9 @@ class AugmentationMetadata:
             licenses=data.get("licenses"),
             lifecycle_phase=data.get("lifecycle_phase"),
             source=source,
+            vcs_url=data.get("vcs_url"),
+            vcs_commit_sha=data.get("vcs_commit_sha"),
+            vcs_ref=data.get("vcs_ref"),
+            vcs_commit_url=data.get("vcs_commit_url"),
             _extra=extra,
         )

@@ -53,6 +53,7 @@ from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
 # Import augmentation plugin architecture
 from ._augmentation import create_default_registry
+from ._augmentation.utils import build_vcs_url_with_commit
 
 # Import lockfile constants from generation utils (single source of truth)
 from ._generation.utils import ALL_LOCK_FILES
@@ -583,7 +584,71 @@ def augment_cyclonedx_sbom(
             else:
                 logger.debug(f"Lifecycle phase not supported in CycloneDX {spec_version} (requires 1.5+)")
 
+    # Add VCS information if present (from CI providers or sbomify.json config)
+    # This adds repository URL and commit info to the root component
+    _add_vcs_info_to_cyclonedx(bom, augmentation_data)
+
     return bom
+
+
+def _add_vcs_info_to_cyclonedx(bom: Bom, augmentation_data: Dict[str, Any]) -> None:
+    """
+    Add VCS information to CycloneDX SBOM.
+
+    Adds:
+    - VCS external reference with repository URL to root component
+    - Commit SHA encoded in the URL (git+URL@sha format)
+
+    Args:
+        bom: The Bom object to augment
+        augmentation_data: Metadata containing VCS fields
+    """
+    vcs_url = augmentation_data.get("vcs_url")
+    vcs_commit_sha = augmentation_data.get("vcs_commit_sha")
+    vcs_ref = augmentation_data.get("vcs_ref")
+
+    if not vcs_url:
+        return
+
+    # Ensure we have a root component to attach VCS info to
+    if not bom.metadata.component:
+        logger.debug("No root component in SBOM metadata, cannot add VCS info")
+        return
+
+    # Build VCS URL with commit pinning (git+https://...@sha format)
+    vcs_url_with_commit = build_vcs_url_with_commit(vcs_url, vcs_commit_sha)
+
+    # Check if VCS external reference already exists
+    existing_vcs_refs = [
+        ref for ref in bom.metadata.component.external_references if ref.type == ExternalReferenceType.VCS
+    ]
+
+    if existing_vcs_refs:
+        logger.debug("VCS external reference already exists on root component, skipping")
+        return
+
+    # Add VCS external reference to root component
+    try:
+        vcs_ref_obj = ExternalReference(
+            type=ExternalReferenceType.VCS,
+            url=XsUri(vcs_url_with_commit),
+        )
+
+        # Add comment with branch/ref info if available
+        if vcs_ref:
+            vcs_ref_obj.comment = f"Branch/ref: {vcs_ref}"
+
+        bom.metadata.component.external_references.add(vcs_ref_obj)
+
+        log_msg = f"Added VCS external reference: {vcs_url}"
+        if vcs_commit_sha:
+            log_msg += f" @ {vcs_commit_sha[:7]}"
+        if vcs_ref:
+            log_msg += f" ({vcs_ref})"
+        logger.info(log_msg)
+
+    except Exception as e:
+        logger.warning(f"Failed to add VCS external reference: {e}")
 
 
 def _sanitize_license_ref_id(name: str) -> str:
@@ -875,7 +940,106 @@ def augment_spdx_sbom(
             document.creation_info.creator_comment = lifecycle_comment
         logger.info(f"Added lifecycle phase to SPDX creator comment: {phase_value}")
 
+    # Add VCS information if present (from CI providers or sbomify.json config)
+    _add_vcs_info_to_spdx(document, augmentation_data)
+
     return document
+
+
+def _add_vcs_info_to_spdx(document: Document, augmentation_data: Dict[str, Any]) -> None:
+    """
+    Add VCS information to SPDX document.
+
+    SPDX lacks dedicated VCS fields, so we add info to multiple places:
+    - downloadLocation: VCS URL with commit pinning (git+https://...@sha)
+    - sourceInfo: Human-readable build context
+    - externalRefs: VCS external reference (category=OTHER, type="vcs")
+    - creationInfo.comment: Build context at document level
+
+    Note on externalRefs: SPDX 2.3 doesn't define a standard "vcs" reference type.
+    We use ExternalPackageRefCategory.OTHER with reference_type="vcs" as a convention.
+    This is valid per the spec but may not be recognized by all SBOM consumers.
+    The primary VCS information should be consumed from downloadLocation.
+
+    Args:
+        document: The SPDX Document to augment
+        augmentation_data: Metadata containing VCS fields
+    """
+    vcs_url = augmentation_data.get("vcs_url")
+    vcs_commit_sha = augmentation_data.get("vcs_commit_sha")
+    vcs_ref = augmentation_data.get("vcs_ref")
+
+    if not vcs_url:
+        return
+
+    if not document.packages:
+        logger.debug("No packages in SPDX document, cannot add VCS info")
+        return
+
+    main_package = document.packages[0]
+
+    # Build VCS URL with commit pinning (git+https://...@sha format)
+    vcs_url_with_commit = build_vcs_url_with_commit(vcs_url, vcs_commit_sha)
+
+    # Set downloadLocation if not already set or is NOASSERTION
+    if not main_package.download_location or main_package.download_location == "NOASSERTION":
+        main_package.download_location = vcs_url_with_commit
+        logger.debug(f"Set SPDX downloadLocation to VCS URL: {vcs_url_with_commit}")
+
+    # Add sourceInfo with build context
+    source_info_parts = []
+    if vcs_commit_sha:
+        source_info_parts.append(f"Built from commit {vcs_commit_sha[:12]}")
+    if vcs_ref:
+        source_info_parts.append(f"on {vcs_ref}")
+
+    if source_info_parts:
+        source_info = " ".join(source_info_parts)
+        if main_package.source_info:
+            main_package.source_info += f" | {source_info}"
+        else:
+            main_package.source_info = source_info
+        logger.debug(f"Added SPDX sourceInfo: {source_info}")
+
+    # Add VCS external reference (check for duplicates)
+    # Note: Using category=OTHER with type="vcs" as SPDX 2.3 convention
+    existing_vcs_refs = [ref for ref in main_package.external_references if ref.reference_type == "vcs"]
+
+    if not existing_vcs_refs:
+        comment = None
+        if vcs_commit_sha:
+            comment = f"commit: {vcs_commit_sha[:7]}"
+            if vcs_ref:
+                comment += f", ref: {vcs_ref}"
+
+        vcs_ext_ref = ExternalPackageRef(
+            category=ExternalPackageRefCategory.OTHER,
+            reference_type="vcs",
+            locator=vcs_url,
+            comment=comment,
+        )
+        main_package.external_references.append(vcs_ext_ref)
+        logger.debug(f"Added SPDX VCS external reference: {vcs_url}")
+
+    # Add VCS info to document creation comment
+    vcs_comment_parts = [f"Source: {vcs_url}"]
+    if vcs_commit_sha:
+        vcs_comment_parts.append(f"@ {vcs_commit_sha[:7]}")
+    if vcs_ref:
+        vcs_comment_parts.append(f"({vcs_ref})")
+
+    vcs_comment = " ".join(vcs_comment_parts)
+    if document.creation_info.creator_comment:
+        document.creation_info.creator_comment += f" | {vcs_comment}"
+    else:
+        document.creation_info.creator_comment = vcs_comment
+
+    log_msg = f"Added VCS info to SPDX: {vcs_url}"
+    if vcs_commit_sha:
+        log_msg += f" @ {vcs_commit_sha[:7]}"
+    if vcs_ref:
+        log_msg += f" ({vcs_ref})"
+    logger.info(log_msg)
 
 
 def augment_sbom_from_file(
