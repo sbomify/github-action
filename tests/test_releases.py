@@ -325,6 +325,18 @@ class TestReleasesApi(unittest.TestCase):
 
         self.assertEqual(result, "Release v1.0.0")
 
+    def test_get_release_friendly_name_trims_whitespace(self):
+        """Test friendly name generation trims leading/trailing whitespace."""
+        release_details = {
+            "id": "rel1",
+            "version": "v1.0.0",
+            "name": "  Custom Release Name  ",  # Has leading/trailing whitespace
+        }
+
+        result = get_release_friendly_name(release_details, "v1.0.0")
+
+        self.assertEqual(result, "'Custom Release Name' (v1.0.0)")
+
     @patch("sbomify_action._processors.releases_api.requests.post")
     def test_create_release_url_construction_no_double_api_prefix(self, mock_post):
         """Test that create_release doesn't create URLs with double /api/v1 prefix."""
