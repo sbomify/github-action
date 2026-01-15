@@ -166,7 +166,7 @@ See [Augmentation Config File](#augmentation-config-file) for the config format.
 | `AUGMENT` | No | Add metadata from sbomify |
 | `COMPONENT_NAME` | No | Override component name in SBOM |
 | `COMPONENT_VERSION` | No | Override component version in SBOM |
-| `PRODUCT_RELEASE` | No | Tag SBOM with releases: `'["product_id:v1.0.0"]'` |
+| `PRODUCT_RELEASE` | No | Tag SBOM with product releases (see [Product Releases](#product-releases)) |
 | `UPLOAD` | No | Upload SBOM (default: true) |
 | `UPLOAD_DESTINATIONS` | No | Comma-separated destinations: `sbomify`, `dependency-track` (default: `sbomify`) |
 | `API_BASE_URL` | No | Override sbomify API URL for self-hosted instances |
@@ -229,6 +229,32 @@ When uploading to Dependency Track (`UPLOAD_DESTINATIONS=dependency-track`), con
     DTRACK_AUTO_CREATE: true
     ENRICH: true
 ```
+
+## Product Releases
+
+Tag your SBOMs with product releases for version tracking and release management in sbomify.
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+    COMPONENT_ID: your-component-id
+    LOCK_FILE: requirements.txt
+    PRODUCT_RELEASE: '["product_id:v1.0.0"]'
+```
+
+**Format:** JSON array of `"product_id:version"` strings. You can tag multiple releases:
+
+```yaml
+PRODUCT_RELEASE: '["product_id_1:v1.0.0", "product_id_2:v2.0.0"]'
+```
+
+**Behavior:**
+- **Get-or-create**: If the release already exists, it's reused. If not, it's created automatically.
+- **Tagging**: The uploaded SBOM is associated with each specified release.
+- **Partial failures**: If some releases succeed and others fail, the action logs a warning but continues.
+
+> **Note**: Requires `TOKEN` and `COMPONENT_ID` to be set, as this feature interacts with the sbomify API.
 
 ## Supported Lockfiles
 

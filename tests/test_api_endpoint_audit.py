@@ -9,14 +9,15 @@ import unittest
 from unittest.mock import Mock, patch
 
 from sbomify_action._augmentation.providers.sbomify_api import SbomifyApiProvider
+from sbomify_action._processors.releases_api import (
+    check_release_exists,
+    create_release,
+    get_release_details,
+    get_release_id,
+    tag_sbom_with_release,
+)
 from sbomify_action.cli.main import (
     SBOMIFY_PRODUCTION_API,
-    Config,
-    _check_release_exists,
-    _create_release,
-    _get_release_details,
-    _get_release_id,
-    _tag_sbom_with_release,
 )
 
 
@@ -25,12 +26,9 @@ class TestAPIEndpointAudit(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.config = Config(
-            token="test-token",
-            component_id="test-component",
-            sbom_file="test.json",
-            api_base_url=SBOMIFY_PRODUCTION_API,
-        )
+        self.api_base_url = SBOMIFY_PRODUCTION_API
+        self.token = "test-token"
+        self.component_id = "test-component"
 
     def test_production_api_base_url_format(self):
         """Test that production API base URL is in the correct format."""
@@ -39,15 +37,15 @@ class TestAPIEndpointAudit(unittest.TestCase):
         self.assertFalse(SBOMIFY_PRODUCTION_API.endswith("/api/v1"))
         self.assertFalse(SBOMIFY_PRODUCTION_API.endswith("/"))
 
-    @patch("sbomify_action.cli.main.requests.get")
+    @patch("sbomify_action._processors.releases_api.requests.get")
     def test_check_release_exists_endpoint(self, mock_get):
-        """Test _check_release_exists API endpoint URL construction."""
+        """Test check_release_exists API endpoint URL construction."""
         mock_response = Mock()
         mock_response.ok = True
         mock_response.json.return_value = {"items": []}
         mock_get.return_value = mock_response
 
-        _check_release_exists(self.config, "product123", "v1.0.0")
+        check_release_exists(self.api_base_url, self.token, "product123", "v1.0.0")
 
         mock_get.assert_called_once()
         call_args = mock_get.call_args
@@ -57,15 +55,15 @@ class TestAPIEndpointAudit(unittest.TestCase):
         self.assertEqual(actual_url, expected_url)
         self.assertNotIn("/api/v1/api/v1", actual_url)
 
-    @patch("sbomify_action.cli.main.requests.post")
+    @patch("sbomify_action._processors.releases_api.requests.post")
     def test_create_release_endpoint(self, mock_post):
-        """Test _create_release API endpoint URL construction."""
+        """Test create_release API endpoint URL construction."""
         mock_response = Mock()
         mock_response.ok = True
         mock_response.json.return_value = {"id": "new-release-id"}
         mock_post.return_value = mock_response
 
-        _create_release(self.config, "product123", "v1.0.0")
+        create_release(self.api_base_url, self.token, "product123", "v1.0.0")
 
         mock_post.assert_called_once()
         call_args = mock_post.call_args
@@ -75,14 +73,14 @@ class TestAPIEndpointAudit(unittest.TestCase):
         self.assertEqual(actual_url, expected_url)
         self.assertNotIn("/api/v1/api/v1", actual_url)
 
-    @patch("sbomify_action.cli.main.requests.post")
+    @patch("sbomify_action._processors.releases_api.requests.post")
     def test_tag_sbom_with_release_endpoint(self, mock_post):
-        """Test _tag_sbom_with_release API endpoint URL construction."""
+        """Test tag_sbom_with_release API endpoint URL construction."""
         mock_response = Mock()
         mock_response.ok = True
         mock_post.return_value = mock_response
 
-        _tag_sbom_with_release(self.config, "sbom123", "release456")
+        tag_sbom_with_release(self.api_base_url, self.token, "sbom123", "release456")
 
         mock_post.assert_called_once()
         call_args = mock_post.call_args
@@ -92,15 +90,15 @@ class TestAPIEndpointAudit(unittest.TestCase):
         self.assertEqual(actual_url, expected_url)
         self.assertNotIn("/api/v1/api/v1", actual_url)
 
-    @patch("sbomify_action.cli.main.requests.get")
+    @patch("sbomify_action._processors.releases_api.requests.get")
     def test_get_release_id_endpoint(self, mock_get):
-        """Test _get_release_id API endpoint URL construction."""
+        """Test get_release_id API endpoint URL construction."""
         mock_response = Mock()
         mock_response.ok = True
         mock_response.json.return_value = {"items": []}
         mock_get.return_value = mock_response
 
-        _get_release_id(self.config, "product123", "v1.0.0")
+        get_release_id(self.api_base_url, self.token, "product123", "v1.0.0")
 
         mock_get.assert_called_once()
         call_args = mock_get.call_args
@@ -110,15 +108,15 @@ class TestAPIEndpointAudit(unittest.TestCase):
         self.assertEqual(actual_url, expected_url)
         self.assertNotIn("/api/v1/api/v1", actual_url)
 
-    @patch("sbomify_action.cli.main.requests.get")
+    @patch("sbomify_action._processors.releases_api.requests.get")
     def test_get_release_details_endpoint(self, mock_get):
-        """Test _get_release_details API endpoint URL construction."""
+        """Test get_release_details API endpoint URL construction."""
         mock_response = Mock()
         mock_response.ok = True
         mock_response.json.return_value = {"items": []}
         mock_get.return_value = mock_response
 
-        _get_release_details(self.config, "product123", "v1.0.0")
+        get_release_details(self.api_base_url, self.token, "product123", "v1.0.0")
 
         mock_get.assert_called_once()
         call_args = mock_get.call_args
@@ -138,9 +136,9 @@ class TestAPIEndpointAudit(unittest.TestCase):
 
         provider = SbomifyApiProvider()
         provider.fetch(
-            api_base_url=self.config.api_base_url,
-            token=self.config.token,
-            component_id=self.config.component_id,
+            api_base_url=self.api_base_url,
+            token=self.token,
+            component_id=self.component_id,
         )
 
         mock_get.assert_called_once()
@@ -155,7 +153,7 @@ class TestAPIEndpointAudit(unittest.TestCase):
         """Test SBOM upload URL construction pattern."""
         # This tests the URL pattern used in the upload function
         FORMAT = "cyclonedx"
-        expected_url = f"{self.config.api_base_url}/api/v1/sboms/artifact/{FORMAT}/{self.config.component_id}"
+        expected_url = f"{self.api_base_url}/api/v1/sboms/artifact/{FORMAT}/{self.component_id}"
 
         self.assertEqual(expected_url, "https://app.sbomify.com/api/v1/sboms/artifact/cyclonedx/test-component")
         self.assertNotIn("/api/v1/api/v1", expected_url)
@@ -163,20 +161,15 @@ class TestAPIEndpointAudit(unittest.TestCase):
 
     def test_custom_api_base_url_override(self):
         """Test that custom API base URLs work correctly."""
-        custom_config = Config(
-            token="test-token",
-            component_id="test-component",
-            sbom_file="test.json",
-            api_base_url="https://api.dev.sbomify.com",
-        )
+        custom_api_base_url = "https://api.dev.sbomify.com"
 
         # Test release URL construction with custom base
-        release_url = custom_config.api_base_url + "/api/v1/releases"
+        release_url = custom_api_base_url + "/api/v1/releases"
         self.assertEqual(release_url, "https://api.dev.sbomify.com/api/v1/releases")
         self.assertNotIn("/api/v1/api/v1", release_url)
 
         # Test SBOM metadata URL construction with custom base
-        metadata_url = custom_config.api_base_url + f"/api/v1/sboms/component/{custom_config.component_id}/meta"
+        metadata_url = custom_api_base_url + f"/api/v1/sboms/component/{self.component_id}/meta"
         self.assertEqual(metadata_url, "https://api.dev.sbomify.com/api/v1/sboms/component/test-component/meta")
         self.assertNotIn("/api/v1/api/v1", metadata_url)
 
