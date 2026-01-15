@@ -289,6 +289,30 @@ class TestReleasesApi(unittest.TestCase):
 
         self.assertEqual(result, "Release v1.0.0")
 
+    def test_get_release_friendly_name_with_empty_string_name(self):
+        """Test friendly name generation when name is empty string."""
+        release_details = {
+            "id": "rel1",
+            "version": "v1.0.0",
+            "name": "",  # Empty string
+        }
+
+        result = get_release_friendly_name(release_details, "v1.0.0")
+
+        self.assertEqual(result, "Release v1.0.0")
+
+    def test_get_release_friendly_name_with_none_name(self):
+        """Test friendly name generation when name is None."""
+        release_details = {
+            "id": "rel1",
+            "version": "v1.0.0",
+            "name": None,  # Explicitly None
+        }
+
+        result = get_release_friendly_name(release_details, "v1.0.0")
+
+        self.assertEqual(result, "Release v1.0.0")
+
     @patch("sbomify_action._processors.releases_api.requests.post")
     def test_create_release_url_construction_no_double_api_prefix(self, mock_post):
         """Test that create_release doesn't create URLs with double /api/v1 prefix."""
