@@ -11,6 +11,11 @@ Example config file:
         "url": ["https://example.com"],
         "contacts": [{"name": "Support", "email": "support@example.com"}]
     },
+    "manufacturer": {
+        "name": "Acme Manufacturing",
+        "url": ["https://acme-mfg.com"],
+        "contacts": [{"name": "Mfg Contact", "email": "contact@acme-mfg.com"}]
+    },
     "authors": [
         {"name": "John Doe", "email": "john@example.com"}
     ],

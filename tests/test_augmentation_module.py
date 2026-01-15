@@ -766,6 +766,7 @@ class TestManufacturerHandling:
         from datetime import datetime
 
         from spdx_tools.spdx.model import (
+            Actor,
             ActorType,
             CreationInfo,
             Document,

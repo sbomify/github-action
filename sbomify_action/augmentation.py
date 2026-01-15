@@ -551,12 +551,19 @@ def augment_cyclonedx_sbom(
         else:
             logger.info(f"Adding manufacturer information: {manufacturer_name}")
 
+            # Normalize URLs to list format
+            manufacturer_urls = manufacturer_data.get("url")
+            if isinstance(manufacturer_urls, list):
+                pass  # already a list
+            elif manufacturer_urls:
+                manufacturer_urls = [manufacturer_urls]
+            else:
+                manufacturer_urls = []
+
             # Create backend manufacturer entity
             backend_manufacturer = OrganizationalEntity(
                 name=manufacturer_name,
-                urls=manufacturer_data.get("url", [])
-                if isinstance(manufacturer_data.get("url"), list)
-                else ([manufacturer_data.get("url")] if manufacturer_data.get("url") else []),
+                urls=manufacturer_urls,
                 contacts=[],
             )
 
@@ -582,7 +589,7 @@ def augment_cyclonedx_sbom(
                     if bom.metadata.component.manufacturer and not override_sbom_metadata:
                         logger.debug("Preserving existing manufacturer (use override_sbom_metadata to replace)")
                     else:
-                        if override_sbom_metadata and bom.metadata.component.manufacturer:
+                        if bom.metadata.component.manufacturer:
                             logger.info("Replacing existing manufacturer with sbomify data (override mode)")
                         else:
                             logger.info("Adding manufacturer to component (CycloneDX 1.6+)")
@@ -594,7 +601,7 @@ def augment_cyclonedx_sbom(
                 if bom.metadata.manufacture and not override_sbom_metadata:
                     logger.debug("Preserving existing manufacture (use override_sbom_metadata to replace)")
                 else:
-                    if override_sbom_metadata and bom.metadata.manufacture:
+                    if bom.metadata.manufacture:
                         logger.info("Replacing existing manufacture with sbomify data (override mode)")
                     else:
                         logger.info("Adding manufacture information (CycloneDX 1.3-1.5)")

@@ -175,6 +175,7 @@ class TestJsonConfigProvider:
             config_data = {
                 "lifecycle_phase": "build",
                 "supplier": {"name": "Test Corp"},
+                "manufacturer": {"name": "Test Manufacturer", "url": ["https://mfg.test"]},
             }
             with open(config_file, "w") as f:
                 json.dump(config_data, f)
@@ -185,6 +186,8 @@ class TestJsonConfigProvider:
             assert result is not None
             assert result.lifecycle_phase == "build"
             assert result.supplier["name"] == "Test Corp"
+            assert result.manufacturer["name"] == "Test Manufacturer"
+            assert result.manufacturer["url"] == ["https://mfg.test"]
             assert result.source == "json-config"
 
     def test_fetch_no_config_file(self):
