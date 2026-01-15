@@ -668,6 +668,18 @@ def validate_sbom(file_path: str) -> str:
         raise SBOMValidationError("Neither CycloneDX nor SPDX format found in JSON file")
 
 
+def _format_display_name(fmt: str) -> str:
+    """Return properly capitalized display name for SBOM format.
+
+    Args:
+        fmt: Format string ('cyclonedx' or 'spdx')
+
+    Returns:
+        Display name: 'CycloneDX' or 'SPDX'
+    """
+    return "CycloneDX" if fmt == "cyclonedx" else "SPDX"
+
+
 def _detect_sbom_format_silent(file_path: str) -> str:
     """
     Silently detect the format of an SBOM file without logging.
@@ -873,7 +885,7 @@ def main() -> None:
     try:
         if FILE_TYPE != "SBOM":  # Only detect format if we generated the SBOM
             FORMAT = _detect_sbom_format_silent(STEP_1_FILE)
-            logger.info(f"Generated SBOM format: {FORMAT.upper()}")
+            logger.info(f"Generated SBOM format: {_format_display_name(FORMAT)}")
     except SBOMValidationError as e:
         logger.error(f"Generated SBOM validation failed: {e}")
         logger.error("The SBOM generation tool produced an invalid output file.")
@@ -939,7 +951,7 @@ def main() -> None:
                 component_version=config.component_version,
             )
 
-            logger.info(f"{sbom_format.upper()} SBOM augmentation completed")
+            logger.info(f"{_format_display_name(sbom_format)} SBOM augmentation completed")
             _log_step_end(2)
 
         except (FileProcessingError, APIError, SBOMValidationError) as e:

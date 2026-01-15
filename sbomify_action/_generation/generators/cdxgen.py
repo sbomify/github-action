@@ -174,7 +174,7 @@ class CdxgenFsGenerator:
         # Scan current directory (we'll cd into lock file directory)
         cmd.append(".")
 
-        logger.info(f"Running cdxgen for {input.lock_file_name} (cyclonedx {version}, type={cdxgen_type or 'auto'})")
+        logger.info(f"Running cdxgen for {input.lock_file_name} (CycloneDX {version}, type={cdxgen_type or 'auto'})")
 
         try:
             result = run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT, cwd=str(lock_file_directory))
@@ -286,7 +286,7 @@ class CdxgenImageGenerator:
             input.docker_image,
         ]
 
-        logger.info(f"Running cdxgen for {input.docker_image} (cyclonedx {version})")
+        logger.info(f"Running cdxgen for {input.docker_image} (CycloneDX {version})")
 
         try:
             result = run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT)

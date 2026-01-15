@@ -15,6 +15,7 @@ class AugmentationMetadata:
 
     Attributes:
         supplier: Supplier information (name, urls, contacts)
+        manufacturer: Manufacturer information (name, urls, contacts, address)
         authors: List of author information
         licenses: List of license data (strings or dicts)
         lifecycle_phase: CISA 2025 Generation Context (build, post-build, operations, etc.)
@@ -28,6 +29,7 @@ class AugmentationMetadata:
     """
 
     supplier: Optional[Dict[str, Any]] = None
+    manufacturer: Optional[Dict[str, Any]] = None
     authors: Optional[List[Dict[str, Any]]] = None
     licenses: Optional[List[Any]] = None
     lifecycle_phase: Optional[str] = None
@@ -47,6 +49,7 @@ class AugmentationMetadata:
         return any(
             [
                 self.supplier,
+                self.manufacturer,
                 self.authors,
                 self.licenses,
                 self.lifecycle_phase,
@@ -80,6 +83,7 @@ class AugmentationMetadata:
 
         return AugmentationMetadata(
             supplier=self.supplier if self.supplier else other.supplier,
+            manufacturer=self.manufacturer if self.manufacturer else other.manufacturer,
             authors=self.authors if self.authors else other.authors,
             licenses=self.licenses if self.licenses else other.licenses,
             lifecycle_phase=self.lifecycle_phase if self.lifecycle_phase else other.lifecycle_phase,
@@ -103,6 +107,8 @@ class AugmentationMetadata:
 
         if self.supplier:
             result["supplier"] = self.supplier
+        if self.manufacturer:
+            result["manufacturer"] = self.manufacturer
         if self.authors:
             result["authors"] = self.authors
         if self.licenses:
@@ -139,6 +145,7 @@ class AugmentationMetadata:
         """
         known_keys = {
             "supplier",
+            "manufacturer",
             "authors",
             "licenses",
             "lifecycle_phase",
@@ -151,6 +158,7 @@ class AugmentationMetadata:
 
         return cls(
             supplier=data.get("supplier"),
+            manufacturer=data.get("manufacturer"),
             authors=data.get("authors"),
             licenses=data.get("licenses"),
             lifecycle_phase=data.get("lifecycle_phase"),

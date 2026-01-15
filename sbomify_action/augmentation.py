@@ -538,6 +538,68 @@ def augment_cyclonedx_sbom(
         if bom.metadata.supplier and bom.components:
             _propagate_supplier_to_lockfile_components(bom)
 
+    # Add manufacturer information (version-aware field naming)
+    # CycloneDX 1.3-1.5: metadata.manufacture (no 'r')
+    # CycloneDX 1.6+: metadata.component.manufacturer (with 'r')
+    if "manufacturer" in augmentation_data:
+        manufacturer_data = augmentation_data["manufacturer"]
+        manufacturer_name = manufacturer_data.get("name")
+
+        # Skip if no manufacturer name provided
+        if not manufacturer_name:
+            logger.debug("Skipping manufacturer: no name provided")
+        else:
+            logger.info(f"Adding manufacturer information: {manufacturer_name}")
+
+            # Create backend manufacturer entity
+            backend_manufacturer = OrganizationalEntity(
+                name=manufacturer_name,
+                urls=manufacturer_data.get("url", [])
+                if isinstance(manufacturer_data.get("url"), list)
+                else ([manufacturer_data.get("url")] if manufacturer_data.get("url") else []),
+                contacts=[],
+            )
+
+            # Add contacts if present
+            if "contacts" in manufacturer_data:
+                contact_count = len(manufacturer_data["contacts"])
+                logger.info(f"Adding {contact_count} manufacturer contact(s) from sbomify")
+                for contact_data in manufacturer_data["contacts"]:
+                    contact = OrganizationalContact(
+                        name=contact_data.get("name"), email=contact_data.get("email"), phone=contact_data.get("phone")
+                    )
+                    backend_manufacturer.contacts.add(contact)
+
+            # Determine version for field assignment
+            spec_parts = (spec_version or "1.4").split(".")
+            major = int(spec_parts[0]) if len(spec_parts) > 0 else 1
+            minor = int(spec_parts[1]) if len(spec_parts) > 1 else 4
+            is_v16_or_later = (major > 1) or (major == 1 and minor >= 6)
+
+            if is_v16_or_later:
+                # CycloneDX 1.6+: Use metadata.component.manufacturer
+                if bom.metadata.component:
+                    if bom.metadata.component.manufacturer and not override_sbom_metadata:
+                        logger.debug("Preserving existing manufacturer (use override_sbom_metadata to replace)")
+                    else:
+                        if override_sbom_metadata and bom.metadata.component.manufacturer:
+                            logger.info("Replacing existing manufacturer with sbomify data (override mode)")
+                        else:
+                            logger.info("Adding manufacturer to component (CycloneDX 1.6+)")
+                        bom.metadata.component.manufacturer = backend_manufacturer
+                else:
+                    logger.debug("No root component in SBOM metadata, cannot add manufacturer for CycloneDX 1.6+")
+            else:
+                # CycloneDX 1.3-1.5: Use metadata.manufacture (no 'r')
+                if bom.metadata.manufacture and not override_sbom_metadata:
+                    logger.debug("Preserving existing manufacture (use override_sbom_metadata to replace)")
+                else:
+                    if override_sbom_metadata and bom.metadata.manufacture:
+                        logger.info("Replacing existing manufacture with sbomify data (override mode)")
+                    else:
+                        logger.info("Adding manufacture information (CycloneDX 1.3-1.5)")
+                    bom.metadata.manufacture = backend_manufacturer
+
     # Add authors if present
     if "authors" in augmentation_data:
         author_count = len(augmentation_data["authors"])
@@ -908,6 +970,49 @@ def augment_spdx_sbom(
                                 reference_type="website",
                                 locator=url,
                                 comment="Supplier website",
+                            )
+                            main_package.external_references.append(ext_ref)
+
+    # Apply manufacturer information
+    # SPDX has no dedicated manufacturer field - use originator which means
+    # "The person or organization that originally created the package"
+    # Manufacturer takes precedence over authors for originator
+    if "manufacturer" in augmentation_data:
+        manufacturer_data = augmentation_data["manufacturer"]
+        manufacturer_name = manufacturer_data.get("name")
+        logger.info(f"Adding manufacturer information: {manufacturer_name or 'Unknown'}")
+
+        # Add manufacturer to document creators as organization
+        if manufacturer_name:
+            manufacturer_creator = Actor(ActorType.ORGANIZATION, manufacturer_name)
+            if manufacturer_creator not in document.creation_info.creators:
+                document.creation_info.creators.append(manufacturer_creator)
+
+        # Apply manufacturer as originator on main package (manufacturer takes precedence)
+        if document.packages and manufacturer_name:
+            main_package = document.packages[0]
+            if not main_package.originator or override_sbom_metadata:
+                main_package.originator = Actor(ActorType.ORGANIZATION, manufacturer_name)
+                logger.info(f"Set manufacturer as originator: {manufacturer_name}")
+            else:
+                logger.debug(f"Preserving existing originator: {main_package.originator}")
+
+            # Add manufacturer URLs as external references
+            if manufacturer_data.get("url"):
+                urls = (
+                    manufacturer_data["url"]
+                    if isinstance(manufacturer_data["url"], list)
+                    else [manufacturer_data["url"]]
+                )
+                for url in urls:
+                    if url:
+                        existing_refs = [ref.locator for ref in main_package.external_references]
+                        if url not in existing_refs:
+                            ext_ref = ExternalPackageRef(
+                                category=ExternalPackageRefCategory.OTHER,
+                                reference_type="website",
+                                locator=url,
+                                comment="Manufacturer website",
                             )
                             main_package.external_references.append(ext_ref)
 
