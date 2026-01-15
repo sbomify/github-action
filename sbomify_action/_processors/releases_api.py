@@ -287,7 +287,7 @@ def get_release_friendly_name(release_details: Optional[Dict[str, Any]], version
         return f"Release {version}"
 
     release_name = release_details.get("name")
-    if release_name and release_name != f"Release {version}":
+    if isinstance(release_name, str) and release_name.strip() and release_name != f"Release {version}":
         return f"'{release_name}' ({version})"
     else:
         return f"Release {version}"
