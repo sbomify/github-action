@@ -85,7 +85,7 @@ def print_banner(version: str = "unknown") -> None:
     banner.append("                                   __/ |\n", style=BRAND_COLORS["orange"])
     banner.append(" From zero to SBOM hero.           |___/\n", style=BRAND_COLORS["orange"])
     # Only prefix with 'v' if version looks like semver (starts with digit)
-    version_display = f"v{version}" if version and version[0].isdigit() else version
+    version_display = f"v{version}" if version and version[0:1].isdigit() else version
     banner.append(f" {version_display}\n", style=BRAND_COLORS["orange"])
 
     console.print(banner)
