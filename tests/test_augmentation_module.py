@@ -686,6 +686,446 @@ class TestSPDXAugmentation:
         assert "MIT" in str(enriched_doc.packages[0].license_declared)
 
 
+class TestManufacturerHandling:
+    """Test manufacturer data handling across CycloneDX versions and SPDX."""
+
+    @pytest.fixture
+    def manufacturer_data(self):
+        """Sample manufacturer data from backend."""
+        return {
+            "manufacturer": {
+                "name": "Acme Manufacturing Inc",
+                "url": ["https://acme-mfg.com", "https://acme-support.com"],
+                "contacts": [{"name": "Mfg Contact", "email": "contact@acme-mfg.com", "phone": "+1-555-0100"}],
+            }
+        }
+
+    @pytest.fixture
+    def cyclonedx_14_bom(self):
+        """CycloneDX 1.4 BOM (uses metadata.manufacture)."""
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.4",
+            "serialNumber": "urn:uuid:44444444-4444-4444-4444-444444444444",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "component": {
+                    "type": "application",
+                    "name": "test-app-14",
+                    "version": "1.4.0",
+                },
+            },
+            "components": [],
+        }
+        return Bom.from_json(bom_json)
+
+    @pytest.fixture
+    def cyclonedx_15_bom(self):
+        """CycloneDX 1.5 BOM (uses metadata.manufacture)."""
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.5",
+            "serialNumber": "urn:uuid:55555555-5555-5555-5555-555555555555",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "component": {
+                    "type": "application",
+                    "name": "test-app-15",
+                    "version": "1.5.0",
+                },
+            },
+            "components": [],
+        }
+        return Bom.from_json(bom_json)
+
+    @pytest.fixture
+    def cyclonedx_16_bom(self):
+        """CycloneDX 1.6 BOM (uses metadata.component.manufacturer)."""
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:66666666-6666-6666-6666-666666666666",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "component": {
+                    "type": "application",
+                    "name": "test-app-16",
+                    "version": "1.6.0",
+                },
+            },
+            "components": [],
+        }
+        return Bom.from_json(bom_json)
+
+    @pytest.fixture
+    def spdx_document(self):
+        """Create a sample SPDX document for manufacturer tests."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import (
+            Actor,
+            ActorType,
+            CreationInfo,
+            Document,
+            Package,
+        )
+
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-doc-mfg",
+            document_namespace="https://test.com/test-doc-mfg",
+            creators=[Actor(ActorType.TOOL, "test-tool")],
+            created=datetime(2024, 1, 1),
+        )
+
+        package = Package(
+            spdx_id="SPDXRef-main", name="test-app-mfg", download_location="https://example.com", version="1.0.0"
+        )
+
+        return Document(creation_info=creation_info, packages=[package])
+
+    def test_cyclonedx_14_manufacturer_sets_manufacture(self, cyclonedx_14_bom, manufacturer_data):
+        """Test that CycloneDX 1.4 sets metadata.manufacture (no 'r')."""
+        enriched_bom = augment_cyclonedx_sbom(
+            bom=cyclonedx_14_bom,
+            augmentation_data=manufacturer_data,
+            spec_version="1.4",
+        )
+
+        # Verify metadata.manufacture is set (not metadata.manufacturer)
+        assert enriched_bom.metadata.manufacture is not None
+        assert enriched_bom.metadata.manufacture.name == "Acme Manufacturing Inc"
+        assert len(enriched_bom.metadata.manufacture.urls) == 2
+        assert len(enriched_bom.metadata.manufacture.contacts) == 1
+
+    def test_cyclonedx_15_manufacturer_sets_manufacture(self, cyclonedx_15_bom, manufacturer_data):
+        """Test that CycloneDX 1.5 sets metadata.manufacture (no 'r')."""
+        enriched_bom = augment_cyclonedx_sbom(
+            bom=cyclonedx_15_bom,
+            augmentation_data=manufacturer_data,
+            spec_version="1.5",
+        )
+
+        # Verify metadata.manufacture is set (not metadata.manufacturer)
+        assert enriched_bom.metadata.manufacture is not None
+        assert enriched_bom.metadata.manufacture.name == "Acme Manufacturing Inc"
+        assert len(enriched_bom.metadata.manufacture.urls) == 2
+
+    def test_cyclonedx_16_manufacturer_sets_component_manufacturer(self, cyclonedx_16_bom, manufacturer_data):
+        """Test that CycloneDX 1.6 sets metadata.component.manufacturer (with 'r')."""
+        enriched_bom = augment_cyclonedx_sbom(
+            bom=cyclonedx_16_bom,
+            augmentation_data=manufacturer_data,
+            spec_version="1.6",
+        )
+
+        # Verify metadata.component.manufacturer is set
+        assert enriched_bom.metadata.component is not None
+        assert enriched_bom.metadata.component.manufacturer is not None
+        assert enriched_bom.metadata.component.manufacturer.name == "Acme Manufacturing Inc"
+        assert len(enriched_bom.metadata.component.manufacturer.urls) == 2
+        assert len(enriched_bom.metadata.component.manufacturer.contacts) == 1
+
+    def test_cyclonedx_17_manufacturer_sets_component_manufacturer(self, manufacturer_data):
+        """Test that CycloneDX 1.7 sets metadata.component.manufacturer (with 'r')."""
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.7",
+            "serialNumber": "urn:uuid:77777777-7777-7777-7777-777777777777",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "component": {
+                    "type": "application",
+                    "name": "test-app-17",
+                    "version": "1.7.0",
+                },
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        enriched_bom = augment_cyclonedx_sbom(
+            bom=bom,
+            augmentation_data=manufacturer_data,
+            spec_version="1.7",
+        )
+
+        # Verify metadata.component.manufacturer is set
+        assert enriched_bom.metadata.component.manufacturer is not None
+        assert enriched_bom.metadata.component.manufacturer.name == "Acme Manufacturing Inc"
+
+    def test_cyclonedx_manufacturer_preserves_existing(self, cyclonedx_14_bom, manufacturer_data):
+        """Test that existing manufacture is fully preserved when not overriding (CDX 1.4)."""
+        from cyclonedx.model.bom import OrganizationalEntity
+
+        # Set existing manufacture
+        cyclonedx_14_bom.metadata.manufacture = OrganizationalEntity(
+            name="Existing Manufacturer",
+            urls=["https://existing-mfg.com"],
+        )
+
+        enriched_bom = augment_cyclonedx_sbom(
+            bom=cyclonedx_14_bom,
+            augmentation_data=manufacturer_data,
+            override_sbom_metadata=False,
+            spec_version="1.4",
+        )
+
+        # Existing manufacture should be completely preserved (fill-only-if-missing)
+        assert enriched_bom.metadata.manufacture.name == "Existing Manufacturer"
+        urls = {str(url) for url in enriched_bom.metadata.manufacture.urls}
+        assert urls == {"https://existing-mfg.com"}
+        # Backend URLs should NOT be added
+        assert "https://acme-mfg.com" not in urls
+
+    def test_cyclonedx_manufacturer_override_replaces_existing(self, cyclonedx_16_bom, manufacturer_data):
+        """Test that existing manufacturer is replaced when override=True (CDX 1.6)."""
+        from cyclonedx.model.bom import OrganizationalEntity
+
+        # Set existing manufacturer on component
+        cyclonedx_16_bom.metadata.component.manufacturer = OrganizationalEntity(
+            name="Old Manufacturer",
+            urls=["https://old-mfg.com"],
+        )
+
+        enriched_bom = augment_cyclonedx_sbom(
+            bom=cyclonedx_16_bom,
+            augmentation_data=manufacturer_data,
+            override_sbom_metadata=True,
+            spec_version="1.6",
+        )
+
+        # Should be replaced with backend manufacturer
+        assert enriched_bom.metadata.component.manufacturer.name == "Acme Manufacturing Inc"
+
+    def test_spdx_manufacturer_sets_originator(self, spdx_document, manufacturer_data):
+        """Test that SPDX manufacturer sets originator (organization type)."""
+        enriched_doc = augment_spdx_sbom(
+            document=spdx_document,
+            augmentation_data=manufacturer_data,
+        )
+
+        # Verify manufacturer was added to creators
+        org_creators = [c for c in enriched_doc.creation_info.creators if c.actor_type == ActorType.ORGANIZATION]
+        assert any("Acme Manufacturing Inc" in c.name for c in org_creators)
+
+        # Verify originator is set to manufacturer
+        assert enriched_doc.packages[0].originator is not None
+        assert enriched_doc.packages[0].originator.actor_type == ActorType.ORGANIZATION
+        assert "Acme Manufacturing Inc" in enriched_doc.packages[0].originator.name
+
+    def test_spdx_manufacturer_takes_precedence_over_authors(self, spdx_document):
+        """Test that manufacturer takes precedence over authors for originator."""
+        backend_data = {
+            "manufacturer": {
+                "name": "Manufacturer Corp",
+                "url": ["https://mfg.com"],
+            },
+            "authors": [{"name": "Author Person", "email": "author@example.com"}],
+        }
+
+        enriched_doc = augment_spdx_sbom(
+            document=spdx_document,
+            augmentation_data=backend_data,
+        )
+
+        # Originator should be manufacturer (organization), not author (person)
+        assert enriched_doc.packages[0].originator is not None
+        assert enriched_doc.packages[0].originator.actor_type == ActorType.ORGANIZATION
+        assert "Manufacturer Corp" in enriched_doc.packages[0].originator.name
+        # Should NOT be the author
+        assert "Author Person" not in enriched_doc.packages[0].originator.name
+
+    def test_spdx_manufacturer_urls_as_external_refs(self, spdx_document, manufacturer_data):
+        """Test that manufacturer URLs are added as external references."""
+        enriched_doc = augment_spdx_sbom(
+            document=spdx_document,
+            augmentation_data=manufacturer_data,
+        )
+
+        # Verify external references were added
+        package = enriched_doc.packages[0]
+        ref_locators = [ref.locator for ref in package.external_references]
+        assert "https://acme-mfg.com" in ref_locators
+        assert "https://acme-support.com" in ref_locators
+
+        # Verify comment indicates manufacturer
+        mfg_refs = [ref for ref in package.external_references if "acme-mfg.com" in ref.locator]
+        assert len(mfg_refs) > 0
+        assert "Manufacturer" in mfg_refs[0].comment
+
+    def test_spdx_originator_preserved_when_not_overriding(self, spdx_document, manufacturer_data):
+        """Test that existing originator is preserved when not overriding."""
+        # Set existing originator
+        spdx_document.packages[0].originator = Actor(ActorType.PERSON, "Existing Originator")
+
+        enriched_doc = augment_spdx_sbom(
+            document=spdx_document,
+            augmentation_data=manufacturer_data,
+            override_sbom_metadata=False,
+        )
+
+        # Originator should be preserved
+        assert "Existing Originator" in enriched_doc.packages[0].originator.name
+
+    def test_spdx_originator_replaced_when_overriding(self, spdx_document, manufacturer_data):
+        """Test that existing originator is replaced when override=True."""
+        # Set existing originator
+        spdx_document.packages[0].originator = Actor(ActorType.PERSON, "Old Originator")
+
+        enriched_doc = augment_spdx_sbom(
+            document=spdx_document,
+            augmentation_data=manufacturer_data,
+            override_sbom_metadata=True,
+        )
+
+        # Originator should be replaced with manufacturer
+        assert "Acme Manufacturing Inc" in enriched_doc.packages[0].originator.name
+
+    def test_cyclonedx_16_no_component_skips_manufacturer(self, manufacturer_data):
+        """Test that CDX 1.6+ without root component skips manufacturer gracefully."""
+        # Create a BOM without a root component
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:88888888-8888-8888-8888-888888888888",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                # No component defined
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Should not raise, just skip manufacturer
+        enriched_bom = augment_cyclonedx_sbom(
+            bom=bom,
+            augmentation_data=manufacturer_data,
+            spec_version="1.6",
+        )
+
+        # No root component, so nothing to set
+        assert enriched_bom.metadata.component is None
+
+    def test_cyclonedx_manufacturer_preserves_existing_contacts(self, cyclonedx_14_bom, manufacturer_data):
+        """Test that existing manufacture contacts are preserved when not overriding."""
+        from cyclonedx.model.bom import OrganizationalContact, OrganizationalEntity
+
+        # Set existing manufacture with contacts
+        existing_contact = OrganizationalContact(
+            name="Existing Contact",
+            email="existing@example.com",
+            phone="+1-555-OLD",
+        )
+        cyclonedx_14_bom.metadata.manufacture = OrganizationalEntity(
+            name="Existing Mfg",
+            contacts=[existing_contact],
+        )
+
+        enriched_bom = augment_cyclonedx_sbom(
+            bom=cyclonedx_14_bom,
+            augmentation_data=manufacturer_data,
+            override_sbom_metadata=False,
+            spec_version="1.4",
+        )
+
+        # Existing contacts should be preserved, backend contacts NOT added
+        contacts = list(enriched_bom.metadata.manufacture.contacts)
+        assert len(contacts) == 1
+        assert contacts[0].email == "existing@example.com"
+
+    def test_cyclonedx_manufacturer_normalizes_single_url_to_list(self):
+        """Test manufacturer URL normalization from single string to list."""
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.4",
+            "serialNumber": "urn:uuid:99999999-9999-9999-9999-999999999999",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "component": {
+                    "type": "application",
+                    "name": "test-app",
+                    "version": "1.0.0",
+                },
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Single URL string instead of array
+        manufacturer_data = {
+            "manufacturer": {
+                "name": "Single URL Mfg",
+                "url": "https://single-url.com",  # Not an array
+            }
+        }
+
+        enriched_bom = augment_cyclonedx_sbom(
+            bom=bom,
+            augmentation_data=manufacturer_data,
+            spec_version="1.4",
+        )
+
+        # Should handle single URL string
+        assert enriched_bom.metadata.manufacture is not None
+        assert enriched_bom.metadata.manufacture.name == "Single URL Mfg"
+        assert len(enriched_bom.metadata.manufacture.urls) == 1
+
+
+class TestLockfileComponentDetection:
+    """Test lockfile component detection for supplier propagation."""
+
+    def test_lockfile_component_detected_by_name(self):
+        """Test that lockfile components are detected by their filename."""
+        from cyclonedx.model.component import Component, ComponentType
+
+        from sbomify_action.augmentation import _is_lockfile_component
+
+        # requirements.txt is a known lockfile
+        component = Component(name="requirements.txt", type=ComponentType.APPLICATION)
+        assert _is_lockfile_component(component) is True
+
+        # uv.lock is a known lockfile
+        component = Component(name="uv.lock", type=ComponentType.APPLICATION)
+        assert _is_lockfile_component(component) is True
+
+    def test_non_lockfile_not_detected(self):
+        """Test that non-lockfile components are not detected."""
+        from cyclonedx.model.component import Component, ComponentType
+
+        from sbomify_action.augmentation import _is_lockfile_component
+
+        # Regular application component
+        component = Component(name="my-app", type=ComponentType.APPLICATION)
+        assert _is_lockfile_component(component) is False
+
+        # Non-application type
+        component = Component(name="requirements.txt", type=ComponentType.LIBRARY)
+        assert _is_lockfile_component(component) is False
+
+    def test_component_with_purl_not_lockfile(self):
+        """Test that component with PURL is not considered a lockfile."""
+        from cyclonedx.model.component import Component, ComponentType
+        from packageurl import PackageURL
+
+        from sbomify_action.augmentation import _is_lockfile_component
+
+        # Component with PURL is a real package, not a lockfile artifact
+        component = Component(
+            name="requirements.txt",
+            type=ComponentType.APPLICATION,
+            purl=PackageURL.from_string("pkg:pypi/requirements.txt@1.0.0"),
+        )
+        assert _is_lockfile_component(component) is False
+
+
 class TestErrorHandling:
     """Test error handling in augmentation."""
 

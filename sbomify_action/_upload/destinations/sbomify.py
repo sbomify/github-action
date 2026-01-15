@@ -108,7 +108,8 @@ class SbomifyDestination:
                 validation_error=validation_error,
             )
 
-        logger.info(f"Uploading {input.sbom_format.upper()} SBOM to component: {self._component_id}")
+        format_display = "CycloneDX" if input.sbom_format == "cyclonedx" else "SPDX"
+        logger.info(f"Uploading {format_display} SBOM to component: {self._component_id}")
 
         # Execute the upload
         try:

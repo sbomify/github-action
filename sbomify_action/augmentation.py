@@ -252,6 +252,44 @@ def fetch_augmentation_metadata(
         return {}
 
 
+def _normalize_urls_to_list(urls: Any) -> List[str]:
+    """Normalize URL field to a list format.
+
+    Handles both single URL strings and lists of URLs from augmentation
+    metadata sources (API responses and JSON config files).
+
+    Args:
+        urls: URL data - can be None, a string, or a list of strings
+
+    Returns:
+        List of URL strings (empty list if no URLs provided)
+    """
+    if not urls:
+        return []
+    if isinstance(urls, list):
+        return urls
+    return [urls]
+
+
+def _is_cdx_version_at_least(spec_version: Optional[str], min_major: int, min_minor: int) -> bool:
+    """Check if CycloneDX spec version meets minimum requirement.
+
+    Args:
+        spec_version: CycloneDX spec version string (e.g., "1.4", "1.6")
+        min_major: Minimum major version required
+        min_minor: Minimum minor version required (when major equals min_major)
+
+    Returns:
+        True if spec_version >= min_major.min_minor
+    """
+    if spec_version is None:
+        spec_version = "1.4"
+    spec_parts = spec_version.split(".")
+    major = int(spec_parts[0]) if len(spec_parts) > 0 else 1
+    minor = int(spec_parts[1]) if len(spec_parts) > 1 else 4
+    return (major > min_major) or (major == min_major and minor >= min_minor)
+
+
 def _process_license_data(license_data: Any) -> Optional[Any]:
     """
     Process license data from backend into CycloneDX license objects.
@@ -331,16 +369,7 @@ def _add_sbomify_tool_to_cyclonedx(bom: Bom, spec_version: Optional[str] = None)
         See: https://github.com/CycloneDX/cyclonedx-python-lib/issues/917
         See: https://cyclonedx.org/docs/1.7/json/#metadata_tools
     """
-    # Use provided spec_version or default to 1.4
-    if spec_version is None:
-        spec_version = "1.4"
-
-    spec_parts = spec_version.split(".")
-    major = int(spec_parts[0]) if len(spec_parts) > 0 else 1
-    minor = int(spec_parts[1]) if len(spec_parts) > 1 else 4
-    is_v15_or_later = (major > 1) or (major == 1 and minor >= 5)
-
-    if is_v15_or_later:
+    if _is_cdx_version_at_least(spec_version, 1, 5):
         # Modern format (1.5+): Use services for API/service-based tools
         # Keep existing components and services, add sbomify as a service
         logger.debug(f"Using modern tools format for CycloneDX {spec_version}")
@@ -538,6 +567,63 @@ def augment_cyclonedx_sbom(
         if bom.metadata.supplier and bom.components:
             _propagate_supplier_to_lockfile_components(bom)
 
+    # Add manufacturer information (version-aware field naming)
+    # CycloneDX 1.3-1.5: metadata.manufacture (no 'r')
+    # CycloneDX 1.6+: metadata.component.manufacturer (with 'r')
+    if "manufacturer" in augmentation_data:
+        manufacturer_data = augmentation_data["manufacturer"]
+        manufacturer_name = manufacturer_data.get("name")
+
+        # Skip if no manufacturer name provided
+        if not manufacturer_name:
+            logger.debug("Skipping manufacturer: no name provided")
+        else:
+            logger.info(f"Adding manufacturer information: {manufacturer_name}")
+
+            # Create backend manufacturer entity
+            backend_manufacturer = OrganizationalEntity(
+                name=manufacturer_name,
+                urls=_normalize_urls_to_list(manufacturer_data.get("url")),
+                contacts=[],
+            )
+
+            # Add contacts if present
+            if "contacts" in manufacturer_data:
+                contact_count = len(manufacturer_data["contacts"])
+                logger.info(f"Adding {contact_count} manufacturer contact(s) from sbomify")
+                for contact_data in manufacturer_data["contacts"]:
+                    contact = OrganizationalContact(
+                        name=contact_data.get("name"), email=contact_data.get("email"), phone=contact_data.get("phone")
+                    )
+                    backend_manufacturer.contacts.add(contact)
+
+            # Determine version for field assignment
+            is_v16_or_later = _is_cdx_version_at_least(spec_version, 1, 6)
+
+            if is_v16_or_later:
+                # CycloneDX 1.6+: Use metadata.component.manufacturer
+                if bom.metadata.component:
+                    if bom.metadata.component.manufacturer and not override_sbom_metadata:
+                        logger.debug("Preserving existing manufacturer (use override_sbom_metadata to replace)")
+                    else:
+                        if bom.metadata.component.manufacturer:
+                            logger.info("Replacing existing manufacturer with sbomify data (override mode)")
+                        else:
+                            logger.info("Adding manufacturer to component (CycloneDX 1.6+)")
+                        bom.metadata.component.manufacturer = backend_manufacturer
+                else:
+                    logger.debug("No root component in SBOM metadata, cannot add manufacturer for CycloneDX 1.6+")
+            else:
+                # CycloneDX 1.3-1.5: Use metadata.manufacture (no 'r')
+                if bom.metadata.manufacture and not override_sbom_metadata:
+                    logger.debug("Preserving existing manufacture (use override_sbom_metadata to replace)")
+                else:
+                    if bom.metadata.manufacture:
+                        logger.info("Replacing existing manufacture with sbomify data (override mode)")
+                    else:
+                        logger.info("Adding manufacture information (CycloneDX 1.3-1.5)")
+                    bom.metadata.manufacture = backend_manufacturer
+
     # Add authors if present
     if "authors" in augmentation_data:
         author_count = len(augmentation_data["authors"])
@@ -634,33 +720,27 @@ def augment_cyclonedx_sbom(
     # Crosswalk: https://sbomify.com/compliance/schema-crosswalk/
     # Only supported in CycloneDX 1.5+ (metadata.lifecycles field not available in 1.3/1.4)
     if "lifecycle_phase" in augmentation_data and augmentation_data["lifecycle_phase"]:
-        # Parse spec version to check if 1.5+
-        if spec_version:
-            spec_parts = spec_version.split(".")
-            major = int(spec_parts[0]) if len(spec_parts) > 0 else 1
-            minor = int(spec_parts[1]) if len(spec_parts) > 1 else 4
-            is_v15_or_later = (major > 1) or (major == 1 and minor >= 5)
-
-            if is_v15_or_later:
-                phase_value = augmentation_data["lifecycle_phase"].lower().replace("_", "-")
-                # Map to CycloneDX LifecyclePhase enum
-                phase_mapping = {
-                    "design": LifecyclePhase.DESIGN,
-                    "pre-build": LifecyclePhase.PRE_BUILD,
-                    "build": LifecyclePhase.BUILD,
-                    "post-build": LifecyclePhase.POST_BUILD,
-                    "operations": LifecyclePhase.OPERATIONS,
-                    "discovery": LifecyclePhase.DISCOVERY,
-                    "decommission": LifecyclePhase.DECOMMISSION,
-                }
-                if phase_value in phase_mapping:
-                    lifecycle = PredefinedLifecycle(phase=phase_mapping[phase_value])
-                    bom.metadata.lifecycles.add(lifecycle)
-                    logger.info(f"Added lifecycle phase: {phase_value}")
-                else:
-                    logger.warning(f"Unknown lifecycle phase '{phase_value}', skipping")
+        # Only supported in CycloneDX 1.5+
+        if _is_cdx_version_at_least(spec_version, 1, 5):
+            phase_value = augmentation_data["lifecycle_phase"].lower().replace("_", "-")
+            # Map to CycloneDX LifecyclePhase enum
+            phase_mapping = {
+                "design": LifecyclePhase.DESIGN,
+                "pre-build": LifecyclePhase.PRE_BUILD,
+                "build": LifecyclePhase.BUILD,
+                "post-build": LifecyclePhase.POST_BUILD,
+                "operations": LifecyclePhase.OPERATIONS,
+                "discovery": LifecyclePhase.DISCOVERY,
+                "decommission": LifecyclePhase.DECOMMISSION,
+            }
+            if phase_value in phase_mapping:
+                lifecycle = PredefinedLifecycle(phase=phase_mapping[phase_value])
+                bom.metadata.lifecycles.add(lifecycle)
+                logger.info(f"Added lifecycle phase: {phase_value}")
             else:
-                logger.debug(f"Lifecycle phase not supported in CycloneDX {spec_version} (requires 1.5+)")
+                logger.warning(f"Unknown lifecycle phase '{phase_value}', skipping")
+        else:
+            logger.debug(f"Lifecycle phase not supported in CycloneDX {spec_version} (requires 1.5+)")
 
     # Add VCS information if present (from CI providers or sbomify.json config)
     # This adds repository URL and commit info to the root component
@@ -911,6 +991,45 @@ def augment_spdx_sbom(
                             )
                             main_package.external_references.append(ext_ref)
 
+    # Apply manufacturer information
+    # SPDX has no dedicated manufacturer field - use originator which means
+    # "The person or organization that originally created the package"
+    # Track if manufacturer sets originator so authors section can respect precedence
+    manufacturer_set_originator = False
+    if "manufacturer" in augmentation_data:
+        manufacturer_data = augmentation_data["manufacturer"]
+        manufacturer_name = manufacturer_data.get("name")
+        logger.info(f"Adding manufacturer information: {manufacturer_name or 'Unknown'}")
+
+        # Add manufacturer to document creators as organization
+        if manufacturer_name:
+            manufacturer_creator = Actor(ActorType.ORGANIZATION, manufacturer_name)
+            if manufacturer_creator not in document.creation_info.creators:
+                document.creation_info.creators.append(manufacturer_creator)
+
+        # Apply manufacturer as originator on main package (manufacturer takes precedence)
+        if document.packages and manufacturer_name:
+            main_package = document.packages[0]
+            if not main_package.originator or override_sbom_metadata:
+                main_package.originator = Actor(ActorType.ORGANIZATION, manufacturer_name)
+                manufacturer_set_originator = True
+                logger.info(f"Set manufacturer as originator: {manufacturer_name}")
+            else:
+                logger.debug(f"Preserving existing originator: {main_package.originator}")
+
+            # Add manufacturer URLs as external references
+            for url in _normalize_urls_to_list(manufacturer_data.get("url")):
+                if url:
+                    existing_refs = [ref.locator for ref in main_package.external_references]
+                    if url not in existing_refs:
+                        ext_ref = ExternalPackageRef(
+                            category=ExternalPackageRefCategory.OTHER,
+                            reference_type="website",
+                            locator=url,
+                            comment="Manufacturer website",
+                        )
+                        main_package.external_references.append(ext_ref)
+
     # Apply authors information
     if "authors" in augmentation_data and augmentation_data["authors"]:
         authors_data = augmentation_data["authors"]
@@ -930,6 +1049,7 @@ def augment_spdx_sbom(
 
         # Add first author as originator for main package only
         # Dependencies have their own originators, not the backend's authors
+        # Note: manufacturer takes precedence over authors for originator
         if authors_data and document.packages:
             first_author = authors_data[0]
             author_name = first_author.get("name")
@@ -937,7 +1057,10 @@ def augment_spdx_sbom(
 
             if author_name:
                 main_package = document.packages[0]
-                if not main_package.originator or override_sbom_metadata:
+                # Skip if manufacturer already set originator (manufacturer takes precedence)
+                if manufacturer_set_originator:
+                    logger.debug("Skipping author as originator: manufacturer takes precedence")
+                elif not main_package.originator or override_sbom_metadata:
                     originator_name = author_name
                     if author_email:
                         originator_name += f" ({author_email})"

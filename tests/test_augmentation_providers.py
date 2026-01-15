@@ -21,6 +21,11 @@ class TestAugmentationMetadata:
         metadata = AugmentationMetadata(supplier={"name": "Test"})
         assert metadata.has_data() is True
 
+    def test_has_data_with_manufacturer(self):
+        """Test has_data returns True when manufacturer is present."""
+        metadata = AugmentationMetadata(manufacturer={"name": "Test Manufacturer"})
+        assert metadata.has_data() is True
+
     def test_has_data_with_lifecycle(self):
         """Test has_data returns True when lifecycle_phase is present."""
         metadata = AugmentationMetadata(lifecycle_phase="build")
@@ -53,6 +58,43 @@ class TestAugmentationMetadata:
         assert "existing-source" in merged.source
         assert "new-source" in merged.source
 
+    def test_merge_manufacturer(self):
+        """Test merge handles manufacturer field correctly."""
+        existing = AugmentationMetadata(
+            manufacturer={"name": "Existing Mfg"},
+            source="existing-source",
+        )
+        new = AugmentationMetadata(
+            manufacturer={"name": "New Mfg"},
+            supplier={"name": "New Supplier"},
+            source="new-source",
+        )
+
+        merged = existing.merge(new)
+
+        # Existing manufacturer should be preserved
+        assert merged.manufacturer["name"] == "Existing Mfg"
+        # New supplier should be filled in
+        assert merged.supplier["name"] == "New Supplier"
+
+    def test_merge_fills_missing_manufacturer(self):
+        """Test merge fills in missing manufacturer from other."""
+        existing = AugmentationMetadata(
+            supplier={"name": "Existing Supplier"},
+            source="existing-source",
+        )
+        new = AugmentationMetadata(
+            manufacturer={"name": "New Mfg"},
+            source="new-source",
+        )
+
+        merged = existing.merge(new)
+
+        # Manufacturer should be filled from new
+        assert merged.manufacturer["name"] == "New Mfg"
+        # Existing supplier should be preserved
+        assert merged.supplier["name"] == "Existing Supplier"
+
     def test_to_dict(self):
         """Test conversion to dictionary."""
         metadata = AugmentationMetadata(
@@ -63,6 +105,21 @@ class TestAugmentationMetadata:
         result = metadata.to_dict()
 
         assert result["supplier"]["name"] == "Test"
+        assert result["lifecycle_phase"] == "build"
+
+    def test_to_dict_with_manufacturer(self):
+        """Test conversion to dictionary includes manufacturer."""
+        metadata = AugmentationMetadata(
+            supplier={"name": "Test Supplier"},
+            manufacturer={"name": "Test Manufacturer", "url": ["https://mfg.com"]},
+            lifecycle_phase="build",
+        )
+
+        result = metadata.to_dict()
+
+        assert result["supplier"]["name"] == "Test Supplier"
+        assert result["manufacturer"]["name"] == "Test Manufacturer"
+        assert result["manufacturer"]["url"] == ["https://mfg.com"]
         assert result["lifecycle_phase"] == "build"
 
     def test_from_dict(self):
@@ -79,6 +136,27 @@ class TestAugmentationMetadata:
         assert metadata.lifecycle_phase == "build"
         assert metadata.source == "test"
         assert metadata._extra["extra_field"] == "extra_value"
+
+    def test_from_dict_with_manufacturer(self):
+        """Test creation from dictionary with manufacturer."""
+        data = {
+            "supplier": {"name": "Test Supplier"},
+            "manufacturer": {
+                "name": "Test Manufacturer",
+                "url": ["https://mfg.com"],
+                "contacts": [{"name": "Mfg Contact", "email": "contact@mfg.com"}],
+            },
+            "lifecycle_phase": "build",
+        }
+
+        metadata = AugmentationMetadata.from_dict(data, source="test")
+
+        assert metadata.supplier["name"] == "Test Supplier"
+        assert metadata.manufacturer["name"] == "Test Manufacturer"
+        assert metadata.manufacturer["url"] == ["https://mfg.com"]
+        assert len(metadata.manufacturer["contacts"]) == 1
+        assert metadata.lifecycle_phase == "build"
+        assert metadata.source == "test"
 
 
 class TestJsonConfigProvider:
@@ -97,6 +175,7 @@ class TestJsonConfigProvider:
             config_data = {
                 "lifecycle_phase": "build",
                 "supplier": {"name": "Test Corp"},
+                "manufacturer": {"name": "Test Manufacturer", "url": ["https://mfg.test"]},
             }
             with open(config_file, "w") as f:
                 json.dump(config_data, f)
@@ -107,6 +186,8 @@ class TestJsonConfigProvider:
             assert result is not None
             assert result.lifecycle_phase == "build"
             assert result.supplier["name"] == "Test Corp"
+            assert result.manufacturer["name"] == "Test Manufacturer"
+            assert result.manufacturer["url"] == ["https://mfg.test"]
             assert result.source == "json-config"
 
     def test_fetch_no_config_file(self):

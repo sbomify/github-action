@@ -128,7 +128,7 @@ class CycloneDXCargoGenerator:
             output_file_abs,
         ]
 
-        logger.info(f"Running cargo-cyclonedx for {input.lock_file_name} (cyclonedx {spec_version})")
+        logger.info(f"Running cargo-cyclonedx for {input.lock_file_name} (CycloneDX {spec_version})")
         result = run_command(cmd, "cargo-cyclonedx", timeout=300, cwd=str(project_dir))
 
         if result.returncode == 0:
