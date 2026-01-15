@@ -1017,16 +1017,16 @@ def augment_spdx_sbom(
 
             # Add manufacturer URLs as external references
             for url in _normalize_urls_to_list(manufacturer_data.get("url")):
-                    if url:
-                        existing_refs = [ref.locator for ref in main_package.external_references]
-                        if url not in existing_refs:
-                            ext_ref = ExternalPackageRef(
-                                category=ExternalPackageRefCategory.OTHER,
-                                reference_type="website",
-                                locator=url,
-                                comment="Manufacturer website",
-                            )
-                            main_package.external_references.append(ext_ref)
+                if url:
+                    existing_refs = [ref.locator for ref in main_package.external_references]
+                    if url not in existing_refs:
+                        ext_ref = ExternalPackageRef(
+                            category=ExternalPackageRefCategory.OTHER,
+                            reference_type="website",
+                            locator=url,
+                            comment="Manufacturer website",
+                        )
+                        main_package.external_references.append(ext_ref)
 
     # Apply authors information
     if "authors" in augmentation_data and augmentation_data["authors"]:
