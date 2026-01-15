@@ -8,7 +8,7 @@ def _get_package_version() -> str:
     try:
         from importlib.metadata import version
 
-        return version("sbomify-github-action")
+        return version("sbomify-action")
     except Exception:
         try:
             from pathlib import Path
@@ -24,7 +24,7 @@ def _get_package_version() -> str:
             return "unknown"
 
 
-USER_AGENT = f"sbomify-github-action/{_get_package_version()} (hello@sbomify.com)"
+USER_AGENT = f"sbomify-action/{_get_package_version()} (hello@sbomify.com)"
 
 
 def get_default_headers(token: Optional[str] = None, content_type: Optional[str] = None) -> dict:

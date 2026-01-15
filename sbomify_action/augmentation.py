@@ -106,7 +106,7 @@ def _get_package_version() -> str:
     try:
         from importlib.metadata import version
 
-        return version("sbomify-github-action")
+        return version("sbomify-action")
     except Exception:
         try:
             from pathlib import Path

@@ -13,6 +13,7 @@ from pathlib import Path
 
 from sbomify_action.exceptions import SBOMGenerationError
 from sbomify_action.logging_config import logger
+from sbomify_action.tool_checks import check_tool_available
 
 from ..protocol import (
     TRIVY_CYCLONEDX_VERSION,
@@ -22,6 +23,9 @@ from ..protocol import (
 )
 from ..result import GenerationResult
 from ..utils import DEFAULT_TIMEOUT, TRIVY_LOCK_FILES, run_command
+
+# Check tool availability once at module load
+_TRIVY_AVAILABLE, _TRIVY_PATH = check_tool_available("trivy")
 
 # Trivy format flags
 TRIVY_FORMAT_MAP = {
@@ -74,6 +78,10 @@ class TrivyFsGenerator:
         Supports all lock files for both CycloneDX and SPDX.
         Does not support Docker images (use TrivyImageGenerator).
         """
+        # Check if trivy is installed
+        if not _TRIVY_AVAILABLE:
+            return False
+
         # Only supports lock files
         if not input.is_lock_file:
             return False
@@ -208,6 +216,10 @@ class TrivyImageGenerator:
         Supports Docker images for both CycloneDX and SPDX.
         Does not support lock files (use TrivyFsGenerator).
         """
+        # Check if trivy is installed
+        if not _TRIVY_AVAILABLE:
+            return False
+
         # Only supports Docker images
         if not input.is_docker_image:
             return False

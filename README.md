@@ -2,6 +2,7 @@
 
 [![sbomified](https://sbomify.com/assets/images/logo/badge.svg)](https://app.sbomify.com/public/component/Gu9wem8mkX)
 [![CI/CD Pipeline](https://github.com/sbomify/github-action/actions/workflows/sbomify.yaml/badge.svg)](https://github.com/sbomify/github-action/actions/workflows/sbomify.yaml)
+[![PyPI version](https://badge.fury.io/py/sbomify-action.svg)](https://pypi.org/project/sbomify-action/)
 [![Slack](https://img.shields.io/badge/Slack-Join%20Community-4A154B?logo=slack)](https://join.slack.com/t/sbomify/shared_invite/zt-3na54pa1f-MXrFWhotmZr0YxXc8sABTw)
 
 Generate, augment, enrich, and manage SBOMs in your CI/CD pipeline. Works standalone or with [sbomify](https://sbomify.com).
@@ -9,6 +10,41 @@ Generate, augment, enrich, and manage SBOMs in your CI/CD pipeline. Works standa
 **Platform agnostic**: Despite the name, this runs anywhere—GitHub Actions, GitLab CI, Bitbucket Pipelines, or any Docker-capable environment. See [examples below](#other-cicd-platforms).
 
 **Why generate SBOMs in CI/CD?** Generating SBOMs at build time enables cryptographic signing and attestation, creating a verifiable chain of trust from source to artifact. Learn more about the [SBOM lifecycle](https://sbomify.com/features/generate-collaborate-analyze/).
+
+## Installation
+
+### pip (Standalone CLI)
+
+Install sbomify-action as a standalone CLI tool:
+
+```bash
+pip install sbomify-action
+```
+
+After installation, you can run:
+
+```bash
+# Set environment variables and run
+export LOCK_FILE=requirements.txt
+export OUTPUT_FILE=sbom.cdx.json
+export UPLOAD=false
+export ENRICH=true
+sbomify-action
+```
+
+**Note**: SBOM generation requires external tools (trivy, syft, or cdxgen). See [Required Tools](#required-tools) below. The Docker image includes all tools pre-installed.
+
+### Docker (Recommended for CI/CD)
+
+The Docker image includes all SBOM generators pre-installed:
+
+```bash
+docker run --rm -v $(pwd):/code \
+  -e LOCK_FILE=/code/requirements.txt \
+  -e OUTPUT_FILE=/code/sbom.cdx.json \
+  -e UPLOAD=false \
+  sbomifyhub/sbomify-action
+```
 
 ## Quick Start
 
@@ -488,6 +524,19 @@ If the primary generator fails or doesn't support the input, the next one in pri
 - **SPDX**: Version 2.3 (default)
 
 Generated SBOMs are validated against their JSON schemas before output.
+
+### Required Tools
+
+When installed via pip, sbomify-action requires external SBOM generators. The Docker image includes all tools pre-installed.
+
+| Tool | Install Command | Notes |
+|------|-----------------|-------|
+| **cyclonedx-py** | `pip install cyclonedx-bom` | Native Python generator; `cyclonedx-py` is the CLI command provided by the `cyclonedx-bom` package (installed as a dependency) |
+| **Trivy** | [Installation guide](https://aquasecurity.github.io/trivy/latest/getting-started/installation/) | macOS: `brew install trivy` |
+| **Syft** | [Installation guide](https://github.com/anchore/syft#installation) | macOS: `brew install syft` |
+| **cdxgen** | `npm install -g @cyclonedx/cdxgen` | Requires Node.js/Bun |
+
+**Minimum requirement**: At least one generator must be installed for SBOM generation. For Python projects, `cyclonedx-bom` (which provides the `cyclonedx-py` command) is installed as a dependency when you install sbomify-action via pip. For other ecosystems or Docker images, install `trivy`, `syft`, or `cdxgen`.
 
 ## Format Support
 

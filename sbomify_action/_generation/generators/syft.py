@@ -15,6 +15,7 @@ from pathlib import Path
 
 from sbomify_action.exceptions import SBOMGenerationError
 from sbomify_action.logging_config import logger
+from sbomify_action.tool_checks import check_tool_available
 
 from ..protocol import (
     SYFT_CYCLONEDX_DEFAULT,
@@ -26,6 +27,9 @@ from ..protocol import (
 )
 from ..result import GenerationResult
 from ..utils import DEFAULT_TIMEOUT, SYFT_LOCK_FILES, run_command
+
+# Check tool availability once at module load
+_SYFT_AVAILABLE, _SYFT_PATH = check_tool_available("syft")
 
 
 class SyftFsGenerator:
@@ -72,6 +76,10 @@ class SyftFsGenerator:
         Supports all lock files for both CycloneDX and SPDX.
         Does not support Docker images (use SyftImageGenerator).
         """
+        # Check if syft is installed
+        if not _SYFT_AVAILABLE:
+            return False
+
         # Only supports lock files
         if not input.is_lock_file:
             return False
@@ -204,6 +212,10 @@ class SyftImageGenerator:
         Supports Docker images for both CycloneDX and SPDX.
         Does not support lock files (use SyftFsGenerator).
         """
+        # Check if syft is installed
+        if not _SYFT_AVAILABLE:
+            return False
+
         # Only supports Docker images
         if not input.is_docker_image:
             return False
