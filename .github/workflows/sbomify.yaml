@@ -97,7 +97,16 @@ jobs:
           UPLOAD: 'false'
           PYTHONPATH: ${{ github.workspace }}
 
-      - name: Build container for enrichment test
+  container-tests:
+    name: Container Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build container
         run: |
           docker build . -t gha
 
@@ -116,7 +125,7 @@ jobs:
   push-images:
     name: Push Docker Images
     runs-on: ubuntu-latest
-    needs: [sanity-checks, integration-tests]
+    needs: [sanity-checks, integration-tests, container-tests]
     if: github.event_name == 'push'
     permissions:
       packages: write
