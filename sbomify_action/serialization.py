@@ -323,7 +323,7 @@ def _sanitize_component_purl(comp: "Component", comp_type: str) -> tuple[int, in
     return purls_normalized, purls_cleared, bomrefs_normalized
 
 
-def sanitize_purls(bom: Bom) -> tuple[int, int]:
+def sanitize_purls(bom: Bom) -> tuple[int, int, int]:
     """
     Normalize and sanitize PURLs in the BOM.
 
@@ -339,7 +339,7 @@ def sanitize_purls(bom: Bom) -> tuple[int, int]:
         bom: The CycloneDX BOM object to sanitize (modified in place)
 
     Returns:
-        Tuple of (purls_normalized, purls_cleared)
+        Tuple of (purls_normalized, purls_cleared, bomrefs_normalized)
     """
     purls_normalized = 0
     purls_cleared = 0
@@ -374,7 +374,7 @@ def sanitize_purls(bom: Bom) -> tuple[int, int]:
     if bomrefs_normalized:
         logger.info(f"PURL sanitization: normalized {bomrefs_normalized} bom-ref(s)")
 
-    return purls_normalized, purls_cleared
+    return purls_normalized, purls_cleared, bomrefs_normalized
 
 
 def sanitize_spdx_purls(document: "Document") -> int:

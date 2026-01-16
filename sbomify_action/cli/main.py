@@ -1364,7 +1364,9 @@ def _apply_sbom_purl_override(sbom_file: str, config: "Config") -> None:
 
         purl_obj = PackageURL.from_string(config.component_purl)
     except ValueError as e:
-        logger.warning(f"Invalid COMPONENT_PURL '{config.component_purl}': {e}")
+        logger.warning(
+            f"Invalid COMPONENT_PURL '{config.component_purl}': {e}. Expected format: pkg:type/namespace/name@version"
+        )
         return  # Skip invalid PURLs
 
     try:

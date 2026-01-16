@@ -588,7 +588,7 @@ class TestSanitizePurls:
         bom.components.add(valid_comp)
         bom.components.add(invalid_comp)
 
-        normalized, cleared = sanitize_purls(bom)
+        normalized, cleared, bomrefs = sanitize_purls(bom)
         assert cleared == 1
         # Both components are kept (preserves dependency graph)
         assert len(bom.components) == 2
@@ -628,7 +628,7 @@ class TestSanitizePurls:
         bom.components.add(valid_comp)
         bom.components.add(invalid_comp)
 
-        normalized, cleared = sanitize_purls(bom)
+        normalized, cleared, bomrefs = sanitize_purls(bom)
         assert cleared == 1
         # Both components kept
         assert len(bom.components) == 2
@@ -664,7 +664,7 @@ class TestSanitizePurls:
         )
         bom.metadata.component = meta_comp
 
-        normalized, cleared = sanitize_purls(bom)
+        normalized, cleared, bomrefs = sanitize_purls(bom)
         assert cleared == 1
         assert bom.metadata.component is not None
         assert bom.metadata.component.purl is None
@@ -685,7 +685,7 @@ class TestSanitizePurls:
             )
             bom.components.add(comp)
 
-        normalized, cleared = sanitize_purls(bom)
+        normalized, cleared, bomrefs = sanitize_purls(bom)
         assert normalized == 0
         assert cleared == 0
         assert len(bom.components) == 5
@@ -696,7 +696,7 @@ class TestSanitizePurls:
     def test_returns_zero_for_empty_bom(self):
         """Test that empty BOM returns zeros."""
         bom = Bom()
-        normalized, cleared = sanitize_purls(bom)
+        normalized, cleared, bomrefs = sanitize_purls(bom)
         assert normalized == 0
         assert cleared == 0
 
@@ -730,7 +730,7 @@ class TestSanitizePurls:
         parent_dep.dependencies.add(child_dep)
         bom.dependencies.add(parent_dep)
 
-        normalized, cleared = sanitize_purls(bom)
+        normalized, cleared, bomrefs = sanitize_purls(bom)
         assert cleared == 1
 
         # Both components still exist
@@ -758,7 +758,7 @@ class TestSanitizePurls:
         bom.components.add(comp)
 
         # Valid PURL should not be modified or cleared
-        normalized, cleared = sanitize_purls(bom)
+        normalized, cleared, bomrefs = sanitize_purls(bom)
         assert normalized == 0
         assert cleared == 0
         assert comp.purl is not None
@@ -787,7 +787,7 @@ class TestSanitizePurls:
         )
         bom.metadata.tools.components.add(invalid_tool)
 
-        normalized, cleared = sanitize_purls(bom)
+        normalized, cleared, bomrefs = sanitize_purls(bom)
         assert cleared == 1
 
         # Both tool components are kept
@@ -829,7 +829,7 @@ class TestSanitizePurls:
         bom.metadata.tools.components.add(tool)
 
         # Valid scoped PURL should not be modified
-        normalized, cleared = sanitize_purls(bom)
+        normalized, cleared, bomrefs = sanitize_purls(bom)
         assert cleared == 0
         # The PURL should still be valid
         assert tool.purl is not None
