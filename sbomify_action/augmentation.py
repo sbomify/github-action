@@ -61,7 +61,7 @@ from ._augmentation.utils import build_vcs_url_with_commit, truncate_sha
 from ._generation.utils import ALL_LOCK_FILES
 from .exceptions import SBOMValidationError
 from .logging_config import logger
-from .serialization import sanitize_dependency_graph, serialize_cyclonedx_bom
+from .serialization import link_root_dependencies, sanitize_dependency_graph, serialize_cyclonedx_bom
 from .validation import validate_sbom_file_auto
 
 # Constants for SPDX license parsing
@@ -1379,6 +1379,9 @@ def augment_sbom_from_file(
 
             # Sanitize dependency graph (add stubs for orphaned references)
             sanitize_dependency_graph(bom)
+
+            # Link top-level components to root if root has no dependencies
+            link_root_dependencies(bom)
 
             # Write output using version-aware serialization
             serialized = serialize_cyclonedx_bom(bom, spec_version)

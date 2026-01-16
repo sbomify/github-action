@@ -10,6 +10,7 @@ from sbomify_action.serialization import (
     _UNKNOWN_VERSION,
     _extract_component_info_from_purl,
     _is_invalid_purl,
+    link_root_dependencies,
     normalize_purl,
     sanitize_dependency_graph,
     sanitize_purls,
@@ -430,6 +431,287 @@ class TestSerializeCycloneDxBom:
 
         # No dependency warning should be logged (no components to depend on)
         assert not any("SBOM dependency graph is incomplete" in record.message for record in caplog.records)
+
+
+class TestLinkRootDependencies:
+    """Tests for linking top-level components to root component."""
+
+    def test_flat_graph_links_all_components(self):
+        """Test that flat graph (no existing dependencies) links all components to root."""
+        bom = Bom()
+
+        # Add root component
+        root = Component(
+            name="my-container",
+            type=ComponentType.CONTAINER,
+            version="1.0.0",
+            bom_ref=BomRef("pkg:oci/my-container@sha256:abc123"),
+        )
+        bom.metadata.component = root
+
+        # Add components (flat - no dependencies between them)
+        comp1 = Component(
+            name="apt",
+            type=ComponentType.LIBRARY,
+            version="2.0.0",
+            bom_ref=BomRef("pkg:generic/apt"),
+        )
+        comp2 = Component(
+            name="bash",
+            type=ComponentType.LIBRARY,
+            version="5.0.0",
+            bom_ref=BomRef("pkg:generic/bash"),
+        )
+        comp3 = Component(
+            name="curl",
+            type=ComponentType.LIBRARY,
+            version="7.0.0",
+            bom_ref=BomRef("pkg:generic/curl"),
+        )
+        bom.components.add(comp1)
+        bom.components.add(comp2)
+        bom.components.add(comp3)
+
+        # Add empty dependency entries (like container SBOMs have)
+        bom.dependencies.add(Dependency(ref=root.bom_ref))
+        bom.dependencies.add(Dependency(ref=comp1.bom_ref))
+        bom.dependencies.add(Dependency(ref=comp2.bom_ref))
+        bom.dependencies.add(Dependency(ref=comp3.bom_ref))
+
+        # Link root dependencies
+        linked = link_root_dependencies(bom)
+
+        # All 3 components should be linked to root
+        assert linked == 3
+
+        # Find root dependency entry and verify it has all components
+        root_dep = None
+        for dep in bom.dependencies:
+            if dep.ref.value == root.bom_ref.value:
+                root_dep = dep
+                break
+
+        assert root_dep is not None
+        dep_refs = {d.ref.value for d in root_dep.dependencies}
+        assert dep_refs == {"pkg:generic/apt", "pkg:generic/bash", "pkg:generic/curl"}
+
+    def test_hierarchical_graph_preserves_tree(self):
+        """Test that hierarchical graph only links top-level components, preserving tree."""
+        bom = Bom()
+
+        # Add root component
+        root = Component(
+            name="my-app",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+            bom_ref=BomRef("my-app-ref"),
+        )
+        bom.metadata.component = root
+
+        # Add components with hierarchy: express -> body-parser -> bytes, lodash standalone
+        express = Component(
+            name="express",
+            type=ComponentType.LIBRARY,
+            version="4.18.0",
+            bom_ref=BomRef("pkg:npm/express@4.18.0"),
+        )
+        body_parser = Component(
+            name="body-parser",
+            type=ComponentType.LIBRARY,
+            version="1.20.0",
+            bom_ref=BomRef("pkg:npm/body-parser@1.20.0"),
+        )
+        bytes_pkg = Component(
+            name="bytes",
+            type=ComponentType.LIBRARY,
+            version="3.1.0",
+            bom_ref=BomRef("pkg:npm/bytes@3.1.0"),
+        )
+        lodash = Component(
+            name="lodash",
+            type=ComponentType.LIBRARY,
+            version="4.17.21",
+            bom_ref=BomRef("pkg:npm/lodash@4.17.21"),
+        )
+        bom.components.add(express)
+        bom.components.add(body_parser)
+        bom.components.add(bytes_pkg)
+        bom.components.add(lodash)
+
+        # Set up dependency hierarchy
+        root_dep = Dependency(ref=root.bom_ref)
+        bom.dependencies.add(root_dep)
+
+        express_dep = Dependency(ref=express.bom_ref)
+        body_parser_dep_ref = Dependency(ref=body_parser.bom_ref)
+        express_dep.dependencies.add(body_parser_dep_ref)
+        bom.dependencies.add(express_dep)
+
+        body_parser_dep = Dependency(ref=body_parser.bom_ref)
+        bytes_dep_ref = Dependency(ref=bytes_pkg.bom_ref)
+        body_parser_dep.dependencies.add(bytes_dep_ref)
+        bom.dependencies.add(body_parser_dep)
+
+        bom.dependencies.add(Dependency(ref=bytes_pkg.bom_ref))
+        bom.dependencies.add(Dependency(ref=lodash.bom_ref))
+
+        # Link root dependencies
+        linked = link_root_dependencies(bom)
+
+        # Only express and lodash should be linked (not body-parser or bytes)
+        assert linked == 2
+
+        # Find root dependency entry and verify
+        for dep in bom.dependencies:
+            if dep.ref.value == root.bom_ref.value:
+                dep_refs = {d.ref.value for d in dep.dependencies}
+                assert dep_refs == {"pkg:npm/express@4.18.0", "pkg:npm/lodash@4.17.21"}
+                break
+
+    def test_root_with_existing_deps_not_modified(self):
+        """Test that root with existing dependencies is not modified."""
+        bom = Bom()
+
+        # Add root component
+        root = Component(
+            name="my-app",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+            bom_ref=BomRef("my-app-ref"),
+        )
+        bom.metadata.component = root
+
+        # Add components
+        comp1 = Component(
+            name="lodash",
+            type=ComponentType.LIBRARY,
+            version="4.17.21",
+            bom_ref=BomRef("pkg:npm/lodash@4.17.21"),
+        )
+        comp2 = Component(
+            name="express",
+            type=ComponentType.LIBRARY,
+            version="4.18.0",
+            bom_ref=BomRef("pkg:npm/express@4.18.0"),
+        )
+        bom.components.add(comp1)
+        bom.components.add(comp2)
+
+        # Root already has dependencies defined
+        root_dep = Dependency(ref=root.bom_ref)
+        root_dep.dependencies.add(Dependency(ref=comp1.bom_ref))
+        bom.dependencies.add(root_dep)
+
+        # Try to link - should do nothing
+        linked = link_root_dependencies(bom)
+
+        assert linked == 0
+
+        # Verify root still has only lodash (express not added)
+        for dep in bom.dependencies:
+            if dep.ref.value == root.bom_ref.value:
+                dep_refs = {d.ref.value for d in dep.dependencies}
+                assert dep_refs == {"pkg:npm/lodash@4.17.21"}
+                break
+
+    def test_no_root_component_does_nothing(self):
+        """Test that BOM without root component is not modified."""
+        bom = Bom()
+
+        # Add components but no root
+        comp1 = Component(
+            name="lodash",
+            type=ComponentType.LIBRARY,
+            version="4.17.21",
+            bom_ref=BomRef("pkg:npm/lodash@4.17.21"),
+        )
+        bom.components.add(comp1)
+
+        linked = link_root_dependencies(bom)
+
+        assert linked == 0
+
+    def test_root_without_bomref_does_nothing(self):
+        """Test that root component without bom-ref is not modified."""
+        bom = Bom()
+
+        # Add root component without bom-ref
+        root = Component(
+            name="my-app",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+        )
+        bom.metadata.component = root
+
+        # Add components
+        comp1 = Component(
+            name="lodash",
+            type=ComponentType.LIBRARY,
+            version="4.17.21",
+            bom_ref=BomRef("pkg:npm/lodash@4.17.21"),
+        )
+        bom.components.add(comp1)
+
+        linked = link_root_dependencies(bom)
+
+        assert linked == 0
+
+    def test_creates_root_dep_entry_if_missing(self):
+        """Test that root dependency entry is created if it doesn't exist."""
+        bom = Bom()
+
+        # Add root component
+        root = Component(
+            name="my-app",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+            bom_ref=BomRef("my-app-ref"),
+        )
+        bom.metadata.component = root
+
+        # Add component
+        comp1 = Component(
+            name="lodash",
+            type=ComponentType.LIBRARY,
+            version="4.17.21",
+            bom_ref=BomRef("pkg:npm/lodash@4.17.21"),
+        )
+        bom.components.add(comp1)
+
+        # Don't add root to dependencies - it should be created
+        bom.dependencies.add(Dependency(ref=comp1.bom_ref))
+
+        linked = link_root_dependencies(bom)
+
+        assert linked == 1
+
+        # Verify root dependency entry was created with lodash
+        root_dep_found = False
+        for dep in bom.dependencies:
+            if dep.ref.value == root.bom_ref.value:
+                root_dep_found = True
+                dep_refs = {d.ref.value for d in dep.dependencies}
+                assert dep_refs == {"pkg:npm/lodash@4.17.21"}
+                break
+
+        assert root_dep_found
+
+    def test_no_components_does_nothing(self):
+        """Test that BOM with root but no components does nothing."""
+        bom = Bom()
+
+        # Add root component only
+        root = Component(
+            name="my-app",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+            bom_ref=BomRef("my-app-ref"),
+        )
+        bom.metadata.component = root
+
+        linked = link_root_dependencies(bom)
+
+        assert linked == 0
 
 
 class TestIsInvalidPurl:
