@@ -259,6 +259,22 @@ jobs:
           UPLOAD: true
           OUTPUT_FILE: github-action-container.cdx.json
 
+      - name: Upload JavaScript Dependencies SBOM to Staging
+        if: github.ref == 'refs/heads/master'
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
+          API_BASE_URL: https://stage.sbomify.com
+          COMPONENT_ID: 'PGyKXNbQd5eq'
+          LOCK_FILE: 'bun.lock'
+          COMPONENT_NAME: 'JavaScript Dependencies'
+          COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
+          PRODUCT_RELEASE: '["Engh9j4XTTwD:${{ steps.version.outputs.short_sha }}"]'
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: true
+          OUTPUT_FILE: github-action-frontend.cdx.json
+
       - name: Upload SBOM to Production
         if: startsWith(github.ref, 'refs/tags/')
         uses: sbomify/github-action@master
@@ -292,6 +308,21 @@ jobs:
           UPLOAD: true
           OUTPUT_FILE: github-action-container.cdx.json
 
+      - name: Upload JavaScript Dependencies SBOM to Production
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'IxwrYSb9rGql'
+          LOCK_FILE: 'bun.lock'
+          COMPONENT_NAME: 'JavaScript Dependencies'
+          COMPONENT_VERSION: ${{ github.ref_name }}
+          PRODUCT_RELEASE: '["IeIn1dGJXULh:${{ github.ref_name }}"]'
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: true
+          OUTPUT_FILE: github-action-frontend.cdx.json
+
       - name: Attest Source SBOM
         uses: actions/attest-build-provenance@v1
         with:
@@ -301,3 +332,8 @@ jobs:
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: '${{ github.workspace }}/github-action-container.cdx.json'
+
+      - name: Attest JavaScript Dependencies SBOM
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: '${{ github.workspace }}/github-action-frontend.cdx.json'
