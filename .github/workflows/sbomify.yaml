@@ -151,9 +151,8 @@ jobs:
             VERSION="${{ github.ref_name }}"
             VERSION="${VERSION#v}"
           else
-            # For branches, use branch-shortsha format
-            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-            VERSION="${{ github.ref_name }}-${SHORT_SHA}"
+            # For branches, use just the short SHA
+            VERSION=$(echo "${{ github.sha }}" | cut -c1-7)
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
