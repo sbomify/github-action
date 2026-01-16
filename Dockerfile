@@ -104,7 +104,7 @@ WORKDIR /app
 COPY . /app/
 
 # Override version from build arg
-RUN sed -i "s/^version = .*/version = \"${VERSION}\"/" pyproject.toml
+RUN sed -i "s/^version = [\"'].*/version = \"${VERSION}\"/" pyproject.toml
 
 # Build and install using UV
 ENV VIRTUAL_ENV=/opt/venv
