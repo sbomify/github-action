@@ -61,7 +61,12 @@ from ._augmentation.utils import build_vcs_url_with_commit, truncate_sha
 from ._generation.utils import ALL_LOCK_FILES
 from .exceptions import SBOMValidationError
 from .logging_config import logger
-from .serialization import link_root_dependencies, sanitize_dependency_graph, serialize_cyclonedx_bom
+from .serialization import (
+    link_root_dependencies,
+    sanitize_dependency_graph,
+    sanitize_spdx_json_file,
+    serialize_cyclonedx_bom,
+)
 from .validation import validate_sbom_file_auto
 
 # Constants for SPDX license parsing
@@ -1431,6 +1436,7 @@ def augment_sbom_from_file(
             output_path = Path(output_file)
             try:
                 spdx_write_file(document, str(output_path), validate=False)
+                sanitize_spdx_json_file(str(output_path))
             except PermissionError:
                 raise PermissionError(f"Permission denied writing output file: {output_file}")
             except OSError as e:

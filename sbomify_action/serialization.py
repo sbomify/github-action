@@ -386,6 +386,59 @@ def sanitize_spdx_purls(document: "Document") -> int:
     return normalized_count
 
 
+# Map of invalid SPDX enum values to valid ones (spdx_tools library bug workaround)
+# The library outputs Python enum names (with underscores) instead of SPDX spec values (with hyphens)
+SPDX_PACKAGE_PURPOSE_FIXES = {
+    "OPERATING_SYSTEM": "OPERATING-SYSTEM",
+}
+
+
+def sanitize_spdx_json_file(file_path: str) -> int:
+    """
+    Fix invalid enum values in SPDX JSON files.
+
+    The spdx_tools library has a bug where it outputs Python enum names
+    (e.g., OPERATING_SYSTEM) instead of SPDX spec values (e.g., OPERATING-SYSTEM).
+    This function post-processes the JSON file to fix these values.
+
+    Args:
+        file_path: Path to the SPDX JSON file to sanitize (modified in place)
+
+    Returns:
+        Number of values fixed
+    """
+    import json
+
+    try:
+        with open(file_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning(f"Failed to read SPDX file for sanitization: {e}")
+        return 0
+
+    fixed_count = 0
+
+    # Fix primaryPackagePurpose values in packages
+    for package in data.get("packages", []):
+        purpose = package.get("primaryPackagePurpose")
+        if purpose in SPDX_PACKAGE_PURPOSE_FIXES:
+            fixed_value = SPDX_PACKAGE_PURPOSE_FIXES[purpose]
+            package["primaryPackagePurpose"] = fixed_value
+            logger.debug(f"Fixed SPDX primaryPackagePurpose: {purpose} -> {fixed_value}")
+            fixed_count += 1
+
+    if fixed_count > 0:
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            logger.info(f"SPDX JSON sanitization: fixed {fixed_count} invalid enum value(s)")
+        except OSError as e:
+            logger.warning(f"Failed to write sanitized SPDX file: {e}")
+            return 0
+
+    return fixed_count
+
+
 def sanitize_dependency_graph(bom: Bom) -> int:
     """
     Fix orphaned dependency references by adding stub components for missing refs.
