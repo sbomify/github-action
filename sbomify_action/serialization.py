@@ -430,7 +430,7 @@ def sanitize_spdx_json_file(file_path: str) -> int:
     if fixed_count > 0:
         try:
             with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+                json.dump(data, f, ensure_ascii=False)
             logger.info(f"SPDX JSON sanitization: fixed {fixed_count} invalid enum value(s)")
         except OSError as e:
             logger.warning(f"Failed to write sanitized SPDX file: {e}")
