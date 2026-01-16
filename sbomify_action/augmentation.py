@@ -33,7 +33,7 @@ Version support:
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
-from cyclonedx.model import AttachedText, ExternalReference, ExternalReferenceType, XsUri
+from cyclonedx.model import AttachedText, BomRef, ExternalReference, ExternalReferenceType, XsUri
 from cyclonedx.model.bom import Bom, OrganizationalContact, OrganizationalEntity, Tool
 from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.license import DisjunctiveLicense, LicenseExpression
@@ -106,15 +106,15 @@ def _propagate_supplier_to_lockfile_components(bom: Bom) -> None:
 
 def _update_component_purl_version(component: Component, new_version: str) -> bool:
     """
-    Update the version in a CycloneDX component's PURL if present.
+    Update the version in a CycloneDX component's PURL and bom-ref if present.
 
     When COMPONENT_VERSION is set to override the component version, this function
-    ensures the PURL is also updated to maintain consistency between the component's
-    version field and its PURL.
+    ensures the PURL and bom-ref are also updated to maintain consistency between
+    the component's version field, PURL, and bom-ref.
 
     Args:
         component: The CycloneDX Component object with optional purl attribute
-        new_version: The new version to set in the PURL
+        new_version: The new version to set in the PURL and bom-ref
 
     Returns:
         True if PURL was updated, False if component has no PURL or update failed
@@ -124,6 +124,14 @@ def _update_component_purl_version(component: Component, new_version: str) -> bo
 
     try:
         old_purl = component.purl
+
+        # Guard against PURLs without version (e.g., pkg:npm/lodash)
+        if old_purl.version is None:
+            logger.debug(f"Skipping PURL version update - no existing version: {old_purl}")
+            return False
+
+        old_version = old_purl.version
+
         # Create new PURL with updated version, preserving all other fields
         new_purl = PackageURL(
             type=old_purl.type,
@@ -135,6 +143,28 @@ def _update_component_purl_version(component: Component, new_version: str) -> bo
         )
         component.purl = new_purl
         logger.debug(f"Updated component PURL version: {old_purl} -> {new_purl}")
+
+        # Also update bom-ref if it is a PURL-based bom-ref with a matching version
+        if component.bom_ref and component.bom_ref.value:
+            old_bom_ref = component.bom_ref.value
+            try:
+                bom_ref_purl = PackageURL.from_string(old_bom_ref)
+            except ValueError:
+                bom_ref_purl = None
+
+            if bom_ref_purl and bom_ref_purl.version == old_version:
+                new_bom_ref_purl = PackageURL(
+                    type=bom_ref_purl.type,
+                    namespace=bom_ref_purl.namespace,
+                    name=bom_ref_purl.name,
+                    version=new_version,
+                    qualifiers=bom_ref_purl.qualifiers,
+                    subpath=bom_ref_purl.subpath,
+                )
+                new_bom_ref = str(new_bom_ref_purl)
+                component.bom_ref = BomRef(new_bom_ref)
+                logger.debug(f"Updated component bom-ref: {old_bom_ref} -> {new_bom_ref}")
+
         return True
     except Exception as e:
         logger.warning(f"Failed to update component PURL version: {e}")

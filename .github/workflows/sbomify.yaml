@@ -216,7 +216,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Generate additional packages from Dockerfile
-        run: ./scripts/generate_additional_packages.sh > additional_packages.txt
+        run: ./scripts/generate_additional_packages.sh > container_additional_packages.txt
+
+      - name: Determine version
+        id: version
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Upload SBOM to Staging
         if: github.ref == 'refs/heads/master'
@@ -227,11 +233,27 @@ jobs:
           COMPONENT_ID: 'XNsX40tonzvv'
           LOCK_FILE: 'uv.lock'
           COMPONENT_NAME: 'sbomify Action'
-          COMPONENT_VERSION: ${{ format('{0}-{1}', github.ref_name, github.sha) }}
+          COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
           OUTPUT_FILE: github-action.cdx.json
+
+      - name: Upload Container SBOM to Staging
+        if: github.ref == 'refs/heads/master'
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
+          API_BASE_URL: https://stage.sbomify.com
+          COMPONENT_ID: 'gco2pG10whmy'
+          DOCKER_IMAGE: 'sbomifyhub/sbomify-action:latest'
+          COMPONENT_NAME: 'sbomify Action Container'
+          COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
+          ADDITIONAL_PACKAGES_FILE: container_additional_packages.txt
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: true
+          OUTPUT_FILE: github-action-container.cdx.json
 
       - name: Upload SBOM to Production
         if: startsWith(github.ref, 'refs/tags/')
@@ -247,7 +269,27 @@ jobs:
           UPLOAD: true
           OUTPUT_FILE: github-action.cdx.json
 
-      - name: Attest
+      - name: Upload Container SBOM to Production
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'ryD0Hcu4vq6y'
+          DOCKER_IMAGE: 'sbomifyhub/sbomify-action:${{ github.ref_name }}'
+          COMPONENT_NAME: 'sbomify Action Container'
+          COMPONENT_VERSION: ${{ github.ref_name }}
+          ADDITIONAL_PACKAGES_FILE: container_additional_packages.txt
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: true
+          OUTPUT_FILE: github-action-container.cdx.json
+
+      - name: Attest Source SBOM
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: '${{ github.workspace }}/github-action.cdx.json'
+
+      - name: Attest Container SBOM
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: '${{ github.workspace }}/github-action-container.cdx.json'
