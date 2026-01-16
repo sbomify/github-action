@@ -57,11 +57,11 @@ docker run --rm -v $(pwd):/code \
     ENRICH: true
 ```
 
-That's it! This generates an SBOM from your lockfile and enriches it with metadata from package registries.
+That's it! This generates a CycloneDX SBOM from your lockfile and enriches it with metadata from package registries. For SPDX format, set `SBOM_FORMAT: spdx`.
 
 ## Features
 
-- **Generate** SBOMs from lockfiles (Python, Node, Rust, Go, Ruby, Dart, C++)
+- **Generate** SBOMs from lockfiles (Python, Node, Rust, Go, Ruby, Dart, C++) in CycloneDX or SPDX format
 - **Generate** SBOMs from Docker images
 - **Inject** additional packages not in lockfiles (vendored code, runtime deps, system libraries)
 - **Augment** with business metadata (supplier, authors, licenses, lifecycle phase) from config file or sbomify
@@ -138,6 +138,20 @@ See [Augmentation Config File](#augmentation-config-file) for the config format.
     ENRICH: true
 ```
 
+### SPDX Format
+
+Generate SPDX instead of CycloneDX:
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: requirements.txt
+    OUTPUT_FILE: sbom.spdx.json
+    SBOM_FORMAT: spdx
+    UPLOAD: false
+    ENRICH: true
+```
+
 ### With Attestation
 
 ```yaml
@@ -155,26 +169,27 @@ See [Augmentation Config File](#augmentation-config-file) for the config format.
 
 ## Configuration
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `LOCK_FILE` | † | Path to lockfile (requirements.txt, poetry.lock, Cargo.lock, etc.) |
-| `SBOM_FILE` | † | Path to existing SBOM file |
-| `DOCKER_IMAGE` | † | Docker image name |
-| `OUTPUT_FILE` | No | Write final SBOM to this path |
-| `ENRICH` | No | Add metadata from package registries |
-| `TOKEN` | ‡ | sbomify API token |
-| `COMPONENT_ID` | ‡ | sbomify component ID |
-| `AUGMENT` | No | Add metadata from sbomify |
-| `COMPONENT_NAME` | No | Override component name in SBOM |
-| `COMPONENT_VERSION` | No | Override component version in SBOM |
-| `COMPONENT_PURL` | No | Add or override component PURL in SBOM |
-| `PRODUCT_RELEASE` | No | Tag SBOM with product releases (see [Product Releases](#product-releases)) |
-| `UPLOAD` | No | Upload SBOM (default: true) |
-| `UPLOAD_DESTINATIONS` | No | Comma-separated destinations: `sbomify`, `dependency-track` (default: `sbomify`) |
-| `API_BASE_URL` | No | Override sbomify API URL for self-hosted instances |
-| `ADDITIONAL_PACKAGES_FILE` | No | Custom path to additional packages file |
-| `ADDITIONAL_PACKAGES` | No | Inline PURLs to inject (comma or newline separated) |
-| `DISABLE_VCS_AUGMENTATION` | No | Set to `true` to disable auto-detection of VCS info from CI environment |
+| Variable                   | Required | Description                                                                      |
+| -------------------------- | -------- | -------------------------------------------------------------------------------- |
+| `LOCK_FILE`                | †        | Path to lockfile (requirements.txt, poetry.lock, Cargo.lock, etc.)               |
+| `SBOM_FILE`                | †        | Path to existing SBOM file                                                       |
+| `DOCKER_IMAGE`             | †        | Docker image name                                                                |
+| `OUTPUT_FILE`              | No       | Write final SBOM to this path                                                    |
+| `SBOM_FORMAT`              | No       | Output format: `cyclonedx` (default) or `spdx`                                   |
+| `ENRICH`                   | No       | Add metadata from package registries                                             |
+| `TOKEN`                    | ‡        | sbomify API token                                                                |
+| `COMPONENT_ID`             | ‡        | sbomify component ID                                                             |
+| `AUGMENT`                  | No       | Add metadata from sbomify                                                        |
+| `COMPONENT_NAME`           | No       | Override component name in SBOM                                                  |
+| `COMPONENT_VERSION`        | No       | Override component version in SBOM                                               |
+| `COMPONENT_PURL`           | No       | Add or override component PURL in SBOM                                           |
+| `PRODUCT_RELEASE`          | No       | Tag SBOM with product releases (see [Product Releases](#product-releases))       |
+| `UPLOAD`                   | No       | Upload SBOM (default: true)                                                      |
+| `UPLOAD_DESTINATIONS`      | No       | Comma-separated destinations: `sbomify`, `dependency-track` (default: `sbomify`) |
+| `API_BASE_URL`             | No       | Override sbomify API URL for self-hosted instances                               |
+| `ADDITIONAL_PACKAGES_FILE` | No       | Custom path to additional packages file                                          |
+| `ADDITIONAL_PACKAGES`      | No       | Inline PURLs to inject (comma or newline separated)                              |
+| `DISABLE_VCS_AUGMENTATION` | No       | Set to `true` to disable auto-detection of VCS info from CI environment          |
 
 † **One** of `LOCK_FILE`, `SBOM_FILE`, or `DOCKER_IMAGE` is required (pick one)
 ‡ Required when uploading to sbomify or using sbomify features (`AUGMENT`, `PRODUCT_RELEASE`)
@@ -183,12 +198,12 @@ See [Augmentation Config File](#augmentation-config-file) for the config format.
 
 When uploading to Dependency Track (`UPLOAD_DESTINATIONS=dependency-track`), configure with `DTRACK_*` prefixed environment variables:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DTRACK_API_KEY` | Yes | Dependency Track API key |
-| `DTRACK_API_URL` | Yes | Full API base URL (e.g., `https://dtrack.example.com/api`) |
-| `DTRACK_PROJECT_ID` | § | Project UUID (alternative to using `COMPONENT_NAME`/`COMPONENT_VERSION`) |
-| `DTRACK_AUTO_CREATE` | No | Auto-create project if it doesn't exist (default: false) |
+| Variable             | Required | Description                                                              |
+| -------------------- | -------- | ------------------------------------------------------------------------ |
+| `DTRACK_API_KEY`     | Yes      | Dependency Track API key                                                 |
+| `DTRACK_API_URL`     | Yes      | Full API base URL (e.g., `https://dtrack.example.com/api`)               |
+| `DTRACK_PROJECT_ID`  | §        | Project UUID (alternative to using `COMPONENT_NAME`/`COMPONENT_VERSION`) |
+| `DTRACK_AUTO_CREATE` | No       | Auto-create project if it doesn't exist (default: false)                 |
 
 § Either `DTRACK_PROJECT_ID` **or** both `COMPONENT_NAME` and `COMPONENT_VERSION` are required
 
@@ -253,6 +268,7 @@ PRODUCT_RELEASE: '["product_id_1:v1.0.0", "product_id_2:v2.0.0"]'
 ```
 
 **Behavior:**
+
 - **Get-or-create**: If the release already exists, it's reused. If not, it's created automatically.
 - **Tagging**: The uploaded SBOM is associated with each specified release.
 - **Partial failures**: If some releases succeed and others fail, the action logs a warning but continues.
@@ -261,22 +277,22 @@ PRODUCT_RELEASE: '["product_id_1:v1.0.0", "product_id_2:v2.0.0"]'
 
 ## Supported Lockfiles
 
-| Language | Files |
-|----------|-------|
-| Python | `requirements.txt`, `poetry.lock`, `Pipfile.lock`, `uv.lock`, `pyproject.toml` |
+| Language   | Files                                                                          |
+| ---------- | ------------------------------------------------------------------------------ |
+| Python     | `requirements.txt`, `poetry.lock`, `Pipfile.lock`, `uv.lock`, `pyproject.toml` |
 | JavaScript | `package.json`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `bun.lock` |
-| Java | `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle.lockfile` |
-| Go | `go.mod`, `go.sum` |
-| Rust | `Cargo.lock` |
-| Ruby | `Gemfile.lock` |
-| PHP | `composer.json`, `composer.lock` |
-| .NET/C# | `packages.lock.json` |
-| Swift | `Package.swift`, `Package.resolved` |
-| Dart | `pubspec.lock` |
-| Elixir | `mix.lock` |
-| Scala | `build.sbt` |
-| C++ | `conan.lock` |
-| Terraform | `.terraform.lock.hcl` |
+| Java       | `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle.lockfile`               |
+| Go         | `go.mod`, `go.sum`                                                             |
+| Rust       | `Cargo.lock`                                                                   |
+| Ruby       | `Gemfile.lock`                                                                 |
+| PHP        | `composer.json`, `composer.lock`                                               |
+| .NET/C#    | `packages.lock.json`                                                           |
+| Swift      | `Package.swift`, `Package.resolved`                                            |
+| Dart       | `pubspec.lock`                                                                 |
+| Elixir     | `mix.lock`                                                                     |
+| Scala      | `build.sbt`                                                                    |
+| C++        | `conan.lock`                                                                   |
+| Terraform  | `.terraform.lock.hcl`                                                          |
 
 ## Additional Packages
 
@@ -417,15 +433,15 @@ Create `sbomify.json` in your project root to provide augmentation metadata:
 
 **Supported fields:**
 
-| Field | Description | SBOM Mapping |
-|-------|-------------|--------------|
-| `lifecycle_phase` | Generation context (CISA 2025) | CycloneDX 1.5+: `metadata.lifecycles[].phase`; SPDX: `creationInfo.creatorComment` |
-| `supplier` | Organization that supplies the component | CycloneDX: `metadata.supplier`; SPDX: `packages[].supplier` |
-| `authors` | List of component authors | CycloneDX: `metadata.authors[]`; SPDX: `creationInfo.creators[]` |
-| `licenses` | SPDX license identifiers | CycloneDX: `metadata.licenses[]`; SPDX: Document-level licenses |
-| `vcs_url` | Repository URL (overrides CI auto-detection) | CycloneDX: `externalReferences[type=vcs]`; SPDX: `downloadLocation` |
-| `vcs_commit_sha` | Full commit SHA | Appended to VCS URL as `@sha` |
-| `vcs_ref` | Branch or tag name | Added as comment/context |
+| Field             | Description                                  | SBOM Mapping                                                                       |
+| ----------------- | -------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `lifecycle_phase` | Generation context (CISA 2025)               | CycloneDX 1.5+: `metadata.lifecycles[].phase`; SPDX: `creationInfo.creatorComment` |
+| `supplier`        | Organization that supplies the component     | CycloneDX: `metadata.supplier`; SPDX: `packages[].supplier`                        |
+| `authors`         | List of component authors                    | CycloneDX: `metadata.authors[]`; SPDX: `creationInfo.creators[]`                   |
+| `licenses`        | SPDX license identifiers                     | CycloneDX: `metadata.licenses[]`; SPDX: Document-level licenses                    |
+| `vcs_url`         | Repository URL (overrides CI auto-detection) | CycloneDX: `externalReferences[type=vcs]`; SPDX: `downloadLocation`                |
+| `vcs_commit_sha`  | Full commit SHA                              | Appended to VCS URL as `@sha`                                                      |
+| `vcs_ref`         | Branch or tag name                           | Added as comment/context                                                           |
 
 **Valid `lifecycle_phase` values:** `design`, `pre-build`, `build`, `post-build`, `operations`, `discovery`, `decommission`
 
@@ -435,11 +451,11 @@ Create `sbomify.json` in your project root to provide augmentation metadata:
 
 When running in CI environments, sbomify automatically detects and adds VCS (Version Control System) information to your SBOM:
 
-| CI Platform | Auto-Detected Fields |
-|-------------|---------------------|
-| GitHub Actions | Repository URL, commit SHA, branch/tag (supports GitHub Enterprise Server) |
-| GitLab CI | Project URL, commit SHA, ref name (supports self-managed instances) |
-| Bitbucket Pipelines | Repository URL, commit SHA, branch/tag |
+| CI Platform         | Auto-Detected Fields                                                       |
+| ------------------- | -------------------------------------------------------------------------- |
+| GitHub Actions      | Repository URL, commit SHA, branch/tag (supports GitHub Enterprise Server) |
+| GitLab CI           | Project URL, commit SHA, ref name (supports self-managed instances)        |
+| Bitbucket Pipelines | Repository URL, commit SHA, branch/tag                                     |
 
 **What's added to the SBOM:**
 
@@ -469,17 +485,17 @@ env:
 
 ### Enrichment Data Sources
 
-| Source | Package Types | Data |
-|--------|---------------|------|
-| PyPI | Python | License, author, homepage |
-| pub.dev | Dart | License, author, homepage, repo |
-| crates.io | Rust/Cargo | License, author, homepage, repo, description |
-| RPM Repos | Rocky, Alma, CentOS, Fedora, Amazon Linux | License, vendor, description, homepage |
-| Ubuntu APT | Ubuntu packages | Maintainer, description, homepage, download URL |
-| deps.dev | Python, npm, Maven, Go, Ruby, NuGet (+ Rust fallback) | License, homepage, repo |
-| ecosyste.ms | All major ecosystems | License, description, maintainer |
-| Debian Sources | Debian packages | Maintainer, description, homepage |
-| Repology | Linux distros | License, homepage |
+| Source         | Package Types                                         | Data                                            |
+| -------------- | ----------------------------------------------------- | ----------------------------------------------- |
+| PyPI           | Python                                                | License, author, homepage                       |
+| pub.dev        | Dart                                                  | License, author, homepage, repo                 |
+| crates.io      | Rust/Cargo                                            | License, author, homepage, repo, description    |
+| RPM Repos      | Rocky, Alma, CentOS, Fedora, Amazon Linux             | License, vendor, description, homepage          |
+| Ubuntu APT     | Ubuntu packages                                       | Maintainer, description, homepage, download URL |
+| deps.dev       | Python, npm, Maven, Go, Ruby, NuGet (+ Rust fallback) | License, homepage, repo                         |
+| ecosyste.ms    | All major ecosystems                                  | License, description, maintainer                |
+| Debian Sources | Debian packages                                       | Maintainer, description, homepage               |
+| Repology       | Linux distros                                         | License, homepage                               |
 
 ## SBOM Quality Improvement
 
@@ -521,15 +537,15 @@ After sbomify enrichment, the same component includes supplier, license, and ref
 
 sbomify attempts to populate these fields for each component:
 
-| Field | Description | Coverage |
-|-------|-------------|----------|
-| **Supplier/Publisher** | Package maintainer or organization | High for popular registries |
-| **License** | SPDX license expression | High (most registries require it) |
-| **Description** | Package summary | High |
-| **Homepage** | Project website | Medium-High |
-| **Repository** | Source code URL | Medium-High |
-| **Download URL** | Registry/distribution link | High |
-| **Issue Tracker** | Bug reporting URL | Medium |
+| Field                  | Description                        | Coverage                          |
+| ---------------------- | ---------------------------------- | --------------------------------- |
+| **Supplier/Publisher** | Package maintainer or organization | High for popular registries       |
+| **License**            | SPDX license expression            | High (most registries require it) |
+| **Description**        | Package summary                    | High                              |
+| **Homepage**           | Project website                    | Medium-High                       |
+| **Repository**         | Source code URL                    | Medium-High                       |
+| **Download URL**       | Registry/distribution link         | High                              |
+| **Issue Tracker**      | Bug reporting URL                  | Medium                            |
 
 **Coverage varies by ecosystem.** Popular packages on PyPI, npm, and crates.io have excellent metadata. RPM-based distros (Rocky, Alma, CentOS, Fedora, Amazon Linux) and Debian/Ubuntu have high coverage through direct repository queries. Alpine and less common registries may have partial data. sbomify queries multiple sources with fallbacks, but some fields may remain empty for obscure packages.
 
@@ -537,21 +553,21 @@ sbomify attempts to populate these fields for each component:
 
 sbomify queries sources in priority order, stopping when data is found:
 
-| Ecosystem | Primary Source | Fallback Sources |
-|-----------|----------------|------------------|
-| Python | PyPI API | deps.dev → ecosyste.ms |
-| JavaScript | deps.dev | ecosyste.ms |
-| Rust | crates.io API | deps.dev → ecosyste.ms |
-| Go | deps.dev | ecosyste.ms |
-| Ruby | deps.dev | ecosyste.ms |
-| Java/Maven | deps.dev | ecosyste.ms |
-| Dart | pub.dev API | ecosyste.ms |
-| Debian | Debian Sources | Repology → ecosyste.ms |
-| Ubuntu | Ubuntu APT | Repology → ecosyste.ms |
-| Alpine | Repology | ecosyste.ms |
-| Rocky/Alma/CentOS | RPM Repos | Repology → ecosyste.ms |
-| Fedora | RPM Repos | Repology → ecosyste.ms |
-| Amazon Linux | RPM Repos | Repology → ecosyste.ms |
+| Ecosystem         | Primary Source | Fallback Sources       |
+| ----------------- | -------------- | ---------------------- |
+| Python            | PyPI API       | deps.dev → ecosyste.ms |
+| JavaScript        | deps.dev       | ecosyste.ms            |
+| Rust              | crates.io API  | deps.dev → ecosyste.ms |
+| Go                | deps.dev       | ecosyste.ms            |
+| Ruby              | deps.dev       | ecosyste.ms            |
+| Java/Maven        | deps.dev       | ecosyste.ms            |
+| Dart              | pub.dev API    | ecosyste.ms            |
+| Debian            | Debian Sources | Repology → ecosyste.ms |
+| Ubuntu            | Ubuntu APT     | Repology → ecosyste.ms |
+| Alpine            | Repology       | ecosyste.ms            |
+| Rocky/Alma/CentOS | RPM Repos      | Repology → ecosyste.ms |
+| Fedora            | RPM Repos      | Repology → ecosyste.ms |
+| Amazon Linux      | RPM Repos      | Repology → ecosyste.ms |
 
 ### Limitations
 
@@ -569,13 +585,13 @@ sbomify uses a plugin architecture for SBOM generation, automatically selecting 
 
 Generators are tried in priority order. Native tools (optimized for specific ecosystems) are preferred over generic scanners. Each tool supports different ecosystems:
 
-| Priority | Generator | Supported Ecosystems | Output Formats |
-|----------|-----------|---------------------|----------------|
-| 10 | **cyclonedx-py** | Python only | CycloneDX 1.0–1.7 |
-| 10 | **cargo-cyclonedx** | Rust only | CycloneDX 1.4–1.6 |
-| 20 | **cdxgen** | Python, JavaScript, **Java/Gradle**, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Scala, Docker images | CycloneDX 1.4–1.7 |
-| 30 | **Trivy** | Python, JavaScript, Java/Gradle, Go, Rust, Ruby, C++, PHP, .NET, Docker images | CycloneDX 1.6, SPDX 2.3 |
-| 35 | **Syft** | Python, JavaScript, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Terraform, Docker images | CycloneDX 1.2–1.6, SPDX 2.2–2.3 |
+| Priority | Generator           | Supported Ecosystems                                                                                           | Output Formats                  |
+| -------- | ------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| 10       | **cyclonedx-py**    | Python only                                                                                                    | CycloneDX 1.0–1.7               |
+| 10       | **cargo-cyclonedx** | Rust only                                                                                                      | CycloneDX 1.4–1.6               |
+| 20       | **cdxgen**          | Python, JavaScript, **Java/Gradle**, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Scala, Docker images | CycloneDX 1.4–1.7               |
+| 30       | **Trivy**           | Python, JavaScript, Java/Gradle, Go, Rust, Ruby, C++, PHP, .NET, Docker images                                 | CycloneDX 1.6, SPDX 2.3         |
+| 35       | **Syft**            | Python, JavaScript, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Terraform, Docker images              | CycloneDX 1.2–1.6, SPDX 2.2–2.3 |
 
 ### How It Works
 
@@ -588,10 +604,12 @@ Generators are tried in priority order. Native tools (optimized for specific eco
 
 If the primary generator fails or doesn't support the input, the next one in priority order is tried automatically.
 
-### Format Defaults
+### Format Selection
 
-- **CycloneDX**: Version 1.6 (default)
-- **SPDX**: Version 2.3 (default)
+Control the output format with the `SBOM_FORMAT` environment variable:
+
+- **CycloneDX** (`SBOM_FORMAT=cyclonedx`): Default format. Uses the latest version supported by the selected generator.
+- **SPDX** (`SBOM_FORMAT=spdx`): Uses Trivy (2.3) or Syft (2.2/2.3) depending on availability.
 
 Generated SBOMs are validated against their JSON schemas before output.
 
@@ -599,12 +617,12 @@ Generated SBOMs are validated against their JSON schemas before output.
 
 When installed via pip, sbomify-action requires external SBOM generators. The Docker image includes all tools pre-installed.
 
-| Tool | Install Command | Notes |
-|------|-----------------|-------|
-| **cyclonedx-py** | `pip install cyclonedx-bom` | Native Python generator; `cyclonedx-py` is the CLI command provided by the `cyclonedx-bom` package (installed as a dependency) |
-| **Trivy** | [Installation guide](https://aquasecurity.github.io/trivy/latest/getting-started/installation/) | macOS: `brew install trivy` |
-| **Syft** | [Installation guide](https://github.com/anchore/syft#installation) | macOS: `brew install syft` |
-| **cdxgen** | `npm install -g @cyclonedx/cdxgen` | Requires Node.js/Bun |
+| Tool             | Install Command                                                                                 | Notes                                                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **cyclonedx-py** | `pip install cyclonedx-bom`                                                                     | Native Python generator; `cyclonedx-py` is the CLI command provided by the `cyclonedx-bom` package (installed as a dependency) |
+| **Trivy**        | [Installation guide](https://aquasecurity.github.io/trivy/latest/getting-started/installation/) | macOS: `brew install trivy`                                                                                                    |
+| **Syft**         | [Installation guide](https://github.com/anchore/syft#installation)                              | macOS: `brew install syft`                                                                                                     |
+| **cdxgen**       | `npm install -g @cyclonedx/cdxgen`                                                              | Requires Node.js/Bun                                                                                                           |
 
 **Minimum requirement**: At least one generator must be installed for SBOM generation. For Python projects, `cyclonedx-bom` (which provides the `cyclonedx-py` command) is installed as a dependency when you install sbomify-action via pip. For other ecosystems or Docker images, install `trivy`, `syft`, or `cdxgen`.
 

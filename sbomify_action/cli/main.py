@@ -34,6 +34,7 @@ from ..exceptions import (
 )
 from ..generation import (
     ALL_LOCK_FILES,
+    SBOMFormat,
     generate_sbom,
     process_lock_file,
 )
@@ -197,6 +198,7 @@ class Config:
     component_purl: Optional[str] = None
     product_releases: Optional[str | list[str]] = None
     api_base_url: str = SBOMIFY_PRODUCTION_API
+    sbom_format: SBOMFormat = "cyclonedx"
 
     def __post_init__(self) -> None:
         """Set default values that depend on other fields."""
@@ -244,6 +246,13 @@ class Config:
             raise ConfigurationError("Please provide only one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
         if not any(inputs):
             raise ConfigurationError("Please provide one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
+
+        # Validate SBOM format
+        valid_formats = ("cyclonedx", "spdx")
+        if self.sbom_format not in valid_formats:
+            raise ConfigurationError(
+                f"Invalid SBOM_FORMAT: '{self.sbom_format}'. Must be one of: {', '.join(valid_formats)}"
+            )
 
         # Validate product releases format
         if self.product_releases:
@@ -406,6 +415,10 @@ def load_config() -> Config:
             sys.exit(1)
         logger.info(f"Upload destinations: {upload_destinations}")
 
+    # Handle SBOM format (cyclonedx or spdx)
+    sbom_format = os.getenv("SBOM_FORMAT", "cyclonedx").lower()
+    logger.info(f"SBOM format: {sbom_format.upper()}")
+
     config = Config(
         token=os.getenv("TOKEN", ""),
         component_id=os.getenv("COMPONENT_ID", ""),
@@ -424,6 +437,7 @@ def load_config() -> Config:
         component_purl=component_purl,
         product_releases=product_releases,
         api_base_url=os.getenv("API_BASE_URL", SBOMIFY_PRODUCTION_API),
+        sbom_format=sbom_format,
     )
 
     try:
@@ -860,12 +874,22 @@ def main() -> None:
             shutil.copy(FILE, STEP_1_FILE)
         elif config.docker_image:
             logger.info(f"Generating SBOM from Docker image: {config.docker_image}")
-            result = generate_sbom(docker_image=config.docker_image, output_file=STEP_1_FILE)
+            result = generate_sbom(
+                docker_image=config.docker_image,
+                output_file=STEP_1_FILE,
+                output_format=config.sbom_format,
+            )
             if not result.success:
                 raise SBOMGenerationError(result.error_message or "SBOM generation failed")
         elif FILE_TYPE == "LOCK_FILE":
             logger.info(f"Generating SBOM from lock file: {FILE}")
-            process_lock_file(FILE)
+            result = process_lock_file(
+                FILE,
+                output_file=STEP_1_FILE,
+                output_format=config.sbom_format,
+            )
+            if not result.success:
+                raise SBOMGenerationError(result.error_message or "SBOM generation failed")
         else:
             logger.error("Unrecognized FILE_TYPE.")
             sys.exit(1)

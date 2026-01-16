@@ -9,9 +9,9 @@ Accepted
 The sbomify action needs to integrate with multiple external services and data sources across different subsystems:
 
 - **Enrichment**: Multiple metadata sources (PyPI, deps.dev, ecosyste.ms, Repology, etc.)
-- **Augmentation**: Organizational metadata sources (sbomify API, etc.) - *to migrate*
-- **Generation**: Multiple SBOM generators (cyclonedx-py, Trivy, Syft) - *migrated*
-- **Upload**: Multiple destinations (sbomify API, GitHub release artifacts, etc.) - *to migrate*
+- **Augmentation**: Organizational metadata sources (sbomify API, etc.) - _to migrate_
+- **Generation**: Multiple SBOM generators (cyclonedx-py, Trivy, Syft) - _migrated_
+- **Upload**: Multiple destinations (sbomify API, GitHub release artifacts, etc.) - _to migrate_
 
 Each subsystem faces similar challenges:
 
@@ -53,12 +53,12 @@ Adopt a **Protocol + Registry + Factory** pattern for all extensible subsystems.
 
 A key design principle is **preferring domain-specific (native) implementations over generic ones**:
 
-| Priority Range | Category | Rationale |
-|----------------|----------|-----------|
-| 1-20 | Native/Authoritative | Direct from the ecosystem's official source |
-| 21-50 | Primary Aggregators | Well-maintained multi-ecosystem services |
-| 51-80 | Local Extraction | No external API calls, parse from available data |
-| 81-100 | Fallback Sources | Rate-limited or less reliable sources |
+| Priority Range | Category             | Rationale                                        |
+| -------------- | -------------------- | ------------------------------------------------ |
+| 1-20           | Native/Authoritative | Direct from the ecosystem's official source      |
+| 21-50          | Primary Aggregators  | Well-maintained multi-ecosystem services         |
+| 51-80          | Local Extraction     | No external API calls, parse from available data |
+| 81-100         | Fallback Sources     | Rate-limited or less reliable sources            |
 
 ### Rationale
 
@@ -93,13 +93,13 @@ A key design principle is **preferring domain-specific (native) implementations 
 
 The enrichment subsystem (`sbomify_action/_enrichment/`) demonstrates this pattern:
 
-| Generic Concept | Enrichment Implementation |
-|-----------------|---------------------------|
-| Protocol | `DataSource` in `protocol.py` |
-| Registry | `SourceRegistry` in `registry.py` |
-| Normalized Output | `NormalizedMetadata` in `metadata.py` |
-| Factory | `create_default_registry()` in `enricher.py` |
-| Plugins | 9 sources in `sources/` directory |
+| Generic Concept   | Enrichment Implementation                    |
+| ----------------- | -------------------------------------------- |
+| Protocol          | `DataSource` in `protocol.py`                |
+| Registry          | `SourceRegistry` in `registry.py`            |
+| Normalized Output | `NormalizedMetadata` in `metadata.py`        |
+| Factory           | `create_default_registry()` in `enricher.py` |
+| Plugins           | 9 sources in `sources/` directory            |
 
 ### Directory Structure
 

@@ -224,7 +224,7 @@ jobs:
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
 
-      - name: Upload SBOM to Staging
+      - name: Upload SBOM to Staging (CycloneDX)
         if: github.ref == 'refs/heads/master'
         uses: sbomify/github-action@master
         env:
@@ -236,12 +236,30 @@ jobs:
           COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
           COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ steps.version.outputs.short_sha }}'
           PRODUCT_RELEASE: '["Engh9j4XTTwD:${{ steps.version.outputs.short_sha }}"]'
+          SBOM_FORMAT: cyclonedx
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
           OUTPUT_FILE: github-action.cdx.json
 
-      - name: Upload Container SBOM to Staging
+      - name: Generate SBOM to Staging (SPDX)
+        if: github.ref == 'refs/heads/master'
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
+          API_BASE_URL: https://stage.sbomify.com
+          COMPONENT_ID: 'XNsX40tonzvv'
+          LOCK_FILE: 'uv.lock'
+          COMPONENT_NAME: 'sbomify Action'
+          COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
+          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ steps.version.outputs.short_sha }}'
+          SBOM_FORMAT: spdx
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: false
+          OUTPUT_FILE: github-action.spdx.json
+
+      - name: Upload Container SBOM to Staging (CycloneDX)
         if: github.ref == 'refs/heads/master'
         uses: sbomify/github-action@master
         env:
@@ -254,12 +272,31 @@ jobs:
           COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ steps.version.outputs.short_sha }}'
           PRODUCT_RELEASE: '["Engh9j4XTTwD:${{ steps.version.outputs.short_sha }}"]'
           ADDITIONAL_PACKAGES_FILE: container_additional_packages.txt
+          SBOM_FORMAT: cyclonedx
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
           OUTPUT_FILE: github-action-container.cdx.json
 
-      - name: Upload JavaScript Dependencies SBOM to Staging
+      - name: Generate Container SBOM to Staging (SPDX)
+        if: github.ref == 'refs/heads/master'
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
+          API_BASE_URL: https://stage.sbomify.com
+          COMPONENT_ID: 'gco2pG10whmy'
+          DOCKER_IMAGE: 'sbomifyhub/sbomify-action:latest'
+          COMPONENT_NAME: 'sbomify Action Container'
+          COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
+          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ steps.version.outputs.short_sha }}'
+          ADDITIONAL_PACKAGES_FILE: container_additional_packages.txt
+          SBOM_FORMAT: spdx
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: false
+          OUTPUT_FILE: github-action-container.spdx.json
+
+      - name: Upload JavaScript Dependencies SBOM to Staging (CycloneDX)
         if: github.ref == 'refs/heads/master'
         uses: sbomify/github-action@master
         env:
@@ -270,12 +307,29 @@ jobs:
           COMPONENT_NAME: 'JavaScript Dependencies'
           COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
           PRODUCT_RELEASE: '["Engh9j4XTTwD:${{ steps.version.outputs.short_sha }}"]'
+          SBOM_FORMAT: cyclonedx
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
           OUTPUT_FILE: github-action-frontend.cdx.json
 
-      - name: Upload SBOM to Production
+      - name: Generate JavaScript Dependencies SBOM to Staging (SPDX)
+        if: github.ref == 'refs/heads/master'
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
+          API_BASE_URL: https://stage.sbomify.com
+          COMPONENT_ID: 'PGyKXNbQd5eq'
+          LOCK_FILE: 'bun.lock'
+          COMPONENT_NAME: 'JavaScript Dependencies'
+          COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
+          SBOM_FORMAT: spdx
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: false
+          OUTPUT_FILE: github-action-frontend.spdx.json
+
+      - name: Upload SBOM to Production (CycloneDX)
         if: startsWith(github.ref, 'refs/tags/')
         uses: sbomify/github-action@master
         env:
@@ -286,12 +340,29 @@ jobs:
           COMPONENT_VERSION: ${{ github.ref_name }}
           COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ github.ref_name }}'
           PRODUCT_RELEASE: '["IeIn1dGJXULh:${{ github.ref_name }}"]'
+          SBOM_FORMAT: cyclonedx
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
           OUTPUT_FILE: github-action.cdx.json
 
-      - name: Upload Container SBOM to Production
+      - name: Generate SBOM to Production (SPDX)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'Gu9wem8mkX'
+          LOCK_FILE: 'uv.lock'
+          COMPONENT_NAME: 'sbomify Action'
+          COMPONENT_VERSION: ${{ github.ref_name }}
+          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ github.ref_name }}'
+          SBOM_FORMAT: spdx
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: false
+          OUTPUT_FILE: github-action.spdx.json
+
+      - name: Upload Container SBOM to Production (CycloneDX)
         if: startsWith(github.ref, 'refs/tags/')
         uses: sbomify/github-action@master
         env:
@@ -303,12 +374,30 @@ jobs:
           COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ github.ref_name }}'
           PRODUCT_RELEASE: '["IeIn1dGJXULh:${{ github.ref_name }}"]'
           ADDITIONAL_PACKAGES_FILE: container_additional_packages.txt
+          SBOM_FORMAT: cyclonedx
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
           OUTPUT_FILE: github-action-container.cdx.json
 
-      - name: Upload JavaScript Dependencies SBOM to Production
+      - name: Generate Container SBOM to Production (SPDX)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'ryD0Hcu4vq6y'
+          DOCKER_IMAGE: 'sbomifyhub/sbomify-action:${{ github.ref_name }}'
+          COMPONENT_NAME: 'sbomify Action Container'
+          COMPONENT_VERSION: ${{ github.ref_name }}
+          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ github.ref_name }}'
+          ADDITIONAL_PACKAGES_FILE: container_additional_packages.txt
+          SBOM_FORMAT: spdx
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: false
+          OUTPUT_FILE: github-action-container.spdx.json
+
+      - name: Upload JavaScript Dependencies SBOM to Production (CycloneDX)
         if: startsWith(github.ref, 'refs/tags/')
         uses: sbomify/github-action@master
         env:
@@ -318,22 +407,59 @@ jobs:
           COMPONENT_NAME: 'JavaScript Dependencies'
           COMPONENT_VERSION: ${{ github.ref_name }}
           PRODUCT_RELEASE: '["IeIn1dGJXULh:${{ github.ref_name }}"]'
+          SBOM_FORMAT: cyclonedx
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
           OUTPUT_FILE: github-action-frontend.cdx.json
 
-      - name: Attest Source SBOM
+      - name: Generate JavaScript Dependencies SBOM to Production (SPDX)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'IxwrYSb9rGql'
+          LOCK_FILE: 'bun.lock'
+          COMPONENT_NAME: 'JavaScript Dependencies'
+          COMPONENT_VERSION: ${{ github.ref_name }}
+          SBOM_FORMAT: spdx
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: false
+          OUTPUT_FILE: github-action-frontend.spdx.json
+
+      - name: Attest Source SBOM (CycloneDX)
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: '${{ github.workspace }}/github-action.cdx.json'
 
-      - name: Attest Container SBOM
+      - name: Attest Source SBOM (SPDX)
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: '${{ github.workspace }}/github-action.spdx.json'
+
+      - name: Attest Container SBOM (CycloneDX)
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: '${{ github.workspace }}/github-action-container.cdx.json'
 
-      - name: Attest JavaScript Dependencies SBOM
+      - name: Attest Container SBOM (SPDX)
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: '${{ github.workspace }}/github-action-container.spdx.json'
+
+      - name: Attest JavaScript Dependencies SBOM (CycloneDX)
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: '${{ github.workspace }}/github-action-frontend.cdx.json'
+
+      - name: Attest JavaScript Dependencies SBOM (SPDX)
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: '${{ github.workspace }}/github-action-frontend.spdx.json'

@@ -571,6 +571,101 @@ class TestConfig(unittest.TestCase):
                 config = load_config()
                 self.assertEqual(config.upload_destinations, ["sbomify", "dependency-track"])
 
+    def test_sbom_format_defaults_to_cyclonedx(self):
+        """Test that sbom_format defaults to 'cyclonedx' when not specified."""
+        config = Config(
+            token="test-token",
+            component_id="test-component",
+            sbom_file="/path/to/sbom.json",
+        )
+        self.assertEqual(config.sbom_format, "cyclonedx")
+
+    def test_sbom_format_cyclonedx_valid(self):
+        """Test that 'cyclonedx' is a valid SBOM format."""
+        config = Config(
+            token="test-token",
+            component_id="test-component",
+            sbom_file="/path/to/sbom.json",
+            sbom_format="cyclonedx",
+        )
+        # Should not raise any exception
+        config.validate()
+        self.assertEqual(config.sbom_format, "cyclonedx")
+
+    def test_sbom_format_spdx_valid(self):
+        """Test that 'spdx' is a valid SBOM format."""
+        config = Config(
+            token="test-token",
+            component_id="test-component",
+            sbom_file="/path/to/sbom.json",
+            sbom_format="spdx",
+        )
+        # Should not raise any exception
+        config.validate()
+        self.assertEqual(config.sbom_format, "spdx")
+
+    def test_sbom_format_invalid_raises_error(self):
+        """Test that invalid SBOM format raises ConfigurationError."""
+        config = Config(
+            token="test-token",
+            component_id="test-component",
+            sbom_file="/path/to/sbom.json",
+            sbom_format="invalid-format",
+        )
+        with self.assertRaises(ConfigurationError) as cm:
+            config.validate()
+        self.assertIn("Invalid SBOM_FORMAT", str(cm.exception))
+        self.assertIn("invalid-format", str(cm.exception))
+
+    def test_load_config_sbom_format_from_env(self):
+        """Test that SBOM_FORMAT is loaded from environment variable."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock_file = Path(tmp_dir) / "test.lock"
+            lock_file.write_text("dummy content")
+
+            env_vars = {
+                "TOKEN": "test-token",
+                "COMPONENT_ID": "test-component",
+                "LOCK_FILE": str(lock_file),
+                "SBOM_FORMAT": "spdx",
+            }
+            with patch.dict(os.environ, env_vars, clear=False):
+                config = load_config()
+                self.assertEqual(config.sbom_format, "spdx")
+
+    def test_load_config_sbom_format_case_insensitive(self):
+        """Test that SBOM_FORMAT is case-insensitive."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock_file = Path(tmp_dir) / "test.lock"
+            lock_file.write_text("dummy content")
+
+            env_vars = {
+                "TOKEN": "test-token",
+                "COMPONENT_ID": "test-component",
+                "LOCK_FILE": str(lock_file),
+                "SBOM_FORMAT": "SPDX",  # Uppercase
+            }
+            with patch.dict(os.environ, env_vars, clear=False):
+                config = load_config()
+                self.assertEqual(config.sbom_format, "spdx")
+
+    def test_load_config_invalid_sbom_format_exits(self):
+        """Test that invalid SBOM_FORMAT causes exit."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock_file = Path(tmp_dir) / "test.lock"
+            lock_file.write_text("dummy content")
+
+            env_vars = {
+                "TOKEN": "test-token",
+                "COMPONENT_ID": "test-component",
+                "LOCK_FILE": str(lock_file),
+                "SBOM_FORMAT": "invalid",
+            }
+            with patch.dict(os.environ, env_vars, clear=False):
+                with self.assertRaises(SystemExit) as cm:
+                    load_config()
+                self.assertEqual(cm.exception.code, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

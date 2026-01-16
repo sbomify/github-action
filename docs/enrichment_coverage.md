@@ -6,18 +6,18 @@ This document details sbomify's enrichment capabilities, data sources, and expec
 
 sbomify queries multiple sources in priority order, using fallbacks when primary sources lack data.
 
-| Ecosystem | Primary Source | Fallbacks |
-|-----------|----------------|-----------|
-| Python (pip) | PyPI API | deps.dev → ecosyste.ms |
-| JavaScript (npm) | deps.dev | ecosyste.ms |
-| Rust (cargo) | deps.dev | ecosyste.ms |
-| Go (mod) | deps.dev | ecosyste.ms |
-| Ruby (gem) | deps.dev | ecosyste.ms |
-| Java/Maven | deps.dev | ecosyste.ms |
-| Dart (pub) | pub.dev API | ecosyste.ms |
-| Debian/Ubuntu (deb) | Debian Sources | Repology → ecosyste.ms |
-| Alpine (apk) | Repology | ecosyste.ms |
-| Red Hat/Fedora (rpm) | Repology | ecosyste.ms |
+| Ecosystem            | Primary Source | Fallbacks              |
+| -------------------- | -------------- | ---------------------- |
+| Python (pip)         | PyPI API       | deps.dev → ecosyste.ms |
+| JavaScript (npm)     | deps.dev       | ecosyste.ms            |
+| Rust (cargo)         | deps.dev       | ecosyste.ms            |
+| Go (mod)             | deps.dev       | ecosyste.ms            |
+| Ruby (gem)           | deps.dev       | ecosyste.ms            |
+| Java/Maven           | deps.dev       | ecosyste.ms            |
+| Dart (pub)           | pub.dev API    | ecosyste.ms            |
+| Debian/Ubuntu (deb)  | Debian Sources | Repology → ecosyste.ms |
+| Alpine (apk)         | Repology       | ecosyste.ms            |
+| Red Hat/Fedora (rpm) | Repology       | ecosyste.ms            |
 
 ## Expected Field Coverage
 
@@ -25,18 +25,18 @@ Coverage varies by ecosystem and data source availability.
 
 Legend: 🟢 High | 🟡 Medium | 🟠 Low
 
-| Ecosystem | Supplier | License | Description | Homepage | Repository |
-|-----------|----------|---------|-------------|----------|------------|
-| Python (pip) | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 |
-| JavaScript (npm) | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 |
-| Rust (cargo) | 🟢 | 🟢 | 🟢 | 🟡 | 🟢 |
-| Go (mod) | 🟡 | 🟢 | 🟡 | 🟠 | 🟢 |
-| Ruby (gem) | 🟢 | 🟢 | 🟢 | 🟢 | 🟡 |
-| Java/Maven | 🟢 | 🟢 | 🟡 | 🟡 | 🟡 |
-| Dart (pub) | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 |
-| Debian/Ubuntu (deb) | 🟢 | 🟢 | 🟢 | 🟡 | 🟠 |
-| Alpine (apk) | 🟢 | 🟢 | 🟡 | 🟡 | 🟠 |
-| Red Hat/Fedora (rpm) | 🟢 | 🟢 | 🟡 | 🟡 | 🟠 |
+| Ecosystem            | Supplier | License | Description | Homepage | Repository |
+| -------------------- | -------- | ------- | ----------- | -------- | ---------- |
+| Python (pip)         | 🟢       | 🟢      | 🟢          | 🟢       | 🟢         |
+| JavaScript (npm)     | 🟢       | 🟢      | 🟢          | 🟢       | 🟢         |
+| Rust (cargo)         | 🟢       | 🟢      | 🟢          | 🟡       | 🟢         |
+| Go (mod)             | 🟡       | 🟢      | 🟡          | 🟠       | 🟢         |
+| Ruby (gem)           | 🟢       | 🟢      | 🟢          | 🟢       | 🟡         |
+| Java/Maven           | 🟢       | 🟢      | 🟡          | 🟡       | 🟡         |
+| Dart (pub)           | 🟢       | 🟢      | 🟢          | 🟢       | 🟢         |
+| Debian/Ubuntu (deb)  | 🟢       | 🟢      | 🟢          | 🟡       | 🟠         |
+| Alpine (apk)         | 🟢       | 🟢      | 🟡          | 🟡       | 🟠         |
+| Red Hat/Fedora (rpm) | 🟢       | 🟢      | 🟡          | 🟡       | 🟠         |
 
 ## Ecosystem Notes
 
@@ -101,5 +101,4 @@ Legend: 🟢 High | 🟡 Medium | 🟠 Low
 - **Data freshness**: Metadata is fetched at enrichment time. Registry data may lag behind actual releases.
 - **Coverage varies**: Different ecosystems and registries have different metadata requirements and quality.
 
-
-*Generated: 2025-12-17*
+_Generated: 2025-12-17_
