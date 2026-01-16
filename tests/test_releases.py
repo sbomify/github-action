@@ -298,6 +298,47 @@ class TestReleasesApi(unittest.TestCase):
         self.assertIn("403", str(cm.exception))
         self.assertIn("Forbidden", str(cm.exception))
 
+    @patch("sbomify_action._processors.releases_api.requests.post")
+    def test_tag_sbom_with_release_duplicate_artifact_succeeds(self, mock_post):
+        """Test SBOM tagging handles 409 DUPLICATE_ARTIFACT as success (idempotent).
+
+        When the SBOM is already tagged with the release (e.g., by server auto-tag,
+        another CI job, or UI), the API returns 409 Conflict with DUPLICATE_ARTIFACT.
+        This should be treated as success since the desired state is achieved.
+        """
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 409
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.return_value = {
+            "detail": "Artifact already exists",
+            "error_code": "DUPLICATE_ARTIFACT",
+        }
+        mock_post.return_value = mock_response
+
+        # Should NOT raise an error - 409 DUPLICATE_ARTIFACT is treated as success
+        tag_sbom_with_release(self.api_base_url, self.token, "sbom123", "rel456")
+
+        mock_post.assert_called_once()
+
+    @patch("sbomify_action._processors.releases_api.requests.post")
+    def test_tag_sbom_with_release_409_without_duplicate_artifact_raises_error(self, mock_post):
+        """Test that 409 without DUPLICATE_ARTIFACT error code still raises error."""
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 409
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.return_value = {
+            "detail": "Some other conflict",
+            "error_code": "OTHER_ERROR",
+        }
+        mock_post.return_value = mock_response
+
+        with self.assertRaises(APIError) as cm:
+            tag_sbom_with_release(self.api_base_url, self.token, "sbom123", "rel456")
+
+        self.assertIn("409", str(cm.exception))
+
     @patch("sbomify_action._processors.releases_api.requests.get")
     def test_get_release_details_success(self, mock_get):
         """Test successful release details retrieval."""
