@@ -588,7 +588,7 @@ class TestSanitizePurls:
         bom.components.add(valid_comp)
         bom.components.add(invalid_comp)
 
-        normalized, cleared, bomrefs = sanitize_purls(bom)
+        normalized, cleared = sanitize_purls(bom)
         assert cleared == 1
         # Both components are kept (preserves dependency graph)
         assert len(bom.components) == 2
@@ -628,7 +628,7 @@ class TestSanitizePurls:
         bom.components.add(valid_comp)
         bom.components.add(invalid_comp)
 
-        normalized, cleared, bomrefs = sanitize_purls(bom)
+        normalized, cleared = sanitize_purls(bom)
         assert cleared == 1
         # Both components kept
         assert len(bom.components) == 2
@@ -664,7 +664,7 @@ class TestSanitizePurls:
         )
         bom.metadata.component = meta_comp
 
-        normalized, cleared, bomrefs = sanitize_purls(bom)
+        normalized, cleared = sanitize_purls(bom)
         assert cleared == 1
         assert bom.metadata.component is not None
         assert bom.metadata.component.purl is None
@@ -685,7 +685,7 @@ class TestSanitizePurls:
             )
             bom.components.add(comp)
 
-        normalized, cleared, bomrefs = sanitize_purls(bom)
+        normalized, cleared = sanitize_purls(bom)
         assert normalized == 0
         assert cleared == 0
         assert len(bom.components) == 5
@@ -696,7 +696,7 @@ class TestSanitizePurls:
     def test_returns_zero_for_empty_bom(self):
         """Test that empty BOM returns zeros."""
         bom = Bom()
-        normalized, cleared, bomrefs = sanitize_purls(bom)
+        normalized, cleared = sanitize_purls(bom)
         assert normalized == 0
         assert cleared == 0
 
@@ -730,7 +730,7 @@ class TestSanitizePurls:
         parent_dep.dependencies.add(child_dep)
         bom.dependencies.add(parent_dep)
 
-        normalized, cleared, bomrefs = sanitize_purls(bom)
+        normalized, cleared = sanitize_purls(bom)
         assert cleared == 1
 
         # Both components still exist
@@ -758,7 +758,7 @@ class TestSanitizePurls:
         bom.components.add(comp)
 
         # Valid PURL should not be modified or cleared
-        normalized, cleared, bomrefs = sanitize_purls(bom)
+        normalized, cleared = sanitize_purls(bom)
         assert normalized == 0
         assert cleared == 0
         assert comp.purl is not None
@@ -787,7 +787,7 @@ class TestSanitizePurls:
         )
         bom.metadata.tools.components.add(invalid_tool)
 
-        normalized, cleared, bomrefs = sanitize_purls(bom)
+        normalized, cleared = sanitize_purls(bom)
         assert cleared == 1
 
         # Both tool components are kept
@@ -829,99 +829,10 @@ class TestSanitizePurls:
         bom.metadata.tools.components.add(tool)
 
         # Valid scoped PURL should not be modified
-        normalized, cleared, bomrefs = sanitize_purls(bom)
+        normalized, cleared = sanitize_purls(bom)
         assert cleared == 0
         # The PURL should still be valid
         assert tool.purl is not None
-
-
-class TestBomRefNormalization:
-    """Tests for bom-ref normalization when it contains PURL-like values."""
-
-    def test_normalizes_bomref_with_double_at(self):
-        """Test that bom-ref with double @@ is normalized."""
-        from packageurl import PackageURL
-
-        bom = Bom()
-        # Component with double @@ in bom-ref
-        comp = Component(
-            name="parser",
-            type=ComponentType.LIBRARY,
-            version="7.28.0",
-            bom_ref=BomRef("pkg:npm/%40babel/parser@@7.28.0"),
-            purl=PackageURL.from_string("pkg:npm/%40babel/parser@7.28.0"),
-        )
-        bom.components.add(comp)
-
-        sanitize_purls(bom)
-
-        # bom-ref should be normalized (no double @@)
-        assert comp.bom_ref is not None
-        assert "@@" not in comp.bom_ref.value
-        assert "@7.28.0" in comp.bom_ref.value
-
-    def test_normalizes_bomref_with_double_encoded_at(self):
-        """Test that bom-ref with double %40 encoding is normalized."""
-        from packageurl import PackageURL
-
-        bom = Bom()
-        # Component with double %40 in bom-ref
-        comp = Component(
-            name="parser",
-            type=ComponentType.LIBRARY,
-            version="7.28.0",
-            bom_ref=BomRef("pkg:npm/%40%40babel/parser@7.28.0"),
-            purl=PackageURL.from_string("pkg:npm/%40babel/parser@7.28.0"),
-        )
-        bom.components.add(comp)
-
-        sanitize_purls(bom)
-
-        # bom-ref should be normalized (no double %40)
-        assert comp.bom_ref is not None
-        assert "%40%40" not in comp.bom_ref.value
-
-    def test_non_purl_bomref_unchanged(self):
-        """Test that non-PURL bom-ref values are not modified."""
-        from packageurl import PackageURL
-
-        bom = Bom()
-        # Component with non-PURL bom-ref
-        original_ref = "my-custom-ref-123"
-        comp = Component(
-            name="my-lib",
-            type=ComponentType.LIBRARY,
-            version="1.0.0",
-            bom_ref=BomRef(original_ref),
-            purl=PackageURL.from_string("pkg:npm/my-lib@1.0.0"),
-        )
-        bom.components.add(comp)
-
-        sanitize_purls(bom)
-
-        # bom-ref should be unchanged
-        assert comp.bom_ref.value == original_ref
-
-    def test_valid_purl_bomref_unchanged(self):
-        """Test that valid PURL bom-ref values are not modified."""
-        from packageurl import PackageURL
-
-        bom = Bom()
-        # Component with valid PURL bom-ref (single %40 is correct for scoped packages)
-        original_ref = "pkg:npm/%40babel/parser@7.28.0"
-        comp = Component(
-            name="parser",
-            type=ComponentType.LIBRARY,
-            version="7.28.0",
-            bom_ref=BomRef(original_ref),
-            purl=PackageURL.from_string(original_ref),
-        )
-        bom.components.add(comp)
-
-        sanitize_purls(bom)
-
-        # bom-ref should be unchanged (already valid)
-        assert comp.bom_ref.value == original_ref
 
 
 class TestSpdxPurlSanitization:

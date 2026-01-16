@@ -92,12 +92,11 @@ def _sanitize_and_serialize_cyclonedx(bom: Bom, spec_version: str) -> str:
     Returns:
         Serialized JSON string
     """
-    normalized_count, cleared_count, bomrefs_count = sanitize_purls(bom)
+    normalized_count, cleared_count = sanitize_purls(bom)
     logger.debug(
-        "PURL sanitization completed: %d normalized, %d cleared, %d bom-refs normalized",
+        "PURL sanitization completed: %d normalized, %d cleared",
         normalized_count,
         cleared_count,
-        bomrefs_count,
     )
     sanitize_dependency_graph(bom)
     return serialize_cyclonedx_bom(bom, spec_version)
