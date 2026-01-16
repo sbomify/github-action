@@ -13,6 +13,25 @@ from sbomify_action.http_client import get_default_headers
 from sbomify_action.logging_config import logger
 
 
+def _safe_json_dict(response: requests.Response) -> Optional[Dict[str, Any]]:
+    """
+    Safely parse JSON response and return as dict, or None if not a valid dict.
+
+    Args:
+        response: The HTTP response object
+
+    Returns:
+        Parsed JSON as dict, or None if parsing fails or result is not a dict
+    """
+    try:
+        data = response.json()
+        if isinstance(data, dict):
+            return data
+    except ValueError:
+        pass
+    return None
+
+
 def _fetch_releases(api_base_url: str, token: str, params: Dict[str, str], error_context: str) -> List[Dict[str, Any]]:
     """
     Fetch releases from the API with the given query parameters.
@@ -45,19 +64,18 @@ def _fetch_releases(api_base_url: str, token: str, params: Dict[str, str], error
     if response.status_code == 404:
         return []
     elif response.ok:
-        try:
-            return response.json().get("items", [])
-        except (ValueError, TypeError, AttributeError):
-            return []
+        data = _safe_json_dict(response)
+        if data is not None:
+            items = data.get("items")
+            if isinstance(items, list):
+                return items
+        return []
     else:
         err_msg = f"Failed to {error_context}. [{response.status_code}]"
         if response.headers.get("content-type") == "application/json":
-            try:
-                error_data = response.json()
-                if "detail" in error_data:
-                    err_msg += f" - {error_data['detail']}"
-            except (ValueError, TypeError, AttributeError):
-                pass
+            data = _safe_json_dict(response)
+            if data is not None and "detail" in data:
+                err_msg += f" - {data['detail']}"
         raise APIError(err_msg)
 
 
@@ -198,43 +216,37 @@ def create_release(api_base_url: str, token: str, product_id: str, version: str)
     if not response.ok:
         # Handle duplicate release - get existing instead of failing (get-or-create pattern)
         if response.status_code == 400:
-            try:
-                error_data = response.json()
-                if error_data.get("error_code") == "DUPLICATE_NAME":
-                    logger.info(
-                        f"Release {version} for product {product_id} already exists, retrieving existing release ID"
-                    )
-                    # Search by name since the API enforces uniqueness on the name field
-                    existing_id = get_release_id_by_name(api_base_url, token, product_id, f"Release {version}")
-                    if existing_id:
-                        return existing_id
-                    # If we couldn't find it, fall through to error handling
-            except (ValueError, TypeError, AttributeError):
-                pass
+            error_data = _safe_json_dict(response)
+            if error_data is not None and error_data.get("error_code") == "DUPLICATE_NAME":
+                logger.info(
+                    f"Release {version} for product {product_id} already exists, retrieving existing release ID"
+                )
+                # Search by name since the API enforces uniqueness on the name field
+                existing_id = get_release_id_by_name(api_base_url, token, product_id, f"Release {version}")
+                if existing_id:
+                    return existing_id
+                # If we couldn't find it, fall through to error handling
 
         err_msg = f"Failed to create release. [{response.status_code}]"
         if response.headers.get("content-type") == "application/json":
-            try:
-                error_data = response.json()
+            error_data = _safe_json_dict(response)
+            if error_data is not None:
                 if "detail" in error_data:
                     err_msg += f" - {error_data['detail']}"
                 else:
                     err_msg += f" - {error_data}"
-            except (ValueError, TypeError, AttributeError):
-                pass
         else:
-            try:
-                response_text = response.text[:500]
-                if response_text:
-                    err_msg += f" - Response: {response_text}"
-            except Exception:
-                pass
+            response_text = response.text[:500] if response.text else ""
+            if response_text:
+                err_msg += f" - Response: {response_text}"
         raise APIError(err_msg)
 
-    try:
-        return response.json().get("id")
-    except (ValueError, TypeError, AttributeError):
-        raise APIError("Invalid response format when creating release")
+    data = _safe_json_dict(response)
+    if data is not None:
+        release_id = data.get("id")
+        if release_id is not None:
+            return release_id
+    raise APIError("Invalid response format when creating release")
 
 
 def tag_sbom_with_release(api_base_url: str, token: str, sbom_id: str, release_id: str) -> None:
@@ -264,22 +276,16 @@ def tag_sbom_with_release(api_base_url: str, token: str, sbom_id: str, release_i
     if not response.ok:
         # Handle duplicate artifact - SBOM already tagged (idempotent success)
         if response.status_code == 409:
-            try:
-                error_data = response.json()
-                if error_data.get("error_code") == "DUPLICATE_ARTIFACT":
-                    logger.info(f"SBOM {sbom_id} already tagged with release {release_id}")
-                    return  # Success - desired state achieved
-            except (ValueError, TypeError, AttributeError):
-                pass
+            error_data = _safe_json_dict(response)
+            if error_data is not None and error_data.get("error_code") == "DUPLICATE_ARTIFACT":
+                logger.info(f"SBOM {sbom_id} already tagged with release {release_id}")
+                return  # Success - desired state achieved
 
         err_msg = f"Failed to tag SBOM with release. [{response.status_code}]"
         if response.headers.get("content-type") == "application/json":
-            try:
-                error_data = response.json()
-                if "detail" in error_data:
-                    err_msg += f" - {error_data['detail']}"
-            except (ValueError, TypeError, AttributeError):
-                pass
+            error_data = _safe_json_dict(response)
+            if error_data is not None and "detail" in error_data:
+                err_msg += f" - {error_data['detail']}"
         raise APIError(err_msg)
 
 
