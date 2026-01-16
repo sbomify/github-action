@@ -114,6 +114,9 @@ class TestExternalTools(unittest.TestCase):
         registry = create_default_registry()
 
         # Collect unique commands from all generators
+        # Note: We access _generators directly here because there's no public API
+        # to get all generator commands, and adding one would be over-engineering
+        # just for this test. This mirrors how get_external_tools() works internally.
         generator_commands = set()
         for generator in registry._generators:
             generator_commands.add(generator.command)

@@ -27,10 +27,10 @@ class ToolInfo:
     required_for: list[str] = field(default_factory=list)
 
 
-# Tool metadata with installation instructions
+# Tool metadata with installation instructions (internal implementation detail)
 # This is used to provide helpful messages when tools are missing.
 # The tool list itself is built dynamically from registered generators.
-TOOL_METADATA: dict[str, dict] = {
+_TOOL_METADATA: dict[str, dict] = {
     "trivy": {
         "name": "Trivy",
         "description": "Comprehensive vulnerability scanner and SBOM generator",
@@ -99,24 +99,20 @@ def _get_external_tools() -> dict[str, ToolInfo]:
     registry = create_default_registry()
     tools: dict[str, ToolInfo] = {}
 
-    # Collect unique commands from all generators
-    for generator_info in registry.list_generators():
-        # Get the actual generator to access its command property
-        for generator in registry._generators:
-            if generator.name == generator_info["name"]:
-                command = generator.command
-                if command not in tools:
-                    # Look up metadata for this command
-                    metadata = TOOL_METADATA.get(command, {})
-                    tools[command] = ToolInfo(
-                        name=metadata.get("name", command),
-                        command=command,
-                        description=metadata.get("description", f"SBOM generator ({command})"),
-                        install_instructions=metadata.get("install_instructions", f"Install {command}"),
-                        homepage=metadata.get("homepage", ""),
-                        required_for=metadata.get("required_for", []),
-                    )
-                break
+    # Collect unique commands from all generators (O(n) instead of O(n²))
+    for generator in registry._generators:
+        command = generator.command
+        if command not in tools:
+            # Look up metadata for this command
+            metadata = _TOOL_METADATA.get(command, {})
+            tools[command] = ToolInfo(
+                name=metadata.get("name", command),
+                command=command,
+                description=metadata.get("description", f"SBOM generator ({command})"),
+                install_instructions=metadata.get("install_instructions", f"Install {command}"),
+                homepage=metadata.get("homepage", ""),
+                required_for=metadata.get("required_for", []),
+            )
 
     return tools
 
