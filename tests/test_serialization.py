@@ -543,13 +543,13 @@ class TestLinkRootDependencies:
         bom.dependencies.add(root_dep)
 
         express_dep = Dependency(ref=express.bom_ref)
-        body_parser_dep_ref = Dependency(ref=body_parser.bom_ref)
-        express_dep.dependencies.add(body_parser_dep_ref)
+        body_parser_dep_for_express = Dependency(ref=body_parser.bom_ref)
+        express_dep.dependencies.add(body_parser_dep_for_express)
         bom.dependencies.add(express_dep)
 
         body_parser_dep = Dependency(ref=body_parser.bom_ref)
-        bytes_dep_ref = Dependency(ref=bytes_pkg.bom_ref)
-        body_parser_dep.dependencies.add(bytes_dep_ref)
+        bytes_dep_for_body_parser = Dependency(ref=bytes_pkg.bom_ref)
+        body_parser_dep.dependencies.add(bytes_dep_for_body_parser)
         bom.dependencies.add(body_parser_dep)
 
         bom.dependencies.add(Dependency(ref=bytes_pkg.bom_ref))
