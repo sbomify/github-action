@@ -7,8 +7,8 @@ from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.dependency import Dependency
 
 from sbomify_action.serialization import (
-    SPDX_PACKAGE_PURPOSE_FIXES,
     _UNKNOWN_VERSION,
+    SPDX_PACKAGE_PURPOSE_FIXES,
     _extract_component_info_from_purl,
     _is_invalid_purl,
     link_root_dependencies,
