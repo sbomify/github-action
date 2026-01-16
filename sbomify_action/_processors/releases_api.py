@@ -47,7 +47,7 @@ def _fetch_releases(api_base_url: str, token: str, params: Dict[str, str], error
     elif response.ok:
         try:
             return response.json().get("items", [])
-        except (ValueError, KeyError):
+        except (ValueError, TypeError, AttributeError):
             return []
     else:
         err_msg = f"Failed to {error_context}. [{response.status_code}]"
@@ -56,7 +56,7 @@ def _fetch_releases(api_base_url: str, token: str, params: Dict[str, str], error
                 error_data = response.json()
                 if "detail" in error_data:
                     err_msg += f" - {error_data['detail']}"
-            except (ValueError, KeyError):
+            except (ValueError, TypeError, AttributeError):
                 pass
         raise APIError(err_msg)
 
@@ -209,7 +209,7 @@ def create_release(api_base_url: str, token: str, product_id: str, version: str)
                     if existing_id:
                         return existing_id
                     # If we couldn't find it, fall through to error handling
-            except (ValueError, KeyError):
+            except (ValueError, TypeError, AttributeError):
                 pass
 
         err_msg = f"Failed to create release. [{response.status_code}]"
@@ -220,7 +220,7 @@ def create_release(api_base_url: str, token: str, product_id: str, version: str)
                     err_msg += f" - {error_data['detail']}"
                 else:
                     err_msg += f" - {error_data}"
-            except (ValueError, KeyError):
+            except (ValueError, TypeError, AttributeError):
                 pass
         else:
             try:
@@ -233,7 +233,7 @@ def create_release(api_base_url: str, token: str, product_id: str, version: str)
 
     try:
         return response.json().get("id")
-    except (ValueError, KeyError):
+    except (ValueError, TypeError, AttributeError):
         raise APIError("Invalid response format when creating release")
 
 
@@ -269,7 +269,7 @@ def tag_sbom_with_release(api_base_url: str, token: str, sbom_id: str, release_i
                 if error_data.get("error_code") == "DUPLICATE_ARTIFACT":
                     logger.info(f"SBOM {sbom_id} already tagged with release {release_id}")
                     return  # Success - desired state achieved
-            except (ValueError, KeyError):
+            except (ValueError, TypeError, AttributeError):
                 pass
 
         err_msg = f"Failed to tag SBOM with release. [{response.status_code}]"
@@ -278,7 +278,7 @@ def tag_sbom_with_release(api_base_url: str, token: str, sbom_id: str, release_i
                 error_data = response.json()
                 if "detail" in error_data:
                     err_msg += f" - {error_data['detail']}"
-            except (ValueError, KeyError):
+            except (ValueError, TypeError, AttributeError):
                 pass
         raise APIError(err_msg)
 
