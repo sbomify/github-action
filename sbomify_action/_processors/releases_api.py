@@ -262,6 +262,16 @@ def tag_sbom_with_release(api_base_url: str, token: str, sbom_id: str, release_i
         raise APIError("API request timed out")
 
     if not response.ok:
+        # Handle duplicate artifact - SBOM already tagged (idempotent success)
+        if response.status_code == 409:
+            try:
+                error_data = response.json()
+                if error_data.get("error_code") == "DUPLICATE_ARTIFACT":
+                    logger.info(f"SBOM {sbom_id} already tagged with release {release_id}")
+                    return  # Success - desired state achieved
+            except (ValueError, KeyError):
+                pass
+
         err_msg = f"Failed to tag SBOM with release. [{response.status_code}]"
         if response.headers.get("content-type") == "application/json":
             try:
