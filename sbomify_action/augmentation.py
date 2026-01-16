@@ -33,7 +33,7 @@ Version support:
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
-from cyclonedx.model import AttachedText, ExternalReference, ExternalReferenceType, XsUri
+from cyclonedx.model import AttachedText, BomRef, ExternalReference, ExternalReferenceType, XsUri
 from cyclonedx.model.bom import Bom, OrganizationalContact, OrganizationalEntity, Tool
 from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.license import DisjunctiveLicense, LicenseExpression
@@ -119,8 +119,6 @@ def _update_component_purl_version(component: Component, new_version: str) -> bo
     Returns:
         True if PURL was updated, False if component has no PURL or update failed
     """
-    from cyclonedx.model import BomRef
-
     if not component.purl:
         return False
 
