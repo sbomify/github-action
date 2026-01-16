@@ -99,7 +99,7 @@ def _get_external_tools() -> dict[str, ToolInfo]:
     registry = create_default_registry()
     tools: dict[str, ToolInfo] = {}
 
-    # Collect unique commands from all generators (O(n) instead of O(n²))
+    # Collect unique commands from all generators
     for generator in registry._generators:
         command = generator.command
         if command not in tools:

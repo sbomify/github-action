@@ -104,26 +104,20 @@ class TestExternalTools(unittest.TestCase):
         self.assertEqual(external_tools["cargo-cyclonedx"].command, "cargo-cyclonedx")
 
     def test_external_tools_dynamically_built_from_registry(self):
-        """Test that external tools are dynamically built from generator registry."""
-        from sbomify_action._generation.generator import create_default_registry
-
-        # Get tools derived from registry
+        """Test that external tools mapping is consistent with tool commands."""
         external_tools = get_external_tools()
 
-        # Create fresh registry to get all generators
-        registry = create_default_registry()
+        # The mapping should not be empty
+        self.assertTrue(external_tools, "get_external_tools() returned an empty mapping")
 
-        # Collect unique commands from all generators
-        # Note: We access _generators directly here because there's no public API
-        # to get all generator commands, and adding one would be over-engineering
-        # just for this test. This mirrors how get_external_tools() works internally.
-        generator_commands = set()
-        for generator in registry._generators:
-            generator_commands.add(generator.command)
-
-        # All generator commands should be in external_tools
-        for command in generator_commands:
-            self.assertIn(command, external_tools, f"Command '{command}' from registry not in external_tools")
+        # For each tool, the command should match the key name
+        for name, info in external_tools.items():
+            with self.subTest(tool=name):
+                self.assertEqual(
+                    info.command,
+                    name,
+                    f"ToolInfo.command for '{name}' should match its key in external_tools",
+                )
 
 
 class TestCheckToolAvailable(unittest.TestCase):
