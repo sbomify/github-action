@@ -91,7 +91,7 @@ RUN apt-get update && apt-get install -y curl xz-utils && \
 # Python builder stage
 FROM python:3.13-slim-trixie AS builder
 
-ARG VERSION=dev
+ARG VERSION=0.0.0.dev0
 
 # Install build dependencies and UV
 RUN apt-get update && \
@@ -120,7 +120,7 @@ RUN uv pip install dist/sbomify_action-*.whl
 FROM python:3.13-slim-trixie
 
 # Build arguments for dynamic labels (passed at build time)
-ARG VERSION=dev
+ARG VERSION=0.0.0.dev0
 ARG COMMIT_SHA=unknown
 ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
