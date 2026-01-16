@@ -72,7 +72,13 @@ from .generation import (
     RUST_LOCK_FILES,
 )
 from .logging_config import logger
-from .serialization import sanitize_dependency_graph, sanitize_purls, sanitize_spdx_purls, serialize_cyclonedx_bom
+from .serialization import (
+    link_root_dependencies,
+    sanitize_dependency_graph,
+    sanitize_purls,
+    sanitize_spdx_purls,
+    serialize_cyclonedx_bom,
+)
 from .validation import validate_sbom_file_auto
 
 
@@ -99,6 +105,7 @@ def _sanitize_and_serialize_cyclonedx(bom: Bom, spec_version: str) -> str:
         cleared_count,
     )
     sanitize_dependency_graph(bom)
+    link_root_dependencies(bom)
     return serialize_cyclonedx_bom(bom, spec_version)
 
 

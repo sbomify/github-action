@@ -482,6 +482,90 @@ def sanitize_dependency_graph(bom: Bom) -> int:
     return stubs_added
 
 
+def link_root_dependencies(bom: Bom) -> int:
+    """
+    Link top-level components as dependencies of the root component.
+
+    When the root component has no dependencies defined, this function links all
+    top-level components (those not already nested dependencies of other components)
+    as direct dependencies of the root. This fixes CycloneDX library warnings about
+    incomplete dependency graphs while preserving existing hierarchical relationships.
+
+    Args:
+        bom: The CycloneDX BOM object to modify (modified in place)
+
+    Returns:
+        Number of dependencies linked to root (0 if root already has dependencies
+        or no root component exists)
+    """
+    from cyclonedx.model import BomRef
+    from cyclonedx.model.dependency import Dependency
+
+    # Check if root component exists
+    if not bom.metadata or not bom.metadata.component:
+        logger.debug("No root component found, skipping dependency linking")
+        return 0
+
+    root_component = bom.metadata.component
+    if not root_component.bom_ref or not root_component.bom_ref.value:
+        logger.debug("Root component has no bom-ref, skipping dependency linking")
+        return 0
+
+    root_ref_value = root_component.bom_ref.value
+
+    # Find or create the root's dependency entry
+    root_dep: Dependency | None = None
+    for dep in bom.dependencies:
+        if dep.ref and dep.ref.value == root_ref_value:
+            root_dep = dep
+            break
+
+    # If root dependency entry doesn't exist, create it
+    if root_dep is None:
+        root_dep = Dependency(ref=BomRef(root_ref_value))
+        bom.dependencies.add(root_dep)
+
+    # Check if root already has dependencies defined
+    if root_dep.dependencies and len(root_dep.dependencies) > 0:
+        logger.debug(
+            f"Root component '{root_component.name}' already has {len(root_dep.dependencies)} dependencies, skipping"
+        )
+        return 0
+
+    # Collect all refs that are nested dependencies of other components
+    # These are "transitive" dependencies - not top-level
+    nested_refs: set[str] = set()
+    for dep in bom.dependencies:
+        for nested_dep in dep.dependencies:
+            if nested_dep.ref and nested_dep.ref.value:
+                nested_refs.add(nested_dep.ref.value)
+
+    # Collect all component bom-refs
+    all_component_refs: set[str] = set()
+    for comp in bom.components:
+        if comp.bom_ref and comp.bom_ref.value:
+            all_component_refs.add(comp.bom_ref.value)
+
+    # Top-level = all component refs - nested refs - root ref
+    top_level_refs = all_component_refs - nested_refs - {root_ref_value}
+
+    if not top_level_refs:
+        logger.debug("No top-level components to link to root")
+        return 0
+
+    # Link top-level components as direct dependencies of root
+    for ref_value in top_level_refs:
+        root_dep.dependencies.add(Dependency(ref=BomRef(ref_value)))
+
+    # Record for attestation
+    tracker = get_transformation_tracker()
+    tracker.record_root_dependencies_linked(root_component.name, len(top_level_refs))
+
+    logger.info(f"Linked {len(top_level_refs)} top-level component(s) as dependencies of root '{root_component.name}'")
+
+    return len(top_level_refs)
+
+
 def serialize_cyclonedx_bom(bom: Bom, spec_version: Optional[str] = None) -> str:
     """
     Serialize a CycloneDX BOM to JSON string using the appropriate version outputter.

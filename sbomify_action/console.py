@@ -392,6 +392,9 @@ class TransformationTracker:
     # Stub components added: (ref_value, component_name, version)
     stubs_added: List[Tuple[str, str, str]] = field(default_factory=list)
 
+    # Root dependencies linked: (root_name, count)
+    root_dependencies_linked: List[Tuple[str, int]] = field(default_factory=list)
+
     def record_vcs_normalization(self, original: str, normalized: str) -> None:
         """Record a VCS URL normalization."""
         self.vcs_normalizations.append((original, normalized))
@@ -412,6 +415,10 @@ class TransformationTracker:
         """Record a stub component added for orphaned dependency reference."""
         self.stubs_added.append((ref_value, component_name, version))
 
+    def record_root_dependencies_linked(self, root_name: str, count: int) -> None:
+        """Record root dependencies linking (components linked to root component)."""
+        self.root_dependencies_linked.append((root_name, count))
+
     def has_transformations(self) -> bool:
         """Check if any transformations were recorded."""
         return bool(
@@ -420,6 +427,7 @@ class TransformationTracker:
             or self.purls_cleared
             or self.urls_rejected
             or self.stubs_added
+            or self.root_dependencies_linked
         )
 
     def print_summary(self, title: str = "SBOM Transformations") -> None:
@@ -442,6 +450,7 @@ class TransformationTracker:
             ("PURLs cleared (invalid)", len(self.purls_cleared)),
             ("URLs rejected", len(self.urls_rejected)),
             ("Stub components added", len(self.stubs_added)),
+            ("Components linked to root", sum(count for _, count in self.root_dependencies_linked)),
         ]
         print_summary_table(title, data)
 
@@ -472,6 +481,9 @@ class TransformationTracker:
 
         for ref_value, comp_name, version in self.stubs_added:
             details.append(f"Stub added: {comp_name}@{version} (ref: {ref_value})")
+
+        for root_name, count in self.root_dependencies_linked:
+            details.append(f"Linked {count} components to root '{root_name}'")
 
         return details
 
