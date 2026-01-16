@@ -126,6 +126,11 @@ def _update_component_purl_version(component: Component, new_version: str) -> bo
         old_purl = component.purl
         old_version = old_purl.version
 
+        # Guard against PURLs without version (e.g., pkg:npm/lodash)
+        if old_version is None:
+            logger.debug(f"Skipping PURL version update - no existing version: {old_purl}")
+            return False
+
         # Create new PURL with updated version, preserving all other fields
         new_purl = PackageURL(
             type=old_purl.type,
@@ -139,7 +144,7 @@ def _update_component_purl_version(component: Component, new_version: str) -> bo
         logger.debug(f"Updated component PURL version: {old_purl} -> {new_purl}")
 
         # Also update bom-ref if it is a PURL-based bom-ref with a matching version
-        if component.bom_ref and component.bom_ref.value and old_version:
+        if component.bom_ref and component.bom_ref.value:
             old_bom_ref = component.bom_ref.value
             try:
                 bom_ref_purl = PackageURL.from_string(old_bom_ref)
