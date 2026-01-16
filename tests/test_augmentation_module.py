@@ -2273,8 +2273,6 @@ class TestComponentPurlOverride:
 
     def test_cyclonedx_set_purl_when_none_exists(self, tmp_path):
         """Test setting PURL on CycloneDX component that has no PURL."""
-        import json
-
         from sbomify_action.cli.main import _apply_sbom_purl_override
 
         # Create a minimal CycloneDX SBOM without PURL
@@ -2296,8 +2294,6 @@ class TestComponentPurlOverride:
 
     def test_cyclonedx_override_existing_purl(self, tmp_path):
         """Test overriding existing PURL on CycloneDX component."""
-        import json
-
         from sbomify_action.cli.main import _apply_sbom_purl_override
 
         # Create CycloneDX SBOM with existing PURL
@@ -2326,8 +2322,6 @@ class TestComponentPurlOverride:
 
     def test_cyclonedx_invalid_purl_is_skipped(self, tmp_path):
         """Test that invalid PURL is skipped without crashing."""
-        import json
-
         from sbomify_action.cli.main import _apply_sbom_purl_override
 
         # Create CycloneDX SBOM without PURL
@@ -2350,8 +2344,6 @@ class TestComponentPurlOverride:
 
     def test_spdx_set_purl_when_none_exists(self, tmp_path):
         """Test adding PURL to SPDX package that has no PURL."""
-        import json
-
         from sbomify_action.cli.main import _apply_sbom_purl_override
 
         # Create minimal SPDX SBOM without PURL
@@ -2382,8 +2374,6 @@ class TestComponentPurlOverride:
 
     def test_spdx_override_existing_purl(self, tmp_path):
         """Test overriding existing PURL on SPDX package."""
-        import json
-
         from sbomify_action.cli.main import _apply_sbom_purl_override
 
         # Create SPDX SBOM with existing PURL
@@ -2421,8 +2411,6 @@ class TestComponentPurlOverride:
 
     def test_spdx_invalid_purl_is_skipped(self, tmp_path):
         """Test that invalid PURL is skipped without crashing for SPDX."""
-        import json
-
         from sbomify_action.cli.main import _apply_sbom_purl_override
 
         # Create minimal SPDX SBOM
@@ -2453,8 +2441,6 @@ class TestComponentPurlOverride:
 
     def test_cyclonedx_creates_component_if_not_exists(self, tmp_path):
         """Test that component is created when setting PURL and no component exists."""
-        import json
-
         from sbomify_action.cli.main import _apply_sbom_purl_override
 
         # Create CycloneDX SBOM without metadata.component

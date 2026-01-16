@@ -264,49 +264,63 @@ def _is_invalid_purl(purl_str: str | None) -> tuple[bool, str]:
     return False, ""
 
 
-def _sanitize_component_purl(comp: "Component", comp_type: str) -> tuple[int, int]:
+def _sanitize_component_purl(comp: "Component", comp_type: str) -> tuple[int, int, int]:
     """
-    Sanitize a single component's PURL.
+    Sanitize a single component's PURL and bom-ref.
+
+    This function normalizes both the PURL field and bom-ref (if it looks like a PURL)
+    to ensure consistency between them.
 
     Args:
         comp: CycloneDX Component object with optional purl attribute
         comp_type: Description of component type for logging (e.g., "component", "metadata component")
 
     Returns:
-        Tuple of (purls_normalized, purls_cleared) counts for this component
+        Tuple of (purls_normalized, purls_cleared, bomrefs_normalized) counts for this component
     """
-    if not comp.purl:
-        return 0, 0
-
     purls_normalized = 0
     purls_cleared = 0
-    purl_str = str(comp.purl)
-
+    bomrefs_normalized = 0
     tracker = get_transformation_tracker()
-    original_purl = purl_str
 
-    # First, try to normalize
-    normalized_str, was_normalized = normalize_purl(purl_str)
-    if was_normalized:
-        try:
-            comp.purl = PackageURL.from_string(normalized_str)
-            purl_str = normalized_str
-            purls_normalized = 1
+    # Normalize PURL field if present
+    if comp.purl:
+        purl_str = str(comp.purl)
+        original_purl = purl_str
+
+        # First, try to normalize
+        normalized_str, was_normalized = normalize_purl(purl_str)
+        if was_normalized:
+            try:
+                comp.purl = PackageURL.from_string(normalized_str)
+                purl_str = normalized_str
+                purls_normalized = 1
+                # Record for attestation
+                tracker.record_purl_normalization(comp.name, original_purl, normalized_str)
+            except ValueError:
+                # Normalization produced invalid PURL, will be caught below
+                pass
+
+        # Then check if it's still invalid
+        is_invalid, reason = _is_invalid_purl(purl_str)
+        if is_invalid:
             # Record for attestation
-            tracker.record_purl_normalization(comp.name, original_purl, normalized_str)
-        except ValueError:
-            # Normalization produced invalid PURL, will be caught below
-            pass
+            tracker.record_purl_cleared(comp.name, purl_str, reason)
+            comp.purl = None
+            purls_cleared = 1
 
-    # Then check if it's still invalid
-    is_invalid, reason = _is_invalid_purl(purl_str)
-    if is_invalid:
-        # Record for attestation
-        tracker.record_purl_cleared(comp.name, purl_str, reason)
-        comp.purl = None
-        purls_cleared = 1
+    # Normalize bom-ref if it looks like a PURL (starts with "pkg:")
+    if comp.bom_ref and comp.bom_ref.value:
+        bom_ref_str = comp.bom_ref.value
+        if bom_ref_str.startswith("pkg:"):
+            normalized_ref, ref_was_normalized = normalize_purl(bom_ref_str)
+            if ref_was_normalized and normalized_ref:
+                # bom_ref property is read-only, so we modify the internal _value directly
+                comp.bom_ref._value = normalized_ref
+                bomrefs_normalized = 1
+                logger.info(f"Normalized bom-ref: {bom_ref_str} -> {normalized_ref}")
 
-    return purls_normalized, purls_cleared
+    return purls_normalized, purls_cleared, bomrefs_normalized
 
 
 def sanitize_purls(bom: Bom) -> tuple[int, int]:
@@ -316,6 +330,7 @@ def sanitize_purls(bom: Bom) -> tuple[int, int]:
     This function:
     1. Normalizes PURLs (fixes encoding issues like double @@)
     2. Clears invalid PURLs that cannot be fixed (file: references, path-based versions, etc.)
+    3. Normalizes bom-ref values that look like PURLs to ensure consistency
 
     Components are NOT removed (to preserve dependency graph integrity),
     but their invalid PURLs are set to None.
@@ -328,32 +343,68 @@ def sanitize_purls(bom: Bom) -> tuple[int, int]:
     """
     purls_normalized = 0
     purls_cleared = 0
+    bomrefs_normalized = 0
 
     # Process regular components
     for comp in bom.components:
-        normalized, cleared = _sanitize_component_purl(comp, "component")
+        normalized, cleared, bomref_norm = _sanitize_component_purl(comp, "component")
         purls_normalized += normalized
         purls_cleared += cleared
+        bomrefs_normalized += bomref_norm
 
     # Process metadata component
     if bom.metadata and bom.metadata.component:
-        normalized, cleared = _sanitize_component_purl(bom.metadata.component, "metadata component")
+        normalized, cleared, bomref_norm = _sanitize_component_purl(bom.metadata.component, "metadata component")
         purls_normalized += normalized
         purls_cleared += cleared
+        bomrefs_normalized += bomref_norm
 
     # Process tools.components (CycloneDX 1.5+ modern format)
     if bom.metadata and bom.metadata.tools and bom.metadata.tools.components:
         for comp in bom.metadata.tools.components:
-            normalized, cleared = _sanitize_component_purl(comp, "tools.component")
+            normalized, cleared, bomref_norm = _sanitize_component_purl(comp, "tools.component")
             purls_normalized += normalized
             purls_cleared += cleared
+            bomrefs_normalized += bomref_norm
 
     if purls_normalized:
         logger.info(f"PURL sanitization: normalized {purls_normalized} PURL(s)")
     if purls_cleared:
         logger.info(f"PURL sanitization: cleared {purls_cleared} invalid PURL(s)")
+    if bomrefs_normalized:
+        logger.info(f"PURL sanitization: normalized {bomrefs_normalized} bom-ref(s)")
 
     return purls_normalized, purls_cleared
+
+
+def sanitize_spdx_purls(document: "Document") -> int:
+    """
+    Normalize PURLs in SPDX external references.
+
+    This function normalizes PURL locators in package external references to ensure
+    consistent encoding. For example, it fixes double-encoded @ symbols (%40%40 -> %40).
+
+    Args:
+        document: The SPDX Document object to sanitize (modified in place)
+
+    Returns:
+        Number of PURLs normalized
+    """
+    normalized_count = 0
+
+    for package in document.packages:
+        for ref in package.external_references:
+            if ref.reference_type == "purl":
+                normalized, was_normalized = normalize_purl(ref.locator)
+                if was_normalized and normalized:
+                    logger.info(f"Normalized SPDX PURL: {ref.locator} -> {normalized}")
+                    ref.locator = normalized
+                    normalized_count += 1
+
+    if normalized_count:
+        logger.info(f"SPDX PURL sanitization: normalized {normalized_count} PURL(s)")
+
+    return normalized_count
 
 
 def sanitize_dependency_graph(bom: Bom) -> int:

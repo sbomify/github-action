@@ -13,6 +13,7 @@ from sbomify_action.serialization import (
     normalize_purl,
     sanitize_dependency_graph,
     sanitize_purls,
+    sanitize_spdx_purls,
     serialize_cyclonedx_bom,
 )
 
@@ -832,3 +833,291 @@ class TestSanitizePurls:
         assert cleared == 0
         # The PURL should still be valid
         assert tool.purl is not None
+
+
+class TestBomRefNormalization:
+    """Tests for bom-ref normalization when it contains PURL-like values."""
+
+    def test_normalizes_bomref_with_double_at(self):
+        """Test that bom-ref with double @@ is normalized."""
+        from packageurl import PackageURL
+
+        bom = Bom()
+        # Component with double @@ in bom-ref
+        comp = Component(
+            name="parser",
+            type=ComponentType.LIBRARY,
+            version="7.28.0",
+            bom_ref=BomRef("pkg:npm/%40babel/parser@@7.28.0"),
+            purl=PackageURL.from_string("pkg:npm/%40babel/parser@7.28.0"),
+        )
+        bom.components.add(comp)
+
+        sanitize_purls(bom)
+
+        # bom-ref should be normalized (no double @@)
+        assert comp.bom_ref is not None
+        assert "@@" not in comp.bom_ref.value
+        assert "@7.28.0" in comp.bom_ref.value
+
+    def test_normalizes_bomref_with_double_encoded_at(self):
+        """Test that bom-ref with double %40 encoding is normalized."""
+        from packageurl import PackageURL
+
+        bom = Bom()
+        # Component with double %40 in bom-ref
+        comp = Component(
+            name="parser",
+            type=ComponentType.LIBRARY,
+            version="7.28.0",
+            bom_ref=BomRef("pkg:npm/%40%40babel/parser@7.28.0"),
+            purl=PackageURL.from_string("pkg:npm/%40babel/parser@7.28.0"),
+        )
+        bom.components.add(comp)
+
+        sanitize_purls(bom)
+
+        # bom-ref should be normalized (no double %40)
+        assert comp.bom_ref is not None
+        assert "%40%40" not in comp.bom_ref.value
+
+    def test_non_purl_bomref_unchanged(self):
+        """Test that non-PURL bom-ref values are not modified."""
+        from packageurl import PackageURL
+
+        bom = Bom()
+        # Component with non-PURL bom-ref
+        original_ref = "my-custom-ref-123"
+        comp = Component(
+            name="my-lib",
+            type=ComponentType.LIBRARY,
+            version="1.0.0",
+            bom_ref=BomRef(original_ref),
+            purl=PackageURL.from_string("pkg:npm/my-lib@1.0.0"),
+        )
+        bom.components.add(comp)
+
+        sanitize_purls(bom)
+
+        # bom-ref should be unchanged
+        assert comp.bom_ref.value == original_ref
+
+    def test_valid_purl_bomref_unchanged(self):
+        """Test that valid PURL bom-ref values are not modified."""
+        from packageurl import PackageURL
+
+        bom = Bom()
+        # Component with valid PURL bom-ref (single %40 is correct for scoped packages)
+        original_ref = "pkg:npm/%40babel/parser@7.28.0"
+        comp = Component(
+            name="parser",
+            type=ComponentType.LIBRARY,
+            version="7.28.0",
+            bom_ref=BomRef(original_ref),
+            purl=PackageURL.from_string(original_ref),
+        )
+        bom.components.add(comp)
+
+        sanitize_purls(bom)
+
+        # bom-ref should be unchanged (already valid)
+        assert comp.bom_ref.value == original_ref
+
+
+class TestSpdxPurlSanitization:
+    """Tests for SPDX PURL sanitization in external references."""
+
+    def test_normalizes_spdx_purl_with_double_at(self):
+        """Test that SPDX PURL with double @@ is normalized."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import (
+            Actor,
+            ActorType,
+            CreationInfo,
+            Document,
+            ExternalPackageRef,
+            ExternalPackageRefCategory,
+            Package,
+            SpdxNoAssertion,
+        )
+
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-doc",
+            document_namespace="https://test.com/test-doc",
+            creators=[Actor(ActorType.TOOL, "test-tool")],
+            created=datetime(2024, 1, 1),
+        )
+        document = Document(creation_info=creation_info)
+
+        package = Package(
+            spdx_id="SPDXRef-Package-parser",
+            name="parser",
+            version="7.28.0",
+            download_location=SpdxNoAssertion(),
+        )
+        # Add PURL with double @@ issue
+        package.external_references.append(
+            ExternalPackageRef(
+                category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                reference_type="purl",
+                locator="pkg:npm/%40babel/parser@@7.28.0",
+            )
+        )
+        document.packages.append(package)
+
+        normalized_count = sanitize_spdx_purls(document)
+
+        assert normalized_count == 1
+        # Check the locator was normalized
+        purl_ref = package.external_references[0]
+        assert "@@" not in purl_ref.locator
+        assert "@7.28.0" in purl_ref.locator
+
+    def test_normalizes_spdx_purl_with_double_encoded_at(self):
+        """Test that SPDX PURL with double %40 encoding is normalized."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import (
+            Actor,
+            ActorType,
+            CreationInfo,
+            Document,
+            ExternalPackageRef,
+            ExternalPackageRefCategory,
+            Package,
+            SpdxNoAssertion,
+        )
+
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-doc",
+            document_namespace="https://test.com/test-doc",
+            creators=[Actor(ActorType.TOOL, "test-tool")],
+            created=datetime(2024, 1, 1),
+        )
+        document = Document(creation_info=creation_info)
+
+        package = Package(
+            spdx_id="SPDXRef-Package-parser",
+            name="parser",
+            version="7.28.0",
+            download_location=SpdxNoAssertion(),
+        )
+        # Add PURL with double %40 encoding issue
+        package.external_references.append(
+            ExternalPackageRef(
+                category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                reference_type="purl",
+                locator="pkg:npm/%40%40babel/parser@7.28.0",
+            )
+        )
+        document.packages.append(package)
+
+        normalized_count = sanitize_spdx_purls(document)
+
+        assert normalized_count == 1
+        # Check the locator was normalized
+        purl_ref = package.external_references[0]
+        assert "%40%40" not in purl_ref.locator
+
+    def test_valid_spdx_purl_unchanged(self):
+        """Test that valid SPDX PURLs are not modified."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import (
+            Actor,
+            ActorType,
+            CreationInfo,
+            Document,
+            ExternalPackageRef,
+            ExternalPackageRefCategory,
+            Package,
+            SpdxNoAssertion,
+        )
+
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-doc",
+            document_namespace="https://test.com/test-doc",
+            creators=[Actor(ActorType.TOOL, "test-tool")],
+            created=datetime(2024, 1, 1),
+        )
+        document = Document(creation_info=creation_info)
+
+        package = Package(
+            spdx_id="SPDXRef-Package-parser",
+            name="parser",
+            version="7.28.0",
+            download_location=SpdxNoAssertion(),
+        )
+        # Add valid PURL (single %40 is correct)
+        original_locator = "pkg:npm/%40babel/parser@7.28.0"
+        package.external_references.append(
+            ExternalPackageRef(
+                category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                reference_type="purl",
+                locator=original_locator,
+            )
+        )
+        document.packages.append(package)
+
+        normalized_count = sanitize_spdx_purls(document)
+
+        assert normalized_count == 0
+        # Check the locator was not modified
+        purl_ref = package.external_references[0]
+        assert purl_ref.locator == original_locator
+
+    def test_non_purl_refs_unchanged(self):
+        """Test that non-PURL external references are not modified."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import (
+            Actor,
+            ActorType,
+            CreationInfo,
+            Document,
+            ExternalPackageRef,
+            ExternalPackageRefCategory,
+            Package,
+            SpdxNoAssertion,
+        )
+
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-doc",
+            document_namespace="https://test.com/test-doc",
+            creators=[Actor(ActorType.TOOL, "test-tool")],
+            created=datetime(2024, 1, 1),
+        )
+        document = Document(creation_info=creation_info)
+
+        package = Package(
+            spdx_id="SPDXRef-Package-mylib",
+            name="mylib",
+            version="1.0.0",
+            download_location=SpdxNoAssertion(),
+        )
+        # Add non-PURL reference (e.g., CPE)
+        original_locator = "cpe:2.3:a:vendor:mylib:1.0.0:*:*:*:*:*:*:*"
+        package.external_references.append(
+            ExternalPackageRef(
+                category=ExternalPackageRefCategory.SECURITY,
+                reference_type="cpe23Type",
+                locator=original_locator,
+            )
+        )
+        document.packages.append(package)
+
+        normalized_count = sanitize_spdx_purls(document)
+
+        assert normalized_count == 0
+        # Check the locator was not modified
+        ref = package.external_references[0]
+        assert ref.locator == original_locator
