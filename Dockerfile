@@ -159,8 +159,9 @@ COPY --from=builder /opt/venv /opt/venv
 
 ENV PATH="/app/node_modules/.bin:/opt/venv/bin:$PATH"
 
-# Make 'node' invoke 'bun' so tools that expect 'node' actually run bun (compatibility shim)
-RUN ln -s /usr/local/bin/bun /usr/local/bin/node
+# Make 'node' and 'npm' invoke 'bun' so tools that expect them actually run bun (compatibility shim)
+RUN ln -s /usr/local/bin/bun /usr/local/bin/node && \
+    ln -s /usr/local/bin/bun /usr/local/bin/npm
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
