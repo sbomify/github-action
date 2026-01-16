@@ -72,7 +72,7 @@ from .generation import (
     RUST_LOCK_FILES,
 )
 from .logging_config import logger
-from .serialization import sanitize_dependency_graph, sanitize_purls, serialize_cyclonedx_bom
+from .serialization import sanitize_dependency_graph, sanitize_purls, sanitize_spdx_purls, serialize_cyclonedx_bom
 from .validation import validate_sbom_file_auto
 
 
@@ -960,6 +960,9 @@ def _enrich_spdx_sbom(input_path: Path, output_path: Path, enricher: Enricher) -
 
     # Print summary
     _log_spdx_enrichment_summary(stats, len(packages))
+
+    # Sanitize PURLs in external references before writing
+    sanitize_spdx_purls(document)
 
     # Write output
     try:

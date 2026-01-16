@@ -356,6 +356,36 @@ def sanitize_purls(bom: Bom) -> tuple[int, int]:
     return purls_normalized, purls_cleared
 
 
+def sanitize_spdx_purls(document: "Document") -> int:
+    """
+    Normalize PURLs in SPDX external references.
+
+    This function normalizes PURL locators in package external references to ensure
+    consistent encoding. For example, it fixes double-encoded @ symbols (%40%40 -> %40).
+
+    Args:
+        document: The SPDX Document object to sanitize (modified in place)
+
+    Returns:
+        Number of PURLs normalized
+    """
+    normalized_count = 0
+
+    for package in document.packages:
+        for ref in package.external_references:
+            if ref.reference_type == "purl":
+                normalized, was_normalized = normalize_purl(ref.locator)
+                if was_normalized and normalized:
+                    logger.info(f"Normalized SPDX PURL: {ref.locator} -> {normalized}")
+                    ref.locator = normalized
+                    normalized_count += 1
+
+    if normalized_count:
+        logger.info(f"SPDX PURL sanitization: normalized {normalized_count} PURL(s)")
+
+    return normalized_count
+
+
 def sanitize_dependency_graph(bom: Bom) -> int:
     """
     Fix orphaned dependency references by adding stub components for missing refs.

@@ -499,6 +499,9 @@ def augment_cyclonedx_sbom(
     """
     Augment CycloneDX SBOM with backend metadata using native library.
 
+    Note: PURL override is handled separately in main.py via _apply_sbom_purl_override()
+    to ensure it works regardless of augmentation settings.
+
     Args:
         bom: The Bom object to augment
         augmentation_data: Metadata from backend
@@ -963,6 +966,9 @@ def augment_spdx_sbom(
     """
     Augment SPDX SBOM with backend metadata using native library.
 
+    Note: PURL override is handled separately in main.py via _apply_sbom_purl_override()
+    to ensure it works regardless of augmentation settings.
+
     Args:
         document: The SPDX Document object to augment
         augmentation_data: Metadata from backend
@@ -1297,6 +1303,9 @@ def augment_sbom_from_file(
     After augmentation, the output SBOM is validated against its JSON schema
     (when validate=True).
 
+    Note: PURL override is handled separately in main.py via _apply_sbom_purl_override()
+    to ensure it works regardless of augmentation settings.
+
     Args:
         input_file: Path to input SBOM file
         output_file: Path to save augmented SBOM
@@ -1360,7 +1369,12 @@ def augment_sbom_from_file(
 
             # Augment
             bom = augment_cyclonedx_sbom(
-                bom, augmentation_data, override_sbom_metadata, component_name, component_version, spec_version
+                bom,
+                augmentation_data,
+                override_sbom_metadata,
+                component_name,
+                component_version,
+                spec_version,
             )
 
             # Sanitize dependency graph (add stubs for orphaned references)

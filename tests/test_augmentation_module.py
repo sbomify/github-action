@@ -5,6 +5,7 @@ Tests for the new augmentation module with proper library usage.
 import json
 import os
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -2252,3 +2253,210 @@ class TestSpdxJsonPurlVersionUpdate:
         assert package_json["externalRefs"][0]["referenceLocator"] == "https://github.com/test/test-app"
         # PURL should be updated
         assert package_json["externalRefs"][1]["referenceLocator"] == "pkg:pypi/test-app@2.0.0"
+
+
+@dataclass
+class MockPurlConfig:
+    """Mock config for PURL override tests.
+
+    We use a minimal mock instead of the real Config class because
+    _apply_sbom_purl_override() only accesses the component_purl field.
+    This keeps tests focused and avoids requiring unrelated fields like
+    token, component_id, etc. that would add noise without value.
+    """
+
+    component_purl: str
+
+
+class TestComponentPurlOverride:
+    """Tests for COMPONENT_PURL override functionality via _apply_sbom_purl_override."""
+
+    def test_cyclonedx_set_purl_when_none_exists(self, tmp_path):
+        """Test setting PURL on CycloneDX component that has no PURL."""
+        from sbomify_action.cli.main import _apply_sbom_purl_override
+
+        # Create a minimal CycloneDX SBOM without PURL
+        sbom = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "metadata": {"component": {"name": "test-app", "version": "1.0.0", "type": "application"}},
+            "components": [],
+        }
+        sbom_file = tmp_path / "test.cdx.json"
+        sbom_file.write_text(json.dumps(sbom))
+
+        _apply_sbom_purl_override(str(sbom_file), MockPurlConfig("pkg:pypi/test-app@1.0.0"))
+
+        # Verify PURL was set
+        result = json.loads(sbom_file.read_text())
+        assert result["metadata"]["component"]["purl"] == "pkg:pypi/test-app@1.0.0"
+
+    def test_cyclonedx_override_existing_purl(self, tmp_path):
+        """Test overriding existing PURL on CycloneDX component."""
+        from sbomify_action.cli.main import _apply_sbom_purl_override
+
+        # Create CycloneDX SBOM with existing PURL
+        sbom = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "metadata": {
+                "component": {
+                    "name": "test-app",
+                    "version": "1.0.0",
+                    "type": "application",
+                    "purl": "pkg:pypi/old-purl@1.0.0",
+                }
+            },
+            "components": [],
+        }
+        sbom_file = tmp_path / "test.cdx.json"
+        sbom_file.write_text(json.dumps(sbom))
+
+        _apply_sbom_purl_override(str(sbom_file), MockPurlConfig("pkg:npm/@scope/new-package@2.0.0"))
+
+        # Verify PURL was overridden
+        result = json.loads(sbom_file.read_text())
+        assert result["metadata"]["component"]["purl"] == "pkg:npm/%40scope/new-package@2.0.0"
+
+    def test_cyclonedx_invalid_purl_is_skipped(self, tmp_path):
+        """Test that invalid PURL is skipped without crashing."""
+        from sbomify_action.cli.main import _apply_sbom_purl_override
+
+        # Create CycloneDX SBOM without PURL
+        sbom = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "metadata": {"component": {"name": "test-app", "version": "1.0.0", "type": "application"}},
+            "components": [],
+        }
+        sbom_file = tmp_path / "test.cdx.json"
+        sbom_file.write_text(json.dumps(sbom))
+
+        # Should not raise
+        _apply_sbom_purl_override(str(sbom_file), MockPurlConfig("not-a-valid-purl"))
+
+        # Verify PURL was not added (invalid PURL was skipped)
+        result = json.loads(sbom_file.read_text())
+        assert "purl" not in result["metadata"]["component"]
+
+    def test_spdx_set_purl_when_none_exists(self, tmp_path):
+        """Test adding PURL to SPDX package that has no PURL."""
+        from sbomify_action.cli.main import _apply_sbom_purl_override
+
+        # Create minimal SPDX SBOM without PURL
+        sbom = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test-document",
+            "documentNamespace": "https://example.com/test",
+            "creationInfo": {"created": "2024-01-01T00:00:00Z", "creators": ["Tool: test"]},
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-Package",
+                    "name": "test-app",
+                    "downloadLocation": "NOASSERTION",
+                }
+            ],
+        }
+        sbom_file = tmp_path / "test.spdx.json"
+        sbom_file.write_text(json.dumps(sbom))
+
+        _apply_sbom_purl_override(str(sbom_file), MockPurlConfig("pkg:pypi/test-app@1.0.0"))
+
+        # Verify PURL was added
+        result = json.loads(sbom_file.read_text())
+        purl_refs = [r for r in result["packages"][0].get("externalRefs", []) if r["referenceType"] == "purl"]
+        assert len(purl_refs) == 1
+        assert purl_refs[0]["referenceLocator"] == "pkg:pypi/test-app@1.0.0"
+
+    def test_spdx_override_existing_purl(self, tmp_path):
+        """Test overriding existing PURL on SPDX package."""
+        from sbomify_action.cli.main import _apply_sbom_purl_override
+
+        # Create SPDX SBOM with existing PURL
+        sbom = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test-document",
+            "documentNamespace": "https://example.com/test",
+            "creationInfo": {"created": "2024-01-01T00:00:00Z", "creators": ["Tool: test"]},
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-Package",
+                    "name": "test-app",
+                    "downloadLocation": "NOASSERTION",
+                    "externalRefs": [
+                        {
+                            "referenceCategory": "PACKAGE-MANAGER",
+                            "referenceType": "purl",
+                            "referenceLocator": "pkg:pypi/old-purl@1.0.0",
+                        }
+                    ],
+                }
+            ],
+        }
+        sbom_file = tmp_path / "test.spdx.json"
+        sbom_file.write_text(json.dumps(sbom))
+
+        _apply_sbom_purl_override(str(sbom_file), MockPurlConfig("pkg:npm/@scope/new-package@2.0.0"))
+
+        # Verify PURL was overridden
+        result = json.loads(sbom_file.read_text())
+        purl_refs = [r for r in result["packages"][0]["externalRefs"] if r["referenceType"] == "purl"]
+        assert len(purl_refs) == 1
+        assert purl_refs[0]["referenceLocator"] == "pkg:npm/@scope/new-package@2.0.0"
+
+    def test_spdx_invalid_purl_is_skipped(self, tmp_path):
+        """Test that invalid PURL is skipped without crashing for SPDX."""
+        from sbomify_action.cli.main import _apply_sbom_purl_override
+
+        # Create minimal SPDX SBOM
+        sbom = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test-document",
+            "documentNamespace": "https://example.com/test",
+            "creationInfo": {"created": "2024-01-01T00:00:00Z", "creators": ["Tool: test"]},
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-Package",
+                    "name": "test-app",
+                    "downloadLocation": "NOASSERTION",
+                }
+            ],
+        }
+        sbom_file = tmp_path / "test.spdx.json"
+        sbom_file.write_text(json.dumps(sbom))
+
+        # Should not raise
+        _apply_sbom_purl_override(str(sbom_file), MockPurlConfig("not-a-valid-purl"))
+
+        # Verify no PURL was added (invalid PURL was skipped)
+        result = json.loads(sbom_file.read_text())
+        purl_refs = [r for r in result["packages"][0].get("externalRefs", []) if r.get("referenceType") == "purl"]
+        assert len(purl_refs) == 0
+
+    def test_cyclonedx_creates_component_if_not_exists(self, tmp_path):
+        """Test that component is created when setting PURL and no component exists."""
+        from sbomify_action.cli.main import _apply_sbom_purl_override
+
+        # Create CycloneDX SBOM without metadata.component
+        sbom = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "metadata": {},
+            "components": [],
+        }
+        sbom_file = tmp_path / "test.cdx.json"
+        sbom_file.write_text(json.dumps(sbom))
+
+        _apply_sbom_purl_override(str(sbom_file), MockPurlConfig("pkg:pypi/new-app@1.0.0"))
+
+        # Verify component was created with PURL
+        result = json.loads(sbom_file.read_text())
+        assert "component" in result["metadata"]
+        assert result["metadata"]["component"]["purl"] == "pkg:pypi/new-app@1.0.0"

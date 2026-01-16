@@ -4,7 +4,6 @@ import unittest
 from unittest.mock import patch
 
 from sbomify_action.tool_checks import (
-    EXTERNAL_TOOLS,
     ToolInfo,
     ToolStatus,
     check_all_tools,
@@ -12,6 +11,7 @@ from sbomify_action.tool_checks import (
     check_tool_for_input,
     format_no_tools_error,
     get_available_tools,
+    get_external_tools,
     get_missing_tools,
     get_tool_install_message,
     log_tool_status,
@@ -71,27 +71,53 @@ class TestToolStatus(unittest.TestCase):
 
 
 class TestExternalTools(unittest.TestCase):
-    """Tests for EXTERNAL_TOOLS constant."""
+    """Tests for get_external_tools function."""
 
     def test_external_tools_contains_trivy(self):
-        """Test EXTERNAL_TOOLS contains trivy."""
-        self.assertIn("trivy", EXTERNAL_TOOLS)
-        self.assertEqual(EXTERNAL_TOOLS["trivy"].command, "trivy")
+        """Test external tools contains trivy."""
+        external_tools = get_external_tools()
+        self.assertIn("trivy", external_tools)
+        self.assertEqual(external_tools["trivy"].command, "trivy")
 
     def test_external_tools_contains_syft(self):
-        """Test EXTERNAL_TOOLS contains syft."""
-        self.assertIn("syft", EXTERNAL_TOOLS)
-        self.assertEqual(EXTERNAL_TOOLS["syft"].command, "syft")
+        """Test external tools contains syft."""
+        external_tools = get_external_tools()
+        self.assertIn("syft", external_tools)
+        self.assertEqual(external_tools["syft"].command, "syft")
 
     def test_external_tools_contains_cdxgen(self):
-        """Test EXTERNAL_TOOLS contains cdxgen."""
-        self.assertIn("cdxgen", EXTERNAL_TOOLS)
-        self.assertEqual(EXTERNAL_TOOLS["cdxgen"].command, "cdxgen")
+        """Test external tools contains cdxgen."""
+        external_tools = get_external_tools()
+        self.assertIn("cdxgen", external_tools)
+        self.assertEqual(external_tools["cdxgen"].command, "cdxgen")
 
     def test_external_tools_contains_cyclonedx_py(self):
-        """Test EXTERNAL_TOOLS contains cyclonedx-py."""
-        self.assertIn("cyclonedx-py", EXTERNAL_TOOLS)
-        self.assertEqual(EXTERNAL_TOOLS["cyclonedx-py"].command, "cyclonedx-py")
+        """Test external tools contains cyclonedx-py."""
+        external_tools = get_external_tools()
+        self.assertIn("cyclonedx-py", external_tools)
+        self.assertEqual(external_tools["cyclonedx-py"].command, "cyclonedx-py")
+
+    def test_external_tools_contains_cargo_cyclonedx(self):
+        """Test external tools contains cargo-cyclonedx."""
+        external_tools = get_external_tools()
+        self.assertIn("cargo-cyclonedx", external_tools)
+        self.assertEqual(external_tools["cargo-cyclonedx"].command, "cargo-cyclonedx")
+
+    def test_external_tools_dynamically_built_from_registry(self):
+        """Test that external tools mapping is consistent with tool commands."""
+        external_tools = get_external_tools()
+
+        # The mapping should not be empty
+        self.assertTrue(external_tools, "get_external_tools() returned an empty mapping")
+
+        # For each tool, the command should match the key name
+        for name, info in external_tools.items():
+            with self.subTest(tool=name):
+                self.assertEqual(
+                    info.command,
+                    name,
+                    f"ToolInfo.command for '{name}' should match its key in external_tools",
+                )
 
 
 class TestCheckToolAvailable(unittest.TestCase):
@@ -126,6 +152,7 @@ class TestCheckAllTools(unittest.TestCase):
         self.assertIn("syft", results)
         self.assertIn("cdxgen", results)
         self.assertIn("cyclonedx-py", results)
+        self.assertIn("cargo-cyclonedx", results)
         for status in results.values():
             self.assertTrue(status.available)
 
@@ -173,17 +200,18 @@ class TestLogToolStatus(unittest.TestCase):
     @patch("sbomify_action.tool_checks.logger")
     def test_log_tool_status_with_available(self, mock_logger, mock_check_all):
         """Test logging when some tools are available."""
+        external_tools = get_external_tools()
         mock_check_all.return_value = {
             "trivy": ToolStatus(
                 name="Trivy",
                 available=True,
                 path="/usr/bin/trivy",
-                info=EXTERNAL_TOOLS["trivy"],
+                info=external_tools["trivy"],
             ),
             "syft": ToolStatus(
                 name="Syft",
                 available=False,
-                info=EXTERNAL_TOOLS["syft"],
+                info=external_tools["syft"],
             ),
         }
         log_tool_status(verbose=False)
@@ -194,11 +222,12 @@ class TestLogToolStatus(unittest.TestCase):
     @patch("sbomify_action.tool_checks.logger")
     def test_log_tool_status_verbose(self, mock_logger, mock_check_all):
         """Test verbose logging with install instructions."""
+        external_tools = get_external_tools()
         mock_check_all.return_value = {
             "trivy": ToolStatus(
                 name="Trivy",
                 available=False,
-                info=EXTERNAL_TOOLS["trivy"],
+                info=external_tools["trivy"],
             ),
         }
         log_tool_status(verbose=True)
