@@ -299,7 +299,7 @@ class TestReleasesApi(unittest.TestCase):
         self.assertIn("Forbidden", str(cm.exception))
 
     @patch("sbomify_action._processors.releases_api.requests.post")
-    def test_tag_sbom_with_release_duplicate_artifact_returns_success(self, mock_post):
+    def test_tag_sbom_with_release_duplicate_artifact_succeeds(self, mock_post):
         """Test SBOM tagging handles 409 DUPLICATE_ARTIFACT as success (idempotent).
 
         When the SBOM is already tagged with the release (e.g., by server auto-tag,

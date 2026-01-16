@@ -22,6 +22,9 @@ def _safe_json_dict(response: requests.Response) -> Optional[Dict[str, Any]]:
 
     Returns:
         Parsed JSON as dict, or None if parsing fails or result is not a dict
+
+    Note:
+        Catches ValueError which includes JSONDecodeError (its subclass in requests).
     """
     try:
         data = response.json()
