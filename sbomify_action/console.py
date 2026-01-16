@@ -483,7 +483,7 @@ class TransformationTracker:
             details.append(f"Stub added: {comp_name}@{version} (ref: {ref_value})")
 
         for root_name, count in self.root_dependencies_linked:
-            details.append(f"Root dependencies linked: {count} components linked to '{root_name}'")
+            details.append(f"Linked {count} components to root '{root_name}'")
 
         return details
 
