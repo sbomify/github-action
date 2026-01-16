@@ -242,7 +242,7 @@ jobs:
           UPLOAD: true
           OUTPUT_FILE: github-action.cdx.json
 
-      - name: Generate SBOM to Staging (SPDX)
+      - name: Upload SBOM to Staging (SPDX)
         if: github.ref == 'refs/heads/master'
         uses: sbomify/github-action@master
         env:
@@ -256,7 +256,7 @@ jobs:
           SBOM_FORMAT: spdx
           AUGMENT: true
           ENRICH: true
-          UPLOAD: false
+          UPLOAD: true
           OUTPUT_FILE: github-action.spdx.json
 
       - name: Upload Container SBOM to Staging (CycloneDX)
@@ -278,7 +278,7 @@ jobs:
           UPLOAD: true
           OUTPUT_FILE: github-action-container.cdx.json
 
-      - name: Generate Container SBOM to Staging (SPDX)
+      - name: Upload Container SBOM to Staging (SPDX)
         if: github.ref == 'refs/heads/master'
         uses: sbomify/github-action@master
         env:
@@ -293,7 +293,7 @@ jobs:
           SBOM_FORMAT: spdx
           AUGMENT: true
           ENRICH: true
-          UPLOAD: false
+          UPLOAD: true
           OUTPUT_FILE: github-action-container.spdx.json
 
       - name: Upload JavaScript Dependencies SBOM to Staging (CycloneDX)
@@ -313,7 +313,7 @@ jobs:
           UPLOAD: true
           OUTPUT_FILE: github-action-frontend.cdx.json
 
-      - name: Generate JavaScript Dependencies SBOM to Staging (SPDX)
+      - name: Upload JavaScript Dependencies SBOM to Staging (SPDX)
         if: github.ref == 'refs/heads/master'
         uses: sbomify/github-action@master
         env:
@@ -326,7 +326,7 @@ jobs:
           SBOM_FORMAT: spdx
           AUGMENT: true
           ENRICH: true
-          UPLOAD: false
+          UPLOAD: true
           OUTPUT_FILE: github-action-frontend.spdx.json
 
       - name: Upload SBOM to Production (CycloneDX)
@@ -346,7 +346,7 @@ jobs:
           UPLOAD: true
           OUTPUT_FILE: github-action.cdx.json
 
-      - name: Generate SBOM to Production (SPDX)
+      - name: Upload SBOM to Production (SPDX)
         if: startsWith(github.ref, 'refs/tags/')
         uses: sbomify/github-action@master
         env:
@@ -359,7 +359,7 @@ jobs:
           SBOM_FORMAT: spdx
           AUGMENT: true
           ENRICH: true
-          UPLOAD: false
+          UPLOAD: true
           OUTPUT_FILE: github-action.spdx.json
 
       - name: Upload Container SBOM to Production (CycloneDX)
@@ -380,7 +380,7 @@ jobs:
           UPLOAD: true
           OUTPUT_FILE: github-action-container.cdx.json
 
-      - name: Generate Container SBOM to Production (SPDX)
+      - name: Upload Container SBOM to Production (SPDX)
         if: startsWith(github.ref, 'refs/tags/')
         uses: sbomify/github-action@master
         env:
@@ -394,7 +394,7 @@ jobs:
           SBOM_FORMAT: spdx
           AUGMENT: true
           ENRICH: true
-          UPLOAD: false
+          UPLOAD: true
           OUTPUT_FILE: github-action-container.spdx.json
 
       - name: Upload JavaScript Dependencies SBOM to Production (CycloneDX)
@@ -413,7 +413,7 @@ jobs:
           UPLOAD: true
           OUTPUT_FILE: github-action-frontend.cdx.json
 
-      - name: Generate JavaScript Dependencies SBOM to Production (SPDX)
+      - name: Upload JavaScript Dependencies SBOM to Production (SPDX)
         if: startsWith(github.ref, 'refs/tags/')
         uses: sbomify/github-action@master
         env:
@@ -425,7 +425,7 @@ jobs:
           SBOM_FORMAT: spdx
           AUGMENT: true
           ENRICH: true
-          UPLOAD: false
+          UPLOAD: true
           OUTPUT_FILE: github-action-frontend.spdx.json
 
       - name: Attest Source SBOM (CycloneDX)
