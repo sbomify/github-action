@@ -450,7 +450,7 @@ class TransformationTracker:
             ("PURLs cleared (invalid)", len(self.purls_cleared)),
             ("URLs rejected", len(self.urls_rejected)),
             ("Stub components added", len(self.stubs_added)),
-            ("Root dependencies linked", sum(count for _, count in self.root_dependencies_linked)),
+            ("Components linked to root", sum(count for _, count in self.root_dependencies_linked)),
         ]
         print_summary_table(title, data)
 
