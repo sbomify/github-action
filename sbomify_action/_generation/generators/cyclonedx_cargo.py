@@ -44,6 +44,10 @@ class CycloneDXCargoGenerator:
         return "cyclonedx-cargo"
 
     @property
+    def command(self) -> str:
+        return "cargo-cyclonedx"
+
+    @property
     def priority(self) -> int:
         # Native/authoritative for Rust
         return 10

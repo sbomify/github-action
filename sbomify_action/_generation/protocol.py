@@ -156,6 +156,16 @@ class Generator(Protocol):
         ...
 
     @property
+    def command(self) -> str:
+        """
+        The command-line tool this generator uses.
+
+        Used for tool availability checks.
+        Examples: "cyclonedx-py", "trivy", "syft", "cdxgen", "cargo-cyclonedx"
+        """
+        ...
+
+    @property
     def priority(self) -> int:
         """
         Priority of this generator (lower = higher priority).

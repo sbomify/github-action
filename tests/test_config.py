@@ -476,6 +476,36 @@ class TestConfig(unittest.TestCase):
                     self.assertIn("Using COMPONENT_NAME and ignoring OVERRIDE_NAME", log_output)
                     self.assertIn("OVERRIDE_NAME is deprecated", log_output)
 
+    def test_component_purl_loaded_from_env(self):
+        """Test that COMPONENT_PURL is loaded from environment variable."""
+        # Create a dummy lock file for validation
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock_file = Path(tmp_dir) / "test.lock"
+            lock_file.write_text("dummy content")
+
+            # Mock environment variables with COMPONENT_PURL
+            env_vars = {
+                "TOKEN": "test-token",
+                "COMPONENT_ID": "test-component",
+                "COMPONENT_PURL": "pkg:pypi/my-package@1.0.0",
+                "LOCK_FILE": str(lock_file),
+            }
+            with patch.dict(os.environ, env_vars, clear=False):
+                # Load config
+                config = load_config()
+
+                # Should use COMPONENT_PURL value
+                self.assertEqual(config.component_purl, "pkg:pypi/my-package@1.0.0")
+
+    def test_component_purl_defaults_to_none(self):
+        """Test that component_purl defaults to None when not specified."""
+        config = Config(
+            token="test-token",
+            component_id="test-component",
+            sbom_file="/path/to/sbom.json",
+        )
+        self.assertIsNone(config.component_purl)
+
     def test_upload_destinations_default_to_sbomify(self):
         """Test that upload_destinations defaults to ['sbomify'] when not specified."""
         config = Config(

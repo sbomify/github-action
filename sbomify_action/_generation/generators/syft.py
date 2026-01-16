@@ -50,6 +50,10 @@ class SyftFsGenerator:
         return "syft-fs"
 
     @property
+    def command(self) -> str:
+        return "syft"
+
+    @property
     def priority(self) -> int:
         # Generic multi-ecosystem, slightly lower priority than Trivy
         return 35
@@ -184,6 +188,10 @@ class SyftImageGenerator:
     @property
     def name(self) -> str:
         return "syft-image"
+
+    @property
+    def command(self) -> str:
+        return "syft"
 
     @property
     def priority(self) -> int:

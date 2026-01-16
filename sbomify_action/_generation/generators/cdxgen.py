@@ -78,6 +78,10 @@ class CdxgenFsGenerator:
         return "cdxgen-fs"
 
     @property
+    def command(self) -> str:
+        return "cdxgen"
+
+    @property
     def priority(self) -> int:
         # Comprehensive multi-ecosystem, higher priority than Trivy/Syft
         return 20
@@ -227,6 +231,10 @@ class CdxgenImageGenerator:
     @property
     def name(self) -> str:
         return "cdxgen-image"
+
+    @property
+    def command(self) -> str:
+        return "cdxgen"
 
     @property
     def priority(self) -> int:

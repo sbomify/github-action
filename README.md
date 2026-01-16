@@ -167,6 +167,7 @@ See [Augmentation Config File](#augmentation-config-file) for the config format.
 | `AUGMENT` | No | Add metadata from sbomify |
 | `COMPONENT_NAME` | No | Override component name in SBOM |
 | `COMPONENT_VERSION` | No | Override component version in SBOM |
+| `COMPONENT_PURL` | No | Add or override component PURL in SBOM |
 | `PRODUCT_RELEASE` | No | Tag SBOM with product releases (see [Product Releases](#product-releases)) |
 | `UPLOAD` | No | Upload SBOM (default: true) |
 | `UPLOAD_DESTINATIONS` | No | Comma-separated destinations: `sbomify`, `dependency-track` (default: `sbomify`) |

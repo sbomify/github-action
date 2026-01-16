@@ -58,6 +58,10 @@ class CycloneDXPyGenerator:
         return "cyclonedx-py"
 
     @property
+    def command(self) -> str:
+        return "cyclonedx-py"
+
+    @property
     def priority(self) -> int:
         # Native/authoritative for Python
         return 10

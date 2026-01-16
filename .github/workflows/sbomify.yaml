@@ -234,6 +234,7 @@ jobs:
           LOCK_FILE: 'uv.lock'
           COMPONENT_NAME: 'sbomify Action'
           COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
+          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ steps.version.outputs.short_sha }}'
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
@@ -249,6 +250,7 @@ jobs:
           DOCKER_IMAGE: 'sbomifyhub/sbomify-action:latest'
           COMPONENT_NAME: 'sbomify Action Container'
           COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
+          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ steps.version.outputs.short_sha }}'
           ADDITIONAL_PACKAGES_FILE: container_additional_packages.txt
           AUGMENT: true
           ENRICH: true
@@ -264,6 +266,7 @@ jobs:
           LOCK_FILE: 'uv.lock'
           COMPONENT_NAME: 'sbomify Action'
           COMPONENT_VERSION: ${{ github.ref_name }}
+          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ github.ref_name }}'
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
@@ -278,6 +281,7 @@ jobs:
           DOCKER_IMAGE: 'sbomifyhub/sbomify-action:${{ github.ref_name }}'
           COMPONENT_NAME: 'sbomify Action Container'
           COMPONENT_VERSION: ${{ github.ref_name }}
+          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ github.ref_name }}'
           ADDITIONAL_PACKAGES_FILE: container_additional_packages.txt
           AUGMENT: true
           ENRICH: true

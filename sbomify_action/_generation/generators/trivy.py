@@ -52,6 +52,10 @@ class TrivyFsGenerator:
         return "trivy-fs"
 
     @property
+    def command(self) -> str:
+        return "trivy"
+
+    @property
     def priority(self) -> int:
         # Generic multi-ecosystem
         return 30
@@ -188,6 +192,10 @@ class TrivyImageGenerator:
     @property
     def name(self) -> str:
         return "trivy-image"
+
+    @property
+    def command(self) -> str:
+        return "trivy"
 
     @property
     def priority(self) -> int:

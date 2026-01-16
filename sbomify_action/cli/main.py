@@ -194,6 +194,7 @@ class Config:
     override_name: bool = False
     component_version: Optional[str] = None
     component_name: Optional[str] = None
+    component_purl: Optional[str] = None
     product_releases: Optional[str | list[str]] = None
     api_base_url: str = SBOMIFY_PRODUCTION_API
 
@@ -378,6 +379,11 @@ def load_config() -> Config:
     else:
         logger.info("No component name specified")
 
+    # Handle component PURL override
+    component_purl = os.getenv("COMPONENT_PURL")
+    if component_purl:
+        logger.info(f"Using component PURL: {component_purl}")
+
     # Handle product releases
     product_releases = None
     product_release_env = os.getenv("PRODUCT_RELEASE")
@@ -415,6 +421,7 @@ def load_config() -> Config:
         override_name=final_override_name,
         component_version=final_component_version,
         component_name=final_component_name,
+        component_purl=component_purl,
         product_releases=product_releases,
         api_base_url=os.getenv("API_BASE_URL", SBOMIFY_PRODUCTION_API),
     )
@@ -915,6 +922,11 @@ def main() -> None:
         logger.info(f"Applying component name override: {config.component_name}")
         _apply_sbom_name_override(STEP_1_FILE, config)
 
+    # Apply component PURL override if specified (regardless of augmentation settings)
+    if config.component_purl:
+        logger.info(f"Applying component PURL override: {config.component_purl}")
+        _apply_sbom_purl_override(STEP_1_FILE, config)
+
     # Inject additional packages if specified (file or environment variables)
     try:
         injected_count = inject_additional_packages(STEP_1_FILE)
@@ -940,6 +952,7 @@ def main() -> None:
             logger.info("Augmenting SBOM with backend metadata")
 
             # Use augmentation module's file-based function
+            # Note: PURL override is applied separately via _apply_sbom_purl_override()
             sbom_format = augment_sbom_from_file(
                 input_file=sbom_input_file,
                 output_file=STEP_2_FILE,
@@ -1327,6 +1340,115 @@ def _apply_sbom_name_override(sbom_file: str, config: "Config") -> None:
     except Exception as e:
         logger.warning(f"Failed to apply component name override: {e}")
         # Don't fail the entire process for name override issues
+
+
+def _apply_sbom_purl_override(sbom_file: str, config: "Config") -> None:
+    """
+    Apply component PURL override based on configuration.
+    This function ensures that COMPONENT_PURL is applied regardless of augmentation settings.
+
+    Args:
+        sbom_file: Path to the SBOM file to modify
+        config: Configuration with PURL override settings
+
+    Raises:
+        SBOMValidationError: If SBOM cannot be processed
+        FileProcessingError: If file operations fail
+    """
+    if not config.component_purl:
+        return  # No PURL override specified
+
+    # Validate PURL format before applying
+    try:
+        from packageurl import PackageURL
+
+        purl_obj = PackageURL.from_string(config.component_purl)
+    except ValueError as e:
+        logger.warning(f"Invalid COMPONENT_PURL '{config.component_purl}': {e}")
+        return  # Skip invalid PURLs
+
+    try:
+        # Load SBOM from file
+        sbom_format, original_json, parsed_object = load_sbom_from_file(sbom_file)
+
+        if sbom_format == "cyclonedx":
+            from cyclonedx.model.bom import Bom
+            from cyclonedx.model.component import Component, ComponentType
+
+            if isinstance(parsed_object, Bom):
+                # Apply PURL override to CycloneDX BOM object
+                needs_update = False
+                if hasattr(parsed_object.metadata, "component") and parsed_object.metadata.component:
+                    existing_purl = (
+                        str(parsed_object.metadata.component.purl) if parsed_object.metadata.component.purl else None
+                    )
+                    if existing_purl != config.component_purl:
+                        parsed_object.metadata.component.purl = purl_obj
+                        logger.info(
+                            f"Overriding component PURL: '{existing_purl or 'none'}' -> '{config.component_purl}'"
+                        )
+                        needs_update = True
+                else:
+                    # Create component if it doesn't exist
+                    component_name = original_json.get("metadata", {}).get("component", {}).get("name", "unknown")
+                    component_version = original_json.get("metadata", {}).get("component", {}).get("version", "unknown")
+                    parsed_object.metadata.component = Component(
+                        name=component_name, type=ComponentType.APPLICATION, version=component_version, purl=purl_obj
+                    )
+                    logger.info(
+                        f"Overriding component PURL: 'none (creating new component)' -> '{config.component_purl}'"
+                    )
+                    needs_update = True
+
+                if needs_update:
+                    # Serialize the BOM back to JSON using version-aware serializer
+                    spec_version = original_json.get("specVersion")
+                    if spec_version is None:
+                        raise SBOMValidationError("CycloneDX SBOM is missing required 'specVersion' field")
+                    serialized = serialize_cyclonedx_bom(parsed_object, spec_version)
+                    with Path(sbom_file).open("w") as f:
+                        f.write(serialized)
+
+        elif sbom_format == "spdx":
+            # For SPDX, apply PURL override to external references of the main package
+            packages = original_json.get("packages", [])
+            if packages:
+                main_package = packages[0]
+                external_refs = main_package.get("externalRefs", [])
+
+                # Find existing PURL reference
+                existing_purl_ref = None
+                existing_purl_idx = None
+                for idx, ref in enumerate(external_refs):
+                    if ref.get("referenceType") == "purl":
+                        existing_purl_ref = ref
+                        existing_purl_idx = idx
+                        break
+
+                if existing_purl_ref:
+                    existing_purl = existing_purl_ref.get("referenceLocator", "unknown")
+                    if existing_purl != config.component_purl:
+                        external_refs[existing_purl_idx]["referenceLocator"] = config.component_purl
+                        logger.info(f"Overriding SPDX component PURL: '{existing_purl}' -> '{config.component_purl}'")
+                else:
+                    # Add new PURL reference
+                    new_purl_ref = {
+                        "referenceCategory": "PACKAGE-MANAGER",
+                        "referenceType": "purl",
+                        "referenceLocator": config.component_purl,
+                    }
+                    external_refs.append(new_purl_ref)
+                    main_package["externalRefs"] = external_refs
+                    logger.info(f"Adding SPDX component PURL: '{config.component_purl}'")
+
+                with Path(sbom_file).open("w") as f:
+                    json.dump(original_json, f, indent=2)
+            else:
+                logger.warning("SPDX SBOM has no packages - cannot set PURL override")
+
+    except Exception as e:
+        logger.warning(f"Failed to apply component PURL override: {e}")
+        # Don't fail the entire process for PURL override issues
 
 
 if __name__ == "__main__":

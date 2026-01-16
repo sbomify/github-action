@@ -27,56 +27,110 @@ class ToolInfo:
     required_for: list[str] = field(default_factory=list)
 
 
-# Tool definitions with installation instructions
-EXTERNAL_TOOLS: dict[str, ToolInfo] = {
-    "trivy": ToolInfo(
-        name="Trivy",
-        command="trivy",
-        description="Comprehensive vulnerability scanner and SBOM generator",
-        install_instructions=(
+# Tool metadata with installation instructions
+# This is used to provide helpful messages when tools are missing.
+# The tool list itself is built dynamically from registered generators.
+TOOL_METADATA: dict[str, dict] = {
+    "trivy": {
+        "name": "Trivy",
+        "description": "Comprehensive vulnerability scanner and SBOM generator",
+        "install_instructions": (
             "Install via package manager:\n"
             "  - macOS: brew install trivy\n"
             "  - Linux: See https://aquasecurity.github.io/trivy/latest/getting-started/installation/\n"
             "  - Docker: docker pull aquasec/trivy"
         ),
-        homepage="https://trivy.dev",
-        required_for=["Docker images", "Many lockfile types"],
-    ),
-    "syft": ToolInfo(
-        name="Syft",
-        command="syft",
-        description="SBOM generator with broad ecosystem support",
-        install_instructions=(
+        "homepage": "https://trivy.dev",
+        "required_for": ["Docker images", "Many lockfile types"],
+    },
+    "syft": {
+        "name": "Syft",
+        "description": "SBOM generator with broad ecosystem support",
+        "install_instructions": (
             "Install via package manager:\n"
             "  - macOS: brew install syft\n"
             "  - Linux: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin\n"
             "  - Docker: docker pull anchore/syft"
         ),
-        homepage="https://github.com/anchore/syft",
-        required_for=["Docker images", "Many lockfile types", "Terraform"],
-    ),
-    "cdxgen": ToolInfo(
-        name="cdxgen",
-        command="cdxgen",
-        description="CycloneDX SBOM generator with extensive language support",
-        install_instructions=(
+        "homepage": "https://github.com/anchore/syft",
+        "required_for": ["Docker images", "Many lockfile types", "Terraform"],
+    },
+    "cdxgen": {
+        "name": "cdxgen",
+        "description": "CycloneDX SBOM generator with extensive language support",
+        "install_instructions": (
             "Install via npm/bun:\n"
             "  - npm: npm install -g @cyclonedx/cdxgen\n"
             "  - bun: bun install -g @cyclonedx/cdxgen\n"
             "  - Docker: docker pull ghcr.io/cyclonedx/cdxgen"
         ),
-        homepage="https://github.com/CycloneDX/cdxgen",
-        required_for=["Java/Gradle projects", "Docker images", "Many lockfile types"],
-    ),
-    "cyclonedx-py": ToolInfo(
-        name="cyclonedx-py",
-        command="cyclonedx-py",
-        description="Native CycloneDX generator for Python projects",
-        install_instructions=("Install via pip:\n  - pip install cyclonedx-bom\n  - uv pip install cyclonedx-bom"),
-        homepage="https://github.com/CycloneDX/cyclonedx-python",
-        required_for=["Python lockfiles (requirements.txt, poetry.lock, Pipfile.lock)"],
-    ),
+        "homepage": "https://github.com/CycloneDX/cdxgen",
+        "required_for": ["Java/Gradle projects", "Docker images", "Many lockfile types"],
+    },
+    "cyclonedx-py": {
+        "name": "cyclonedx-py",
+        "description": "Native CycloneDX generator for Python projects",
+        "install_instructions": "Install via pip:\n  - pip install cyclonedx-bom\n  - uv pip install cyclonedx-bom",
+        "homepage": "https://github.com/CycloneDX/cyclonedx-python",
+        "required_for": ["Python lockfiles (requirements.txt, poetry.lock, Pipfile.lock)"],
+    },
+    "cargo-cyclonedx": {
+        "name": "cyclonedx-cargo",
+        "description": "Native CycloneDX generator for Rust Cargo projects",
+        "install_instructions": "Install via cargo:\n  - cargo install cargo-cyclonedx",
+        "homepage": "https://github.com/CycloneDX/cyclonedx-rust-cargo",
+        "required_for": ["Rust lockfiles (Cargo.lock)"],
+    },
 }
+
+
+def _get_external_tools() -> dict[str, ToolInfo]:
+    """
+    Build the external tools dictionary dynamically from registered generators.
+
+    This queries the generator registry to find all unique commands used by
+    generators and builds ToolInfo objects for each.
+
+    Returns:
+        Dictionary mapping command names to ToolInfo objects
+    """
+    from ._generation.generator import create_default_registry
+
+    registry = create_default_registry()
+    tools: dict[str, ToolInfo] = {}
+
+    # Collect unique commands from all generators
+    for generator_info in registry.list_generators():
+        # Get the actual generator to access its command property
+        for generator in registry._generators:
+            if generator.name == generator_info["name"]:
+                command = generator.command
+                if command not in tools:
+                    # Look up metadata for this command
+                    metadata = TOOL_METADATA.get(command, {})
+                    tools[command] = ToolInfo(
+                        name=metadata.get("name", command),
+                        command=command,
+                        description=metadata.get("description", f"SBOM generator ({command})"),
+                        install_instructions=metadata.get("install_instructions", f"Install {command}"),
+                        homepage=metadata.get("homepage", ""),
+                        required_for=metadata.get("required_for", []),
+                    )
+                break
+
+    return tools
+
+
+# Cache the external tools to avoid repeated registry creation
+_external_tools_cache: Optional[dict[str, ToolInfo]] = None
+
+
+def get_external_tools() -> dict[str, ToolInfo]:
+    """Get the external tools dictionary, building it if necessary."""
+    global _external_tools_cache
+    if _external_tools_cache is None:
+        _external_tools_cache = _get_external_tools()
+    return _external_tools_cache
 
 
 @dataclass
@@ -110,8 +164,9 @@ def check_all_tools() -> dict[str, ToolStatus]:
     Returns:
         Dictionary mapping tool names to their status
     """
+    external_tools = get_external_tools()
     results = {}
-    for tool_id, info in EXTERNAL_TOOLS.items():
+    for tool_id, info in external_tools.items():
         available, path = check_tool_available(info.command)
         results[tool_id] = ToolStatus(
             name=info.name,
@@ -179,10 +234,11 @@ def get_tool_install_message(tool_ids: list[str]) -> str:
     Returns:
         Formatted installation instructions string
     """
+    external_tools = get_external_tools()
     lines = ["To enable this feature, install the required tool(s):", ""]
     for tool_id in tool_ids:
-        if tool_id in EXTERNAL_TOOLS:
-            info = EXTERNAL_TOOLS[tool_id]
+        if tool_id in external_tools:
+            info = external_tools[tool_id]
             lines.append(f"{info.name} ({info.homepage})")
             lines.append(info.install_instructions)
             lines.append("")
@@ -214,6 +270,9 @@ def check_tool_for_input(input_type: str, lock_file: Optional[str] = None) -> tu
         elif filename in ("pom.xml", "build.gradle", "build.gradle.kts", "gradle.lockfile"):
             # Java - cdxgen is best
             relevant_tools = ["cdxgen", "trivy", "syft"]
+        elif filename == "Cargo.lock":
+            # Rust - cargo-cyclonedx is native, others can also handle
+            relevant_tools = ["cargo-cyclonedx", "cdxgen", "trivy", "syft"]
         elif filename == "pubspec.lock":
             # Dart - cdxgen and syft support it, trivy doesn't
             relevant_tools = ["cdxgen", "syft"]
@@ -246,6 +305,7 @@ def format_no_tools_error(input_type: str, lock_file: Optional[str] = None) -> s
     Returns:
         Formatted error message with installation instructions
     """
+    external_tools = get_external_tools()
     available, missing = check_tool_for_input(input_type, lock_file)
 
     if available:
@@ -270,8 +330,8 @@ def format_no_tools_error(input_type: str, lock_file: Optional[str] = None) -> s
     ]
 
     for tool_id in missing:
-        if tool_id in EXTERNAL_TOOLS:
-            info = EXTERNAL_TOOLS[tool_id]
+        if tool_id in external_tools:
+            info = external_tools[tool_id]
             lines.append(f"  {info.name}:")
             for install_line in info.install_instructions.split("\n"):
                 lines.append(f"    {install_line}")
