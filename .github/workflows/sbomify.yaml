@@ -97,7 +97,16 @@ jobs:
           UPLOAD: 'false'
           PYTHONPATH: ${{ github.workspace }}
 
-      - name: Build container for enrichment test
+  container-tests:
+    name: Container Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build container
         run: |
           docker build . -t gha
 
@@ -113,29 +122,10 @@ jobs:
             -e ENRICH=true \
             gha
 
-  docker-build-checks:
-    name: Docker Build/Checks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Code Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # Simulate GitHub Actions run.
-      # Change `@master` for the hash you want to test.
-      - uses: sbomify/github-action@master
-        name: Test Run
-        env:
-          TOKEN: placeholder
-          COMPONENT_ID: placeholder
-          UPLOAD: false
-          SBOM_FILE: tests/test-data/syft.cdx.json
-
   push-images:
     name: Push Docker Images
     runs-on: ubuntu-latest
-    needs: [sanity-checks, integration-tests, docker-build-checks]
+    needs: [sanity-checks, integration-tests, container-tests]
     if: github.event_name == 'push'
     permissions:
       packages: write
@@ -151,9 +141,8 @@ jobs:
             VERSION="${{ github.ref_name }}"
             VERSION="${VERSION#v}"
           else
-            # For branches, use branch-shortsha format
-            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-            VERSION="${{ github.ref_name }}-${SHORT_SHA}"
+            # For branches, use just the short SHA
+            VERSION=$(echo "${{ github.sha }}" | cut -c1-7)
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 

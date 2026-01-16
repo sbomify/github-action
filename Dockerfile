@@ -91,6 +91,8 @@ RUN apt-get update && apt-get install -y curl xz-utils && \
 # Python builder stage
 FROM python:3.13-slim-trixie AS builder
 
+ARG VERSION=0.0.0
+
 # Install build dependencies and UV
 RUN apt-get update && \
     apt-get install -y curl build-essential libxml2-dev libxslt-dev
@@ -101,13 +103,17 @@ ENV PATH="/root/.local/bin:${PATH}"
 WORKDIR /app
 COPY . /app/
 
+# Override version from build arg
+RUN sed -i "s/^version = [\"'].*/version = \"${VERSION}\"/" pyproject.toml
+
 # Build and install using UV
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 RUN uv venv /opt/venv
 # Use --active so uv installs into the existing VIRTUAL_ENV (/opt/venv) instead of .venv
-RUN uv sync --locked --active
+# Use --frozen to avoid lockfile validation after version override
+RUN uv sync --frozen --active
 RUN rm -rf dist/ && uv build
 RUN uv pip install dist/sbomify_action-*.whl
 
@@ -115,7 +121,7 @@ RUN uv pip install dist/sbomify_action-*.whl
 FROM python:3.13-slim-trixie
 
 # Build arguments for dynamic labels (passed at build time)
-ARG VERSION=dev
+ARG VERSION=0.0.0
 ARG COMMIT_SHA=unknown
 ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
