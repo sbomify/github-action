@@ -65,11 +65,12 @@ def _fetch_releases(api_base_url: str, token: str, params: Dict[str, str], error
         return []
     elif response.ok:
         data = _safe_json_dict(response)
-        if data is not None:
-            items = data.get("items")
-            if isinstance(items, list):
-                return items
-        return []
+        if data is None:
+            return []
+        items = data.get("items")
+        if not isinstance(items, list):
+            return []
+        return items
     else:
         err_msg = f"Failed to {error_context}. [{response.status_code}]"
         if response.headers.get("content-type") == "application/json":
@@ -236,9 +237,8 @@ def create_release(api_base_url: str, token: str, product_id: str, version: str)
                 else:
                     err_msg += f" - {error_data}"
         else:
-            response_text = response.text[:500] if response.text else ""
-            if response_text:
-                err_msg += f" - Response: {response_text}"
+            if response.text:
+                err_msg += f" - Response: {response.text[:500]}"
         raise APIError(err_msg)
 
     data = _safe_json_dict(response)
