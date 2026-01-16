@@ -1390,8 +1390,9 @@ def _apply_sbom_purl_override(sbom_file: str, config: "Config") -> None:
                         needs_update = True
                 else:
                     # Create component if it doesn't exist
-                    component_name = original_json.get("metadata", {}).get("component", {}).get("name", "unknown")
-                    component_version = original_json.get("metadata", {}).get("component", {}).get("version", "unknown")
+                    component = original_json.get("metadata", {}).get("component", {})
+                    component_name = component.get("name", "unknown")
+                    component_version = component.get("version", "unknown")
                     parsed_object.metadata.component = Component(
                         name=component_name, type=ComponentType.APPLICATION, version=component_version, purl=purl_obj
                     )

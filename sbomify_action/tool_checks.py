@@ -100,6 +100,8 @@ def _get_external_tools() -> dict[str, ToolInfo]:
     tools: dict[str, ToolInfo] = {}
 
     # Collect unique commands from all generators
+    # Note: We access _generators directly since this is internal tooling code
+    # and adding a public API method would be over-engineering for this use case
     for generator in registry._generators:
         command = generator.command
         if command not in tools:

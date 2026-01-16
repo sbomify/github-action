@@ -2257,7 +2257,13 @@ class TestSpdxJsonPurlVersionUpdate:
 
 @dataclass
 class MockPurlConfig:
-    """Mock config for PURL override tests."""
+    """Mock config for PURL override tests.
+
+    We use a minimal mock instead of the real Config class because
+    _apply_sbom_purl_override() only accesses the component_purl field.
+    This keeps tests focused and avoids requiring unrelated fields like
+    token, component_id, etc. that would add noise without value.
+    """
 
     component_purl: str
 
