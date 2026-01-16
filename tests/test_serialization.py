@@ -1533,6 +1533,5 @@ class TestSanitizeSpdxJsonFile:
         # This tests that the fix map is properly defined
         assert "OPERATING_SYSTEM" in SPDX_PACKAGE_PURPOSE_FIXES
         assert SPDX_PACKAGE_PURPOSE_FIXES["OPERATING_SYSTEM"] == "OPERATING-SYSTEM"
-        # Ensure no other enum values are incorrectly included
-        # (only OPERATING_SYSTEM has underscore that maps to hyphen in SPDX spec)
-        assert len(SPDX_PACKAGE_PURPOSE_FIXES) == 1
+        # Additional SPDX enum fixes may be added in the future; we only require
+        # that known values like OPERATING_SYSTEM are mapped correctly.

@@ -421,6 +421,8 @@ def sanitize_spdx_json_file(file_path: str) -> int:
     # Fix primaryPackagePurpose values in packages
     for package in data.get("packages", []):
         purpose = package.get("primaryPackagePurpose")
+        if purpose is None:
+            continue
         fixed_value = SPDX_PACKAGE_PURPOSE_FIXES.get(purpose, purpose)
         if fixed_value != purpose:
             package["primaryPackagePurpose"] = fixed_value
