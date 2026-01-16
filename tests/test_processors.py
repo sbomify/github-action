@@ -473,10 +473,13 @@ class TestSbomifyReleasesProcessor(unittest.TestCase):
             "error_code": "DUPLICATE_NAME",
         }
 
-        # Mock get release ID after duplicate error
+        # Mock get release ID by name after duplicate error
         get_id_response = Mock()
         get_id_response.ok = True
-        get_id_response.json.return_value = {"items": [{"id": "existing-release-id", "version": "v1.0.0"}]}
+        # Must include 'name' field since get_release_id_by_name filters by name, not version
+        get_id_response.json.return_value = {
+            "items": [{"id": "existing-release-id", "version": "v1.0.0", "name": "Release v1.0.0"}]
+        }
 
         # Mock get details (for logging)
         get_details_response = Mock()

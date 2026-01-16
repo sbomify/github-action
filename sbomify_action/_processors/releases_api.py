@@ -4,13 +4,61 @@ This module provides reusable functions for interacting with the sbomify
 releases API. Used by both cli/main.py and the ReleasesProcessor.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 
 from sbomify_action.exceptions import APIError
 from sbomify_action.http_client import get_default_headers
 from sbomify_action.logging_config import logger
+
+
+def _fetch_releases(api_base_url: str, token: str, params: Dict[str, str], error_context: str) -> List[Dict[str, Any]]:
+    """
+    Fetch releases from the API with the given query parameters.
+
+    This is an internal helper that handles the common request/response
+    logic for all release-fetching operations.
+
+    Args:
+        api_base_url: Base URL for the sbomify API
+        token: API authentication token
+        params: Query parameters for the request
+        error_context: Context string for error messages (e.g., "check release existence")
+
+    Returns:
+        List of release dicts from the API
+
+    Raises:
+        APIError: If API call fails
+    """
+    url = api_base_url + "/api/v1/releases"
+    headers = get_default_headers(token)
+
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=60)
+    except requests.exceptions.ConnectionError:
+        raise APIError("Failed to connect to sbomify API")
+    except requests.exceptions.Timeout:
+        raise APIError("API request timed out")
+
+    if response.status_code == 404:
+        return []
+    elif response.ok:
+        try:
+            return response.json().get("items", [])
+        except (ValueError, KeyError):
+            return []
+    else:
+        err_msg = f"Failed to {error_context}. [{response.status_code}]"
+        if response.headers.get("content-type") == "application/json":
+            try:
+                error_data = response.json()
+                if "detail" in error_data:
+                    err_msg += f" - {error_data['detail']}"
+            except (ValueError, KeyError):
+                pass
+        raise APIError(err_msg)
 
 
 def check_release_exists(api_base_url: str, token: str, product_id: str, version: str) -> bool:
@@ -29,38 +77,9 @@ def check_release_exists(api_base_url: str, token: str, product_id: str, version
     Raises:
         APIError: If API call fails
     """
-    url = api_base_url + "/api/v1/releases"
-    headers = get_default_headers(token)
     params = {"product_id": product_id, "version": version}
-
-    try:
-        response = requests.get(url, headers=headers, params=params, timeout=60)
-    except requests.exceptions.ConnectionError:
-        raise APIError("Failed to connect to sbomify API")
-    except requests.exceptions.Timeout:
-        raise APIError("API request timed out")
-
-    if response.status_code == 404:
-        return False
-    elif response.ok:
-        try:
-            releases = response.json().get("items", [])
-            for release in releases:
-                if release.get("version") == version:
-                    return True
-            return False
-        except (ValueError, KeyError):
-            return False
-    else:
-        err_msg = f"Failed to check release existence. [{response.status_code}]"
-        if response.headers.get("content-type") == "application/json":
-            try:
-                error_data = response.json()
-                if "detail" in error_data:
-                    err_msg += f" - {error_data['detail']}"
-            except (ValueError, KeyError):
-                pass
-        raise APIError(err_msg)
+    releases = _fetch_releases(api_base_url, token, params, "check release existence")
+    return any(release.get("version") == version for release in releases)
 
 
 def get_release_id(api_base_url: str, token: str, product_id: str, version: str) -> Optional[str]:
@@ -79,36 +98,41 @@ def get_release_id(api_base_url: str, token: str, product_id: str, version: str)
     Raises:
         APIError: If API call fails
     """
-    url = api_base_url + "/api/v1/releases"
-    headers = get_default_headers(token)
     params = {"product_id": product_id, "version": version}
+    releases = _fetch_releases(api_base_url, token, params, "get release ID")
+    for release in releases:
+        if release.get("version") == version:
+            return release.get("id")
+    return None
 
-    try:
-        response = requests.get(url, headers=headers, params=params, timeout=60)
-    except requests.exceptions.ConnectionError:
-        raise APIError("Failed to connect to sbomify API")
-    except requests.exceptions.Timeout:
-        raise APIError("API request timed out")
 
-    if response.ok:
-        try:
-            releases = response.json().get("items", [])
-            for release in releases:
-                if release.get("version") == version:
-                    return release.get("id")
-            return None
-        except (ValueError, KeyError):
-            return None
-    else:
-        err_msg = f"Failed to get release ID. [{response.status_code}]"
-        if response.headers.get("content-type") == "application/json":
-            try:
-                error_data = response.json()
-                if "detail" in error_data:
-                    err_msg += f" - {error_data['detail']}"
-            except (ValueError, KeyError):
-                pass
-        raise APIError(err_msg)
+def get_release_id_by_name(api_base_url: str, token: str, product_id: str, name: str) -> Optional[str]:
+    """
+    Get the release ID by name field (used for DUPLICATE_NAME recovery).
+
+    This function searches releases by name instead of version, which is needed
+    when recovering from DUPLICATE_NAME errors since the API enforces uniqueness
+    on the name field, not the version field.
+
+    Args:
+        api_base_url: Base URL for the sbomify API
+        token: API authentication token
+        product_id: The product ID
+        name: The release name to search for
+
+    Returns:
+        The release ID if found, None otherwise
+
+    Raises:
+        APIError: If API call fails
+    """
+    # Query by product_id only, don't filter by version
+    params = {"product_id": product_id}
+    releases = _fetch_releases(api_base_url, token, params, "get release ID by name")
+    for release in releases:
+        if release.get("name") == name:
+            return release.get("id")
+    return None
 
 
 def get_release_details(api_base_url: str, token: str, product_id: str, version: str) -> Optional[Dict[str, Any]]:
@@ -127,36 +151,12 @@ def get_release_details(api_base_url: str, token: str, product_id: str, version:
     Raises:
         APIError: If API call fails
     """
-    url = api_base_url + "/api/v1/releases"
-    headers = get_default_headers(token)
     params = {"product_id": product_id, "version": version}
-
-    try:
-        response = requests.get(url, headers=headers, params=params, timeout=60)
-    except requests.exceptions.ConnectionError:
-        raise APIError("Failed to connect to sbomify API")
-    except requests.exceptions.Timeout:
-        raise APIError("API request timed out")
-
-    if response.ok:
-        try:
-            releases = response.json().get("items", [])
-            for release in releases:
-                if release.get("version") == version:
-                    return release
-            return None
-        except (ValueError, KeyError):
-            return None
-    else:
-        err_msg = f"Failed to get release details. [{response.status_code}]"
-        if response.headers.get("content-type") == "application/json":
-            try:
-                error_data = response.json()
-                if "detail" in error_data:
-                    err_msg += f" - {error_data['detail']}"
-            except (ValueError, KeyError):
-                pass
-        raise APIError(err_msg)
+    releases = _fetch_releases(api_base_url, token, params, "get release details")
+    for release in releases:
+        if release.get("version") == version:
+            return release
+    return None
 
 
 def create_release(api_base_url: str, token: str, product_id: str, version: str) -> Optional[str]:
@@ -204,7 +204,8 @@ def create_release(api_base_url: str, token: str, product_id: str, version: str)
                     logger.info(
                         f"Release {version} for product {product_id} already exists, retrieving existing release ID"
                     )
-                    existing_id = get_release_id(api_base_url, token, product_id, version)
+                    # Search by name since the API enforces uniqueness on the name field
+                    existing_id = get_release_id_by_name(api_base_url, token, product_id, f"Release {version}")
                     if existing_id:
                         return existing_id
                     # If we couldn't find it, fall through to error handling
