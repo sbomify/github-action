@@ -6,6 +6,7 @@ formats, supporting multiple versions and making it easy to add new versions in 
 """
 
 import re
+import warnings
 from typing import TYPE_CHECKING, Dict, Optional, Type
 
 from cyclonedx.model.bom import Bom
@@ -492,8 +493,29 @@ def serialize_cyclonedx_bom(bom: Bom, spec_version: Optional[str] = None) -> str
     outputter_class = _get_cyclonedx_outputter(spec_version)
 
     logger.debug(f"Serializing CycloneDX BOM using version {spec_version}")
-    outputter = outputter_class(bom)
-    return outputter.output_as_string()
+
+    # Capture CycloneDX library warnings and re-emit with cleaner formatting
+    # The library emits UserWarnings for incomplete dependency graphs which can be confusing
+    with warnings.catch_warnings(record=True) as caught_warnings:
+        warnings.simplefilter("always", UserWarning)
+        outputter = outputter_class(bom)
+        result = outputter.output_as_string()
+
+    # Process captured warnings and re-emit with user-friendly messages
+    for w in caught_warnings:
+        warning_msg = str(w.message)
+        if "has no defined dependencies" in warning_msg:
+            # Re-emit the CycloneDX dependency graph warning with cleaner message
+            root_name = bom.metadata.component.name if bom.metadata.component else "unknown"
+            logger.warning(
+                f"SBOM dependency graph is incomplete: root component '{root_name}' has no dependencies defined. "
+                f"This is common when the SBOM generator doesn't track dependency relationships."
+            )
+        else:
+            # Re-emit other warnings as-is using our logger
+            logger.warning(f"CycloneDX serialization warning: {warning_msg}")
+
+    return result
 
 
 # ============================================================================

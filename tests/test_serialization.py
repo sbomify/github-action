@@ -329,6 +329,107 @@ class TestSerializeCycloneDxBom:
         with pytest.raises(ValueError, match="spec_version is required"):
             serialize_cyclonedx_bom(bom, None)
 
+    def test_serialize_captures_dependency_warning(self, caplog):
+        """Test that incomplete dependency graph warning is captured and re-emitted cleanly."""
+        import logging
+
+        # Create a BOM with root component and other components but no dependencies
+        # This triggers the CycloneDX library warning about incomplete dependency graph
+        bom = Bom()
+
+        # Add a root component (metadata.component)
+        root = Component(
+            name="my-app",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+            bom_ref=BomRef("my-app-ref"),
+        )
+        bom.metadata.component = root
+
+        # Add other components
+        dep1 = Component(
+            name="lodash",
+            type=ComponentType.LIBRARY,
+            version="4.17.21",
+            bom_ref=BomRef("pkg:npm/lodash@4.17.21"),
+        )
+        bom.components.add(dep1)
+
+        # No dependencies defined - this should trigger the warning
+        with caplog.at_level(logging.WARNING):
+            result = serialize_cyclonedx_bom(bom, "1.6")
+
+        # Verify we got a result
+        assert '"bomFormat": "CycloneDX"' in result
+
+        # Verify our cleaned-up warning was logged (not the raw library warning)
+        assert any("SBOM dependency graph is incomplete" in record.message for record in caplog.records)
+        assert any("my-app" in record.message for record in caplog.records)
+        assert any("SBOM generator doesn't track" in record.message for record in caplog.records)
+
+    def test_serialize_no_warning_when_dependencies_defined(self, caplog):
+        """Test that no warning is emitted when dependencies are properly defined."""
+        import logging
+
+        bom = Bom()
+
+        # Add a root component
+        root = Component(
+            name="my-app",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+            bom_ref=BomRef("my-app-ref"),
+        )
+        bom.metadata.component = root
+
+        # Add a dependency component
+        dep1 = Component(
+            name="lodash",
+            type=ComponentType.LIBRARY,
+            version="4.17.21",
+            bom_ref=BomRef("pkg:npm/lodash@4.17.21"),
+        )
+        bom.components.add(dep1)
+
+        # Define dependencies properly - root depends on lodash
+        root_dep = Dependency(ref=root.bom_ref)
+        lodash_dep = Dependency(ref=dep1.bom_ref)
+        root_dep.dependencies.add(lodash_dep)
+        bom.dependencies.add(root_dep)
+
+        with caplog.at_level(logging.WARNING):
+            result = serialize_cyclonedx_bom(bom, "1.6")
+
+        # Verify we got a result
+        assert '"bomFormat": "CycloneDX"' in result
+
+        # No dependency warning should be logged
+        assert not any("SBOM dependency graph is incomplete" in record.message for record in caplog.records)
+
+    def test_serialize_no_warning_when_no_components(self, caplog):
+        """Test that no warning is emitted when there are no components (just root)."""
+        import logging
+
+        bom = Bom()
+
+        # Add only a root component, no other components
+        root = Component(
+            name="my-app",
+            type=ComponentType.APPLICATION,
+            version="1.0.0",
+            bom_ref=BomRef("my-app-ref"),
+        )
+        bom.metadata.component = root
+
+        with caplog.at_level(logging.WARNING):
+            result = serialize_cyclonedx_bom(bom, "1.6")
+
+        # Verify we got a result
+        assert '"bomFormat": "CycloneDX"' in result
+
+        # No dependency warning should be logged (no components to depend on)
+        assert not any("SBOM dependency graph is incomplete" in record.message for record in caplog.records)
+
 
 class TestIsInvalidPurl:
     """Tests for PURL validation helper function."""
