@@ -1435,8 +1435,12 @@ def _apply_sbom_purl_override(sbom_file: str, config: "Config") -> None:
                         logger.info(f"Overriding SPDX component PURL: '{existing_purl}' -> '{config.component_purl}'")
                 else:
                     # Add new PURL reference
+                    # Determine category based on PURL type - containers aren't package-manager packages
+                    purl_category = "PACKAGE-MANAGER"
+                    if config.component_purl.startswith("pkg:docker/") or config.component_purl.startswith("pkg:oci/"):
+                        purl_category = "OTHER"
                     new_purl_ref = {
-                        "referenceCategory": "PACKAGE-MANAGER",
+                        "referenceCategory": purl_category,
                         "referenceType": "purl",
                         "referenceLocator": config.component_purl,
                     }
