@@ -145,7 +145,7 @@ def _update_component_purl_version(component: Component, new_version: str) -> bo
             old_bom_ref = component.bom_ref.value
             # Check if bom-ref looks like a PURL containing the old version
             if f"@{old_version}" in old_bom_ref:
-                new_bom_ref = old_bom_ref.replace(f"@{old_version}", f"@{new_version}")
+                new_bom_ref = old_bom_ref.replace(f"@{old_version}", f"@{new_version}", 1)
                 component.bom_ref = BomRef(new_bom_ref)
                 logger.debug(f"Updated component bom-ref: {old_bom_ref} -> {new_bom_ref}")
 
