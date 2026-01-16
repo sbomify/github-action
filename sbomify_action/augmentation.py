@@ -140,12 +140,24 @@ def _update_component_purl_version(component: Component, new_version: str) -> bo
         component.purl = new_purl
         logger.debug(f"Updated component PURL version: {old_purl} -> {new_purl}")
 
-        # Also update bom-ref if it contains the old version (PURL-based bom-refs)
+        # Also update bom-ref if it is a PURL-based bom-ref with a matching version
         if component.bom_ref and component.bom_ref.value and old_version:
             old_bom_ref = component.bom_ref.value
-            # Check if bom-ref looks like a PURL containing the old version
-            if f"@{old_version}" in old_bom_ref:
-                new_bom_ref = old_bom_ref.replace(f"@{old_version}", f"@{new_version}", 1)
+            try:
+                bom_ref_purl = PackageURL.from_string(old_bom_ref)
+            except ValueError:
+                bom_ref_purl = None
+
+            if bom_ref_purl and bom_ref_purl.version == old_version:
+                new_bom_ref_purl = PackageURL(
+                    type=bom_ref_purl.type,
+                    namespace=bom_ref_purl.namespace,
+                    name=bom_ref_purl.name,
+                    version=new_version,
+                    qualifiers=bom_ref_purl.qualifiers,
+                    subpath=bom_ref_purl.subpath,
+                )
+                new_bom_ref = str(new_bom_ref_purl)
                 component.bom_ref = BomRef(new_bom_ref)
                 logger.debug(f"Updated component bom-ref: {old_bom_ref} -> {new_bom_ref}")
 
