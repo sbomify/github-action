@@ -106,24 +106,28 @@ def _propagate_supplier_to_lockfile_components(bom: Bom) -> None:
 
 def _update_component_purl_version(component: Component, new_version: str) -> bool:
     """
-    Update the version in a CycloneDX component's PURL if present.
+    Update the version in a CycloneDX component's PURL and bom-ref if present.
 
     When COMPONENT_VERSION is set to override the component version, this function
-    ensures the PURL is also updated to maintain consistency between the component's
-    version field and its PURL.
+    ensures the PURL and bom-ref are also updated to maintain consistency between
+    the component's version field, PURL, and bom-ref.
 
     Args:
         component: The CycloneDX Component object with optional purl attribute
-        new_version: The new version to set in the PURL
+        new_version: The new version to set in the PURL and bom-ref
 
     Returns:
         True if PURL was updated, False if component has no PURL or update failed
     """
+    from cyclonedx.model import BomRef
+
     if not component.purl:
         return False
 
     try:
         old_purl = component.purl
+        old_version = old_purl.version
+
         # Create new PURL with updated version, preserving all other fields
         new_purl = PackageURL(
             type=old_purl.type,
@@ -135,6 +139,16 @@ def _update_component_purl_version(component: Component, new_version: str) -> bo
         )
         component.purl = new_purl
         logger.debug(f"Updated component PURL version: {old_purl} -> {new_purl}")
+
+        # Also update bom-ref if it contains the old version (PURL-based bom-refs)
+        if component.bom_ref and component.bom_ref.value and old_version:
+            old_bom_ref = component.bom_ref.value
+            # Check if bom-ref looks like a PURL containing the old version
+            if f"@{old_version}" in old_bom_ref:
+                new_bom_ref = old_bom_ref.replace(f"@{old_version}", f"@{new_version}")
+                component.bom_ref = BomRef(new_bom_ref)
+                logger.debug(f"Updated component bom-ref: {old_bom_ref} -> {new_bom_ref}")
+
         return True
     except Exception as e:
         logger.warning(f"Failed to update component PURL version: {e}")
