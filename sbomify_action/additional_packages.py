@@ -32,7 +32,7 @@ from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
 from .logging_config import logger
-from .serialization import serialize_cyclonedx_bom
+from .serialization import sanitize_spdx_json_file, serialize_cyclonedx_bom
 
 # Default file name for additional packages
 DEFAULT_PACKAGES_FILE = "additional_packages.txt"
@@ -423,6 +423,7 @@ def inject_additional_packages(sbom_file: str) -> int:
         if injected > 0:
             # Write back
             spdx_write_file(document, str(sbom_path), validate=False)
+            sanitize_spdx_json_file(str(sbom_path))
             logger.info(f"Injected {injected} additional package(s) into SPDX SBOM")
 
         return injected

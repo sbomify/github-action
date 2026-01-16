@@ -8,12 +8,14 @@ from cyclonedx.model.dependency import Dependency
 
 from sbomify_action.serialization import (
     _UNKNOWN_VERSION,
+    SPDX_PACKAGE_PURPOSE_FIXES,
     _extract_component_info_from_purl,
     _is_invalid_purl,
     link_root_dependencies,
     normalize_purl,
     sanitize_dependency_graph,
     sanitize_purls,
+    sanitize_spdx_json_file,
     sanitize_spdx_purls,
     serialize_cyclonedx_bom,
 )
@@ -1314,3 +1316,222 @@ class TestSpdxPurlSanitization:
         # Check the locator was not modified
         ref = package.external_references[0]
         assert ref.locator == original_locator
+
+
+class TestSanitizeSpdxJsonFile:
+    """Tests for SPDX JSON file sanitization (fixing spdx_tools enum bugs)."""
+
+    def test_fixes_operating_system_enum(self, tmp_path):
+        """Test that OPERATING_SYSTEM is fixed to OPERATING-SYSTEM."""
+        import json
+
+        spdx_file = tmp_path / "test.spdx.json"
+        spdx_data = {
+            "spdxVersion": "SPDX-2.3",
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-Package-debian",
+                    "name": "debian",
+                    "primaryPackagePurpose": "OPERATING_SYSTEM",
+                }
+            ],
+        }
+        spdx_file.write_text(json.dumps(spdx_data))
+
+        fixed_count = sanitize_spdx_json_file(str(spdx_file))
+
+        assert fixed_count == 1
+
+        # Verify the file was fixed
+        with open(spdx_file) as f:
+            result = json.load(f)
+        assert result["packages"][0]["primaryPackagePurpose"] == "OPERATING-SYSTEM"
+
+    def test_no_changes_when_already_correct(self, tmp_path):
+        """Test that already correct values are not modified."""
+        import json
+
+        spdx_file = tmp_path / "test.spdx.json"
+        spdx_data = {
+            "spdxVersion": "SPDX-2.3",
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-Package-debian",
+                    "name": "debian",
+                    "primaryPackagePurpose": "OPERATING-SYSTEM",
+                },
+                {
+                    "SPDXID": "SPDXRef-Package-mylib",
+                    "name": "mylib",
+                    "primaryPackagePurpose": "LIBRARY",
+                },
+            ],
+        }
+        original_content = json.dumps(spdx_data)
+        spdx_file.write_text(original_content)
+
+        fixed_count = sanitize_spdx_json_file(str(spdx_file))
+
+        assert fixed_count == 0
+
+        # File should not have been rewritten
+        assert spdx_file.read_text() == original_content
+
+    def test_fixes_multiple_packages(self, tmp_path):
+        """Test that multiple packages with OPERATING_SYSTEM are fixed."""
+        import json
+
+        spdx_file = tmp_path / "test.spdx.json"
+        spdx_data = {
+            "spdxVersion": "SPDX-2.3",
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-Package-debian",
+                    "name": "debian",
+                    "primaryPackagePurpose": "OPERATING_SYSTEM",
+                },
+                {
+                    "SPDXID": "SPDXRef-Package-alpine",
+                    "name": "alpine",
+                    "primaryPackagePurpose": "OPERATING_SYSTEM",
+                },
+                {
+                    "SPDXID": "SPDXRef-Package-mylib",
+                    "name": "mylib",
+                    "primaryPackagePurpose": "LIBRARY",
+                },
+            ],
+        }
+        spdx_file.write_text(json.dumps(spdx_data))
+
+        fixed_count = sanitize_spdx_json_file(str(spdx_file))
+
+        assert fixed_count == 2
+
+        # Verify both were fixed
+        with open(spdx_file) as f:
+            result = json.load(f)
+        assert result["packages"][0]["primaryPackagePurpose"] == "OPERATING-SYSTEM"
+        assert result["packages"][1]["primaryPackagePurpose"] == "OPERATING-SYSTEM"
+        assert result["packages"][2]["primaryPackagePurpose"] == "LIBRARY"
+
+    def test_nonexistent_file_returns_zero(self, tmp_path, caplog):
+        """Test that nonexistent file returns 0 with warning."""
+        import logging
+
+        nonexistent = tmp_path / "nonexistent.spdx.json"
+
+        with caplog.at_level(logging.WARNING):
+            fixed_count = sanitize_spdx_json_file(str(nonexistent))
+
+        assert fixed_count == 0
+        assert any("Failed to read SPDX file" in record.message for record in caplog.records)
+
+    def test_invalid_json_returns_zero(self, tmp_path, caplog):
+        """Test that invalid JSON file returns 0 with warning."""
+        import logging
+
+        invalid_file = tmp_path / "invalid.spdx.json"
+        invalid_file.write_text("{ this is not valid json }")
+
+        with caplog.at_level(logging.WARNING):
+            fixed_count = sanitize_spdx_json_file(str(invalid_file))
+
+        assert fixed_count == 0
+        assert any("Failed to read SPDX file" in record.message for record in caplog.records)
+
+    def test_preserves_unicode_characters(self, tmp_path):
+        """Test that Unicode characters in package names are preserved."""
+        import json
+
+        spdx_file = tmp_path / "test.spdx.json"
+        spdx_data = {
+            "spdxVersion": "SPDX-2.3",
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-Package-unicode",
+                    "name": "日本語パッケージ",
+                    "description": "Пакет с описанием на русском языке",
+                    "primaryPackagePurpose": "OPERATING_SYSTEM",
+                }
+            ],
+        }
+        spdx_file.write_text(json.dumps(spdx_data, ensure_ascii=False))
+
+        fixed_count = sanitize_spdx_json_file(str(spdx_file))
+
+        assert fixed_count == 1
+
+        # Verify Unicode is preserved
+        with open(spdx_file, encoding="utf-8") as f:
+            result = json.load(f)
+        assert result["packages"][0]["name"] == "日本語パッケージ"
+        assert result["packages"][0]["description"] == "Пакет с описанием на русском языке"
+        assert result["packages"][0]["primaryPackagePurpose"] == "OPERATING-SYSTEM"
+
+    def test_empty_packages_array(self, tmp_path):
+        """Test that empty packages array is handled correctly."""
+        import json
+
+        spdx_file = tmp_path / "test.spdx.json"
+        spdx_data = {
+            "spdxVersion": "SPDX-2.3",
+            "packages": [],
+        }
+        original_content = json.dumps(spdx_data)
+        spdx_file.write_text(original_content)
+
+        fixed_count = sanitize_spdx_json_file(str(spdx_file))
+
+        assert fixed_count == 0
+        # File should not have been rewritten
+        assert spdx_file.read_text() == original_content
+
+    def test_missing_packages_field(self, tmp_path):
+        """Test that missing packages field is handled correctly."""
+        import json
+
+        spdx_file = tmp_path / "test.spdx.json"
+        spdx_data = {
+            "spdxVersion": "SPDX-2.3",
+        }
+        original_content = json.dumps(spdx_data)
+        spdx_file.write_text(original_content)
+
+        fixed_count = sanitize_spdx_json_file(str(spdx_file))
+
+        assert fixed_count == 0
+        # File should not have been rewritten
+        assert spdx_file.read_text() == original_content
+
+    def test_package_without_purpose_field(self, tmp_path):
+        """Test that packages without primaryPackagePurpose are handled correctly."""
+        import json
+
+        spdx_file = tmp_path / "test.spdx.json"
+        spdx_data = {
+            "spdxVersion": "SPDX-2.3",
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-Package-mylib",
+                    "name": "mylib",
+                    # No primaryPackagePurpose field
+                }
+            ],
+        }
+        original_content = json.dumps(spdx_data)
+        spdx_file.write_text(original_content)
+
+        fixed_count = sanitize_spdx_json_file(str(spdx_file))
+
+        assert fixed_count == 0
+        # File should not have been rewritten
+        assert spdx_file.read_text() == original_content
+
+    def test_spdx_package_purpose_fixes_map(self):
+        """Test that the SPDX_PACKAGE_PURPOSE_FIXES map contains expected entries."""
+        # This tests that the fix map is properly defined
+        assert "OPERATING_SYSTEM" in SPDX_PACKAGE_PURPOSE_FIXES
+        assert SPDX_PACKAGE_PURPOSE_FIXES["OPERATING_SYSTEM"] == "OPERATING-SYSTEM"
+        # Additional SPDX enum fixes may be added in the future; we only require
+        # that known values like OPERATING_SYSTEM are mapped correctly.

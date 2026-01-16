@@ -5,6 +5,7 @@ This module provides centralized serialization functions for both CycloneDX and 
 formats, supporting multiple versions and making it easy to add new versions in the future.
 """
 
+import json
 import re
 import warnings
 from typing import TYPE_CHECKING, Dict, Optional, Type
@@ -384,6 +385,60 @@ def sanitize_spdx_purls(document: "Document") -> int:
         logger.info(f"SPDX PURL sanitization: normalized {normalized_count} PURL(s)")
 
     return normalized_count
+
+
+# Map of invalid SPDX enum values to valid ones (workaround for spdx_tools enum-serialization bug;
+# see the upstream spdx/tools-python issue tracker for the bug where enums are serialized using Python
+# names with underscores instead of SPDX spec values with hyphens).
+SPDX_PACKAGE_PURPOSE_FIXES = {
+    "OPERATING_SYSTEM": "OPERATING-SYSTEM",
+}
+
+
+def sanitize_spdx_json_file(file_path: str) -> int:
+    """
+    Fix invalid enum values in SPDX JSON files.
+
+    The spdx_tools library has a bug where it outputs Python enum names
+    (e.g., OPERATING_SYSTEM) instead of SPDX spec values (e.g., OPERATING-SYSTEM).
+    This function post-processes the JSON file to fix these values.
+
+    Args:
+        file_path: Path to the SPDX JSON file to sanitize (modified in place)
+
+    Returns:
+        Number of values fixed
+    """
+    try:
+        with open(file_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning(f"Failed to read SPDX file for sanitization: {e}")
+        return 0
+
+    fixed_count = 0
+
+    # Fix primaryPackagePurpose values in packages
+    for package in data.get("packages", []):
+        purpose = package.get("primaryPackagePurpose")
+        if purpose is None:
+            continue
+        fixed_value = SPDX_PACKAGE_PURPOSE_FIXES.get(purpose, purpose)
+        if fixed_value != purpose:
+            package["primaryPackagePurpose"] = fixed_value
+            logger.debug(f"Fixed SPDX primaryPackagePurpose: {purpose} -> {fixed_value}")
+            fixed_count += 1
+
+    if fixed_count > 0:
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+            logger.info(f"SPDX JSON sanitization: fixed {fixed_count} invalid enum value(s)")
+        except OSError as e:
+            logger.warning(f"Failed to write sanitized SPDX file: {e}")
+            return 0
+
+    return fixed_count
 
 
 def sanitize_dependency_graph(bom: Bom) -> int:
