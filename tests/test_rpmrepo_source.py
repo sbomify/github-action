@@ -514,20 +514,21 @@ class TestRpmRepoSourceIntegration:
         """Clear cache before each test."""
         clear_cache()
 
-    def test_source_registered_in_default_registry(self):
-        """Test that RpmRepoSource is registered in the default registry."""
+    def test_rpm_packages_handled_by_license_db(self):
+        """Test that RPM packages are handled by LicenseDBSource in the default registry."""
         from sbomify_action._enrichment.enricher import create_default_registry
 
         registry = create_default_registry()
         sources = registry.list_sources()
 
-        # Check that RpmRepoSource is registered
+        # RPM packages are now handled by LicenseDBSource (pre-computed database)
+        # instead of RpmRepoSource (individual package downloads)
         source_names = [s["name"] for s in sources]
-        assert "rpm-repo" in source_names
+        assert "license-db" in source_names
 
-        # Check priority
-        rpm_source = next(s for s in sources if s["name"] == "rpm-repo")
-        assert rpm_source["priority"] == 15
+        # LicenseDBSource should be top priority
+        license_db = next(s for s in sources if s["name"] == "license-db")
+        assert license_db["priority"] == 1
 
     def test_metadata_has_data(self, mock_rpm_session):
         """Test that returned metadata has_data() returns True."""

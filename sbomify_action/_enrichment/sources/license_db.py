@@ -97,13 +97,18 @@ class LicenseDBSource:
     Data source using pre-computed license databases.
 
     Downloads license databases from GitHub Releases on first use and
-    caches them locally. Provides fast PURL-based lookups for license
-    information.
+    caches them locally. Provides fast PURL-based lookups for package
+    metadata including:
+    - SPDX-validated license expressions
+    - Package description
+    - Supplier/maintainer information
+    - Homepage URL
+    - Download URL
 
-    This source only provides license data - other metadata fields
-    come from the existing Ubuntu/RPM/Alpine sources.
+    This is the PRIMARY source for Linux distro packages, replacing
+    individual package repository lookups with pre-computed, validated data.
 
-    Priority: 8 (before API calls, provides license-only data)
+    Priority: 1 (top priority - pre-computed, validated data)
     Supports: pkg:apk/alpine/*, pkg:apk/wolfi/*, pkg:deb/ubuntu/*,
               pkg:rpm/rocky/*, pkg:rpm/almalinux/*, pkg:rpm/amazonlinux/*,
               pkg:rpm/centos/*, pkg:rpm/fedora/*
@@ -124,9 +129,9 @@ class LicenseDBSource:
 
     @property
     def priority(self) -> int:
-        # Higher priority than API sources (10+) since this is local/fast
-        # but lower than native sources that provide full metadata
-        return 8
+        # Top priority - pre-computed database with validated SPDX licenses
+        # and full metadata (description, supplier, homepage, download_url)
+        return 1
 
     def supports(self, purl: PackageURL) -> bool:
         """Check if this source supports the given PURL."""
