@@ -41,7 +41,6 @@ CISA 2025 Additional Fields:
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
 from unittest.mock import Mock, patch
 
 import pytest
@@ -49,226 +48,7 @@ from cyclonedx.model.bom import Bom
 
 from sbomify_action.enrichment import clear_cache, enrich_sbom
 
-
-class NTIAComplianceChecker:
-    """Utility class to check NTIA Minimum Elements compliance."""
-
-    # Known lockfile names that should be excluded from NTIA compliance checks
-    LOCKFILE_NAMES = {
-        "requirements.txt",
-        "Pipfile",
-        "Pipfile.lock",
-        "poetry.lock",
-        "uv.lock",
-        "pdm.lock",
-        "conda-lock.yml",
-        "Cargo.lock",
-        "package-lock.json",
-        "yarn.lock",
-        "pnpm-lock.yaml",
-        "npm-shrinkwrap.json",
-        "Gemfile.lock",
-        "go.sum",
-        "go.mod",
-        "pubspec.lock",
-        "conan.lock",
-        "vcpkg.json",
-    }
-
-    @staticmethod
-    def _is_lockfile_component(component: Dict[str, Any]) -> bool:
-        """Check if a component is a lockfile artifact (not a real package)."""
-        # Must be application type
-        if component.get("type") != "application":
-            return False
-        # Must have no PURL
-        if component.get("purl"):
-            return False
-        # Must match known lockfile name
-        return component.get("name") in NTIAComplianceChecker.LOCKFILE_NAMES
-
-    @staticmethod
-    def check_cyclonedx(data: Dict[str, Any]) -> Tuple[bool, List[str], List[str]]:
-        """
-        Check CycloneDX SBOM for NTIA compliance.
-
-        Note: Lockfile components (e.g., requirements.txt, uv.lock) are excluded
-        from compliance checks as they are metadata artifacts, not software packages.
-
-        Returns:
-            Tuple of (is_compliant, present_elements, missing_elements)
-        """
-        present = []
-        missing = []
-
-        # 1. Timestamp
-        if data.get("metadata", {}).get("timestamp"):
-            present.append("Timestamp")
-        else:
-            missing.append("Timestamp")
-
-        # 2. Author of SBOM Data (authors - not tools, per NTIA standard)
-        # NTIA defines "Author" as the entity that creates the SBOM, not the tool
-        authors = data.get("metadata", {}).get("authors", [])
-        has_author = bool(authors)
-        if has_author:
-            present.append("Author of SBOM Data")
-        else:
-            missing.append("Author of SBOM Data")
-
-        # Check components (excluding lockfile artifacts)
-        all_components = data.get("components", [])
-        components = [c for c in all_components if not NTIAComplianceChecker._is_lockfile_component(c)]
-        if not components:
-            missing.extend(["Component Name", "Version", "Supplier Name", "Unique Identifiers"])
-            return (False, present, missing)
-
-        # Check each component for required fields
-        all_have_name = all(c.get("name") for c in components)
-        all_have_version = all(c.get("version") for c in components)
-
-        # Supplier validation: publisher (string) or supplier.name (dict) or supplier (string)
-        def has_valid_supplier(c):
-            if c.get("publisher"):
-                return True
-            supplier = c.get("supplier")
-            if isinstance(supplier, dict) and supplier.get("name"):
-                return True
-            if isinstance(supplier, str) and supplier:
-                return True
-            return False
-
-        all_have_supplier = all(has_valid_supplier(c) for c in components)
-
-        # Unique identifier validation: PURL, CPE, or valid SWID (object with tagId and name)
-        def has_valid_identifier(c):
-            if c.get("purl") or c.get("cpe"):
-                return True
-            swid = c.get("swid")
-            if isinstance(swid, dict) and swid.get("tagId") and swid.get("name"):
-                return True
-            return False
-
-        all_have_identifiers = all(has_valid_identifier(c) for c in components)
-
-        # 3. Component Name
-        if all_have_name:
-            present.append("Component Name")
-        else:
-            missing.append("Component Name")
-
-        # 4. Version
-        if all_have_version:
-            present.append("Version")
-        else:
-            missing.append("Version")
-
-        # 5. Supplier Name
-        if all_have_supplier:
-            present.append("Supplier Name")
-        else:
-            missing.append("Supplier Name")
-
-        # 6. Other Unique Identifiers
-        if all_have_identifiers:
-            present.append("Unique Identifiers")
-        else:
-            missing.append("Unique Identifiers")
-
-        # 7. Dependency Relationship
-        if data.get("dependencies"):
-            present.append("Dependency Relationships")
-        else:
-            missing.append("Dependency Relationships")
-
-        is_compliant = len(missing) == 0
-        return (is_compliant, present, missing)
-
-    @staticmethod
-    def check_spdx(data: Dict[str, Any]) -> Tuple[bool, List[str], List[str]]:
-        """
-        Check SPDX SBOM for NTIA compliance.
-
-        Returns:
-            Tuple of (is_compliant, present_elements, missing_elements)
-        """
-        present = []
-        missing = []
-
-        # 1. Timestamp
-        if data.get("creationInfo", {}).get("created"):
-            present.append("Timestamp")
-        else:
-            missing.append("Timestamp")
-
-        # 2. Author of SBOM Data (creators)
-        creators = data.get("creationInfo", {}).get("creators", [])
-        if creators:
-            present.append("Author of SBOM Data")
-        else:
-            missing.append("Author of SBOM Data")
-
-        # Check packages
-        packages = data.get("packages", [])
-        if not packages:
-            missing.extend(["Component Name", "Version", "Supplier Name", "Unique Identifiers"])
-            return (False, present, missing)
-
-        # Check each package for required fields
-        all_have_name = all(p.get("name") for p in packages)
-        all_have_version = all(p.get("versionInfo") for p in packages)
-
-        # Supplier should not be NOASSERTION
-        def has_valid_supplier(p):
-            supplier = p.get("supplier")
-            return supplier and supplier != "NOASSERTION"
-
-        all_have_supplier = all(has_valid_supplier(p) for p in packages)
-
-        # Check for unique identifiers (PURL, CPE, or SWID) in external references
-        def has_unique_id(p):
-            valid_types = {"purl", "cpe22Type", "cpe23Type", "swid"}
-            for ref in p.get("externalRefs", []):
-                if ref.get("referenceType") in valid_types:
-                    return True
-            return False
-
-        all_have_identifiers = all(has_unique_id(p) for p in packages)
-
-        # 3. Component Name
-        if all_have_name:
-            present.append("Component Name")
-        else:
-            missing.append("Component Name")
-
-        # 4. Version
-        if all_have_version:
-            present.append("Version")
-        else:
-            missing.append("Version")
-
-        # 5. Supplier Name
-        if all_have_supplier:
-            present.append("Supplier Name")
-        else:
-            missing.append("Supplier Name")
-
-        # 6. Other Unique Identifiers
-        if all_have_identifiers:
-            present.append("Unique Identifiers")
-        else:
-            missing.append("Unique Identifiers")
-
-        # 7. Dependency Relationship (must be DEPENDS_ON or CONTAINS, not just DESCRIBES)
-        relationships = data.get("relationships", [])
-        has_deps = any(rel.get("relationshipType", "").upper() in ["DEPENDS_ON", "CONTAINS"] for rel in relationships)
-        if has_deps:
-            present.append("Dependency Relationships")
-        else:
-            missing.append("Dependency Relationships")
-
-        is_compliant = len(missing) == 0
-        return (is_compliant, present, missing)
+from .ntia_checker import ISO8601_REGEX, NTIAComplianceChecker
 
 
 class TestNTIAComplianceCycloneDX:
@@ -959,128 +739,382 @@ class TestNTIAAugmentation:
         print(f"  Creator comment: {creator_comment}")
 
 
-class TestNTIAValidationFunction:
-    """Test the NTIA compliance validation function."""
+class TestEnrichmentAndAugmentationProduceNTIACompliance:
+    """Test that enrichment + augmentation produces NTIA-compliant output.
 
-    def test_compliance_checker_cyclonedx_compliant(self):
-        """Test compliance checker with a fully compliant CycloneDX SBOM."""
-        compliant_sbom = {
+    NTIA compliance requires BOTH:
+    - Enrichment: adds component-level metadata (publisher/supplier, description, licenses)
+    - Augmentation: adds organizational metadata (authors, supplier at metadata level)
+
+    These tests verify the complete pipeline produces compliant output.
+    """
+
+    @pytest.fixture
+    def backend_metadata_with_authors(self):
+        """Backend metadata that includes authors (Person entities)."""
+        return {
+            "supplier": {
+                "name": "Acme Corporation",
+                "url": ["https://acme.example.com"],
+                "contact": [
+                    {"name": "Security Team", "email": "security@acme.example.com"},
+                ],
+            },
+            "authors": [
+                {"name": "John Doe", "email": "john@acme.example.com"},
+                {"name": "Jane Smith", "email": "jane@acme.example.com"},
+            ],
+            "licenses": ["MIT"],
+        }
+
+    @pytest.fixture
+    def mock_pypi_response(self):
+        """Mock PyPI API response with publisher/author info."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "info": {
+                "author": "Kenneth Reitz",
+                "author_email": "me@kennethreitz.org",
+                "summary": "Python HTTP for Humans.",
+                "home_page": "https://requests.readthedocs.io",
+                "license": "Apache-2.0",
+                "project_urls": {
+                    "Source": "https://github.com/psf/requests",
+                },
+            },
+        }
+        return mock_response
+
+    def test_enrichment_and_augmentation_produce_ntia_compliant_cyclonedx(
+        self, backend_metadata_with_authors, mock_pypi_response, tmp_path
+    ):
+        """Test that enrichment + augmentation produces NTIA-compliant CycloneDX.
+
+        Pipeline: scanner output → enrichment (adds publisher) → augmentation (adds authors)
+        """
+        from unittest.mock import patch
+
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+        from sbomify_action.enrichment import clear_cache, enrich_sbom
+
+        clear_cache()
+
+        # Create scanner output - has PURL but no publisher or authors
+        scanner_output = {
             "bomFormat": "CycloneDX",
             "specVersion": "1.6",
+            "serialNumber": "urn:uuid:11111111-1111-1111-1111-111111111111",
+            "version": 1,
             "metadata": {
                 "timestamp": "2024-01-01T00:00:00Z",
-                "tools": {"components": [{"type": "application", "name": "test-tool"}]},
-                "authors": [{"name": "Test Author", "email": "test@example.com"}],
+                "tools": {"components": [{"type": "application", "name": "trivy", "version": "0.50.0"}]},
+                # No authors - typical scanner output
             },
             "components": [
                 {
                     "type": "library",
-                    "name": "test-lib",
-                    "version": "1.0.0",
-                    "publisher": "Test Publisher",
-                    "purl": "pkg:pypi/test-lib@1.0.0",
+                    "bom-ref": "pkg:pypi/requests@2.31.0",
+                    "name": "requests",
+                    "version": "2.31.0",
+                    "purl": "pkg:pypi/requests@2.31.0",
+                    # No publisher - typical scanner output
                 },
             ],
-            "dependencies": [{"ref": "test-lib", "dependsOn": []}],
+            "dependencies": [{"ref": "pkg:pypi/requests@2.31.0", "dependsOn": []}],
         }
 
-        is_compliant, present, missing = NTIAComplianceChecker.check_cyclonedx(compliant_sbom)
+        # Write scanner output to file
+        input_file = tmp_path / "scanner-output.cdx.json"
+        with open(input_file, "w") as f:
+            json.dump(scanner_output, f)
 
-        assert is_compliant, f"SBOM should be compliant. Missing: {missing}"
-        assert len(missing) == 0
-        assert "Supplier Name" in present
-        assert "Timestamp" in present
-        assert "Author of SBOM Data" in present
+        # Verify scanner output is NOT NTIA-compliant
+        is_compliant_before, _, missing_before = NTIAComplianceChecker.check_cyclonedx(scanner_output)
+        assert not is_compliant_before, f"Scanner output should NOT be compliant. Missing: {missing_before}"
+        assert "Supplier Name" in missing_before, "Should be missing supplier (scanner doesn't add this)"
+        assert "Author of SBOM Data" in missing_before, "Should be missing authors"
 
-    def test_compliance_checker_cyclonedx_missing_supplier(self):
-        """Test compliance checker detects missing supplier."""
-        non_compliant_sbom = {
+        # Step 1: Enrichment - adds publisher from PyPI
+        enriched_file = tmp_path / "enriched.cdx.json"
+        with patch("requests.Session.get", return_value=mock_pypi_response):
+            enrich_sbom(str(input_file), str(enriched_file), validate=False)
+
+        # Load enriched SBOM
+        with open(enriched_file) as f:
+            enriched_sbom = json.load(f)
+
+        # Verify enrichment added publisher
+        components = enriched_sbom.get("components", [])
+        requests_component = next((c for c in components if c.get("name") == "requests"), {})
+        assert requests_component.get("publisher"), f"Enrichment should add publisher. Got: {requests_component}"
+
+        # Step 2: Augmentation - adds authors from backend
+        bom = Bom.from_json(enriched_sbom)
+        augmented_bom = augment_cyclonedx_sbom(bom, backend_metadata_with_authors, spec_version="1.6")
+
+        # Serialize final SBOM
+        from cyclonedx.output.json import JsonV1Dot6
+
+        outputter = JsonV1Dot6(augmented_bom)
+        final_sbom = json.loads(outputter.output_as_string())
+
+        # Verify NTIA compliance after full pipeline
+        is_compliant, present, missing = NTIAComplianceChecker.check_cyclonedx(final_sbom)
+
+        assert is_compliant, f"Enriched + Augmented SBOM should be NTIA-compliant. Missing: {missing}"
+        assert "Supplier Name" in present, "Supplier should be present (from enrichment)"
+        assert "Author of SBOM Data" in present, "Authors should be present (from augmentation)"
+        assert "Timestamp" in present, "Timestamp should be present"
+        assert "Dependency Relationships" in present, "Dependencies should be present"
+
+        # Verify specific values
+        authors = final_sbom.get("metadata", {}).get("authors", [])
+        author_names = [a.get("name", "") for a in authors]
+        assert "John Doe" in author_names, f"Backend author should be added. Got: {author_names}"
+
+    def test_enrichment_and_augmentation_produce_ntia_compliant_spdx(
+        self, backend_metadata_with_authors, mock_pypi_response, tmp_path
+    ):
+        """Test that enrichment + augmentation produces NTIA-compliant SPDX.
+
+        Pipeline: scanner output → enrichment (adds originator) → augmentation (adds authors)
+        """
+        from datetime import datetime
+        from unittest.mock import patch
+
+        from spdx_tools.spdx.model import (
+            Actor,
+            ActorType,
+            CreationInfo,
+            Document,
+            ExternalPackageRef,
+            ExternalPackageRefCategory,
+            Package,
+            Relationship,
+            RelationshipType,
+        )
+        from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
+
+        from sbomify_action.augmentation import augment_spdx_sbom
+        from sbomify_action.enrichment import clear_cache, enrich_sbom
+
+        clear_cache()
+
+        # Create scanner output - has PURL but no supplier or entity authors
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-sbom",
+            document_namespace="https://example.com/test-pipeline",
+            creators=[Actor(ActorType.TOOL, "trivy-0.50.0")],  # Only tool, no person/org
+            created=datetime(2024, 1, 1, 0, 0, 0),
+        )
+
+        # Main package - in real scenarios would have PURL from COMPONENT_PURL env var
+        main_package = Package(
+            spdx_id="SPDXRef-main",
+            name="my-app",
+            download_location="https://example.com/download",
+            version="1.0.0",
+        )
+        # Add PURL - simulates COMPONENT_PURL being set or scanner detecting published package
+        main_package.external_references.append(
+            ExternalPackageRef(
+                category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                reference_type="purl",
+                locator="pkg:generic/myorg/my-app@1.0.0",
+            )
+        )
+
+        dep_package = Package(
+            spdx_id="SPDXRef-requests",
+            name="requests",
+            download_location="https://pypi.org/project/requests/",
+            version="2.31.0",
+            # No supplier/originator - typical scanner output
+        )
+        dep_package.external_references.append(
+            ExternalPackageRef(
+                category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                reference_type="purl",
+                locator="pkg:pypi/requests@2.31.0",
+            )
+        )
+
+        document = Document(
+            creation_info=creation_info,
+            packages=[main_package, dep_package],
+            relationships=[
+                Relationship(
+                    spdx_element_id="SPDXRef-DOCUMENT",
+                    relationship_type=RelationshipType.DESCRIBES,
+                    related_spdx_element_id="SPDXRef-main",
+                ),
+                Relationship(
+                    spdx_element_id="SPDXRef-main",
+                    relationship_type=RelationshipType.DEPENDS_ON,
+                    related_spdx_element_id="SPDXRef-requests",
+                ),
+            ],
+        )
+
+        # Write scanner output to file
+        input_file = tmp_path / "scanner-output.spdx.json"
+        spdx_write_file(document, str(input_file), validate=False)
+
+        # Verify scanner output is NOT NTIA-compliant
+        with open(input_file) as f:
+            scanner_sbom = json.load(f)
+        is_compliant_before, _, missing_before = NTIAComplianceChecker.check_spdx(scanner_sbom)
+        assert not is_compliant_before, f"Scanner output should NOT be compliant. Missing: {missing_before}"
+        assert "Author of SBOM Data" in missing_before, "Should be missing authors (only Tool creator)"
+
+        # Step 1: Enrichment - adds originator from PyPI
+        enriched_file = tmp_path / "enriched.spdx.json"
+        with patch("requests.Session.get", return_value=mock_pypi_response):
+            enrich_sbom(str(input_file), str(enriched_file), validate=False)
+
+        # Load enriched document for augmentation
+        from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
+
+        enriched_doc = spdx_parse_file(str(enriched_file))
+
+        # Step 2: Augmentation - adds authors from backend
+        augmented_doc = augment_spdx_sbom(enriched_doc, backend_metadata_with_authors)
+
+        # Write final SBOM
+        final_file = tmp_path / "final.spdx.json"
+        spdx_write_file(augmented_doc, str(final_file), validate=False)
+        with open(final_file) as f:
+            final_sbom = json.load(f)
+
+        # Verify NTIA compliance after full pipeline
+        is_compliant, present, missing = NTIAComplianceChecker.check_spdx(final_sbom)
+
+        assert is_compliant, f"Enriched + Augmented SBOM should be NTIA-compliant. Missing: {missing}"
+        assert "Supplier Name" in present, "Supplier should be present"
+        assert "Author of SBOM Data" in present, "Authors should be present (from augmentation)"
+        assert "Timestamp" in present, "Timestamp should be present"
+        assert "Dependency Relationships" in present, "Dependencies should be present"
+
+        # Verify entity authors were added (not just tools)
+        creators = final_sbom.get("creationInfo", {}).get("creators", [])
+        entity_creators = [c for c in creators if not c.startswith("Tool:")]
+        assert len(entity_creators) > 0, f"Should have Person/Organization creators. Got: {creators}"
+
+    def test_augmentation_adds_entity_authors_not_just_tools_spdx(self, backend_metadata_with_authors, tmp_path):
+        """Test that SPDX augmentation adds Person/Organization authors, not just tools.
+
+        Per NTIA standard: "Author of SBOM Data" is the entity that creates the SBOM.
+        Tools are software, not entities. This test verifies augmentation adds
+        proper entity authors.
+        """
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import (
+            Actor,
+            ActorType,
+            CreationInfo,
+            Document,
+            Package,
+        )
+        from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
+
+        from sbomify_action.augmentation import augment_spdx_sbom
+
+        # Create SPDX with only Tool creators
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-sbom",
+            document_namespace="https://example.com/test-entity-authors",
+            creators=[Actor(ActorType.TOOL, "scanner-1.0")],
+            created=datetime(2024, 1, 1, 0, 0, 0),
+        )
+
+        document = Document(
+            creation_info=creation_info,
+            packages=[
+                Package(
+                    spdx_id="SPDXRef-main",
+                    name="my-app",
+                    download_location="https://example.com/download",
+                    version="1.0.0",
+                ),
+            ],
+            relationships=[],
+        )
+
+        # Augment
+        augmented_doc = augment_spdx_sbom(document, backend_metadata_with_authors)
+
+        # Verify Person creators were added
+        person_creators = [c for c in augmented_doc.creation_info.creators if c.actor_type == ActorType.PERSON]
+        org_creators = [c for c in augmented_doc.creation_info.creators if c.actor_type == ActorType.ORGANIZATION]
+
+        # Should have Person authors from backend metadata
+        assert len(person_creators) >= 2, (
+            f"Should have Person creators from backend authors. Got: {[str(c) for c in person_creators]}"
+        )
+
+        # Verify the actual names
+        person_names = [c.name for c in person_creators]
+        assert any("John Doe" in name for name in person_names), f"John Doe should be in creators. Got: {person_names}"
+        assert any("Jane Smith" in name for name in person_names), (
+            f"Jane Smith should be in creators. Got: {person_names}"
+        )
+
+        # Also verify supplier was added as Organization
+        assert len(org_creators) >= 1, f"Should have Organization creator. Got: {[str(c) for c in org_creators]}"
+
+        # Write and verify JSON compliance
+        output_file = tmp_path / "entity-authors.spdx.json"
+        spdx_write_file(augmented_doc, str(output_file), validate=False)
+        with open(output_file) as f:
+            augmented_sbom = json.load(f)
+
+        is_compliant, present, _ = NTIAComplianceChecker.check_spdx(augmented_sbom)
+        assert "Author of SBOM Data" in present, "Should pass NTIA author check with Person/Org creators"
+
+    def test_augmentation_preserves_valid_iso8601_timestamp_cyclonedx(self, backend_metadata_with_authors):
+        """Test that CycloneDX augmentation preserves valid ISO-8601 timestamps.
+
+        NTIA requires ISO-8601 timestamps. This test verifies augmentation
+        doesn't break existing valid timestamps.
+        """
+        from cyclonedx.output.json import JsonV1Dot6
+
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+
+        # Create BOM with valid ISO-8601 timestamp
+        bom_json = {
             "bomFormat": "CycloneDX",
             "specVersion": "1.6",
+            "serialNumber": "urn:uuid:22222222-2222-2222-2222-222222222222",
+            "version": 1,
             "metadata": {
-                "timestamp": "2024-01-01T00:00:00Z",
-                "tools": {"components": [{"type": "application", "name": "test-tool"}]},
+                "timestamp": "2024-06-15T14:30:00Z",  # Valid ISO-8601
+                "tools": {"components": [{"type": "application", "name": "test-tool", "version": "1.0"}]},
             },
-            "components": [
-                {
-                    "type": "library",
-                    "name": "test-lib",
-                    "version": "1.0.0",
-                    # No publisher!
-                    "purl": "pkg:pypi/test-lib@1.0.0",
-                },
-            ],
-            "dependencies": [{"ref": "test-lib", "dependsOn": []}],
+            "components": [],
         }
+        bom = Bom.from_json(bom_json)
 
-        is_compliant, present, missing = NTIAComplianceChecker.check_cyclonedx(non_compliant_sbom)
+        # Augment
+        augmented_bom = augment_cyclonedx_sbom(bom, backend_metadata_with_authors, spec_version="1.6")
 
-        assert not is_compliant, "SBOM should NOT be compliant without supplier"
-        assert "Supplier Name" in missing
+        # Serialize and check
+        outputter = JsonV1Dot6(augmented_bom)
+        augmented_sbom = json.loads(outputter.output_as_string())
 
-    def test_compliance_checker_spdx_compliant(self):
-        """Test compliance checker with a fully compliant SPDX SBOM."""
-        compliant_sbom = {
-            "spdxVersion": "SPDX-2.3",
-            "creationInfo": {
-                "created": "2024-01-01T00:00:00Z",
-                "creators": ["Tool: test-tool-1.0"],
-            },
-            "packages": [
-                {
-                    "name": "test-pkg",
-                    "versionInfo": "1.0.0",
-                    "supplier": "Organization: Test Supplier",
-                    "externalRefs": [
-                        {"referenceType": "purl", "referenceLocator": "pkg:pypi/test-pkg@1.0.0"},
-                    ],
-                },
-            ],
-            "relationships": [
-                {
-                    "spdxElementId": "SPDXRef-DOCUMENT",
-                    "relationshipType": "DESCRIBES",
-                    "relatedSpdxElement": "SPDXRef-Package",
-                },
-                {
-                    "spdxElementId": "SPDXRef-Package",
-                    "relationshipType": "DEPENDS_ON",
-                    "relatedSpdxElement": "SPDXRef-Dep",
-                },
-            ],
-        }
+        # Verify timestamp is still valid ISO-8601
+        timestamp = augmented_sbom.get("metadata", {}).get("timestamp", "")
+        assert ISO8601_REGEX.match(timestamp), f"Timestamp should be valid ISO-8601. Got: {timestamp}"
 
-        is_compliant, present, missing = NTIAComplianceChecker.check_spdx(compliant_sbom)
-
-        assert is_compliant, f"SBOM should be compliant. Missing: {missing}"
-        assert "Supplier Name" in present
-        assert "Dependency Relationships" in present
-
-    def test_compliance_checker_spdx_noassertion_supplier(self):
-        """Test compliance checker detects NOASSERTION as invalid supplier."""
-        non_compliant_sbom = {
-            "spdxVersion": "SPDX-2.3",
-            "creationInfo": {
-                "created": "2024-01-01T00:00:00Z",
-                "creators": ["Tool: test-tool-1.0"],
-            },
-            "packages": [
-                {
-                    "name": "test-pkg",
-                    "versionInfo": "1.0.0",
-                    "supplier": "NOASSERTION",  # Invalid!
-                    "externalRefs": [
-                        {"referenceType": "purl", "referenceLocator": "pkg:pypi/test-pkg@1.0.0"},
-                    ],
-                },
-            ],
-            "relationships": [],
-        }
-
-        is_compliant, present, missing = NTIAComplianceChecker.check_spdx(non_compliant_sbom)
-
-        assert not is_compliant, "SBOM should NOT be compliant with NOASSERTION supplier"
-        assert "Supplier Name" in missing
+        # Verify overall compliance
+        is_compliant, present, _ = NTIAComplianceChecker.check_cyclonedx(augmented_sbom)
+        assert "Timestamp" in present, "Timestamp should pass validation"
 
 
 class TestNTIAEdgeCases:

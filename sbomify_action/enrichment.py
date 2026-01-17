@@ -579,6 +579,18 @@ def _apply_metadata_to_spdx_package(package: Package, metadata: NormalizedMetada
         if _add_external_ref(ExternalPackageRefCategory.OTHER, "url", metadata.documentation_url):
             added_fields.append("externalRef (documentation)")
 
+    # Issue tracker URL (sanitized) - parity with CycloneDX
+    if metadata.issue_tracker_url:
+        if _add_external_ref(ExternalPackageRefCategory.OTHER, "issue-tracker", metadata.issue_tracker_url):
+            added_fields.append("externalRef (issue-tracker)")
+
+    # Repository/VCS URL as external reference (sanitized) - parity with CycloneDX
+    # Note: CycloneDX adds repository_url as VCS external reference
+    # In addition to source_info, we also add as external ref for tool interoperability
+    if metadata.repository_url:
+        if _add_external_ref(ExternalPackageRefCategory.OTHER, "vcs", metadata.repository_url):
+            added_fields.append("externalRef (vcs)")
+
     # CLE (Common Lifecycle Enumeration) data - ECMA-428
     # For SPDX, we add CLE info to the package comment
     # See: https://sbomify.com/compliance/cle/

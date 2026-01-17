@@ -23,13 +23,14 @@ NTIA Minimum Elements validated:
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
 from unittest.mock import Mock, patch
 
 import pytest
 
 from sbomify_action.augmentation import augment_sbom_from_file
 from sbomify_action.enrichment import clear_cache, enrich_sbom
+
+from .ntia_checker import NTIAComplianceChecker
 
 # Test data directory
 TEST_DATA_DIR = Path(__file__).parent / "test-data"
@@ -53,216 +54,14 @@ SAMPLE_BACKEND_METADATA = {
 }
 
 
-class NTIAComplianceChecker:
-    """Utility class to check NTIA Minimum Elements compliance."""
+def check_cyclonedx_with_stats(data):
+    """Wrapper to call NTIAComplianceChecker with stats for container tests."""
+    return NTIAComplianceChecker.check_cyclonedx(data, include_stats=True, filter_library_only=True)
 
-    @staticmethod
-    def check_cyclonedx(data: Dict[str, Any]) -> Tuple[bool, List[str], List[str], Dict[str, Any]]:
-        """
-        Check CycloneDX SBOM for NTIA compliance.
 
-        Returns:
-            Tuple of (is_compliant, present_elements, missing_elements, stats)
-        """
-        present = []
-        missing = []
-        stats = {
-            "total_components": 0,
-            "components_with_supplier": 0,
-            "components_with_name": 0,
-            "components_with_version": 0,
-            "components_with_identifiers": 0,
-        }
-
-        # 1. Timestamp
-        if data.get("metadata", {}).get("timestamp"):
-            present.append("Timestamp")
-        else:
-            missing.append("Timestamp")
-
-        # 2. Author of SBOM Data (authors - not tools, per NTIA standard)
-        # NTIA defines "Author" as the entity that creates the SBOM, not the tool
-        authors = data.get("metadata", {}).get("authors", [])
-        has_author = bool(authors)
-        if has_author:
-            present.append("Author of SBOM Data")
-        else:
-            missing.append("Author of SBOM Data")
-
-        # Check components
-        components = data.get("components", [])
-        # Filter to library components only (exclude OS type)
-        library_components = [c for c in components if c.get("type") == "library"]
-        stats["total_components"] = len(library_components)
-
-        if not library_components:
-            missing.extend(["Component Name", "Version", "Supplier Name", "Unique Identifiers"])
-            return (False, present, missing, stats)
-
-        for c in library_components:
-            if c.get("name"):
-                stats["components_with_name"] += 1
-            if c.get("version"):
-                stats["components_with_version"] += 1
-            # Check for publisher (string) or supplier (object with name)
-            has_supplier = False
-            if c.get("publisher"):
-                has_supplier = True
-            elif c.get("supplier"):
-                supplier = c.get("supplier")
-                if isinstance(supplier, dict) and supplier.get("name"):
-                    has_supplier = True
-                elif isinstance(supplier, str) and supplier:
-                    has_supplier = True
-            if has_supplier:
-                stats["components_with_supplier"] += 1
-            # Unique identifier validation: PURL, CPE, or valid SWID (object with tagId and name)
-            has_identifier = False
-            if c.get("purl") or c.get("cpe"):
-                has_identifier = True
-            else:
-                swid = c.get("swid")
-                if isinstance(swid, dict) and swid.get("tagId") and swid.get("name"):
-                    has_identifier = True
-            if has_identifier:
-                stats["components_with_identifiers"] += 1
-
-        # 3. Component Name
-        if stats["components_with_name"] == stats["total_components"]:
-            present.append("Component Name")
-        else:
-            missing.append(f"Component Name ({stats['components_with_name']}/{stats['total_components']})")
-
-        # 4. Version
-        if stats["components_with_version"] == stats["total_components"]:
-            present.append("Version")
-        else:
-            missing.append(f"Version ({stats['components_with_version']}/{stats['total_components']})")
-
-        # 5. Supplier Name
-        if stats["components_with_supplier"] == stats["total_components"]:
-            present.append("Supplier Name")
-        else:
-            missing.append(f"Supplier Name ({stats['components_with_supplier']}/{stats['total_components']})")
-
-        # 6. Other Unique Identifiers
-        if stats["components_with_identifiers"] == stats["total_components"]:
-            present.append("Unique Identifiers")
-        else:
-            missing.append(f"Unique Identifiers ({stats['components_with_identifiers']}/{stats['total_components']})")
-
-        # 7. Dependency Relationship
-        if data.get("dependencies"):
-            present.append("Dependency Relationships")
-        else:
-            missing.append("Dependency Relationships")
-
-        # NTIA compliance requires all supplier fields to be filled
-        is_compliant = "Supplier Name" in present
-
-        return (is_compliant, present, missing, stats)
-
-    @staticmethod
-    def check_spdx(data: Dict[str, Any]) -> Tuple[bool, List[str], List[str], Dict[str, Any]]:
-        """
-        Check SPDX SBOM for NTIA compliance.
-
-        Returns:
-            Tuple of (is_compliant, present_elements, missing_elements, stats)
-        """
-        present = []
-        missing = []
-        stats = {
-            "total_packages": 0,
-            "packages_with_supplier": 0,
-            "packages_with_name": 0,
-            "packages_with_version": 0,
-            "packages_with_identifiers": 0,
-        }
-
-        # 1. Timestamp
-        if data.get("creationInfo", {}).get("created"):
-            present.append("Timestamp")
-        else:
-            missing.append("Timestamp")
-
-        # 2. Author of SBOM Data (creators)
-        creators = data.get("creationInfo", {}).get("creators", [])
-        if creators:
-            present.append("Author of SBOM Data")
-        else:
-            missing.append("Author of SBOM Data")
-
-        # Check packages
-        packages = data.get("packages", [])
-        # Filter to library packages - include LIBRARY or packages without explicit purpose
-        # Exclude CONTAINER and APPLICATION purposes which represent the main artifact
-        excluded_purposes = {"CONTAINER", "APPLICATION", "SOURCE", "OPERATING-SYSTEM"}
-        library_packages = [
-            p
-            for p in packages
-            if p.get("primaryPackagePurpose") not in excluded_purposes or p.get("primaryPackagePurpose") is None
-        ]
-        # Also filter by name - exclude packages that look like container images
-        library_packages = [
-            p for p in library_packages if not any(x in p.get("name", "").lower() for x in [":", "sha256", "@"])
-        ]
-        stats["total_packages"] = len(library_packages)
-
-        if not library_packages:
-            missing.extend(["Component Name", "Version", "Supplier Name", "Unique Identifiers"])
-            return (False, present, missing, stats)
-
-        for p in library_packages:
-            if p.get("name"):
-                stats["packages_with_name"] += 1
-            if p.get("versionInfo"):
-                stats["packages_with_version"] += 1
-            supplier = p.get("supplier")
-            if supplier and supplier != "NOASSERTION":
-                stats["packages_with_supplier"] += 1
-            # Check for unique identifiers (PURL, CPE, or SWID) in external refs
-            valid_id_types = {"purl", "cpe22Type", "cpe23Type", "swid"}
-            for ref in p.get("externalRefs", []):
-                if ref.get("referenceType") in valid_id_types:
-                    stats["packages_with_identifiers"] += 1
-                    break
-
-        # 3. Component Name
-        if stats["packages_with_name"] == stats["total_packages"]:
-            present.append("Component Name")
-        else:
-            missing.append(f"Component Name ({stats['packages_with_name']}/{stats['total_packages']})")
-
-        # 4. Version
-        if stats["packages_with_version"] == stats["total_packages"]:
-            present.append("Version")
-        else:
-            missing.append(f"Version ({stats['packages_with_version']}/{stats['total_packages']})")
-
-        # 5. Supplier Name
-        if stats["packages_with_supplier"] == stats["total_packages"]:
-            present.append("Supplier Name")
-        else:
-            missing.append(f"Supplier Name ({stats['packages_with_supplier']}/{stats['total_packages']})")
-
-        # 6. Other Unique Identifiers
-        if stats["packages_with_identifiers"] == stats["total_packages"]:
-            present.append("Unique Identifiers")
-        else:
-            missing.append(f"Unique Identifiers ({stats['packages_with_identifiers']}/{stats['total_packages']})")
-
-        # 7. Dependency Relationship (must be DEPENDS_ON or CONTAINS, not just DESCRIBES)
-        relationships = data.get("relationships", [])
-        has_deps = any(rel.get("relationshipType", "").upper() in ["DEPENDS_ON", "CONTAINS"] for rel in relationships)
-        if has_deps:
-            present.append("Dependency Relationships")
-        else:
-            missing.append("Dependency Relationships")
-
-        is_compliant = "Supplier Name" in present
-
-        return (is_compliant, present, missing, stats)
+def check_spdx_with_stats(data):
+    """Wrapper to call NTIAComplianceChecker with stats for container tests."""
+    return NTIAComplianceChecker.check_spdx(data, include_stats=True, filter_library_only=True)
 
 
 class TestContainerSBOMsExist:
@@ -306,7 +105,7 @@ class TestRawSBOMNTIACompliance:
         with open(sbom_path) as f:
             data = json.load(f)
 
-        is_compliant, present, missing, stats = NTIAComplianceChecker.check_cyclonedx(data)
+        is_compliant, present, missing, stats = check_cyclonedx_with_stats(data)
 
         print(f"\n{image} Trivy CycloneDX Raw NTIA Compliance:")
         print(f"  Total components: {stats['total_components']}")
@@ -328,7 +127,7 @@ class TestRawSBOMNTIACompliance:
         with open(sbom_path) as f:
             data = json.load(f)
 
-        is_compliant, present, missing, stats = NTIAComplianceChecker.check_spdx(data)
+        is_compliant, present, missing, stats = check_spdx_with_stats(data)
 
         print(f"\n{image} Trivy SPDX Raw NTIA Compliance:")
         print(f"  Total packages: {stats['total_packages']}")
@@ -347,7 +146,7 @@ class TestRawSBOMNTIACompliance:
         with open(sbom_path) as f:
             data = json.load(f)
 
-        is_compliant, present, missing, stats = NTIAComplianceChecker.check_cyclonedx(data)
+        is_compliant, present, missing, stats = check_cyclonedx_with_stats(data)
 
         print(f"\n{image} Syft CycloneDX Raw NTIA Compliance:")
         print(f"  Total components: {stats['total_components']}")
@@ -366,7 +165,7 @@ class TestRawSBOMNTIACompliance:
         with open(sbom_path) as f:
             data = json.load(f)
 
-        is_compliant, present, missing, stats = NTIAComplianceChecker.check_spdx(data)
+        is_compliant, present, missing, stats = check_spdx_with_stats(data)
 
         print(f"\n{image} Syft SPDX Raw NTIA Compliance:")
         print(f"  Total packages: {stats['total_packages']}")
@@ -399,7 +198,7 @@ class TestEnrichmentNTIACompliance:
         with open(output_file) as f:
             enriched_data = json.load(f)
 
-        is_compliant, present, missing, stats = NTIAComplianceChecker.check_cyclonedx(enriched_data)
+        is_compliant, present, missing, stats = check_cyclonedx_with_stats(enriched_data)
 
         print(f"\n{image} Trivy CycloneDX ENRICHED NTIA Compliance:")
         print(f"  Total components: {stats['total_components']}")
@@ -430,7 +229,7 @@ class TestEnrichmentNTIACompliance:
         with open(output_file) as f:
             enriched_data = json.load(f)
 
-        is_compliant, present, missing, stats = NTIAComplianceChecker.check_spdx(enriched_data)
+        is_compliant, present, missing, stats = check_spdx_with_stats(enriched_data)
 
         print(f"\n{image} Trivy SPDX ENRICHED NTIA Compliance:")
         print(f"  Total packages: {stats['total_packages']}")
@@ -570,7 +369,7 @@ class TestFullPipelineNTIACompliance:
         with open(augmented_file) as f:
             final_data = json.load(f)
 
-        is_compliant, present, missing, stats = NTIAComplianceChecker.check_cyclonedx(final_data)
+        is_compliant, present, missing, stats = check_cyclonedx_with_stats(final_data)
 
         print(f"\n{image} FULL PIPELINE CycloneDX NTIA Compliance:")
         print(f"  Total components: {stats['total_components']}")

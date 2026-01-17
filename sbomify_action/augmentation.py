@@ -109,6 +109,38 @@ def _propagate_supplier_to_lockfile_components(bom: Bom) -> None:
         logger.info(f"Propagated supplier to {propagated_count} lockfile component(s)")
 
 
+def _is_lockfile_package(package: Package) -> bool:
+    """Check if an SPDX package represents a lockfile artifact."""
+    if package.name and package.name in LOCKFILE_NAMES:
+        # Check if it has a PURL - lockfiles typically don't have PURLs
+        has_purl = any(ref.reference_type == "purl" for ref in package.external_references)
+        if not has_purl:
+            return True
+    return False
+
+
+def _propagate_supplier_to_lockfile_packages(document: Document, supplier: Actor) -> None:
+    """
+    Propagate supplier to lockfile packages in SPDX document.
+
+    Lockfile packages (e.g., requirements.txt, uv.lock) are metadata artifacts
+    that don't have their own supplier. After augmentation sets the main package
+    supplier from the backend, we propagate it to lockfile packages for NTIA compliance.
+    """
+    if not supplier or not document.packages:
+        return
+
+    propagated_count = 0
+    for package in document.packages:
+        if _is_lockfile_package(package) and not package.supplier:
+            package.supplier = supplier
+            propagated_count += 1
+            logger.debug(f"Propagated supplier to lockfile package: {package.name}")
+
+    if propagated_count > 0:
+        logger.info(f"Propagated supplier to {propagated_count} lockfile package(s)")
+
+
 def _update_component_purl_version(component: Component, new_version: str) -> bool:
     """
     Update the version in a CycloneDX component's PURL and bom-ref if present.
@@ -1031,6 +1063,12 @@ def augment_spdx_sbom(
                                 comment="Supplier website",
                             )
                             main_package.external_references.append(ext_ref)
+
+            # Propagate supplier to lockfile packages (parity with CycloneDX)
+            # Lockfile packages (e.g., requirements.txt, uv.lock) are metadata artifacts
+            # that inherit supplier from the root/main package
+            if main_package.supplier:
+                _propagate_supplier_to_lockfile_packages(document, main_package.supplier)
 
     # Apply manufacturer information
     # SPDX has no dedicated manufacturer field - use originator which means
