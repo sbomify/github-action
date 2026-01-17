@@ -3,6 +3,28 @@
 This module provides SBOM enrichment through a plugin architecture that queries
 multiple data sources in priority order to populate NTIA-required fields.
 
+Data Source Priority (lower number = higher priority):
+    Tier 0 - Pre-computed Databases (1-9):
+    - LicenseDBSource (1): Pre-computed license database with validated SPDX
+      licenses and full metadata for Alpine, Wolfi, Ubuntu, Rocky, Alma,
+      CentOS, Fedora, and Amazon Linux packages. Top priority as it provides
+      fast, accurate data without network requests.
+
+    Tier 1 - Native Sources (10-19):
+    - PyPISource (10): Direct from PyPI for Python packages
+    - PubDevSource (10): Direct from pub.dev for Dart packages
+    - CratesIOSource (10): Direct from crates.io for Rust packages
+    - DebianSource (10): Direct from sources.debian.org
+
+    Tier 2 - Primary Aggregators (40-49):
+    - DepsDevSource (40): Google Open Source Insights
+    - EcosystemsSource (45): ecosyste.ms multi-ecosystem aggregator
+
+    Tier 3 - Fallback Sources (70-99):
+    - PURLSource (70): Local PURL extraction for OS packages (no API)
+    - ClearlyDefinedSource (75): License and attribution data
+    - RepologySource (90): Cross-distro metadata (rate-limited)
+
 NTIA Minimum Elements (July 2021):
     https://sbomify.com/compliance/ntia-minimum-elements/
 
@@ -799,11 +821,15 @@ def enrich_sbom(input_file: str, output_file: str, validate: bool = True) -> Non
 
     This function uses the plugin-based enrichment system which queries
     data sources in priority order (lower number = higher priority):
-    - Priority 10: Native sources (PyPI, Debian Sources)
-    - Priority 20: deps.dev (Google Open Source Insights)
-    - Priority 30: ecosyste.ms
-    - Priority 40: ClearlyDefined
-    - Priority 50: PURL-based extraction (for OS packages)
+
+    - Priority 1: LicenseDBSource - Pre-computed database with validated SPDX
+      licenses for Linux distro packages (Alpine, Wolfi, Ubuntu, Rocky, Alma,
+      CentOS, Fedora, Amazon Linux). Fastest and most accurate source.
+    - Priority 10: Native sources (PyPI, pub.dev, crates.io, Debian Sources)
+    - Priority 40: deps.dev (Google Open Source Insights)
+    - Priority 45: ecosyste.ms (multi-ecosystem aggregator)
+    - Priority 70: PURL-based extraction (for OS packages, no API)
+    - Priority 75: ClearlyDefined (license and attribution data)
     - Priority 90: Repology (fallback, rate-limited)
 
     After enrichment, the output SBOM is validated against its JSON schema
