@@ -37,7 +37,7 @@ DEFAULT_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"
 SUPPORTED_DISTROS = {
     "alpine": {
         "type": "apk",
-        "versions": ["3.18", "3.19", "3.20", "3.21"],
+        "versions": ["3.13", "3.14", "3.15", "3.16", "3.17", "3.18", "3.19", "3.20", "3.21"],
     },
     "ubuntu": {
         "type": "deb",

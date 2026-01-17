@@ -106,6 +106,32 @@ class DatabaseMetadata:
 DISTRO_LIFECYCLE = {
     "alpine": {
         # Alpine releases have ~2 year support lifecycle
+        # All versions from the last 5 years (2021-2026)
+        "3.13": {
+            "release_date": "2021-01-14",
+            "end_of_support": "2022-11-01",
+            "end_of_life": "2022-11-01",
+        },
+        "3.14": {
+            "release_date": "2021-06-15",
+            "end_of_support": "2023-05-01",
+            "end_of_life": "2023-05-01",
+        },
+        "3.15": {
+            "release_date": "2021-11-24",
+            "end_of_support": "2023-11-01",
+            "end_of_life": "2023-11-01",
+        },
+        "3.16": {
+            "release_date": "2022-05-23",
+            "end_of_support": "2024-05-23",
+            "end_of_life": "2024-05-23",
+        },
+        "3.17": {
+            "release_date": "2022-11-22",
+            "end_of_support": "2024-11-22",
+            "end_of_life": "2024-11-22",
+        },
         "3.18": {
             "release_date": "2023-05-09",
             "end_of_support": "2025-05-09",
