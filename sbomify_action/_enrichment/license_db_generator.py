@@ -177,6 +177,31 @@ DISTRO_LIFECYCLE = {
             "end_of_life": "2032-05-31",
         },
     },
+    "amazonlinux": {
+        "2": {
+            "release_date": "2018-06-26",
+            "end_of_support": "2025-06-30",
+            "end_of_life": "2026-06-30",
+        },
+        "2023": {
+            "release_date": "2023-03-15",
+            "end_of_support": "2027-03-15",
+            "end_of_life": "2028-03-15",
+        },
+    },
+    "centos": {
+        # CentOS Stream versions
+        "stream8": {
+            "release_date": "2019-09-24",
+            "end_of_support": "2024-05-31",
+            "end_of_life": "2024-05-31",
+        },
+        "stream9": {
+            "release_date": "2021-12-03",
+            "end_of_support": "2027-05-31",
+            "end_of_life": "2027-05-31",
+        },
+    },
     "fedora": {
         # Fedora releases have ~13 month lifecycle
         "39": {
@@ -678,6 +703,26 @@ RPM_DISTRO_REPOS = {
             "https://repo.almalinux.org/almalinux/9/AppStream/x86_64/os/",
         ],
     },
+    "amazonlinux": {
+        # Amazon Linux uses mirror.list files that return the actual repo URL with GUID
+        "2": [
+            "mirror:https://cdn.amazonlinux.com/2/core/2.0/x86_64/mirror.list",
+        ],
+        "2023": [
+            "mirror:https://cdn.amazonlinux.com/al2023/core/mirrors/latest/x86_64/mirror.list",
+        ],
+    },
+    "centos": {
+        # Stream 8 is EOL, use vault archive
+        "stream8": [
+            "https://vault.centos.org/centos/8-stream/BaseOS/x86_64/os/",
+            "https://vault.centos.org/centos/8-stream/AppStream/x86_64/os/",
+        ],
+        "stream9": [
+            "https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/",
+            "https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/",
+        ],
+    },
     "fedora": {
         # Older releases are in archive
         "39": ["https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/39/Everything/x86_64/os/"],
@@ -1054,6 +1099,27 @@ def generate_ubuntu_db(
     logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
 
 
+def resolve_mirror_url(mirror_list_url: str) -> Optional[str]:
+    """Resolve a mirror.list URL to the actual repository URL.
+
+    Amazon Linux uses mirror.list files that return the actual repo URL with GUID.
+    """
+    try:
+        response = SESSION.get(mirror_list_url, timeout=DEFAULT_TIMEOUT)
+        response.raise_for_status()
+        # mirror.list contains one URL per line, use the first one
+        lines = response.text.strip().splitlines()
+        if lines:
+            repo_url = lines[0].strip()
+            # Ensure it ends with /
+            if not repo_url.endswith("/"):
+                repo_url += "/"
+            return repo_url
+    except Exception as e:
+        logger.warning(f"Failed to resolve mirror list {mirror_list_url}: {e}")
+    return None
+
+
 def generate_rpm_db(
     distro: str,
     distro_version: str,
@@ -1065,6 +1131,23 @@ def generate_rpm_db(
     if not repos:
         logger.error(f"Unknown distro/version: {distro} {distro_version}")
         sys.exit(1)
+
+    # Resolve any mirror.list URLs
+    resolved_repos = []
+    for repo_url in repos:
+        if repo_url.startswith("mirror:"):
+            mirror_list_url = repo_url[7:]  # Remove "mirror:" prefix
+            resolved = resolve_mirror_url(mirror_list_url)
+            if resolved:
+                resolved_repos.append(resolved)
+        else:
+            resolved_repos.append(repo_url)
+
+    if not resolved_repos:
+        logger.error(f"No repositories resolved for {distro} {distro_version}")
+        sys.exit(1)
+
+    repos = resolved_repos
 
     logger.info(f"Generating license database for {distro} {distro_version}")
 
@@ -1149,7 +1232,7 @@ def main() -> None:
     parser.add_argument(
         "--distro",
         required=True,
-        choices=["alpine", "ubuntu", "rocky", "almalinux", "fedora"],
+        choices=["alpine", "amazonlinux", "centos", "ubuntu", "rocky", "almalinux", "fedora"],
         help="Distribution name",
     )
     parser.add_argument(
