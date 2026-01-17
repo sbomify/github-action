@@ -255,16 +255,12 @@ def clear_all_caches() -> None:
     from .sources.pubdev import clear_cache as clear_pubdev
     from .sources.pypi import clear_cache as clear_pypi
     from .sources.repology import clear_cache as clear_repology
-    from .sources.rpmrepo import clear_cache as clear_rpmrepo
-    from .sources.ubuntu import clear_cache as clear_ubuntu
 
     clear_license_db()
     clear_pypi()
     clear_pubdev()
     clear_cratesio()
     clear_debian()
-    clear_ubuntu()
-    clear_rpmrepo()
     clear_depsdev()
     clear_ecosystems()
     clear_clearlydefined()
