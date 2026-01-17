@@ -840,11 +840,15 @@ RPM_DISTRO_REPOS = {
         ],
     },
     "fedora": {
-        # Older releases are in archive
+        # Fedora keeps only currently supported releases on the main download server;
+        # older releases are moved to the archives. Versions 39-41 are EOL and thus
+        # use the archive URLs below, while 42 is still a current release and uses
+        # the main download URL. When 42 moves to archives and a newer Fedora
+        # release becomes current, add the new version here with a dl.fedoraproject.org
+        # URL and move 42 to the archives.fedoraproject.org pattern.
         "39": ["https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/39/Everything/x86_64/os/"],
         "40": ["https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/40/Everything/x86_64/os/"],
         "41": ["https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/41/Everything/x86_64/os/"],
-        # Current release
         "42": ["https://dl.fedoraproject.org/pub/fedora/linux/releases/42/Everything/x86_64/os/"],
     },
 }
