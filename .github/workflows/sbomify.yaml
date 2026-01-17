@@ -224,11 +224,15 @@ jobs:
         run: |
           echo "=== Verifying SPDX License Database Enrichment ==="
           
-          # Check that enrichment occurred from license-db source (in comment for SPDX)
-          if grep -q 'license-db' alpine-enriched.spdx.json; then
-            echo "✅ Found license-db enrichment source in SPDX SBOM"
+          # Check that enrichment occurred from license-db source
+          # In SPDX, source tracking is in package comments: "Enriched by sbomify from license-db"
+          LICENSE_DB_COMMENTS=$(jq '[.packages[] | select(.comment != null and (.comment | contains("license-db")))] | length' alpine-enriched.spdx.json)
+          echo "Packages with license-db enrichment comment: $LICENSE_DB_COMMENTS"
+          
+          if [ "$LICENSE_DB_COMMENTS" -ge 5 ]; then
+            echo "✅ Found license-db enrichment source in SPDX package comments"
           else
-            echo "❌ No license-db enrichment found in SPDX"
+            echo "❌ No license-db enrichment found in SPDX comments"
             exit 1
           fi
           
@@ -668,20 +672,31 @@ jobs:
         run: |
           echo "=== Verifying CycloneDX sbomify Tool Metadata ==="
           
-          # Check that sbomify was added as a tool
-          SBOMIFY_TOOL=$(jq -r '.metadata.tools.components[]? | select(.name == "sbomify GitHub Action") | .name' augmented-sbom.cdx.json)
+          # sbomify tool location depends on CycloneDX version:
+          # - CDX 1.5+: metadata.tools.services[] (as Service)
+          # - CDX 1.4:  metadata.tools[] (as Tool, legacy format)
           
-          if [ -n "$SBOMIFY_TOOL" ]; then
-            echo "✅ CycloneDX sbomify tool metadata present"
+          SPEC_VERSION=$(jq -r '.specVersion' augmented-sbom.cdx.json)
+          echo "CycloneDX version: $SPEC_VERSION"
+          
+          # Check tools.services (CDX 1.5+)
+          SBOMIFY_SERVICE=$(jq -r '.metadata.tools.services[]? | select(.name == "sbomify GitHub Action") | .name' augmented-sbom.cdx.json)
+          # Check tools.tools (CDX 1.4 legacy)
+          SBOMIFY_TOOL=$(jq -r '.metadata.tools.tools[]? | select(.name == "sbomify GitHub Action") | .name' augmented-sbom.cdx.json)
+          # Check tools[] directly (older CDX 1.4 format)
+          SBOMIFY_LEGACY=$(jq -r '.metadata.tools[]? | select(type == "object" and .name == "sbomify GitHub Action") | .name' augmented-sbom.cdx.json 2>/dev/null || true)
+          
+          if [ -n "$SBOMIFY_SERVICE" ]; then
+            echo "✅ CycloneDX sbomify tool present in tools.services (CDX 1.5+ format)"
+          elif [ -n "$SBOMIFY_TOOL" ]; then
+            echo "✅ CycloneDX sbomify tool present in tools.tools (CDX 1.4 format)"
+          elif [ -n "$SBOMIFY_LEGACY" ]; then
+            echo "✅ CycloneDX sbomify tool present (legacy array format)"
           else
-            # Try legacy format for older CycloneDX versions
-            SBOMIFY_TOOL_LEGACY=$(jq -r '.metadata.tools[]? | select(.name == "sbomify GitHub Action") | .name' augmented-sbom.cdx.json)
-            if [ -n "$SBOMIFY_TOOL_LEGACY" ]; then
-              echo "✅ CycloneDX sbomify tool metadata present (legacy format)"
-            else
-              echo "❌ CycloneDX sbomify tool not found in metadata"
-              exit 1
-            fi
+            echo "❌ CycloneDX sbomify tool not found in metadata"
+            echo "Tools structure:"
+            jq '.metadata.tools' augmented-sbom.cdx.json
+            exit 1
           fi
 
       - name: Verify SPDX sbomify tool metadata

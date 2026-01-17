@@ -281,6 +281,16 @@ class LicenseDBSource:
             if match:
                 return match.group(1), match.group(2)
 
+            # For APK packages (alpine, wolfi), distro qualifier is just version (e.g., "3.19.9")
+            # Extract major.minor for database lookup (e.g., "3.19.9" -> "3.19")
+            if namespace in ("alpine", "wolfi") and re.match(r"^\d+\.\d+", distro_qualifier):
+                version_match = re.match(r"(\d+\.\d+)", distro_qualifier)
+                if version_match:
+                    version = version_match.group(1)
+                    # Check if this version is supported
+                    if namespace in SUPPORTED_DISTROS and version in SUPPORTED_DISTROS[namespace]["versions"]:
+                        return namespace, version
+
         # Fall back to namespace and try to infer version
         if namespace in SUPPORTED_DISTROS:
             # Use latest supported version as default
