@@ -1,0 +1,877 @@
+"""Generate license database for Linux distro packages.
+
+This module extracts license information from Ubuntu and RPM-based distro
+packages, validates them against SPDX, and outputs a JSON database keyed
+by PURL for easy lookups during SBOM enrichment.
+
+Supported distros:
+- Ubuntu (20.04, 22.04, 24.04)
+- Rocky Linux (8, 9)
+- Alma Linux (8, 9)
+- Fedora (39, 40, 41)
+
+Usage:
+    sbomify-license-db --distro ubuntu --version 24.04 --output ubuntu-24.04.json.gz
+    sbomify-license-db --distro rocky --version 9 --output rocky-9.json.gz
+"""
+
+import argparse
+import gzip
+import io
+import json
+import re
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterator, Optional
+from urllib.parse import urljoin
+
+import requests
+from packageurl import PackageURL
+
+from ..http_client import USER_AGENT
+from ..logging_config import setup_logging
+from .license_normalizer import extract_dep5_license, normalize_rpm_license
+
+# Initialize logger
+logger = setup_logging(level="INFO", use_rich=True)
+
+# HTTP session with sbomify user agent
+SESSION = requests.Session()
+SESSION.headers.update({"User-Agent": f"{USER_AGENT} (license-db-generator)"})
+
+# Timeouts
+DEFAULT_TIMEOUT = 30
+DOWNLOAD_TIMEOUT = 120
+
+
+# =============================================================================
+# Data Classes
+# =============================================================================
+
+
+@dataclass
+class PackageMetadata:
+    """Full metadata for a single package."""
+
+    purl: str
+    name: str
+    version: str
+    # License info
+    spdx: Optional[str]
+    license_raw: str
+    # Description
+    description: Optional[str]
+    # Supplier/Maintainer
+    supplier: Optional[str]
+    maintainer_name: Optional[str]
+    maintainer_email: Optional[str]
+    # URLs
+    homepage: Optional[str]
+    download_url: Optional[str]
+    # Metadata
+    confidence: str
+    source: str
+
+
+@dataclass
+class DatabaseMetadata:
+    """Metadata about the generated database."""
+
+    distro: str
+    version: str
+    codename: Optional[str]
+    generated_at: str
+    package_count: int
+    schema_version: int = 1
+    # CLE (Common Lifecycle Enumeration) fields
+    release_date: Optional[str] = None  # ISO 8601 date when distro version was released
+    end_of_support: Optional[str] = None  # ISO 8601 date when security fixes stop
+    end_of_life: Optional[str] = None  # ISO 8601 date when all support ends
+
+
+# CLE lifecycle data for supported distros
+# Dates in ISO 8601 format (YYYY-MM-DD)
+DISTRO_LIFECYCLE = {
+    "rocky": {
+        "8": {
+            "release_date": "2021-06-21",
+            "end_of_support": "2024-05-31",  # End of full support
+            "end_of_life": "2029-05-31",  # End of maintenance support
+        },
+        "9": {
+            "release_date": "2022-07-14",
+            "end_of_support": "2027-05-31",
+            "end_of_life": "2032-05-31",
+        },
+    },
+    "almalinux": {
+        "8": {
+            "release_date": "2021-03-30",
+            "end_of_support": "2024-05-01",
+            "end_of_life": "2029-03-01",
+        },
+        "9": {
+            "release_date": "2022-05-26",
+            "end_of_support": "2027-05-31",
+            "end_of_life": "2032-05-31",
+        },
+    },
+    "fedora": {
+        # Fedora releases have ~13 month lifecycle
+        "39": {
+            "release_date": "2023-11-07",
+            "end_of_support": "2024-11-26",
+            "end_of_life": "2024-11-26",
+        },
+        "40": {
+            "release_date": "2024-04-23",
+            "end_of_support": "2025-05-13",
+            "end_of_life": "2025-05-13",
+        },
+        "41": {
+            "release_date": "2024-10-29",
+            "end_of_support": "2025-11-18",
+            "end_of_life": "2025-11-18",
+        },
+        "42": {
+            "release_date": "2025-04-15",
+            "end_of_support": "2026-05-19",
+            "end_of_life": "2026-05-19",
+        },
+    },
+    "ubuntu": {
+        "20.04": {
+            "release_date": "2020-04-23",
+            "end_of_support": "2025-04-02",  # Standard support
+            "end_of_life": "2030-04-02",  # Extended security maintenance
+        },
+        "22.04": {
+            "release_date": "2022-04-21",
+            "end_of_support": "2027-04-01",
+            "end_of_life": "2032-04-01",
+        },
+        "24.04": {
+            "release_date": "2024-04-25",
+            "end_of_support": "2029-04-25",
+            "end_of_life": "2034-04-25",
+        },
+    },
+}
+
+
+# =============================================================================
+# PURL Construction
+# =============================================================================
+
+
+def make_deb_purl(
+    name: str,
+    version: str,
+    distro: str,
+    distro_version: str,
+    arch: str = "amd64",
+) -> str:
+    """Construct a PURL for a Debian/Ubuntu package."""
+    purl = PackageURL(
+        type="deb",
+        namespace=distro,
+        name=name,
+        version=version,
+        qualifiers={"arch": arch, "distro": f"{distro}-{distro_version}"},
+    )
+    return str(purl)
+
+
+def make_rpm_purl(
+    name: str,
+    version: str,
+    release: str,
+    distro: str,
+    distro_version: str,
+    arch: str = "x86_64",
+    epoch: Optional[str] = None,
+) -> str:
+    """Construct a PURL for an RPM package."""
+    full_version = f"{version}-{release}"
+    if epoch and epoch != "0":
+        full_version = f"{epoch}:{full_version}"
+
+    purl = PackageURL(
+        type="rpm",
+        namespace=distro,
+        name=name,
+        version=full_version,
+        qualifiers={"arch": arch, "distro": f"{distro}-{distro_version}"},
+    )
+    return str(purl)
+
+
+# =============================================================================
+# Ubuntu/Debian Package Processing
+# =============================================================================
+
+UBUNTU_ARCHIVE_BASE = "https://archive.ubuntu.com/ubuntu/"
+UBUNTU_CODENAMES = {
+    "20.04": "focal",
+    "22.04": "jammy",
+    "24.04": "noble",
+}
+UBUNTU_COMPONENTS = ["main", "universe", "restricted", "multiverse"]
+UBUNTU_POCKETS = ["-security", "-updates", ""]
+
+
+def parse_deb822(text: str) -> Iterator[Dict[str, str]]:
+    """Parse Debian control-style stanzas."""
+    cur: Dict[str, str] = {}
+    last_key: Optional[str] = None
+
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip("\n")
+        if not line.strip():
+            if cur:
+                yield cur
+                cur = {}
+                last_key = None
+            continue
+
+        if line.startswith((" ", "\t")) and last_key:
+            cur[last_key] = cur[last_key] + "\n" + line.lstrip()
+            continue
+
+        if ":" not in line:
+            continue
+
+        k, v = line.split(":", 1)
+        cur[k.strip()] = v.lstrip()
+        last_key = k.strip()
+
+    if cur:
+        yield cur
+
+
+def fetch_ubuntu_packages(
+    codename: str,
+    component: str = "main",
+    pocket: str = "",
+    arch: str = "amd64",
+) -> Iterator[Dict[str, str]]:
+    """Fetch and parse Ubuntu Packages.gz index."""
+    suite = f"{codename}{pocket}"
+    url = urljoin(
+        UBUNTU_ARCHIVE_BASE,
+        f"dists/{suite}/{component}/binary-{arch}/Packages.gz",
+    )
+
+    logger.info(f"Fetching {url}")
+
+    try:
+        response = SESSION.get(url, timeout=DOWNLOAD_TIMEOUT)
+        response.raise_for_status()
+
+        with gzip.GzipFile(fileobj=io.BytesIO(response.content)) as gz:
+            text = gz.read().decode("utf-8", errors="replace")
+
+        yield from parse_deb822(text)
+    except Exception as e:
+        logger.warning(f"Failed to fetch {url}: {e}")
+
+
+def download_and_extract_deb(filename: str, package_name: str) -> Optional[str]:
+    """Download a .deb file and extract the copyright file."""
+    url = urljoin(UBUNTU_ARCHIVE_BASE, filename)
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            deb_path = Path(tmpdir) / "package.deb"
+
+            response = SESSION.get(url, timeout=DOWNLOAD_TIMEOUT, stream=True)
+            response.raise_for_status()
+
+            with open(deb_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+            extract_dir = Path(tmpdir) / "extracted"
+            extract_dir.mkdir()
+
+            # Use dpkg-deb if available, otherwise ar + tar
+            try:
+                subprocess.run(
+                    ["dpkg-deb", "-x", str(deb_path), str(extract_dir)],
+                    check=True,
+                    capture_output=True,
+                    timeout=30,
+                )
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                subprocess.run(
+                    ["ar", "x", str(deb_path)],
+                    cwd=tmpdir,
+                    check=True,
+                    capture_output=True,
+                    timeout=30,
+                )
+                for data_tar in Path(tmpdir).glob("data.tar.*"):
+                    subprocess.run(
+                        ["tar", "xf", str(data_tar), "-C", str(extract_dir)],
+                        check=True,
+                        capture_output=True,
+                        timeout=60,
+                    )
+                    break
+
+            # Look for copyright file
+            copyright_paths = [
+                extract_dir / "usr" / "share" / "doc" / package_name / "copyright",
+                extract_dir / "usr" / "share" / "doc" / package_name.split(":")[0] / "copyright",
+            ]
+
+            for cp_path in copyright_paths:
+                if cp_path.exists():
+                    return cp_path.read_text(errors="replace")
+
+            for cp_path in extract_dir.rglob("copyright"):
+                return cp_path.read_text(errors="replace")
+
+    except Exception as e:
+        logger.debug(f"Failed to extract copyright from {package_name}: {e}")
+
+    return None
+
+
+def parse_maintainer(maintainer: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    """Parse maintainer field into name and email."""
+    if not maintainer:
+        return None, None
+
+    # Format: "Name <email>" or just "Name"
+    match = re.match(r"^(.+?)\s*<([^>]+)>", maintainer)
+    if match:
+        return match.group(1).strip(), match.group(2).strip()
+    return maintainer.strip(), None
+
+
+def process_ubuntu_package(
+    pkg_info: Dict[str, str],
+    distro_version: str,
+    codename: str,
+) -> Optional[PackageMetadata]:
+    """Process a single Ubuntu package and extract all metadata."""
+    name = pkg_info.get("Package")
+    version = pkg_info.get("Version")
+    filename = pkg_info.get("Filename")
+
+    if not name or not version:
+        return None
+
+    # Extract license from copyright file
+    spdx = None
+    if filename:
+        copyright_text = download_and_extract_deb(filename, name)
+        if copyright_text:
+            spdx = extract_dep5_license(copyright_text)
+
+    # We still require a valid license for inclusion
+    if not spdx:
+        return None
+
+    # Extract other metadata from Packages.gz
+    description = pkg_info.get("Description")
+    if description:
+        # Take first line only (rest is long description)
+        description = description.split("\n")[0].strip()
+
+    maintainer = pkg_info.get("Maintainer")
+    maintainer_name, maintainer_email = parse_maintainer(maintainer)
+
+    homepage = pkg_info.get("Homepage")
+
+    # Construct download URL
+    download_url = None
+    if filename:
+        download_url = urljoin(UBUNTU_ARCHIVE_BASE, filename)
+
+    purl = make_deb_purl(
+        name=name,
+        version=version,
+        distro="ubuntu",
+        distro_version=distro_version,
+    )
+
+    return PackageMetadata(
+        purl=purl,
+        name=name,
+        version=version,
+        spdx=spdx,
+        license_raw=spdx,
+        description=description,
+        supplier=maintainer,
+        maintainer_name=maintainer_name,
+        maintainer_email=maintainer_email,
+        homepage=homepage,
+        download_url=download_url,
+        confidence="high",
+        source="deb_metadata",
+    )
+
+
+# =============================================================================
+# RPM Package Processing
+# =============================================================================
+
+RPM_DISTRO_REPOS = {
+    "rocky": {
+        "8": [
+            "https://download.rockylinux.org/pub/rocky/8/BaseOS/x86_64/os/",
+            "https://download.rockylinux.org/pub/rocky/8/AppStream/x86_64/os/",
+        ],
+        "9": [
+            "https://download.rockylinux.org/pub/rocky/9/BaseOS/x86_64/os/",
+            "https://download.rockylinux.org/pub/rocky/9/AppStream/x86_64/os/",
+        ],
+    },
+    "almalinux": {
+        "8": [
+            "https://repo.almalinux.org/almalinux/8/BaseOS/x86_64/os/",
+            "https://repo.almalinux.org/almalinux/8/AppStream/x86_64/os/",
+        ],
+        "9": [
+            "https://repo.almalinux.org/almalinux/9/BaseOS/x86_64/os/",
+            "https://repo.almalinux.org/almalinux/9/AppStream/x86_64/os/",
+        ],
+    },
+    "fedora": {
+        # Older releases are in archive
+        "39": ["https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/39/Everything/x86_64/os/"],
+        "40": ["https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/40/Everything/x86_64/os/"],
+        "41": ["https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/41/Everything/x86_64/os/"],
+        # Current release
+        "42": ["https://dl.fedoraproject.org/pub/fedora/linux/releases/42/Everything/x86_64/os/"],
+    },
+}
+
+
+@dataclass
+class RpmPackageInfo:
+    """Package info from RPM primary.xml."""
+
+    name: str
+    version: str
+    release: str
+    epoch: Optional[str]
+    arch: str
+    license: Optional[str]
+    location_href: Optional[str]
+    # Additional metadata
+    summary: Optional[str] = None
+    description: Optional[str] = None
+    url: Optional[str] = None
+    vendor: Optional[str] = None
+    packager: Optional[str] = None
+
+
+def fetch_rpm_repomd(repo_url: str) -> Optional[str]:
+    """Fetch repomd.xml and return the primary.xml.gz href."""
+    repomd_url = urljoin(repo_url, "repodata/repomd.xml")
+
+    try:
+        response = SESSION.get(repomd_url, timeout=DEFAULT_TIMEOUT)
+        response.raise_for_status()
+
+        root = ET.fromstring(response.content)
+        ns_match = re.match(r"\{([^}]+)\}", root.tag)
+        ns = ns_match.group(1) if ns_match else ""
+
+        def q(tag: str) -> str:
+            return f"{{{ns}}}{tag}" if ns else tag
+
+        for data in root.findall(q("data")):
+            if data.get("type") == "primary":
+                location = data.find(q("location"))
+                if location is not None:
+                    return location.get("href")
+    except Exception as e:
+        logger.warning(f"Failed to fetch repomd.xml from {repo_url}: {e}")
+
+    return None
+
+
+def fetch_rpm_packages(repo_url: str) -> Iterator[RpmPackageInfo]:
+    """Fetch and parse RPM repository primary.xml (gzip or zstd compressed)."""
+    primary_href = fetch_rpm_repomd(repo_url)
+    if not primary_href:
+        return
+
+    primary_url = urljoin(repo_url, primary_href)
+    logger.info(f"Fetching {primary_url}")
+
+    try:
+        response = SESSION.get(primary_url, timeout=DOWNLOAD_TIMEOUT)
+        response.raise_for_status()
+
+        # Handle both gzip and zstd compression
+        if primary_href.endswith(".zst"):
+            try:
+                import zstandard as zstd
+
+                dctx = zstd.ZstdDecompressor()
+                # Use streaming decompression for files without content size in header
+                reader = dctx.stream_reader(io.BytesIO(response.content))
+                data = reader.read()
+                reader.close()
+            except ImportError:
+                logger.warning("zstandard not installed, cannot decompress .zst files")
+                logger.warning("Install with: pip install zstandard")
+                return
+        else:
+            with gzip.GzipFile(fileobj=io.BytesIO(response.content)) as gz:
+                data = gz.read()
+
+        root = ET.fromstring(data)
+        ns_match = re.match(r"\{([^}]+)\}", root.tag)
+        ns_primary = ns_match.group(1) if ns_match else ""
+
+        def q(tag: str) -> str:
+            return f"{{{ns_primary}}}{tag}" if ns_primary else tag
+
+        for pkg_elem in root.findall(q("package")):
+            if pkg_elem.get("type") and pkg_elem.get("type") != "rpm":
+                continue
+
+            name_elem = pkg_elem.find(q("name"))
+            arch_elem = pkg_elem.find(q("arch"))
+            version_elem = pkg_elem.find(q("version"))
+            location_elem = pkg_elem.find(q("location"))
+
+            if name_elem is None or version_elem is None:
+                continue
+
+            name = name_elem.text or ""
+            arch = arch_elem.text if arch_elem is not None else ""
+            epoch = version_elem.get("epoch")
+            version = version_elem.get("ver") or ""
+            release = version_elem.get("rel") or ""
+            location_href = location_elem.get("href") if location_elem is not None else None
+
+            # Extract top-level elements
+            summary_elem = pkg_elem.find(q("summary"))
+            desc_elem = pkg_elem.find(q("description"))
+            url_elem = pkg_elem.find(q("url"))
+            packager_elem = pkg_elem.find(q("packager"))
+
+            summary = summary_elem.text if summary_elem is not None else None
+            description = desc_elem.text if desc_elem is not None else None
+            url = url_elem.text if url_elem is not None else None
+            packager = packager_elem.text if packager_elem is not None else None
+
+            # License and vendor are in <format> block
+            license_str = None
+            vendor = None
+            fmt = pkg_elem.find(q("format"))
+            if fmt is not None:
+                for child in list(fmt):
+                    tag = child.tag
+                    if tag.endswith("}license") or tag == "license":
+                        license_str = child.text
+                    elif tag.endswith("}vendor") or tag == "vendor":
+                        vendor = child.text
+
+            yield RpmPackageInfo(
+                name=name,
+                version=version,
+                release=release,
+                epoch=epoch,
+                arch=arch,
+                license=license_str,
+                location_href=location_href,
+                summary=summary,
+                description=description,
+                url=url,
+                vendor=vendor,
+                packager=packager,
+            )
+
+    except Exception as e:
+        logger.warning(f"Failed to fetch primary.xml from {repo_url}: {e}")
+
+
+def process_rpm_package(
+    pkg_info: RpmPackageInfo,
+    distro: str,
+    distro_version: str,
+    repo_url: str,
+) -> Optional[PackageMetadata]:
+    """Process a single RPM package and extract all metadata."""
+    if not pkg_info.license:
+        return None
+
+    # Use shared library for normalization
+    result = normalize_rpm_license(pkg_info.license)
+
+    if not result.spdx:
+        return None
+
+    purl = make_rpm_purl(
+        name=pkg_info.name,
+        version=pkg_info.version,
+        release=pkg_info.release,
+        distro=distro,
+        distro_version=distro_version,
+        arch=pkg_info.arch,
+        epoch=pkg_info.epoch,
+    )
+
+    # Use summary as description (shorter), fallback to full description
+    description = pkg_info.summary or pkg_info.description
+    if description:
+        description = description.strip()[:500]  # Truncate long descriptions
+
+    # Supplier: prefer vendor, fallback to packager
+    supplier = pkg_info.vendor or pkg_info.packager
+    maintainer_name, maintainer_email = parse_maintainer(pkg_info.packager)
+
+    # Construct download URL
+    download_url = None
+    if pkg_info.location_href:
+        download_url = urljoin(repo_url, pkg_info.location_href)
+
+    return PackageMetadata(
+        purl=purl,
+        name=pkg_info.name,
+        version=f"{pkg_info.version}-{pkg_info.release}",
+        spdx=result.spdx,
+        license_raw=result.raw[:500],
+        description=description,
+        supplier=supplier,
+        maintainer_name=maintainer_name,
+        maintainer_email=maintainer_email,
+        homepage=pkg_info.url,
+        download_url=download_url,
+        confidence=result.confidence,
+        source="rpm_metadata",
+    )
+
+
+# =============================================================================
+# Database Generation
+# =============================================================================
+
+
+def generate_ubuntu_db(
+    distro_version: str,
+    output_path: Path,
+    max_packages: Optional[int] = None,
+) -> None:
+    """Generate license database for Ubuntu."""
+    codename = UBUNTU_CODENAMES.get(distro_version)
+    if not codename:
+        logger.error(f"Unknown Ubuntu version: {distro_version}")
+        sys.exit(1)
+
+    logger.info(f"Generating license database for Ubuntu {distro_version} ({codename})")
+
+    packages: Dict[str, Dict[str, Any]] = {}
+    seen_names: set = set()
+    count = 0
+    skipped = 0
+
+    for component in UBUNTU_COMPONENTS:
+        for pocket in UBUNTU_POCKETS:
+            for pkg_info in fetch_ubuntu_packages(codename, component, pocket):
+                name = pkg_info.get("Package")
+                if not name or name in seen_names:
+                    continue
+
+                seen_names.add(name)
+
+                if max_packages and count >= max_packages:
+                    break
+
+                result = process_ubuntu_package(pkg_info, distro_version, codename)
+                if result:
+                    packages[result.purl] = {
+                        "name": result.name,
+                        "version": result.version,
+                        "spdx": result.spdx,
+                        "license_raw": result.license_raw,
+                        "description": result.description,
+                        "supplier": result.supplier,
+                        "maintainer_name": result.maintainer_name,
+                        "maintainer_email": result.maintainer_email,
+                        "homepage": result.homepage,
+                        "download_url": result.download_url,
+                        "confidence": result.confidence,
+                        "source": result.source,
+                    }
+                    count += 1
+                    if count % 100 == 0:
+                        logger.info(f"Processed {count} packages with valid licenses...")
+                else:
+                    skipped += 1
+
+            if max_packages and count >= max_packages:
+                break
+        if max_packages and count >= max_packages:
+            break
+
+    # Get CLE lifecycle data
+    lifecycle = DISTRO_LIFECYCLE.get("ubuntu", {}).get(distro_version, {})
+
+    db = {
+        "metadata": asdict(
+            DatabaseMetadata(
+                distro="ubuntu",
+                version=distro_version,
+                codename=codename,
+                generated_at=datetime.now(timezone.utc).isoformat(),
+                package_count=len(packages),
+                release_date=lifecycle.get("release_date"),
+                end_of_support=lifecycle.get("end_of_support"),
+                end_of_life=lifecycle.get("end_of_life"),
+            )
+        ),
+        "packages": packages,
+    }
+
+    with gzip.open(output_path, "wt", encoding="utf-8") as f:
+        json.dump(db, f, separators=(",", ":"))
+
+    logger.info(f"Wrote {len(packages)} packages to {output_path}")
+    logger.info(f"Skipped: {skipped} (license not validated)")
+    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+
+
+def generate_rpm_db(
+    distro: str,
+    distro_version: str,
+    output_path: Path,
+    max_packages: Optional[int] = None,
+) -> None:
+    """Generate license database for RPM-based distro."""
+    repos = RPM_DISTRO_REPOS.get(distro, {}).get(distro_version)
+    if not repos:
+        logger.error(f"Unknown distro/version: {distro} {distro_version}")
+        sys.exit(1)
+
+    logger.info(f"Generating license database for {distro} {distro_version}")
+
+    packages: Dict[str, Dict[str, Any]] = {}
+    seen_names: set = set()
+    count = 0
+    skipped = 0
+
+    for repo_url in repos:
+        for pkg_info in fetch_rpm_packages(repo_url):
+            if pkg_info.name in seen_names:
+                continue
+
+            seen_names.add(pkg_info.name)
+
+            if max_packages and count >= max_packages:
+                break
+
+            result = process_rpm_package(pkg_info, distro, distro_version, repo_url)
+            if result:
+                packages[result.purl] = {
+                    "name": result.name,
+                    "version": result.version,
+                    "spdx": result.spdx,
+                    "license_raw": result.license_raw,
+                    "description": result.description,
+                    "supplier": result.supplier,
+                    "maintainer_name": result.maintainer_name,
+                    "maintainer_email": result.maintainer_email,
+                    "homepage": result.homepage,
+                    "download_url": result.download_url,
+                    "confidence": result.confidence,
+                    "source": result.source,
+                }
+                count += 1
+                if count % 500 == 0:
+                    logger.info(f"Processed {count} packages with valid licenses...")
+            else:
+                skipped += 1
+
+        if max_packages and count >= max_packages:
+            break
+
+    # Get CLE lifecycle data
+    lifecycle = DISTRO_LIFECYCLE.get(distro, {}).get(distro_version, {})
+
+    db = {
+        "metadata": asdict(
+            DatabaseMetadata(
+                distro=distro,
+                version=distro_version,
+                codename=None,
+                generated_at=datetime.now(timezone.utc).isoformat(),
+                package_count=len(packages),
+                release_date=lifecycle.get("release_date"),
+                end_of_support=lifecycle.get("end_of_support"),
+                end_of_life=lifecycle.get("end_of_life"),
+            )
+        ),
+        "packages": packages,
+    }
+
+    with gzip.open(output_path, "wt", encoding="utf-8") as f:
+        json.dump(db, f, separators=(",", ":"))
+
+    logger.info(f"Wrote {len(packages)} packages to {output_path}")
+    logger.info(f"Skipped: {skipped} (license not validated)")
+    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+
+
+# =============================================================================
+# CLI Entry Point
+# =============================================================================
+
+
+def main() -> None:
+    """CLI entry point for license database generation."""
+    parser = argparse.ArgumentParser(
+        prog="sbomify-license-db",
+        description="Generate license database for Linux distro packages",
+    )
+    parser.add_argument(
+        "--distro",
+        required=True,
+        choices=["ubuntu", "rocky", "almalinux", "fedora"],
+        help="Distribution name",
+    )
+    parser.add_argument(
+        "--version",
+        required=True,
+        help="Distribution version (e.g., 24.04, 9, 41)",
+    )
+    parser.add_argument(
+        "--output",
+        required=True,
+        type=Path,
+        help="Output file path (will be gzipped JSON)",
+    )
+    parser.add_argument(
+        "--max-packages",
+        type=int,
+        default=None,
+        help="Maximum number of packages to process (for testing)",
+    )
+
+    args = parser.parse_args()
+
+    output_path = args.output
+    if not str(output_path).endswith(".gz"):
+        output_path = Path(str(output_path) + ".gz")
+
+    if args.distro == "ubuntu":
+        generate_ubuntu_db(args.version, output_path, args.max_packages)
+    else:
+        generate_rpm_db(args.distro, args.version, output_path, args.max_packages)
+
+
+if __name__ == "__main__":
+    main()

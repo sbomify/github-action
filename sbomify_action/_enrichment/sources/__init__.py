@@ -5,6 +5,7 @@ from .cratesio import CratesIOSource
 from .debian import DebianSource
 from .depsdev import DepsDevSource
 from .ecosystems import EcosystemsSource
+from .license_db import LicenseDBSource
 from .pubdev import PubDevSource
 from .purl import PURLSource
 from .pypi import PyPISource
@@ -24,4 +25,5 @@ __all__ = [
     "ClearlyDefinedSource",
     "RepologySource",
     "RpmRepoSource",
+    "LicenseDBSource",
 ]
