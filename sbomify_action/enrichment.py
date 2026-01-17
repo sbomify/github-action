@@ -3,6 +3,28 @@
 This module provides SBOM enrichment through a plugin architecture that queries
 multiple data sources in priority order to populate NTIA-required fields.
 
+Data Source Priority (lower number = higher priority):
+    Tier 0 - Pre-computed Databases (1-9):
+    - LicenseDBSource (1): Pre-computed license database with validated SPDX
+      licenses and full metadata for Alpine, Wolfi, Ubuntu, Rocky, Alma,
+      CentOS, Fedora, and Amazon Linux packages. Top priority as it provides
+      fast, accurate data without network requests.
+
+    Tier 1 - Native Sources (10-19):
+    - PyPISource (10): Direct from PyPI for Python packages
+    - PubDevSource (10): Direct from pub.dev for Dart packages
+    - CratesIOSource (10): Direct from crates.io for Rust packages
+    - DebianSource (10): Direct from sources.debian.org
+
+    Tier 2 - Primary Aggregators (40-49):
+    - DepsDevSource (40): Google Open Source Insights
+    - EcosystemsSource (45): ecosyste.ms multi-ecosystem aggregator
+
+    Tier 3 - Fallback Sources (70-99):
+    - PURLSource (70): Local PURL extraction for OS packages (no API)
+    - ClearlyDefinedSource (75): License and attribution data
+    - RepologySource (90): Cross-distro metadata (rate-limited)
+
 NTIA Minimum Elements (July 2021):
     https://sbomify.com/compliance/ntia-minimum-elements/
 
@@ -413,6 +435,29 @@ def _apply_metadata_to_cyclonedx_component(component: Component, metadata: Norma
         if _add_external_ref(ExternalReferenceType.ISSUE_TRACKER, metadata.issue_tracker_url, "issue_tracker_url"):
             added_fields.append("issue-tracker URL")
 
+    # CLE (Common Lifecycle Enumeration) properties - ECMA-428
+    # Applied as component properties with cle: namespace
+    # See: https://sbomify.com/compliance/cle/
+    def _add_cle_property(name: str, value: str) -> bool:
+        """Add a CLE property if not already present."""
+        for prop in component.properties:
+            if prop.name == name:
+                return False
+        component.properties.add(Property(name=name, value=value))
+        return True
+
+    if metadata.cle_eos:
+        if _add_cle_property("cle:eos", metadata.cle_eos):
+            added_fields.append(f"cle:eos ({metadata.cle_eos})")
+
+    if metadata.cle_eol:
+        if _add_cle_property("cle:eol", metadata.cle_eol):
+            added_fields.append(f"cle:eol ({metadata.cle_eol})")
+
+    if metadata.cle_release_date:
+        if _add_cle_property("cle:releaseDate", metadata.cle_release_date):
+            added_fields.append(f"cle:releaseDate ({metadata.cle_release_date})")
+
     return added_fields
 
 
@@ -533,6 +578,40 @@ def _apply_metadata_to_spdx_package(package: Package, metadata: NormalizedMetada
     if metadata.documentation_url:
         if _add_external_ref(ExternalPackageRefCategory.OTHER, "url", metadata.documentation_url):
             added_fields.append("externalRef (documentation)")
+
+    # Issue tracker URL (sanitized) - parity with CycloneDX
+    if metadata.issue_tracker_url:
+        if _add_external_ref(ExternalPackageRefCategory.OTHER, "issue-tracker", metadata.issue_tracker_url):
+            added_fields.append("externalRef (issue-tracker)")
+
+    # Repository/VCS URL as external reference (sanitized) - parity with CycloneDX
+    # Note: CycloneDX adds repository_url as VCS external reference
+    # In addition to source_info, we also add as external ref for tool interoperability
+    if metadata.repository_url:
+        if _add_external_ref(ExternalPackageRefCategory.OTHER, "vcs", metadata.repository_url):
+            added_fields.append("externalRef (vcs)")
+
+    # CLE (Common Lifecycle Enumeration) data - ECMA-428
+    # For SPDX, we add CLE info to the package comment
+    # See: https://sbomify.com/compliance/cle/
+    cle_parts = []
+    if metadata.cle_eos:
+        cle_parts.append(f"cle:eos={metadata.cle_eos}")
+    if metadata.cle_eol:
+        cle_parts.append(f"cle:eol={metadata.cle_eol}")
+    if metadata.cle_release_date:
+        cle_parts.append(f"cle:releaseDate={metadata.cle_release_date}")
+
+    if cle_parts:
+        cle_comment = f"CLE lifecycle: {', '.join(cle_parts)}"
+        if package.comment:
+            # Only add if not already present
+            if "CLE lifecycle:" not in package.comment:
+                package.comment = f"{package.comment} | {cle_comment}"
+                added_fields.append("comment (CLE)")
+        else:
+            package.comment = cle_comment
+            added_fields.append("comment (CLE)")
 
     return added_fields
 
@@ -799,11 +878,15 @@ def enrich_sbom(input_file: str, output_file: str, validate: bool = True) -> Non
 
     This function uses the plugin-based enrichment system which queries
     data sources in priority order (lower number = higher priority):
-    - Priority 10: Native sources (PyPI, Debian Sources)
-    - Priority 20: deps.dev (Google Open Source Insights)
-    - Priority 30: ecosyste.ms
-    - Priority 40: ClearlyDefined
-    - Priority 50: PURL-based extraction (for OS packages)
+
+    - Priority 1: LicenseDBSource - Pre-computed database with validated SPDX
+      licenses for Linux distro packages (Alpine, Wolfi, Ubuntu, Rocky, Alma,
+      CentOS, Fedora, Amazon Linux). Fastest and most accurate source.
+    - Priority 10: Native sources (PyPI, pub.dev, crates.io, Debian Sources)
+    - Priority 40: deps.dev (Google Open Source Insights)
+    - Priority 45: ecosyste.ms (multi-ecosystem aggregator)
+    - Priority 70: PURL-based extraction (for OS packages, no API)
+    - Priority 75: ClearlyDefined (license and attribution data)
     - Priority 90: Repology (fallback, rate-limited)
 
     After enrichment, the output SBOM is validated against its JSON schema

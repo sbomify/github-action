@@ -24,12 +24,11 @@ from .sources import (
     DebianSource,
     DepsDevSource,
     EcosystemsSource,
+    LicenseDBSource,
     PubDevSource,
     PURLSource,
     PyPISource,
     RepologySource,
-    RpmRepoSource,
-    UbuntuSource,
 )
 
 
@@ -39,13 +38,16 @@ def create_default_registry() -> SourceRegistry:
 
     Returns a registry configured with sources in three tiers:
 
+    Tier 0 - Pre-computed Databases (1-9):
+    - LicenseDBSource (1) - pre-computed license DB with validated SPDX licenses
+      and full metadata for Alpine, Wolfi, Ubuntu, Rocky, Alma, CentOS, Fedora,
+      Amazon Linux packages. Top priority as it provides fast, accurate data.
+
     Tier 1 - Native Sources (10-19):
     - PyPISource (10) - direct from PyPI for Python packages
     - PubDevSource (10) - direct from pub.dev for Dart packages
     - CratesIOSource (10) - direct from crates.io for Rust packages
     - DebianSource (10) - direct from sources.debian.org
-    - UbuntuSource (12) - Ubuntu APT repo Packages.gz for Ubuntu packages
-    - RpmRepoSource (15) - RPM repo primary.xml for Rocky/Alma/CentOS/Fedora/Amazon Linux
 
     Tier 2 - Primary Aggregators (40-49):
     - DepsDevSource (40) - Google Open Source Insights
@@ -64,12 +66,11 @@ def create_default_registry() -> SourceRegistry:
         Configured SourceRegistry
     """
     registry = SourceRegistry()
+    registry.register(LicenseDBSource())
     registry.register(PyPISource())
     registry.register(PubDevSource())
     registry.register(CratesIOSource())
     registry.register(DebianSource())
-    registry.register(UbuntuSource())
-    registry.register(RpmRepoSource())
     registry.register(DepsDevSource())
     registry.register(EcosystemsSource())
     registry.register(PURLSource())
@@ -250,18 +251,16 @@ def clear_all_caches() -> None:
     from .sources.debian import clear_cache as clear_debian
     from .sources.depsdev import clear_cache as clear_depsdev
     from .sources.ecosystems import clear_cache as clear_ecosystems
+    from .sources.license_db import clear_cache as clear_license_db
     from .sources.pubdev import clear_cache as clear_pubdev
     from .sources.pypi import clear_cache as clear_pypi
     from .sources.repology import clear_cache as clear_repology
-    from .sources.rpmrepo import clear_cache as clear_rpmrepo
-    from .sources.ubuntu import clear_cache as clear_ubuntu
 
+    clear_license_db()
     clear_pypi()
     clear_pubdev()
     clear_cratesio()
     clear_debian()
-    clear_ubuntu()
-    clear_rpmrepo()
     clear_depsdev()
     clear_ecosystems()
     clear_clearlydefined()

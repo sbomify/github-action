@@ -1,0 +1,150 @@
+---
+name: Generate License Databases
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      distros:
+        description: 'Distros to generate (comma-separated, or "all")'
+        required: false
+        default: 'all'
+
+jobs:
+  generate-databases:
+    name: Generate License Databases
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Alpine versions (APK)
+          - distro: alpine
+            version: "3.13"
+          - distro: alpine
+            version: "3.14"
+          - distro: alpine
+            version: "3.15"
+          - distro: alpine
+            version: "3.16"
+          - distro: alpine
+            version: "3.17"
+          - distro: alpine
+            version: "3.18"
+          - distro: alpine
+            version: "3.19"
+          - distro: alpine
+            version: "3.20"
+          - distro: alpine
+            version: "3.21"
+          # Wolfi (rolling release)
+          - distro: wolfi
+            version: "rolling"
+          # Amazon Linux (RPM)
+          - distro: amazonlinux
+            version: "2"
+          - distro: amazonlinux
+            version: "2023"
+          # CentOS Stream (RPM)
+          - distro: centos
+            version: "stream8"
+          - distro: centos
+            version: "stream9"
+          # Rocky Linux (RPM)
+          - distro: rocky
+            version: "8"
+          - distro: rocky
+            version: "9"
+          # AlmaLinux (RPM)
+          - distro: almalinux
+            version: "8"
+          - distro: almalinux
+            version: "9"
+          # Fedora (RPM)
+          - distro: fedora
+            version: "39"
+          - distro: fedora
+            version: "40"
+          - distro: fedora
+            version: "41"
+          - distro: fedora
+            version: "42"
+          # Ubuntu (DEB) - these take longer
+          - distro: ubuntu
+            version: "20.04"
+          - distro: ubuntu
+            version: "22.04"
+          - distro: ubuntu
+            version: "24.04"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Generate ${{ matrix.distro }}-${{ matrix.version }} database
+        # License database generation involves downloading and parsing package metadata
+        # from distro repositories. Some distros (e.g., Ubuntu, Fedora) have very large
+        # package sets that can take 30-60+ minutes to process. The 120-minute timeout
+        # provides headroom for slower CI runners and network conditions.
+        run: |
+          uv run sbomify-license-db \
+            --distro ${{ matrix.distro }} \
+            --version ${{ matrix.version }} \
+            --output ${{ matrix.distro }}-${{ matrix.version }}.json.gz
+        timeout-minutes: 120
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-db-${{ matrix.distro }}-${{ matrix.version }}
+          path: ${{ matrix.distro }}-${{ matrix.version }}.json.gz
+          retention-days: 7
+
+  upload-to-release:
+    name: Upload to Release
+    runs-on: ubuntu-latest
+    needs: generate-databases
+    if: github.event_name == 'release'
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: databases
+          pattern: license-db-*
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: ls -la databases/
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: databases/*.json.gz
+          tag_name: ${{ github.event.release.tag_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## License Databases Uploaded" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The following license databases were uploaded to release ${{ github.event.release.tag_name }}:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for f in databases/*.json.gz; do
+            size=$(du -h "$f" | cut -f1)
+            name=$(basename "$f")
+            echo "- \`$name\` ($size)" >> $GITHUB_STEP_SUMMARY
+          done

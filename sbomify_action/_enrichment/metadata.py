@@ -15,6 +15,13 @@ class NormalizedMetadata:
 
     Per-field attribution is tracked in `field_sources` to know exactly
     which source provided which field.
+
+    CLE (Common Lifecycle Enumeration) fields follow ECMA-428:
+    - cle_eos: End of Support date (when standard/active updates end)
+    - cle_eol: End of Life date (when all support ends)
+    - cle_release_date: Release date for the distribution version
+    These are applied as component properties with cle: namespace.
+    See: https://sbomify.com/compliance/cle/
     """
 
     # Core NTIA fields
@@ -34,6 +41,12 @@ class NormalizedMetadata:
     # Maintainer info
     maintainer_name: Optional[str] = None
     maintainer_email: Optional[str] = None
+
+    # CLE (Common Lifecycle Enumeration) fields - ECMA-428
+    # Used for distro-level lifecycle dates applied to all packages from that distro
+    cle_eos: Optional[str] = None  # End of Support date (ISO 8601)
+    cle_eol: Optional[str] = None  # End of Life date (ISO 8601)
+    cle_release_date: Optional[str] = None  # Release date (ISO 8601)
 
     # Source tracking
     source: str = ""  # Primary source (first source with data)
@@ -92,6 +105,10 @@ class NormalizedMetadata:
             # Maintainer info
             maintainer_name=pick("maintainer_name", self.maintainer_name, other.maintainer_name),
             maintainer_email=pick("maintainer_email", self.maintainer_email, other.maintainer_email),
+            # CLE fields
+            cle_eos=pick("cle_eos", self.cle_eos, other.cle_eos),
+            cle_eol=pick("cle_eol", self.cle_eol, other.cle_eol),
+            cle_release_date=pick("cle_release_date", self.cle_release_date, other.cle_release_date),
             # Source tracking - primary source is the first one
             source=self.source or other.source,
             field_sources=merged_sources,
@@ -110,4 +127,6 @@ class NormalizedMetadata:
             or self.issue_tracker_url
             or self.download_url
             or self.maintainer_name
+            or self.cle_eos
+            or self.cle_eol
         )

@@ -7,44 +7,9 @@
 
 Generate, augment, enrich, and manage SBOMs in your CI/CD pipeline. Works standalone or with [sbomify](https://sbomify.com).
 
-**Platform agnostic**: Despite the name, this runs anywhere—GitHub Actions, GitLab CI, Bitbucket Pipelines, or any Docker-capable environment. See [examples below](#other-cicd-platforms).
+**Recommended**: Use the GitHub Action or Docker image—they include all SBOM generators (Trivy, Syft, cdxgen) pre-installed. For other CI platforms, see [examples below](#other-cicd-platforms). A [pip package](#pip-advanced) is also available for advanced use cases.
 
 **Why generate SBOMs in CI/CD?** Generating SBOMs at build time enables cryptographic signing and attestation, creating a verifiable chain of trust from source to artifact. Learn more about the [SBOM lifecycle](https://sbomify.com/features/generate-collaborate-analyze/).
-
-## Installation
-
-### pip (Standalone CLI)
-
-Install sbomify-action as a standalone CLI tool:
-
-```bash
-pip install sbomify-action
-```
-
-After installation, you can run:
-
-```bash
-# Set environment variables and run
-export LOCK_FILE=requirements.txt
-export OUTPUT_FILE=sbom.cdx.json
-export UPLOAD=false
-export ENRICH=true
-sbomify-action
-```
-
-**Note**: SBOM generation requires external tools (trivy, syft, or cdxgen). See [Required Tools](#required-tools) below. The Docker image includes all tools pre-installed.
-
-### Docker (Recommended for CI/CD)
-
-The Docker image includes all SBOM generators pre-installed:
-
-```bash
-docker run --rm -v $(pwd):/code \
-  -e LOCK_FILE=/code/requirements.txt \
-  -e OUTPUT_FILE=/code/sbom.cdx.json \
-  -e UPLOAD=false \
-  sbomifyhub/sbomify-action
-```
 
 ## Quick Start
 
@@ -401,6 +366,26 @@ docker run --rm -v $(pwd):/code \
   sbomifyhub/sbomify-action
 ```
 
+### pip (Advanced)
+
+For local development or environments where Docker isn't available, install via pip:
+
+```bash
+pip install sbomify-action
+```
+
+Then run with environment variables:
+
+```bash
+export LOCK_FILE=requirements.txt
+export OUTPUT_FILE=sbom.cdx.json
+export UPLOAD=false
+export ENRICH=true
+sbomify-action
+```
+
+**Note**: SBOM generation requires external tools (trivy, syft, or cdxgen) to be installed separately. The Docker image includes all tools pre-installed, which is why it's the recommended approach.
+
 ## Augmentation vs Enrichment
 
 **Augmentation** (`AUGMENT=true`) adds organizational metadata to your SBOM—supplier info, authors, licenses, and lifecycle phase. This addresses [NTIA Minimum Elements](https://sbomify.com/compliance/ntia-minimum-elements/) and [CISA 2025](https://sbomify.com/compliance/cisa-minimum-elements/) requirements.
@@ -485,17 +470,62 @@ env:
 
 ### Enrichment Data Sources
 
-| Source         | Package Types                                         | Data                                            |
-| -------------- | ----------------------------------------------------- | ----------------------------------------------- |
-| PyPI           | Python                                                | License, author, homepage                       |
-| pub.dev        | Dart                                                  | License, author, homepage, repo                 |
-| crates.io      | Rust/Cargo                                            | License, author, homepage, repo, description    |
-| RPM Repos      | Rocky, Alma, CentOS, Fedora, Amazon Linux             | License, vendor, description, homepage          |
-| Ubuntu APT     | Ubuntu packages                                       | Maintainer, description, homepage, download URL |
-| deps.dev       | Python, npm, Maven, Go, Ruby, NuGet (+ Rust fallback) | License, homepage, repo                         |
-| ecosyste.ms    | All major ecosystems                                  | License, description, maintainer                |
-| Debian Sources | Debian packages                                       | Maintainer, description, homepage               |
-| Repology       | Linux distros                                         | License, homepage                               |
+| Source         | Package Types                                                    | Data                                                      |
+| -------------- | ---------------------------------------------------------------- | --------------------------------------------------------- |
+| License DB     | Alpine, Wolfi, Ubuntu, Rocky, Alma, CentOS, Fedora, Amazon Linux | License, description, supplier, homepage, maintainer, CLE |
+| PyPI           | Python                                                           | License, author, homepage                                 |
+| pub.dev        | Dart                                                             | License, author, homepage, repo                           |
+| crates.io      | Rust/Cargo                                                       | License, author, homepage, repo, description              |
+| Debian Sources | Debian packages                                                  | Maintainer, description, homepage                         |
+| deps.dev       | Python, npm, Maven, Go, Ruby, NuGet (+ Rust fallback)            | License, homepage, repo                                   |
+| ecosyste.ms    | All major ecosystems                                             | License, description, maintainer                          |
+| Repology       | Linux distros                                                    | License, homepage                                         |
+
+### License Database
+
+For Linux distro packages, sbomify uses pre-computed databases that provide comprehensive package metadata. The databases are built by pulling data directly from official distro sources (Alpine APKINDEX, Ubuntu/Debian apt repositories, RPM repos) and normalizing it into a consistent format with validated SPDX license expressions.
+
+- **Generated automatically** on each release from official distro repositories
+- **Downloaded on-demand** from GitHub Releases during enrichment
+- **Cached locally** (~/.cache/sbomify/license-db/) for faster subsequent runs
+- **Normalized** — vendor-specific license strings converted to valid SPDX expressions
+
+**Data provided:**
+
+| Field           | Description                                    |
+| --------------- | ---------------------------------------------- |
+| License         | SPDX-validated license expression              |
+| Description     | Package summary                                |
+| Supplier        | Package maintainer/vendor                      |
+| Homepage        | Project website URL                            |
+| Download URL    | Package download location                      |
+| Maintainer      | Name and email                                 |
+| CLE (lifecycle) | End-of-support, end-of-life, and release dates |
+
+[CLE (Common Lifecycle Enumeration)](https://sbomify.com/compliance/cle/) provides distro-level lifecycle dates, enabling automated end-of-life tracking for OS packages.
+
+**Supported distros:**
+
+| Distro       | Versions            |
+| ------------ | ------------------- |
+| Alpine       | 3.13–3.21           |
+| Wolfi        | rolling             |
+| Ubuntu       | 20.04, 22.04, 24.04 |
+| Rocky Linux  | 8, 9                |
+| AlmaLinux    | 8, 9                |
+| CentOS       | Stream 8, Stream 9  |
+| Fedora       | 39, 40, 41, 42      |
+| Amazon Linux | 2, 2023             |
+
+The license database is the **primary source** for Linux distro packages, taking precedence over other enrichment sources. If a package isn't found in the database, sbomify falls back to Repology and ecosyste.ms.
+
+**Local generation** (advanced): If you need a database for an unsupported version or want to generate offline:
+
+```bash
+sbomify-license-db --distro alpine --version 3.20 --output alpine-3.20.json.gz
+```
+
+Set `SBOMIFY_DISABLE_LICENSE_DB_GENERATION=true` to disable automatic local generation fallback.
 
 ## SBOM Quality Improvement
 
@@ -547,7 +577,7 @@ sbomify attempts to populate these fields for each component:
 | **Download URL**       | Registry/distribution link         | High                              |
 | **Issue Tracker**      | Bug reporting URL                  | Medium                            |
 
-**Coverage varies by ecosystem.** Popular packages on PyPI, npm, and crates.io have excellent metadata. RPM-based distros (Rocky, Alma, CentOS, Fedora, Amazon Linux) and Debian/Ubuntu have high coverage through direct repository queries. Alpine and less common registries may have partial data. sbomify queries multiple sources with fallbacks, but some fields may remain empty for obscure packages.
+**Coverage varies by ecosystem.** Popular packages on PyPI, npm, and crates.io have excellent metadata. Linux distros (Alpine, Ubuntu, Rocky, Alma, CentOS, Fedora, Amazon Linux, Wolfi) have high license coverage through pre-computed license databases. sbomify queries multiple sources with fallbacks, but some fields may remain empty for obscure packages.
 
 ### Data Sources (Priority Order)
 
@@ -563,11 +593,12 @@ sbomify queries sources in priority order, stopping when data is found:
 | Java/Maven        | deps.dev       | ecosyste.ms            |
 | Dart              | pub.dev API    | ecosyste.ms            |
 | Debian            | Debian Sources | Repology → ecosyste.ms |
-| Ubuntu            | Ubuntu APT     | Repology → ecosyste.ms |
-| Alpine            | Repology       | ecosyste.ms            |
-| Rocky/Alma/CentOS | RPM Repos      | Repology → ecosyste.ms |
-| Fedora            | RPM Repos      | Repology → ecosyste.ms |
-| Amazon Linux      | RPM Repos      | Repology → ecosyste.ms |
+| Ubuntu            | License DB     | Repology → ecosyste.ms |
+| Alpine            | License DB     | Repology → ecosyste.ms |
+| Wolfi             | License DB     | Repology → ecosyste.ms |
+| Rocky/Alma/CentOS | License DB     | Repology → ecosyste.ms |
+| Fedora            | License DB     | Repology → ecosyste.ms |
+| Amazon Linux      | License DB     | Repology → ecosyste.ms |
 
 ### Limitations
 
