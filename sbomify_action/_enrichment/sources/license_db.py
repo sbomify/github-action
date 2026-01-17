@@ -16,6 +16,7 @@ Strategy:
 """
 
 import gzip
+import io
 import json
 import os
 import re
@@ -36,7 +37,6 @@ GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/late
 # Default timeout for downloads
 DEFAULT_TIMEOUT = 30
 DOWNLOAD_TIMEOUT = 120
-GENERATE_TIMEOUT = 600  # 10 minutes for database generation
 
 # Cache directory (XDG compliant)
 DEFAULT_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "sbomify" / "license-db"
@@ -417,8 +417,6 @@ class LicenseDBSource:
             response.raise_for_status()
 
             # Decompress and parse using BytesIO for reliability
-            import io
-
             with gzip.GzipFile(fileobj=io.BytesIO(response.content)) as gz:
                 return json.load(gz)
 

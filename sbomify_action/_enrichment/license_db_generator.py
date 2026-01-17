@@ -5,14 +5,18 @@ validates them against SPDX, and outputs a JSON database keyed by PURL
 for easy lookups during SBOM enrichment.
 
 Supported distros:
-- Alpine Linux (3.18, 3.19, 3.20, 3.21)
+- Alpine Linux (3.13-3.21)
+- Wolfi (Chainguard) - rolling release
+- Amazon Linux (2, 2023)
+- CentOS Stream (8, 9)
 - Ubuntu (20.04, 22.04, 24.04)
 - Rocky Linux (8, 9)
-- Alma Linux (8, 9)
+- AlmaLinux (8, 9)
 - Fedora (39, 40, 41, 42)
 
 Usage:
     sbomify-license-db --distro alpine --version 3.20 --output alpine-3.20.json.gz
+    sbomify-license-db --distro wolfi --version rolling --output wolfi-rolling.json.gz
     sbomify-license-db --distro ubuntu --version 24.04 --output ubuntu-24.04.json.gz
     sbomify-license-db --distro rocky --version 9 --output rocky-9.json.gz
 """
