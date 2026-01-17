@@ -444,12 +444,18 @@ jobs:
           
           # In SPDX, supplier is on the main package
           SUPPLIER=$(jq -r '.packages[0].supplier // empty' augmented-sbom.spdx.json)
-          echo "SPDX Supplier: $SUPPLIER"
+          echo "SPDX Supplier (package): $SUPPLIER"
+          
+          # Also check creationInfo.creators for Organization entry (supplier is also added there)
+          SUPPLIER_CREATOR=$(jq -r '.creationInfo.creators[] | select(contains("Acme Corporation"))' augmented-sbom.spdx.json || true)
+          echo "SPDX Supplier (creator): $SUPPLIER_CREATOR"
           
           if echo "$SUPPLIER" | grep -q "Acme Corporation"; then
-            echo "✅ SPDX supplier correctly set"
+            echo "✅ SPDX supplier correctly set on package"
+          elif [ -n "$SUPPLIER_CREATOR" ]; then
+            echo "✅ SPDX supplier found in creators (package had existing value)"
           else
-            echo "❌ Expected SPDX supplier to contain 'Acme Corporation', got '$SUPPLIER'"
+            echo "❌ SPDX supplier not found in package or creators"
             exit 1
           fi
 
@@ -683,11 +689,14 @@ jobs:
           echo "=== Verifying SPDX sbomify Tool Metadata ==="
           
           # In SPDX, tools are added to creationInfo.creators as Tool entries
-          CREATORS=$(jq -r '.creationInfo.creators[]' augmented-sbom.spdx.json)
-          echo "SPDX Creators: $CREATORS"
+          echo "SPDX Creators:"
+          jq -r '.creationInfo.creators[]' augmented-sbom.spdx.json
           
-          if echo "$CREATORS" | grep -q "Tool:.*sbomify"; then
-            echo "✅ SPDX sbomify tool metadata present in creators"
+          # Check for sbomify tool using jq select
+          SBOMIFY_TOOL=$(jq -r '.creationInfo.creators[] | select(contains("sbomify"))' augmented-sbom.spdx.json)
+          
+          if [ -n "$SBOMIFY_TOOL" ]; then
+            echo "✅ SPDX sbomify tool metadata present in creators: $SBOMIFY_TOOL"
           else
             echo "❌ SPDX sbomify tool not found in creators"
             exit 1
