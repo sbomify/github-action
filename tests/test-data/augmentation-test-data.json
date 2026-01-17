@@ -1,0 +1,50 @@
+{
+  "supplier": {
+    "name": "Acme Corporation",
+    "url": ["https://acme.example.com", "https://github.com/acme"],
+    "contact": [
+      {
+        "name": "Security Team",
+        "email": "security@acme.example.com",
+        "phone": "+1-555-SEC-TEAM"
+      },
+      {
+        "name": "Engineering Lead",
+        "email": "engineering@acme.example.com"
+      }
+    ]
+  },
+  "manufacturer": {
+    "name": "Acme Software Division",
+    "url": "https://software.acme.example.com",
+    "contacts": [
+      {
+        "name": "Product Manager",
+        "email": "pm@acme.example.com"
+      }
+    ]
+  },
+  "authors": [
+    {
+      "name": "Jane Developer",
+      "email": "jane@acme.example.com"
+    },
+    {
+      "name": "John Engineer",
+      "email": "john@acme.example.com",
+      "phone": "+1-555-ENG-TEAM"
+    }
+  ],
+  "licenses": [
+    "Apache-2.0",
+    {
+      "name": "Acme Proprietary License v1.0",
+      "url": "https://acme.example.com/licenses/proprietary-v1",
+      "text": "Copyright (c) Acme Corporation. All rights reserved.\n\nThis software is provided under the Acme Proprietary License.\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n1. Redistributions must retain the above copyright notice.\n2. Commercial use requires a separate license agreement.\n3. Attribution must be provided in derivative works."
+    }
+  ],
+  "lifecycle_phase": "build",
+  "vcs_url": "https://github.com/acme/example-project",
+  "vcs_commit_sha": "abc123def456789",
+  "vcs_ref": "refs/heads/main"
+}

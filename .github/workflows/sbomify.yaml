@@ -266,10 +266,209 @@ jobs:
           path: alpine-enriched.cdx.json
           retention-days: 7
 
+  augmentation-integration-test:
+    name: Augmentation Integration Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: uv sync --locked --dev
+
+      - name: Setup test config file
+        run: |
+          # Copy test augmentation data to sbomify.json (default config location)
+          cp tests/test-data/augmentation-test-data.json sbomify.json
+          echo "Created sbomify.json with test augmentation data:"
+          cat sbomify.json
+
+      - name: Run augmentation on test SBOM
+        run: |
+          # Run augmentation on a sample CycloneDX SBOM
+          uv run sbomify-action
+        env:
+          TOKEN: placeholder
+          COMPONENT_ID: placeholder
+          SBOM_FILE: tests/test-data/syft.cdx.json
+          OUTPUT_FILE: augmented-sbom.cdx.json
+          AUGMENT: "true"
+          UPLOAD: "false"
+
+      - name: Verify supplier information
+        run: |
+          echo "=== Verifying Supplier Information ==="
+          
+          # Check supplier name
+          SUPPLIER_NAME=$(jq -r '.metadata.supplier.name // empty' augmented-sbom.cdx.json)
+          echo "Supplier name: $SUPPLIER_NAME"
+          
+          if [ "$SUPPLIER_NAME" = "Acme Corporation" ]; then
+            echo "✅ Supplier name correctly set"
+          else
+            echo "❌ Expected supplier name 'Acme Corporation', got '$SUPPLIER_NAME'"
+            exit 1
+          fi
+          
+          # Check supplier URLs
+          SUPPLIER_URLS=$(jq -r '.metadata.supplier.url[]?' augmented-sbom.cdx.json | wc -l)
+          echo "Supplier URLs count: $SUPPLIER_URLS"
+          
+          if [ "$SUPPLIER_URLS" -ge 1 ]; then
+            echo "✅ Supplier URLs present"
+          else
+            echo "❌ Expected at least 1 supplier URL"
+            exit 1
+          fi
+          
+          # Check supplier contacts
+          SUPPLIER_CONTACTS=$(jq '.metadata.supplier.contact | length' augmented-sbom.cdx.json)
+          echo "Supplier contacts: $SUPPLIER_CONTACTS"
+          
+          if [ "$SUPPLIER_CONTACTS" -ge 1 ]; then
+            echo "✅ Supplier contacts present"
+          else
+            echo "❌ Expected at least 1 supplier contact"
+            exit 1
+          fi
+
+      - name: Verify manufacturer information
+        run: |
+          echo "=== Verifying Manufacturer Information ==="
+          
+          # Check manufacturer - can be on metadata.manufacture (1.5) or metadata.component.manufacturer (1.6+)
+          MANUFACTURER=$(jq -r '.metadata.manufacture.name // .metadata.component.manufacturer.name // empty' augmented-sbom.cdx.json)
+          echo "Manufacturer: $MANUFACTURER"
+          
+          if [ -n "$MANUFACTURER" ]; then
+            echo "✅ Manufacturer information present: $MANUFACTURER"
+          else
+            echo "⚠️ Manufacturer not found (may depend on CycloneDX version)"
+          fi
+
+      - name: Verify authors information
+        run: |
+          echo "=== Verifying Authors Information ==="
+          
+          # Check authors array
+          AUTHORS_COUNT=$(jq '.metadata.authors | length' augmented-sbom.cdx.json)
+          echo "Authors count: $AUTHORS_COUNT"
+          
+          if [ "$AUTHORS_COUNT" -ge 2 ]; then
+            echo "✅ Authors correctly added ($AUTHORS_COUNT authors)"
+          else
+            echo "❌ Expected at least 2 authors, got $AUTHORS_COUNT"
+            exit 1
+          fi
+          
+          # Verify author names
+          AUTHOR_NAMES=$(jq -r '.metadata.authors[].name' augmented-sbom.cdx.json)
+          echo "Author names: $AUTHOR_NAMES"
+          
+          if echo "$AUTHOR_NAMES" | grep -q "Jane Developer"; then
+            echo "✅ Found expected author 'Jane Developer'"
+          else
+            echo "❌ Expected author 'Jane Developer' not found"
+            exit 1
+          fi
+
+      - name: Verify license information
+        run: |
+          echo "=== Verifying License Information ==="
+          
+          # Check that licenses were added to metadata
+          LICENSES=$(jq '.metadata.licenses' augmented-sbom.cdx.json)
+          echo "Licenses: $LICENSES"
+          
+          if [ "$LICENSES" != "null" ] && [ "$(echo "$LICENSES" | jq 'length')" -ge 1 ]; then
+            echo "✅ Licenses present in metadata"
+          else
+            echo "❌ Expected licenses in metadata"
+            exit 1
+          fi
+          
+          # Check for Apache-2.0 in license expression
+          if jq -e '.metadata.licenses[]? | select(.expression != null) | .expression | contains("Apache-2.0")' augmented-sbom.cdx.json > /dev/null 2>&1; then
+            echo "✅ Found Apache-2.0 in license expression"
+          else
+            echo "⚠️ Apache-2.0 not found in expression (may be in different format)"
+          fi
+
+      - name: Verify lifecycle phase
+        run: |
+          echo "=== Verifying Lifecycle Phase ==="
+          
+          # Check lifecycle phase (CycloneDX 1.5+)
+          LIFECYCLE=$(jq -r '.metadata.lifecycles[]?.phase // empty' augmented-sbom.cdx.json | head -1)
+          echo "Lifecycle phase: $LIFECYCLE"
+          
+          if [ "$LIFECYCLE" = "build" ]; then
+            echo "✅ Lifecycle phase correctly set to 'build'"
+          elif [ -n "$LIFECYCLE" ]; then
+            echo "✅ Lifecycle phase present: $LIFECYCLE"
+          else
+            echo "⚠️ Lifecycle phase not found (may require CycloneDX 1.5+)"
+          fi
+
+      - name: Verify VCS information
+        run: |
+          echo "=== Verifying VCS Information ==="
+          
+          # Check for VCS external reference on root component
+          VCS_URL=$(jq -r '.metadata.component.externalReferences[]? | select(.type == "vcs") | .url' augmented-sbom.cdx.json | head -1)
+          echo "VCS URL: $VCS_URL"
+          
+          if [ -n "$VCS_URL" ]; then
+            echo "✅ VCS URL present in external references"
+            
+            if echo "$VCS_URL" | grep -q "github.com/acme/example-project"; then
+              echo "✅ VCS URL matches expected repository"
+            else
+              echo "⚠️ VCS URL doesn't match expected (got: $VCS_URL)"
+            fi
+          else
+            echo "⚠️ VCS external reference not found"
+          fi
+
+      - name: Verify sbomify tool metadata
+        run: |
+          echo "=== Verifying sbomify Tool Metadata ==="
+          
+          # Check that sbomify was added as a tool
+          SBOMIFY_TOOL=$(jq -r '.metadata.tools.components[]? | select(.name == "sbomify GitHub Action") | .name' augmented-sbom.cdx.json)
+          
+          if [ -n "$SBOMIFY_TOOL" ]; then
+            echo "✅ sbomify tool metadata present"
+          else
+            # Try legacy format for older CycloneDX versions
+            SBOMIFY_TOOL_LEGACY=$(jq -r '.metadata.tools[]? | select(.name == "sbomify GitHub Action") | .name' augmented-sbom.cdx.json)
+            if [ -n "$SBOMIFY_TOOL_LEGACY" ]; then
+              echo "✅ sbomify tool metadata present (legacy format)"
+            else
+              echo "❌ sbomify tool not found in metadata"
+              exit 1
+            fi
+          fi
+
+      - name: Upload augmented SBOM artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: augmented-sbom
+          path: augmented-sbom.cdx.json
+          retention-days: 7
+
   push-images:
     name: Push Docker Images
     runs-on: ubuntu-latest
-    needs: [sanity-checks, integration-tests, container-tests, license-db-integration-test]
+    needs: [sanity-checks, integration-tests, container-tests, license-db-integration-test, augmentation-integration-test]
     if: github.event_name == 'push'
     permissions:
       packages: write
