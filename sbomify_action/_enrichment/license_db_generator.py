@@ -281,8 +281,9 @@ DISTRO_LIFECYCLE = {
         },
         "42": {
             "release_date": "2025-04-15",
-            "end_of_support": None,  # Not yet published
-            "end_of_life": None,
+            # Fedora typically has ~13 month lifecycle from release
+            "end_of_support": "2026-05-19",  # Estimated based on typical lifecycle
+            "end_of_life": "2026-05-19",
         },
     },
     # -------------------------------------------------------------------------
@@ -893,11 +894,11 @@ RPM_DISTRO_REPOS = {
     },
     "fedora": {
         # Fedora keeps only currently supported releases on the main download server;
-        # older releases are moved to the archives. Versions 39-41 are EOL and thus
-        # use the archive URLs below, while 42 is still a current release and uses
-        # the main download URL. When 42 moves to archives and a newer Fedora
-        # release becomes current, add the new version here with a dl.fedoraproject.org
-        # URL and move 42 to the archives.fedoraproject.org pattern.
+        # older releases are moved to the archives. Releases listed with
+        # archives.fedoraproject.org URLs are end-of-life, while those with
+        # dl.fedoraproject.org URLs are still supported. When a release reaches
+        # end-of-life, move its entry to the archives pattern and add the new
+        # current release with a dl.fedoraproject.org URL.
         "39": ["https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/39/Everything/x86_64/os/"],
         "40": ["https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/40/Everything/x86_64/os/"],
         "41": ["https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/41/Everything/x86_64/os/"],

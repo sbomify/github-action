@@ -105,7 +105,7 @@ jobs:
         with:
           name: license-db-${{ matrix.distro }}-${{ matrix.version }}
           path: ${{ matrix.distro }}-${{ matrix.version }}.json.gz
-          retention-days: 1
+          retention-days: 7
 
   upload-to-release:
     name: Upload to Release
