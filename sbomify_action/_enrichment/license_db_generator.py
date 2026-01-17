@@ -105,22 +105,38 @@ class DatabaseMetadata:
     end_of_life: Optional[str] = None  # ISO 8601 date when all support ends
 
 
-# CLE lifecycle data for supported distros
-# Dates in ISO 8601 format (YYYY-MM-DD)
-# For rolling releases, end_of_support and end_of_life are null
+# CLE (Common Lifecycle Enumeration) data for supported distros
+#
+# Schema:
+#   release_date: ISO-8601 date (YYYY-MM-DD) or YYYY-MM when only month is known
+#   end_of_support: When standard/active updates end (or same as EOL when upstream publishes only one date)
+#   end_of_life: When all updates end (security support end)
+#
+# Sources and calculation methodology documented per-distro below.
+# For rolling releases, all dates are None.
+
 DISTRO_LIFECYCLE = {
+    # -------------------------------------------------------------------------
+    # Wolfi (Chainguard) - Rolling Release
+    # Source: https://docs.chainguard.dev/open-source/wolfi/
+    # Note: Wolfi is a rolling-release distribution; lifecycle is not expressed
+    # as fixed version EOL dates. All fields are None.
+    # -------------------------------------------------------------------------
     "wolfi": {
-        # Wolfi is a rolling release distro - no traditional versioning/EOL
-        # We use "rolling" as a pseudo-version
         "rolling": {
-            "release_date": "2022-09-16",  # Wolfi announcement date
-            "end_of_support": None,  # Rolling release - always supported
-            "end_of_life": None,  # Rolling release - no EOL
+            "release_date": None,
+            "end_of_support": None,
+            "end_of_life": None,
         },
     },
+    # -------------------------------------------------------------------------
+    # Alpine Linux
+    # Source: https://alpinelinux.org/releases/
+    # Note: Alpine publishes a single per-branch end date. Alpine does not
+    # separately publish EOS vs EOL for the branch, so the published end date
+    # is used as both end_of_support and end_of_life.
+    # -------------------------------------------------------------------------
     "alpine": {
-        # Alpine releases have ~2 year support lifecycle
-        # All versions from the last 5 years (2021-2026)
         "3.13": {
             "release_date": "2021-01-14",
             "end_of_support": "2022-11-01",
@@ -167,93 +183,129 @@ DISTRO_LIFECYCLE = {
             "end_of_life": "2026-11-01",
         },
     },
+    # -------------------------------------------------------------------------
+    # Rocky Linux
+    # Source: https://docs.rockylinux.org/
+    # Note: Rocky publishes both 'general support until' (EOS) and 'security
+    # support through' (EOL) dates.
+    # -------------------------------------------------------------------------
     "rocky": {
         "8": {
             "release_date": "2021-06-21",
-            "end_of_support": "2024-05-31",  # End of full support
-            "end_of_life": "2029-05-31",  # End of maintenance support
+            "end_of_support": "2024-05-01",  # General support end
+            "end_of_life": "2029-05-01",  # Security support end
         },
         "9": {
             "release_date": "2022-07-14",
-            "end_of_support": "2027-05-31",
-            "end_of_life": "2032-05-31",
+            "end_of_support": "2027-05-31",  # General support end
+            "end_of_life": "2032-05-31",  # Security support end
         },
     },
+    # -------------------------------------------------------------------------
+    # AlmaLinux
+    # Source: https://wiki.almalinux.org/release-notes/
+    # Note: AlmaLinux publishes 'active support until' (EOS) and 'security
+    # support until' (EOL) dates.
+    # -------------------------------------------------------------------------
     "almalinux": {
         "8": {
             "release_date": "2021-03-30",
-            "end_of_support": "2024-05-01",
-            "end_of_life": "2029-03-01",
+            "end_of_support": "2024-05-31",  # Active support end
+            "end_of_life": "2029-05-31",  # Security support end
         },
         "9": {
             "release_date": "2022-05-26",
-            "end_of_support": "2027-05-31",
-            "end_of_life": "2032-05-31",
+            "end_of_support": "2027-05-31",  # Active support end
+            "end_of_life": "2032-05-31",  # Security support end
         },
     },
+    # -------------------------------------------------------------------------
+    # Amazon Linux
+    # Source: https://aws.amazon.com/amazon-linux-2/faqs/
+    # Note: AWS publishes an explicit end-of-support date but does not publish
+    # separate EOS vs EOL semantics, so the published date is used for both.
+    # AL2023 only specifies month ("until June 2029").
+    # -------------------------------------------------------------------------
     "amazonlinux": {
         "2": {
-            "release_date": "2018-06-26",
-            "end_of_support": "2025-06-30",
+            "release_date": "2017-12-19",  # AWS announcement date
+            "end_of_support": "2026-06-30",
             "end_of_life": "2026-06-30",
         },
         "2023": {
-            "release_date": "2023-03-15",
-            "end_of_support": "2027-03-15",
-            "end_of_life": "2028-03-15",
+            "release_date": None,  # Not explicitly published
+            "end_of_support": "2029-06",  # Month precision only
+            "end_of_life": "2029-06",
         },
     },
+    # -------------------------------------------------------------------------
+    # CentOS Stream
+    # Source: https://www.centos.org/cl-vs-cs/
+    # Note: CentOS publishes an 'expected end of life (EOL)' date. No separate
+    # EOS date is published, so EOL is used for both.
+    # -------------------------------------------------------------------------
     "centos": {
-        # CentOS Stream versions
         "stream8": {
-            "release_date": "2019-09-24",
+            "release_date": None,  # Not explicitly published
             "end_of_support": "2024-05-31",
             "end_of_life": "2024-05-31",
         },
         "stream9": {
-            "release_date": "2021-12-03",
+            "release_date": None,  # Not explicitly published
             "end_of_support": "2027-05-31",
             "end_of_life": "2027-05-31",
         },
     },
+    # -------------------------------------------------------------------------
+    # Fedora
+    # Source: https://fedorapeople.org/groups/schedule/
+    # Note: Fedora schedules publish explicit EOL dates. Fedora publishes only
+    # one end date per release, so it's used for both EOS and EOL.
+    # Release dates are from 'Current Final Target date' in the schedule.
+    # -------------------------------------------------------------------------
     "fedora": {
-        # Fedora releases have ~13 month lifecycle
         "39": {
-            "release_date": "2023-11-07",
+            "release_date": None,  # Not captured
             "end_of_support": "2024-11-26",
             "end_of_life": "2024-11-26",
         },
         "40": {
-            "release_date": "2024-04-23",
+            "release_date": None,  # Not captured
             "end_of_support": "2025-05-13",
             "end_of_life": "2025-05-13",
         },
         "41": {
             "release_date": "2024-10-29",
-            "end_of_support": "2025-11-18",
-            "end_of_life": "2025-11-18",
+            "end_of_support": "2025-12-15",
+            "end_of_life": "2025-12-15",
         },
         "42": {
             "release_date": "2025-04-15",
-            "end_of_support": "2026-05-19",
-            "end_of_life": "2026-05-19",
+            "end_of_support": None,  # Not yet published
+            "end_of_life": None,
         },
     },
+    # -------------------------------------------------------------------------
+    # Ubuntu
+    # Source: https://ubuntu.com/about/release-cycle
+    # Note: Ubuntu publishes 'Standard security maintenance' (EOS) and
+    # 'Expanded security maintenance' (EOL) dates at month precision.
+    # -------------------------------------------------------------------------
     "ubuntu": {
         "20.04": {
-            "release_date": "2020-04-23",
-            "end_of_support": "2025-04-02",  # Standard support
-            "end_of_life": "2030-04-02",  # Extended security maintenance
+            "release_date": "2020-04",  # Month precision
+            "end_of_support": "2025-05",  # Standard security maintenance end
+            "end_of_life": "2030-04",  # Expanded security maintenance end
         },
         "22.04": {
-            "release_date": "2022-04-21",
-            "end_of_support": "2027-04-01",
-            "end_of_life": "2032-04-01",
+            "release_date": "2022-04",
+            "end_of_support": "2027-06",
+            "end_of_life": "2032-04",
         },
         "24.04": {
-            "release_date": "2024-04-25",
-            "end_of_support": "2029-04-25",
-            "end_of_life": "2034-04-25",
+            "release_date": "2024-04",
+            "end_of_support": "2029-05",
+            "end_of_life": "2034-04",
         },
     },
 }
