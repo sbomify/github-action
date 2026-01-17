@@ -281,9 +281,10 @@ DISTRO_LIFECYCLE = {
         },
         "42": {
             "release_date": "2025-04-15",
-            # Fedora typically has ~13 month lifecycle from release
-            "end_of_support": "2026-05-19",  # Estimated based on typical lifecycle
-            "end_of_life": "2026-05-19",
+            # EOL date not yet captured from Fedora sources
+            # See: https://fedorapeople.org/groups/schedule/f-42/f-42-key-tasks.html
+            "end_of_support": None,
+            "end_of_life": None,
         },
     },
     # -------------------------------------------------------------------------
