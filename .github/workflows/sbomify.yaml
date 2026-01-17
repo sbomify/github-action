@@ -141,42 +141,30 @@ jobs:
 
       - name: Install Trivy
         run: |
-          source ./scripts/generate_additional_packages.sh || { echo 'Failed to extract versions from Dockerfile' >&2; exit 1; }
-          echo "Installing Trivy version: $TRIVY_VERSION"
-          curl -sL \
-            -o trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz \
-            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-          tar xvfz trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
-          chmod +x trivy
-          sudo mv trivy /usr/local/bin
-          rm -f trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
-      - name: Generate Alpine SBOMs with Trivy (CycloneDX and SPDX)
+      - name: Generate and enrich Alpine SBOM (CycloneDX)
         run: |
-          # Generate SBOM for Alpine 3.20 image in both formats
-          trivy image --format cyclonedx --output alpine-raw.cdx.json alpine:3.20
-          trivy image --format spdx-json --output alpine-raw.spdx.json alpine:3.20
-
-      - name: Enrich Alpine CycloneDX SBOM with license database
-        run: |
-          # Run enrichment on CycloneDX format
+          # Use the action to generate SBOM from Docker image and enrich it
           uv run sbomify-action
         env:
           TOKEN: placeholder
           COMPONENT_ID: placeholder
-          SBOM_FILE: alpine-raw.cdx.json
+          DOCKER_IMAGE: alpine:3.20
+          SBOM_FORMAT: cyclonedx
           OUTPUT_FILE: alpine-enriched.cdx.json
           ENRICH: "true"
           UPLOAD: "false"
 
-      - name: Enrich Alpine SPDX SBOM with license database
+      - name: Generate and enrich Alpine SBOM (SPDX)
         run: |
-          # Run enrichment on SPDX format
+          # Use the action to generate SBOM from Docker image and enrich it
           uv run sbomify-action
         env:
           TOKEN: placeholder
           COMPONENT_ID: placeholder
-          SBOM_FILE: alpine-raw.spdx.json
+          DOCKER_IMAGE: alpine:3.20
+          SBOM_FORMAT: spdx
           OUTPUT_FILE: alpine-enriched.spdx.json
           ENRICH: "true"
           UPLOAD: "false"
