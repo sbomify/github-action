@@ -227,6 +227,37 @@ jobs:
             exit 1
           fi
 
+      - name: Verify CLE lifecycle events
+        run: |
+          echo "=== Verifying CLE Lifecycle Events ==="
+          
+          # Check for CLE properties (ECMA-428 standard)
+          # See: https://sbomify.com/compliance/cle/
+          CLE_EOS_COUNT=$(jq '[.components[].properties[]? | select(.name == "cle:eos")] | length' alpine-enriched.cdx.json)
+          CLE_EOL_COUNT=$(jq '[.components[].properties[]? | select(.name == "cle:eol")] | length' alpine-enriched.cdx.json)
+          
+          echo "Components with cle:eos: $CLE_EOS_COUNT"
+          echo "Components with cle:eol: $CLE_EOL_COUNT"
+          
+          # Alpine 3.20 should have CLE dates set
+          if [ "$CLE_EOS_COUNT" -ge 10 ]; then
+            echo "✅ CLE end-of-support dates are being set"
+          else
+            echo "❌ Expected CLE end-of-support dates on components"
+            exit 1
+          fi
+          
+          if [ "$CLE_EOL_COUNT" -ge 10 ]; then
+            echo "✅ CLE end-of-life dates are being set"
+          else
+            echo "❌ Expected CLE end-of-life dates on components"
+            exit 1
+          fi
+          
+          # Show sample CLE data
+          echo "Sample CLE properties:"
+          jq '.components[0].properties[]? | select(.name | startswith("cle:"))' alpine-enriched.cdx.json || true
+
       - name: Upload enriched SBOM artifact
         uses: actions/upload-artifact@v4
         if: always()

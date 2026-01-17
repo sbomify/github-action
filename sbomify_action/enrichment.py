@@ -435,6 +435,29 @@ def _apply_metadata_to_cyclonedx_component(component: Component, metadata: Norma
         if _add_external_ref(ExternalReferenceType.ISSUE_TRACKER, metadata.issue_tracker_url, "issue_tracker_url"):
             added_fields.append("issue-tracker URL")
 
+    # CLE (Common Lifecycle Enumeration) properties - ECMA-428
+    # Applied as component properties with cle: namespace
+    # See: https://sbomify.com/compliance/cle/
+    def _add_cle_property(name: str, value: str) -> bool:
+        """Add a CLE property if not already present."""
+        for prop in component.properties:
+            if prop.name == name:
+                return False
+        component.properties.add(Property(name=name, value=value))
+        return True
+
+    if metadata.cle_eos:
+        if _add_cle_property("cle:eos", metadata.cle_eos):
+            added_fields.append(f"cle:eos ({metadata.cle_eos})")
+
+    if metadata.cle_eol:
+        if _add_cle_property("cle:eol", metadata.cle_eol):
+            added_fields.append(f"cle:eol ({metadata.cle_eol})")
+
+    if metadata.cle_release_date:
+        if _add_cle_property("cle:releaseDate", metadata.cle_release_date):
+            added_fields.append(f"cle:releaseDate ({metadata.cle_release_date})")
+
     return added_fields
 
 
@@ -555,6 +578,28 @@ def _apply_metadata_to_spdx_package(package: Package, metadata: NormalizedMetada
     if metadata.documentation_url:
         if _add_external_ref(ExternalPackageRefCategory.OTHER, "url", metadata.documentation_url):
             added_fields.append("externalRef (documentation)")
+
+    # CLE (Common Lifecycle Enumeration) data - ECMA-428
+    # For SPDX, we add CLE info to the package comment
+    # See: https://sbomify.com/compliance/cle/
+    cle_parts = []
+    if metadata.cle_eos:
+        cle_parts.append(f"cle:eos={metadata.cle_eos}")
+    if metadata.cle_eol:
+        cle_parts.append(f"cle:eol={metadata.cle_eol}")
+    if metadata.cle_release_date:
+        cle_parts.append(f"cle:releaseDate={metadata.cle_release_date}")
+
+    if cle_parts:
+        cle_comment = f"CLE lifecycle: {', '.join(cle_parts)}"
+        if package.comment:
+            # Only add if not already present
+            if "CLE lifecycle:" not in package.comment:
+                package.comment = f"{package.comment} | {cle_comment}"
+                added_fields.append("comment (CLE)")
+        else:
+            package.comment = cle_comment
+            added_fields.append("comment (CLE)")
 
     return added_fields
 
