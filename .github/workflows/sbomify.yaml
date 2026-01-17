@@ -912,7 +912,12 @@ jobs:
   push-images:
     name: Push Docker Images
     runs-on: ubuntu-latest
-    needs: [sanity-checks, integration-tests, container-tests, license-db-integration-test, augmentation-integration-test]
+    needs:
+      - sanity-checks
+      - integration-tests
+      - container-tests
+      - license-db-integration-test
+      - augmentation-integration-test
     if: github.event_name == 'push'
     permissions:
       packages: write
