@@ -93,6 +93,10 @@ jobs:
         run: uv sync --locked
 
       - name: Generate ${{ matrix.distro }}-${{ matrix.version }} database
+        # License database generation involves downloading and parsing package metadata
+        # from distro repositories. Some distros (e.g., Ubuntu, Fedora) have very large
+        # package sets that can take 30-60+ minutes to process. The 120-minute timeout
+        # provides headroom for slower CI runners and network conditions.
         run: |
           uv run sbomify-license-db \
             --distro ${{ matrix.distro }} \
