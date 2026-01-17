@@ -39,6 +39,10 @@ SUPPORTED_DISTROS = {
         "type": "apk",
         "versions": ["3.13", "3.14", "3.15", "3.16", "3.17", "3.18", "3.19", "3.20", "3.21"],
     },
+    "wolfi": {
+        "type": "apk",
+        "versions": ["rolling"],
+    },
     "amazonlinux": {
         "type": "rpm",
         "versions": ["2", "2023"],
@@ -100,9 +104,9 @@ class LicenseDBSource:
     come from the existing Ubuntu/RPM/Alpine sources.
 
     Priority: 8 (before API calls, provides license-only data)
-    Supports: pkg:apk/alpine/*, pkg:deb/ubuntu/*, pkg:rpm/rocky/*,
-              pkg:rpm/almalinux/*, pkg:rpm/amazonlinux/*, pkg:rpm/centos/*,
-              pkg:rpm/fedora/*
+    Supports: pkg:apk/alpine/*, pkg:apk/wolfi/*, pkg:deb/ubuntu/*,
+              pkg:rpm/rocky/*, pkg:rpm/almalinux/*, pkg:rpm/amazonlinux/*,
+              pkg:rpm/centos/*, pkg:rpm/fedora/*
     """
 
     def __init__(self, cache_dir: Optional[Path] = None):
@@ -129,7 +133,7 @@ class LicenseDBSource:
         # Check package type
         if purl.type == "apk":
             namespace = (purl.namespace or "").lower()
-            return namespace == "alpine"
+            return namespace in ("alpine", "wolfi")
         elif purl.type == "deb":
             namespace = (purl.namespace or "").lower()
             return namespace == "ubuntu"

@@ -103,7 +103,17 @@ class DatabaseMetadata:
 
 # CLE lifecycle data for supported distros
 # Dates in ISO 8601 format (YYYY-MM-DD)
+# For rolling releases, end_of_support and end_of_life are null
 DISTRO_LIFECYCLE = {
+    "wolfi": {
+        # Wolfi is a rolling release distro - no traditional versioning/EOL
+        # We use "rolling" as a pseudo-version
+        "rolling": {
+            "release_date": "2022-09-16",  # Wolfi announcement date
+            "end_of_support": None,  # Rolling release - always supported
+            "end_of_life": None,  # Rolling release - no EOL
+        },
+    },
     "alpine": {
         # Alpine releases have ~2 year support lifecycle
         # All versions from the last 5 years (2021-2026)
@@ -316,6 +326,9 @@ def make_apk_purl(
 ALPINE_CDN_BASE = "https://dl-cdn.alpinelinux.org/alpine/"
 ALPINE_REPOS = ["main", "community"]
 
+# Wolfi (Chainguard) repository - rolling release
+WOLFI_REPO_BASE = "https://packages.wolfi.dev/os/"
+
 
 @dataclass
 class ApkPackageInfo:
@@ -465,6 +478,105 @@ def process_alpine_package(
         maintainer_email=maintainer_email,
         homepage=pkg_info.url,
         download_url=None,  # Would need to construct from origin
+        confidence="high",
+        source="apk_metadata",
+    )
+
+
+# =============================================================================
+# Wolfi (Chainguard) Package Processing
+# =============================================================================
+
+
+def make_wolfi_purl(
+    name: str,
+    version: str,
+    arch: str = "x86_64",
+) -> str:
+    """Construct a PURL for a Wolfi package."""
+    purl = PackageURL(
+        type="apk",
+        namespace="wolfi",
+        name=name,
+        version=version,
+        qualifiers={"arch": arch},
+    )
+    return str(purl)
+
+
+def fetch_wolfi_packages(arch: str = "x86_64") -> Iterator[ApkPackageInfo]:
+    """Fetch and parse Wolfi APKINDEX."""
+    url = f"{WOLFI_REPO_BASE}{arch}/APKINDEX.tar.gz"
+
+    logger.info(f"Fetching {url}")
+
+    try:
+        response = SESSION.get(url, timeout=DOWNLOAD_TIMEOUT)
+        response.raise_for_status()
+
+        # APKINDEX.tar.gz contains APKINDEX file
+        with tarfile.open(fileobj=io.BytesIO(response.content), mode="r:gz") as tar:
+            for member in tar.getmembers():
+                if member.name == "APKINDEX":
+                    f = tar.extractfile(member)
+                    if f:
+                        content = f.read().decode("utf-8", errors="replace")
+                        for pkg_data in parse_apkindex(content):
+                            name = pkg_data.get("P")
+                            version_str = pkg_data.get("V")
+                            if not name or not version_str:
+                                continue
+
+                            yield ApkPackageInfo(
+                                name=name,
+                                version=version_str,
+                                arch=pkg_data.get("A", arch),
+                                description=pkg_data.get("T"),
+                                url=pkg_data.get("U"),
+                                license=pkg_data.get("L"),
+                                maintainer=pkg_data.get("m"),
+                                origin=pkg_data.get("o"),
+                            )
+                        break
+
+    except Exception as e:
+        logger.warning(f"Failed to fetch APKINDEX from {url}: {e}")
+
+
+def process_wolfi_package(pkg_info: ApkPackageInfo) -> Optional[PackageMetadata]:
+    """Process a single Wolfi package and extract all metadata."""
+    if not pkg_info.license:
+        return None
+
+    # Wolfi uses SPDX identifiers like Alpine
+    spdx = normalize_alpine_license(pkg_info.license)
+    if not spdx:
+        return None
+
+    purl = make_wolfi_purl(
+        name=pkg_info.name,
+        version=pkg_info.version,
+        arch=pkg_info.arch,
+    )
+
+    description = pkg_info.description
+    if description:
+        description = description.strip()[:500]
+
+    maintainer_name, maintainer_email = parse_maintainer(pkg_info.maintainer)
+
+    return PackageMetadata(
+        purl=purl,
+        name=pkg_info.name,
+        version=pkg_info.version,
+        spdx=spdx,
+        license_raw=pkg_info.license,
+        description=description,
+        supplier="Chainguard",  # Wolfi is maintained by Chainguard
+        maintainer_name=maintainer_name,
+        maintainer_email=maintainer_email,
+        homepage=pkg_info.url,
+        download_url=None,
         confidence="high",
         source="apk_metadata",
     )
@@ -1015,6 +1127,76 @@ def generate_alpine_db(
     logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
 
 
+def generate_wolfi_db(
+    output_path: Path,
+    max_packages: Optional[int] = None,
+) -> None:
+    """Generate license database for Wolfi (Chainguard)."""
+    logger.info("Generating license database for Wolfi (rolling release)")
+
+    packages: Dict[str, Dict[str, Any]] = {}
+    seen_names: set = set()
+    count = 0
+    skipped = 0
+
+    for pkg_info in fetch_wolfi_packages():
+        if pkg_info.name in seen_names:
+            continue
+
+        seen_names.add(pkg_info.name)
+
+        if max_packages and count >= max_packages:
+            break
+
+        result = process_wolfi_package(pkg_info)
+        if result:
+            packages[result.purl] = {
+                "name": result.name,
+                "version": result.version,
+                "spdx": result.spdx,
+                "license_raw": result.license_raw,
+                "description": result.description,
+                "supplier": result.supplier,
+                "maintainer_name": result.maintainer_name,
+                "maintainer_email": result.maintainer_email,
+                "homepage": result.homepage,
+                "download_url": result.download_url,
+                "confidence": result.confidence,
+                "source": result.source,
+            }
+            count += 1
+            if count % 500 == 0:
+                logger.info(f"Processed {count} packages with valid licenses...")
+        else:
+            skipped += 1
+
+    # Get CLE lifecycle data (rolling release - dates may be null)
+    lifecycle = DISTRO_LIFECYCLE.get("wolfi", {}).get("rolling", {})
+
+    db = {
+        "metadata": asdict(
+            DatabaseMetadata(
+                distro="wolfi",
+                version="rolling",
+                codename=None,
+                generated_at=datetime.now(timezone.utc).isoformat(),
+                package_count=len(packages),
+                release_date=lifecycle.get("release_date"),
+                end_of_support=lifecycle.get("end_of_support"),
+                end_of_life=lifecycle.get("end_of_life"),
+            )
+        ),
+        "packages": packages,
+    }
+
+    with gzip.open(output_path, "wt", encoding="utf-8") as f:
+        json.dump(db, f, separators=(",", ":"))
+
+    logger.info(f"Wrote {len(packages)} packages to {output_path}")
+    logger.info(f"Skipped: {skipped} (license not validated)")
+    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+
+
 def generate_ubuntu_db(
     distro_version: str,
     output_path: Path,
@@ -1232,7 +1414,7 @@ def main() -> None:
     parser.add_argument(
         "--distro",
         required=True,
-        choices=["alpine", "amazonlinux", "centos", "ubuntu", "rocky", "almalinux", "fedora"],
+        choices=["alpine", "amazonlinux", "centos", "ubuntu", "rocky", "almalinux", "fedora", "wolfi"],
         help="Distribution name",
     )
     parser.add_argument(
@@ -1261,6 +1443,9 @@ def main() -> None:
 
     if args.distro == "alpine":
         generate_alpine_db(args.version, output_path, args.max_packages)
+    elif args.distro == "wolfi":
+        # Wolfi is rolling release, version is ignored
+        generate_wolfi_db(output_path, args.max_packages)
     elif args.distro == "ubuntu":
         generate_ubuntu_db(args.version, output_path, args.max_packages)
     else:
