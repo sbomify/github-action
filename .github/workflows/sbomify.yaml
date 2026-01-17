@@ -151,14 +151,15 @@ jobs:
           sudo mv trivy /usr/local/bin
           rm -f trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
 
-      - name: Generate Alpine SBOM with Trivy
+      - name: Generate Alpine SBOMs with Trivy (CycloneDX and SPDX)
         run: |
-          # Generate SBOM for Alpine 3.20 image
+          # Generate SBOM for Alpine 3.20 image in both formats
           trivy image --format cyclonedx --output alpine-raw.cdx.json alpine:3.20
+          trivy image --format spdx-json --output alpine-raw.spdx.json alpine:3.20
 
-      - name: Enrich Alpine SBOM with license database
+      - name: Enrich Alpine CycloneDX SBOM with license database
         run: |
-          # Run enrichment - this will use the license-db source
+          # Run enrichment on CycloneDX format
           uv run sbomify-action
         env:
           TOKEN: placeholder
@@ -168,16 +169,28 @@ jobs:
           ENRICH: "true"
           UPLOAD: "false"
 
-      - name: Verify license database enrichment
+      - name: Enrich Alpine SPDX SBOM with license database
         run: |
-          echo "=== Verifying License Database Enrichment ==="
+          # Run enrichment on SPDX format
+          uv run sbomify-action
+        env:
+          TOKEN: placeholder
+          COMPONENT_ID: placeholder
+          SBOM_FILE: alpine-raw.spdx.json
+          OUTPUT_FILE: alpine-enriched.spdx.json
+          ENRICH: "true"
+          UPLOAD: "false"
+
+      - name: Verify CycloneDX license database enrichment
+        run: |
+          echo "=== Verifying CycloneDX License Database Enrichment ==="
           
           # Check that enrichment occurred from license-db source
           if grep -q '"sbomify:enrichment:source"' alpine-enriched.cdx.json && \
              grep -q 'license-db' alpine-enriched.cdx.json; then
-            echo "✅ Found license-db enrichment source in SBOM"
+            echo "✅ Found license-db enrichment source in CycloneDX SBOM"
           else
-            echo "❌ No license-db enrichment found"
+            echo "❌ No license-db enrichment found in CycloneDX"
             exit 1
           fi
           
@@ -191,9 +204,9 @@ jobs:
           # At least 50% of Alpine packages should have licenses from our DB
           MIN_EXPECTED=$((TOTAL_COMPONENTS / 2))
           if [ "$COMPONENTS_WITH_LICENSES" -ge "$MIN_EXPECTED" ]; then
-            echo "✅ License enrichment rate is acceptable ($COMPONENTS_WITH_LICENSES >= $MIN_EXPECTED)"
+            echo "✅ CycloneDX license enrichment rate is acceptable ($COMPONENTS_WITH_LICENSES >= $MIN_EXPECTED)"
           else
-            echo "❌ License enrichment rate too low ($COMPONENTS_WITH_LICENSES < $MIN_EXPECTED)"
+            echo "❌ CycloneDX license enrichment rate too low ($COMPONENTS_WITH_LICENSES < $MIN_EXPECTED)"
             exit 1
           fi
           
@@ -205,11 +218,41 @@ jobs:
             echo "❌ Expected at least 10 components enriched by license-db"
             exit 1
           fi
-          echo "✅ License-db enrichment verified"
+          echo "✅ CycloneDX license-db enrichment verified"
 
-      - name: Verify SPDX license expressions are valid
+      - name: Verify SPDX license database enrichment
         run: |
-          echo "=== Verifying SPDX License Expressions ==="
+          echo "=== Verifying SPDX License Database Enrichment ==="
+          
+          # Check that enrichment occurred from license-db source (in comment for SPDX)
+          if grep -q 'license-db' alpine-enriched.spdx.json; then
+            echo "✅ Found license-db enrichment source in SPDX SBOM"
+          else
+            echo "❌ No license-db enrichment found in SPDX"
+            exit 1
+          fi
+          
+          # Count packages with licenses (SPDX uses licenseDeclared field)
+          TOTAL_PACKAGES=$(jq '.packages | length' alpine-enriched.spdx.json)
+          # Count packages where licenseDeclared is not NOASSERTION
+          PACKAGES_WITH_LICENSES=$(jq '[.packages[] | select(.licenseDeclared != null and .licenseDeclared != "NOASSERTION")] | length' alpine-enriched.spdx.json)
+          
+          echo "Total packages: $TOTAL_PACKAGES"
+          echo "Packages with licenses: $PACKAGES_WITH_LICENSES"
+          
+          # At least 50% of Alpine packages should have licenses from our DB
+          MIN_EXPECTED=$((TOTAL_PACKAGES / 2))
+          if [ "$PACKAGES_WITH_LICENSES" -ge "$MIN_EXPECTED" ]; then
+            echo "✅ SPDX license enrichment rate is acceptable ($PACKAGES_WITH_LICENSES >= $MIN_EXPECTED)"
+          else
+            echo "❌ SPDX license enrichment rate too low ($PACKAGES_WITH_LICENSES < $MIN_EXPECTED)"
+            exit 1
+          fi
+          echo "✅ SPDX license-db enrichment verified"
+
+      - name: Verify SPDX license expressions are valid (CycloneDX)
+        run: |
+          echo "=== Verifying SPDX License Expressions in CycloneDX ==="
           
           # Extract all license expressions and check they look like valid SPDX
           jq -r '.components[].licenses[]?.expression // empty' alpine-enriched.cdx.json | head -20
@@ -218,52 +261,96 @@ jobs:
           VALID_SPDX_COUNT=$(jq -r '.components[].licenses[]?.expression // empty' alpine-enriched.cdx.json | \
             grep -E '^(MIT|Apache-2\.0|GPL-[0-9]|BSD-[0-9]|ISC|MPL|LGPL|Zlib|OpenSSL)' | wc -l)
           
-          echo "Valid SPDX expressions found: $VALID_SPDX_COUNT"
+          echo "Valid SPDX expressions found in CycloneDX: $VALID_SPDX_COUNT"
           
           if [ "$VALID_SPDX_COUNT" -ge 5 ]; then
-            echo "✅ Found valid SPDX license expressions"
+            echo "✅ Found valid SPDX license expressions in CycloneDX"
           else
-            echo "❌ Expected more valid SPDX expressions"
+            echo "❌ Expected more valid SPDX expressions in CycloneDX"
             exit 1
           fi
 
-      - name: Verify CLE lifecycle events
+      - name: Verify SPDX license expressions are valid (SPDX format)
         run: |
-          echo "=== Verifying CLE Lifecycle Events ==="
+          echo "=== Verifying SPDX License Expressions in SPDX format ==="
+          
+          # Extract all licenseDeclared values and check they look like valid SPDX
+          jq -r '.packages[].licenseDeclared // empty' alpine-enriched.spdx.json | grep -v "NOASSERTION" | head -20
+          
+          # Check for common valid SPDX identifiers
+          VALID_SPDX_COUNT=$(jq -r '.packages[].licenseDeclared // empty' alpine-enriched.spdx.json | \
+            grep -E '^(MIT|Apache-2\.0|GPL-[0-9]|BSD-[0-9]|ISC|MPL|LGPL|Zlib|OpenSSL)' | wc -l)
+          
+          echo "Valid SPDX expressions found in SPDX format: $VALID_SPDX_COUNT"
+          
+          if [ "$VALID_SPDX_COUNT" -ge 5 ]; then
+            echo "✅ Found valid SPDX license expressions in SPDX format"
+          else
+            echo "❌ Expected more valid SPDX expressions in SPDX format"
+            exit 1
+          fi
+
+      - name: Verify CLE lifecycle events (CycloneDX)
+        run: |
+          echo "=== Verifying CLE Lifecycle Events in CycloneDX ==="
           
           # Check for CLE properties (ECMA-428 standard)
           # See: https://sbomify.com/compliance/cle/
           CLE_EOS_COUNT=$(jq '[.components[].properties[]? | select(.name == "cle:eos")] | length' alpine-enriched.cdx.json)
           CLE_EOL_COUNT=$(jq '[.components[].properties[]? | select(.name == "cle:eol")] | length' alpine-enriched.cdx.json)
           
-          echo "Components with cle:eos: $CLE_EOS_COUNT"
-          echo "Components with cle:eol: $CLE_EOL_COUNT"
+          echo "CycloneDX components with cle:eos: $CLE_EOS_COUNT"
+          echo "CycloneDX components with cle:eol: $CLE_EOL_COUNT"
           
           # Alpine 3.20 should have CLE dates set
           if [ "$CLE_EOS_COUNT" -ge 10 ]; then
-            echo "✅ CLE end-of-support dates are being set"
+            echo "✅ CycloneDX CLE end-of-support dates are being set"
           else
-            echo "❌ Expected CLE end-of-support dates on components"
+            echo "❌ Expected CLE end-of-support dates on CycloneDX components"
             exit 1
           fi
           
           if [ "$CLE_EOL_COUNT" -ge 10 ]; then
-            echo "✅ CLE end-of-life dates are being set"
+            echo "✅ CycloneDX CLE end-of-life dates are being set"
           else
-            echo "❌ Expected CLE end-of-life dates on components"
+            echo "❌ Expected CLE end-of-life dates on CycloneDX components"
             exit 1
           fi
           
           # Show sample CLE data
-          echo "Sample CLE properties:"
+          echo "Sample CycloneDX CLE properties:"
           jq '.components[0].properties[]? | select(.name | startswith("cle:"))' alpine-enriched.cdx.json || true
 
-      - name: Upload enriched SBOM artifact
+      - name: Verify CLE lifecycle events (SPDX)
+        run: |
+          echo "=== Verifying CLE Lifecycle Events in SPDX ==="
+          
+          # For SPDX, CLE data is added to the package comment field
+          # Check for packages with CLE lifecycle info in comments
+          CLE_COMMENT_COUNT=$(jq '[.packages[] | select(.comment != null and (.comment | contains("CLE lifecycle")))] | length' alpine-enriched.spdx.json)
+          
+          echo "SPDX packages with CLE lifecycle comments: $CLE_COMMENT_COUNT"
+          
+          # Alpine 3.20 should have CLE dates in comments
+          if [ "$CLE_COMMENT_COUNT" -ge 10 ]; then
+            echo "✅ SPDX CLE lifecycle data is being set in comments"
+          else
+            echo "❌ Expected CLE lifecycle data in SPDX package comments"
+            exit 1
+          fi
+          
+          # Show sample CLE data
+          echo "Sample SPDX CLE comment:"
+          jq -r '.packages[] | select(.comment != null and (.comment | contains("CLE"))) | .comment' alpine-enriched.spdx.json | head -3 || true
+
+      - name: Upload enriched SBOM artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: alpine-enriched-sbom
-          path: alpine-enriched.cdx.json
+          name: alpine-enriched-sboms
+          path: |
+            alpine-enriched.cdx.json
+            alpine-enriched.spdx.json
           retention-days: 7
 
   augmentation-integration-test:
@@ -290,7 +377,7 @@ jobs:
           echo "Created sbomify.json with test augmentation data:"
           cat sbomify.json
 
-      - name: Run augmentation on test SBOM
+      - name: Run augmentation on CycloneDX SBOM
         run: |
           # Run augmentation on a sample CycloneDX SBOM
           uv run sbomify-action
@@ -302,167 +389,318 @@ jobs:
           AUGMENT: "true"
           UPLOAD: "false"
 
-      - name: Verify supplier information
+      - name: Run augmentation on SPDX SBOM
         run: |
-          echo "=== Verifying Supplier Information ==="
+          # Run augmentation on a sample SPDX SBOM
+          uv run sbomify-action
+        env:
+          TOKEN: placeholder
+          COMPONENT_ID: placeholder
+          SBOM_FILE: tests/test-data/syft.spdx.json
+          OUTPUT_FILE: augmented-sbom.spdx.json
+          AUGMENT: "true"
+          UPLOAD: "false"
+
+      - name: Verify CycloneDX supplier information
+        run: |
+          echo "=== Verifying CycloneDX Supplier Information ==="
           
           # Check supplier name
           SUPPLIER_NAME=$(jq -r '.metadata.supplier.name // empty' augmented-sbom.cdx.json)
-          echo "Supplier name: $SUPPLIER_NAME"
+          echo "CycloneDX Supplier name: $SUPPLIER_NAME"
           
           if [ "$SUPPLIER_NAME" = "Acme Corporation" ]; then
-            echo "✅ Supplier name correctly set"
+            echo "✅ CycloneDX supplier name correctly set"
           else
-            echo "❌ Expected supplier name 'Acme Corporation', got '$SUPPLIER_NAME'"
+            echo "❌ Expected CycloneDX supplier name 'Acme Corporation', got '$SUPPLIER_NAME'"
             exit 1
           fi
           
           # Check supplier URLs
           SUPPLIER_URLS=$(jq -r '.metadata.supplier.url[]?' augmented-sbom.cdx.json | wc -l)
-          echo "Supplier URLs count: $SUPPLIER_URLS"
+          echo "CycloneDX Supplier URLs count: $SUPPLIER_URLS"
           
           if [ "$SUPPLIER_URLS" -ge 1 ]; then
-            echo "✅ Supplier URLs present"
+            echo "✅ CycloneDX supplier URLs present"
           else
-            echo "❌ Expected at least 1 supplier URL"
+            echo "❌ Expected at least 1 CycloneDX supplier URL"
             exit 1
           fi
           
           # Check supplier contacts
           SUPPLIER_CONTACTS=$(jq '.metadata.supplier.contact | length' augmented-sbom.cdx.json)
-          echo "Supplier contacts: $SUPPLIER_CONTACTS"
+          echo "CycloneDX Supplier contacts: $SUPPLIER_CONTACTS"
           
           if [ "$SUPPLIER_CONTACTS" -ge 1 ]; then
-            echo "✅ Supplier contacts present"
+            echo "✅ CycloneDX supplier contacts present"
           else
-            echo "❌ Expected at least 1 supplier contact"
+            echo "❌ Expected at least 1 CycloneDX supplier contact"
             exit 1
           fi
 
-      - name: Verify manufacturer information
+      - name: Verify SPDX supplier information
         run: |
-          echo "=== Verifying Manufacturer Information ==="
+          echo "=== Verifying SPDX Supplier Information ==="
+          
+          # In SPDX, supplier is on the main package
+          SUPPLIER=$(jq -r '.packages[0].supplier // empty' augmented-sbom.spdx.json)
+          echo "SPDX Supplier: $SUPPLIER"
+          
+          if echo "$SUPPLIER" | grep -q "Acme Corporation"; then
+            echo "✅ SPDX supplier correctly set"
+          else
+            echo "❌ Expected SPDX supplier to contain 'Acme Corporation', got '$SUPPLIER'"
+            exit 1
+          fi
+
+      - name: Verify CycloneDX manufacturer information
+        run: |
+          echo "=== Verifying CycloneDX Manufacturer Information ==="
           
           # Check manufacturer - can be on metadata.manufacture (1.5) or metadata.component.manufacturer (1.6+)
           MANUFACTURER=$(jq -r '.metadata.manufacture.name // .metadata.component.manufacturer.name // empty' augmented-sbom.cdx.json)
-          echo "Manufacturer: $MANUFACTURER"
+          echo "CycloneDX Manufacturer: $MANUFACTURER"
           
           if [ -n "$MANUFACTURER" ]; then
-            echo "✅ Manufacturer information present: $MANUFACTURER"
+            echo "✅ CycloneDX manufacturer information present: $MANUFACTURER"
           else
-            echo "⚠️ Manufacturer not found (may depend on CycloneDX version)"
+            echo "⚠️ CycloneDX manufacturer not found (may depend on CycloneDX version)"
           fi
 
-      - name: Verify authors information
+      - name: Verify SPDX originator (manufacturer equivalent)
         run: |
-          echo "=== Verifying Authors Information ==="
+          echo "=== Verifying SPDX Originator Information ==="
+          
+          # In SPDX, manufacturer maps to originator on the main package
+          ORIGINATOR=$(jq -r '.packages[0].originator // empty' augmented-sbom.spdx.json)
+          echo "SPDX Originator: $ORIGINATOR"
+          
+          if [ -n "$ORIGINATOR" ]; then
+            echo "✅ SPDX originator information present: $ORIGINATOR"
+          else
+            echo "⚠️ SPDX originator not found"
+          fi
+
+      - name: Verify CycloneDX authors information
+        run: |
+          echo "=== Verifying CycloneDX Authors Information ==="
           
           # Check authors array
           AUTHORS_COUNT=$(jq '.metadata.authors | length' augmented-sbom.cdx.json)
-          echo "Authors count: $AUTHORS_COUNT"
+          echo "CycloneDX Authors count: $AUTHORS_COUNT"
           
           if [ "$AUTHORS_COUNT" -ge 2 ]; then
-            echo "✅ Authors correctly added ($AUTHORS_COUNT authors)"
+            echo "✅ CycloneDX authors correctly added ($AUTHORS_COUNT authors)"
           else
-            echo "❌ Expected at least 2 authors, got $AUTHORS_COUNT"
+            echo "❌ Expected at least 2 CycloneDX authors, got $AUTHORS_COUNT"
             exit 1
           fi
           
           # Verify author names
           AUTHOR_NAMES=$(jq -r '.metadata.authors[].name' augmented-sbom.cdx.json)
-          echo "Author names: $AUTHOR_NAMES"
+          echo "CycloneDX Author names: $AUTHOR_NAMES"
           
           if echo "$AUTHOR_NAMES" | grep -q "Jane Developer"; then
-            echo "✅ Found expected author 'Jane Developer'"
+            echo "✅ Found expected CycloneDX author 'Jane Developer'"
           else
-            echo "❌ Expected author 'Jane Developer' not found"
+            echo "❌ Expected CycloneDX author 'Jane Developer' not found"
             exit 1
           fi
 
-      - name: Verify license information
+      - name: Verify SPDX creators (authors equivalent)
         run: |
-          echo "=== Verifying License Information ==="
+          echo "=== Verifying SPDX Creators Information ==="
+          
+          # In SPDX, authors are added to creationInfo.creators
+          CREATORS=$(jq -r '.creationInfo.creators[]' augmented-sbom.spdx.json)
+          echo "SPDX Creators: $CREATORS"
+          
+          # Check that Person creators were added (authors become Person entries)
+          PERSON_COUNT=$(echo "$CREATORS" | grep -c "^Person:" || true)
+          echo "SPDX Person creators: $PERSON_COUNT"
+          
+          if [ "$PERSON_COUNT" -ge 2 ]; then
+            echo "✅ SPDX person creators correctly added ($PERSON_COUNT persons)"
+          else
+            echo "⚠️ Expected at least 2 SPDX person creators, got $PERSON_COUNT"
+          fi
+          
+          # Check for expected author
+          if echo "$CREATORS" | grep -q "Jane Developer"; then
+            echo "✅ Found expected SPDX creator 'Jane Developer'"
+          else
+            echo "⚠️ Expected SPDX creator 'Jane Developer' not found in creators"
+          fi
+
+      - name: Verify CycloneDX license information
+        run: |
+          echo "=== Verifying CycloneDX License Information ==="
           
           # Check that licenses were added to metadata
           LICENSES=$(jq '.metadata.licenses' augmented-sbom.cdx.json)
-          echo "Licenses: $LICENSES"
+          echo "CycloneDX Licenses: $LICENSES"
           
           if [ "$LICENSES" != "null" ] && [ "$(echo "$LICENSES" | jq 'length')" -ge 1 ]; then
-            echo "✅ Licenses present in metadata"
+            echo "✅ CycloneDX licenses present in metadata"
           else
-            echo "❌ Expected licenses in metadata"
+            echo "❌ Expected CycloneDX licenses in metadata"
             exit 1
           fi
           
           # Check for Apache-2.0 in license expression
           if jq -e '.metadata.licenses[]? | select(.expression != null) | .expression | contains("Apache-2.0")' augmented-sbom.cdx.json > /dev/null 2>&1; then
-            echo "✅ Found Apache-2.0 in license expression"
+            echo "✅ Found Apache-2.0 in CycloneDX license expression"
           else
-            echo "⚠️ Apache-2.0 not found in expression (may be in different format)"
+            echo "⚠️ Apache-2.0 not found in CycloneDX expression (may be in different format)"
           fi
 
-      - name: Verify lifecycle phase
+      - name: Verify SPDX license information
         run: |
-          echo "=== Verifying Lifecycle Phase ==="
+          echo "=== Verifying SPDX License Information ==="
+          
+          # In SPDX, licenses are set on the main package's licenseDeclared
+          LICENSE_DECLARED=$(jq -r '.packages[0].licenseDeclared // empty' augmented-sbom.spdx.json)
+          echo "SPDX licenseDeclared: $LICENSE_DECLARED"
+          
+          if [ -n "$LICENSE_DECLARED" ] && [ "$LICENSE_DECLARED" != "NOASSERTION" ]; then
+            echo "✅ SPDX licenseDeclared is set"
+          else
+            echo "⚠️ SPDX licenseDeclared not set or is NOASSERTION"
+          fi
+          
+          # Check for Apache-2.0 in license
+          if echo "$LICENSE_DECLARED" | grep -q "Apache-2.0"; then
+            echo "✅ Found Apache-2.0 in SPDX license"
+          else
+            echo "⚠️ Apache-2.0 not found in SPDX license"
+          fi
+          
+          # Check for extracted licensing info (custom licenses)
+          EXTRACTED_COUNT=$(jq '.hasExtractedLicensingInfo | length' augmented-sbom.spdx.json)
+          echo "SPDX extracted licensing info count: $EXTRACTED_COUNT"
+          
+          if [ "$EXTRACTED_COUNT" -ge 1 ]; then
+            echo "✅ SPDX has extracted licensing info for custom licenses"
+          else
+            echo "⚠️ No extracted licensing info found"
+          fi
+
+      - name: Verify CycloneDX lifecycle phase
+        run: |
+          echo "=== Verifying CycloneDX Lifecycle Phase ==="
           
           # Check lifecycle phase (CycloneDX 1.5+)
           LIFECYCLE=$(jq -r '.metadata.lifecycles[]?.phase // empty' augmented-sbom.cdx.json | head -1)
-          echo "Lifecycle phase: $LIFECYCLE"
+          echo "CycloneDX Lifecycle phase: $LIFECYCLE"
           
           if [ "$LIFECYCLE" = "build" ]; then
-            echo "✅ Lifecycle phase correctly set to 'build'"
+            echo "✅ CycloneDX lifecycle phase correctly set to 'build'"
           elif [ -n "$LIFECYCLE" ]; then
-            echo "✅ Lifecycle phase present: $LIFECYCLE"
+            echo "✅ CycloneDX lifecycle phase present: $LIFECYCLE"
           else
-            echo "⚠️ Lifecycle phase not found (may require CycloneDX 1.5+)"
+            echo "⚠️ CycloneDX lifecycle phase not found (may require CycloneDX 1.5+)"
           fi
 
-      - name: Verify VCS information
+      - name: Verify SPDX lifecycle phase
         run: |
-          echo "=== Verifying VCS Information ==="
+          echo "=== Verifying SPDX Lifecycle Phase ==="
+          
+          # In SPDX, lifecycle phase is added to creator_comment
+          CREATOR_COMMENT=$(jq -r '.creationInfo.comment // empty' augmented-sbom.spdx.json)
+          echo "SPDX Creator comment: $CREATOR_COMMENT"
+          
+          if echo "$CREATOR_COMMENT" | grep -q "Lifecycle phase"; then
+            echo "✅ SPDX lifecycle phase found in creator comment"
+            if echo "$CREATOR_COMMENT" | grep -q "build"; then
+              echo "✅ SPDX lifecycle phase is 'build'"
+            fi
+          else
+            echo "⚠️ SPDX lifecycle phase not found in creator comment"
+          fi
+
+      - name: Verify CycloneDX VCS information
+        run: |
+          echo "=== Verifying CycloneDX VCS Information ==="
           
           # Check for VCS external reference on root component
           VCS_URL=$(jq -r '.metadata.component.externalReferences[]? | select(.type == "vcs") | .url' augmented-sbom.cdx.json | head -1)
-          echo "VCS URL: $VCS_URL"
+          echo "CycloneDX VCS URL: $VCS_URL"
           
           if [ -n "$VCS_URL" ]; then
-            echo "✅ VCS URL present in external references"
+            echo "✅ CycloneDX VCS URL present in external references"
             
             if echo "$VCS_URL" | grep -q "github.com/acme/example-project"; then
-              echo "✅ VCS URL matches expected repository"
+              echo "✅ CycloneDX VCS URL matches expected repository"
             else
-              echo "⚠️ VCS URL doesn't match expected (got: $VCS_URL)"
+              echo "⚠️ CycloneDX VCS URL doesn't match expected (got: $VCS_URL)"
             fi
           else
-            echo "⚠️ VCS external reference not found"
+            echo "⚠️ CycloneDX VCS external reference not found"
           fi
 
-      - name: Verify sbomify tool metadata
+      - name: Verify SPDX VCS information
         run: |
-          echo "=== Verifying sbomify Tool Metadata ==="
+          echo "=== Verifying SPDX VCS Information ==="
+          
+          # In SPDX, VCS is added as an external reference on the main package
+          VCS_REF=$(jq -r '.packages[0].externalRefs[]? | select(.referenceType == "vcs") | .referenceLocator' augmented-sbom.spdx.json | head -1)
+          echo "SPDX VCS Reference: $VCS_REF"
+          
+          if [ -n "$VCS_REF" ]; then
+            echo "✅ SPDX VCS reference present"
+            
+            if echo "$VCS_REF" | grep -q "github.com/acme/example-project"; then
+              echo "✅ SPDX VCS reference matches expected repository"
+            else
+              echo "⚠️ SPDX VCS reference doesn't match expected (got: $VCS_REF)"
+            fi
+          else
+            echo "⚠️ SPDX VCS external reference not found"
+          fi
+
+      - name: Verify CycloneDX sbomify tool metadata
+        run: |
+          echo "=== Verifying CycloneDX sbomify Tool Metadata ==="
           
           # Check that sbomify was added as a tool
           SBOMIFY_TOOL=$(jq -r '.metadata.tools.components[]? | select(.name == "sbomify GitHub Action") | .name' augmented-sbom.cdx.json)
           
           if [ -n "$SBOMIFY_TOOL" ]; then
-            echo "✅ sbomify tool metadata present"
+            echo "✅ CycloneDX sbomify tool metadata present"
           else
             # Try legacy format for older CycloneDX versions
             SBOMIFY_TOOL_LEGACY=$(jq -r '.metadata.tools[]? | select(.name == "sbomify GitHub Action") | .name' augmented-sbom.cdx.json)
             if [ -n "$SBOMIFY_TOOL_LEGACY" ]; then
-              echo "✅ sbomify tool metadata present (legacy format)"
+              echo "✅ CycloneDX sbomify tool metadata present (legacy format)"
             else
-              echo "❌ sbomify tool not found in metadata"
+              echo "❌ CycloneDX sbomify tool not found in metadata"
               exit 1
             fi
           fi
 
-      - name: Upload augmented SBOM artifact
+      - name: Verify SPDX sbomify tool metadata
+        run: |
+          echo "=== Verifying SPDX sbomify Tool Metadata ==="
+          
+          # In SPDX, tools are added to creationInfo.creators as Tool entries
+          CREATORS=$(jq -r '.creationInfo.creators[]' augmented-sbom.spdx.json)
+          echo "SPDX Creators: $CREATORS"
+          
+          if echo "$CREATORS" | grep -q "Tool:.*sbomify"; then
+            echo "✅ SPDX sbomify tool metadata present in creators"
+          else
+            echo "❌ SPDX sbomify tool not found in creators"
+            exit 1
+          fi
+
+      - name: Upload augmented SBOM artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: augmented-sbom
-          path: augmented-sbom.cdx.json
+          name: augmented-sboms
+          path: |
+            augmented-sbom.cdx.json
+            augmented-sbom.spdx.json
           retention-days: 7
 
   push-images:
