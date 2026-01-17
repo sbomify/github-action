@@ -258,19 +258,28 @@ jobs:
         run: |
           echo "=== Verifying SPDX License Expressions in CycloneDX ==="
           
-          # Extract all license expressions and check they look like valid SPDX
+          # Extract all license IDs and expressions (CycloneDX uses .license.id or .expression)
+          echo "License IDs found:"
+          jq -r '.components[].licenses[]?.license.id // empty' alpine-enriched.cdx.json | head -20
+          
+          echo "License expressions found:"
           jq -r '.components[].licenses[]?.expression // empty' alpine-enriched.cdx.json | head -20
           
-          # Check for common valid SPDX identifiers
-          VALID_SPDX_COUNT=$(jq -r '.components[].licenses[]?.expression // empty' alpine-enriched.cdx.json | \
+          # Check for common valid SPDX identifiers in both .license.id and .expression
+          VALID_ID_COUNT=$(jq -r '.components[].licenses[]?.license.id // empty' alpine-enriched.cdx.json | \
             grep -E '^(MIT|Apache-2\.0|GPL-[0-9]|BSD-[0-9]|ISC|MPL|LGPL|Zlib|OpenSSL)' | wc -l)
+          VALID_EXPR_COUNT=$(jq -r '.components[].licenses[]?.expression // empty' alpine-enriched.cdx.json | \
+            grep -E '^(MIT|Apache-2\.0|GPL-[0-9]|BSD-[0-9]|ISC|MPL|LGPL|Zlib|OpenSSL)' | wc -l)
+          VALID_SPDX_COUNT=$((VALID_ID_COUNT + VALID_EXPR_COUNT))
           
-          echo "Valid SPDX expressions found in CycloneDX: $VALID_SPDX_COUNT"
+          echo "Valid SPDX license IDs: $VALID_ID_COUNT"
+          echo "Valid SPDX expressions: $VALID_EXPR_COUNT"
+          echo "Total valid SPDX licenses in CycloneDX: $VALID_SPDX_COUNT"
           
           if [ "$VALID_SPDX_COUNT" -ge 5 ]; then
-            echo "✅ Found valid SPDX license expressions in CycloneDX"
+            echo "✅ Found valid SPDX license identifiers in CycloneDX"
           else
-            echo "❌ Expected more valid SPDX expressions in CycloneDX"
+            echo "❌ Expected more valid SPDX identifiers in CycloneDX"
             exit 1
           fi
 
