@@ -1,16 +1,18 @@
 """Generate license database for Linux distro packages.
 
-This module extracts license information from Ubuntu and RPM-based distro
-packages, validates them against SPDX, and outputs a JSON database keyed
-by PURL for easy lookups during SBOM enrichment.
+This module extracts license information from Linux distro packages,
+validates them against SPDX, and outputs a JSON database keyed by PURL
+for easy lookups during SBOM enrichment.
 
 Supported distros:
+- Alpine Linux (3.18, 3.19, 3.20, 3.21)
 - Ubuntu (20.04, 22.04, 24.04)
 - Rocky Linux (8, 9)
 - Alma Linux (8, 9)
-- Fedora (39, 40, 41)
+- Fedora (39, 40, 41, 42)
 
 Usage:
+    sbomify-license-db --distro alpine --version 3.20 --output alpine-3.20.json.gz
     sbomify-license-db --distro ubuntu --version 24.04 --output ubuntu-24.04.json.gz
     sbomify-license-db --distro rocky --version 9 --output rocky-9.json.gz
 """
@@ -22,6 +24,7 @@ import json
 import re
 import subprocess
 import sys
+import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
@@ -35,7 +38,11 @@ from packageurl import PackageURL
 
 from ..http_client import USER_AGENT
 from ..logging_config import setup_logging
-from .license_normalizer import extract_dep5_license, normalize_rpm_license
+from .license_normalizer import (
+    extract_dep5_license,
+    normalize_rpm_license,
+    validate_spdx_expression,
+)
 
 # Initialize logger
 logger = setup_logging(level="INFO", use_rich=True)
@@ -97,6 +104,29 @@ class DatabaseMetadata:
 # CLE lifecycle data for supported distros
 # Dates in ISO 8601 format (YYYY-MM-DD)
 DISTRO_LIFECYCLE = {
+    "alpine": {
+        # Alpine releases have ~2 year support lifecycle
+        "3.18": {
+            "release_date": "2023-05-09",
+            "end_of_support": "2025-05-09",
+            "end_of_life": "2025-05-09",
+        },
+        "3.19": {
+            "release_date": "2023-12-07",
+            "end_of_support": "2025-11-01",
+            "end_of_life": "2025-11-01",
+        },
+        "3.20": {
+            "release_date": "2024-05-22",
+            "end_of_support": "2026-04-01",
+            "end_of_life": "2026-04-01",
+        },
+        "3.21": {
+            "release_date": "2024-12-05",
+            "end_of_support": "2026-11-01",
+            "end_of_life": "2026-11-01",
+        },
+    },
     "rocky": {
         "8": {
             "release_date": "2021-06-21",
@@ -209,6 +239,184 @@ def make_rpm_purl(
         qualifiers={"arch": arch, "distro": f"{distro}-{distro_version}"},
     )
     return str(purl)
+
+
+def make_apk_purl(
+    name: str,
+    version: str,
+    distro_version: str,
+    arch: str = "x86_64",
+) -> str:
+    """Construct a PURL for an Alpine APK package."""
+    purl = PackageURL(
+        type="apk",
+        namespace="alpine",
+        name=name,
+        version=version,
+        qualifiers={"arch": arch, "distro": f"alpine-{distro_version}"},
+    )
+    return str(purl)
+
+
+# =============================================================================
+# Alpine Package Processing
+# =============================================================================
+
+ALPINE_CDN_BASE = "https://dl-cdn.alpinelinux.org/alpine/"
+ALPINE_REPOS = ["main", "community"]
+
+
+@dataclass
+class ApkPackageInfo:
+    """Package info from Alpine APKINDEX."""
+
+    name: str  # P:
+    version: str  # V:
+    arch: str  # A:
+    description: Optional[str]  # T:
+    url: Optional[str]  # U:
+    license: Optional[str]  # L:
+    maintainer: Optional[str]  # m:
+    origin: Optional[str]  # o:
+
+
+def parse_apkindex(content: str) -> Iterator[Dict[str, str]]:
+    """Parse APKINDEX file format (single-letter fields, blank line separators)."""
+    current: Dict[str, str] = {}
+
+    for line in content.splitlines():
+        line = line.rstrip()
+
+        if not line:
+            if current:
+                yield current
+                current = {}
+            continue
+
+        if ":" in line:
+            key, _, value = line.partition(":")
+            current[key] = value
+
+    if current:
+        yield current
+
+
+def fetch_alpine_packages(
+    version: str,
+    repo: str = "main",
+    arch: str = "x86_64",
+) -> Iterator[ApkPackageInfo]:
+    """Fetch and parse Alpine APKINDEX."""
+    url = f"{ALPINE_CDN_BASE}v{version}/{repo}/{arch}/APKINDEX.tar.gz"
+
+    logger.info(f"Fetching {url}")
+
+    try:
+        response = SESSION.get(url, timeout=DOWNLOAD_TIMEOUT)
+        response.raise_for_status()
+
+        # APKINDEX.tar.gz contains APKINDEX file
+        with tarfile.open(fileobj=io.BytesIO(response.content), mode="r:gz") as tar:
+            for member in tar.getmembers():
+                if member.name == "APKINDEX":
+                    f = tar.extractfile(member)
+                    if f:
+                        content = f.read().decode("utf-8", errors="replace")
+                        for pkg_data in parse_apkindex(content):
+                            name = pkg_data.get("P")
+                            version_str = pkg_data.get("V")
+                            if not name or not version_str:
+                                continue
+
+                            yield ApkPackageInfo(
+                                name=name,
+                                version=version_str,
+                                arch=pkg_data.get("A", arch),
+                                description=pkg_data.get("T"),
+                                url=pkg_data.get("U"),
+                                license=pkg_data.get("L"),
+                                maintainer=pkg_data.get("m"),
+                                origin=pkg_data.get("o"),
+                            )
+                        break
+
+    except Exception as e:
+        logger.warning(f"Failed to fetch APKINDEX from {url}: {e}")
+
+
+def normalize_alpine_license(license_str: str) -> Optional[str]:
+    """Normalize Alpine license string to SPDX.
+
+    Alpine packages should already use SPDX identifiers per their policy,
+    but we still validate them.
+    """
+    if not license_str:
+        return None
+
+    # Alpine often uses SPDX-compatible identifiers directly
+    # First try the raw string
+    if validate_spdx_expression(license_str):
+        return license_str
+
+    # Some Alpine packages use slightly different formats
+    # Try common transformations
+    normalized = license_str.strip()
+
+    # Handle "AND" / "OR" operators (Alpine uses spaces sometimes)
+    if " " in normalized and " AND " not in normalized and " OR " not in normalized:
+        # Check if it's multiple licenses separated by space
+        parts = normalized.split()
+        if all(validate_spdx_expression(p) for p in parts):
+            # Multiple licenses - treat as AND
+            return " AND ".join(parts)
+
+    # Try direct validation again with cleaned string
+    if validate_spdx_expression(normalized):
+        return normalized
+
+    return None
+
+
+def process_alpine_package(
+    pkg_info: ApkPackageInfo,
+    distro_version: str,
+) -> Optional[PackageMetadata]:
+    """Process a single Alpine package and extract all metadata."""
+    if not pkg_info.license:
+        return None
+
+    spdx = normalize_alpine_license(pkg_info.license)
+    if not spdx:
+        return None
+
+    purl = make_apk_purl(
+        name=pkg_info.name,
+        version=pkg_info.version,
+        distro_version=distro_version,
+        arch=pkg_info.arch,
+    )
+
+    description = pkg_info.description
+    if description:
+        description = description.strip()[:500]
+
+    maintainer_name, maintainer_email = parse_maintainer(pkg_info.maintainer)
+
+    return PackageMetadata(
+        purl=purl,
+        name=pkg_info.name,
+        version=pkg_info.version,
+        spdx=spdx,
+        license_raw=pkg_info.license,
+        description=description,
+        supplier=None,  # Alpine doesn't have vendor field
+        maintainer_name=maintainer_name,
+        maintainer_email=maintainer_email,
+        homepage=pkg_info.url,
+        download_url=None,  # Would need to construct from origin
+        confidence="high",
+        source="apk_metadata",
+    )
 
 
 # =============================================================================
@@ -661,6 +869,81 @@ def process_rpm_package(
 # =============================================================================
 
 
+def generate_alpine_db(
+    distro_version: str,
+    output_path: Path,
+    max_packages: Optional[int] = None,
+) -> None:
+    """Generate license database for Alpine Linux."""
+    logger.info(f"Generating license database for Alpine {distro_version}")
+
+    packages: Dict[str, Dict[str, Any]] = {}
+    seen_names: set = set()
+    count = 0
+    skipped = 0
+
+    for repo in ALPINE_REPOS:
+        for pkg_info in fetch_alpine_packages(distro_version, repo):
+            if pkg_info.name in seen_names:
+                continue
+
+            seen_names.add(pkg_info.name)
+
+            if max_packages and count >= max_packages:
+                break
+
+            result = process_alpine_package(pkg_info, distro_version)
+            if result:
+                packages[result.purl] = {
+                    "name": result.name,
+                    "version": result.version,
+                    "spdx": result.spdx,
+                    "license_raw": result.license_raw,
+                    "description": result.description,
+                    "supplier": result.supplier,
+                    "maintainer_name": result.maintainer_name,
+                    "maintainer_email": result.maintainer_email,
+                    "homepage": result.homepage,
+                    "download_url": result.download_url,
+                    "confidence": result.confidence,
+                    "source": result.source,
+                }
+                count += 1
+                if count % 500 == 0:
+                    logger.info(f"Processed {count} packages with valid licenses...")
+            else:
+                skipped += 1
+
+        if max_packages and count >= max_packages:
+            break
+
+    # Get CLE lifecycle data
+    lifecycle = DISTRO_LIFECYCLE.get("alpine", {}).get(distro_version, {})
+
+    db = {
+        "metadata": asdict(
+            DatabaseMetadata(
+                distro="alpine",
+                version=distro_version,
+                codename=None,
+                generated_at=datetime.now(timezone.utc).isoformat(),
+                package_count=len(packages),
+                release_date=lifecycle.get("release_date"),
+                end_of_support=lifecycle.get("end_of_support"),
+                end_of_life=lifecycle.get("end_of_life"),
+            )
+        ),
+        "packages": packages,
+    }
+
+    with gzip.open(output_path, "wt", encoding="utf-8") as f:
+        json.dump(db, f, separators=(",", ":"))
+
+    logger.info(f"Wrote {len(packages)} packages to {output_path}")
+    logger.info(f"Skipped: {skipped} (license not validated)")
+    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+
+
 def generate_ubuntu_db(
     distro_version: str,
     output_path: Path,
@@ -840,7 +1123,7 @@ def main() -> None:
     parser.add_argument(
         "--distro",
         required=True,
-        choices=["ubuntu", "rocky", "almalinux", "fedora"],
+        choices=["alpine", "ubuntu", "rocky", "almalinux", "fedora"],
         help="Distribution name",
     )
     parser.add_argument(
@@ -867,7 +1150,9 @@ def main() -> None:
     if not str(output_path).endswith(".gz"):
         output_path = Path(str(output_path) + ".gz")
 
-    if args.distro == "ubuntu":
+    if args.distro == "alpine":
+        generate_alpine_db(args.version, output_path, args.max_packages)
+    elif args.distro == "ubuntu":
         generate_ubuntu_db(args.version, output_path, args.max_packages)
     else:
         generate_rpm_db(args.distro, args.version, output_path, args.max_packages)

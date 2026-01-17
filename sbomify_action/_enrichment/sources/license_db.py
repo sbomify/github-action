@@ -35,6 +35,10 @@ DEFAULT_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"
 
 # Supported distros and their database file patterns
 SUPPORTED_DISTROS = {
+    "alpine": {
+        "type": "apk",
+        "versions": ["3.18", "3.19", "3.20", "3.21"],
+    },
     "ubuntu": {
         "type": "deb",
         "versions": ["20.04", "22.04", "24.04"],
@@ -50,7 +54,7 @@ SUPPORTED_DISTROS = {
     },
     "fedora": {
         "type": "rpm",
-        "versions": ["39", "40", "41"],
+        "versions": ["39", "40", "41", "42"],
     },
 }
 
@@ -85,10 +89,11 @@ class LicenseDBSource:
     information.
 
     This source only provides license data - other metadata fields
-    come from the existing Ubuntu/RPM sources.
+    come from the existing Ubuntu/RPM/Alpine sources.
 
     Priority: 8 (before API calls, provides license-only data)
-    Supports: pkg:deb/ubuntu/*, pkg:rpm/rocky/*, pkg:rpm/almalinux/*, pkg:rpm/fedora/*
+    Supports: pkg:apk/alpine/*, pkg:deb/ubuntu/*, pkg:rpm/rocky/*,
+              pkg:rpm/almalinux/*, pkg:rpm/fedora/*
     """
 
     def __init__(self, cache_dir: Optional[Path] = None):
@@ -113,7 +118,10 @@ class LicenseDBSource:
     def supports(self, purl: PackageURL) -> bool:
         """Check if this source supports the given PURL."""
         # Check package type
-        if purl.type == "deb":
+        if purl.type == "apk":
+            namespace = (purl.namespace or "").lower()
+            return namespace == "alpine"
+        elif purl.type == "deb":
             namespace = (purl.namespace or "").lower()
             return namespace == "ubuntu"
         elif purl.type == "rpm":
