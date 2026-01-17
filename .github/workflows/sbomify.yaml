@@ -159,14 +159,14 @@ jobs:
       - name: Enrich Alpine SBOM with license database
         run: |
           # Run enrichment - this will use the license-db source
-          uv run sbomify-action \
-            --sbom-file alpine-raw.cdx.json \
-            --output-file alpine-enriched.cdx.json \
-            --enrich \
-            --no-upload
+          uv run sbomify-action
         env:
           TOKEN: placeholder
           COMPONENT_ID: placeholder
+          SBOM_FILE: alpine-raw.cdx.json
+          OUTPUT_FILE: alpine-enriched.cdx.json
+          ENRICH: "true"
+          UPLOAD: "false"
 
       - name: Verify license database enrichment
         run: |
