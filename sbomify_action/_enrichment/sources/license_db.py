@@ -261,6 +261,43 @@ class LicenseDBSource:
             field_sources=field_sources,
         )
 
+    def _normalize_version(self, distro: str, version: str) -> Optional[str]:
+        """
+        Normalize a version string to match supported versions.
+
+        Handles point releases like:
+        - Ubuntu: 24.04.1 -> 24.04
+        - Alpine: 3.19.9 -> 3.19
+        - Rocky/Alma: 9.4 -> 9
+        - Fedora: 41 -> 41
+
+        Args:
+            distro: Distribution name
+            version: Version string from PURL
+
+        Returns:
+            Normalized version matching SUPPORTED_DISTROS, or None
+        """
+        if distro not in SUPPORTED_DISTROS:
+            return None
+
+        supported_versions = SUPPORTED_DISTROS[distro]["versions"]
+
+        # Direct match first
+        if version in supported_versions:
+            return version
+
+        # Try progressively shorter version prefixes
+        # e.g., "24.04.1" -> try "24.04", then "24"
+        # e.g., "9.4" -> try "9"
+        parts = version.split(".")
+        for i in range(len(parts) - 1, 0, -1):
+            prefix = ".".join(parts[:i])
+            if prefix in supported_versions:
+                return prefix
+
+        return None
+
     def _parse_distro_from_purl(self, purl: PackageURL) -> Tuple[Optional[str], Optional[str]]:
         """
         Extract distro and version from PURL.
@@ -275,21 +312,25 @@ class LicenseDBSource:
         qualifiers = purl.qualifiers or {}
         distro_qualifier = qualifiers.get("distro", "")
 
-        # Parse distro qualifier (e.g., "ubuntu-24.04", "rocky-9")
+        distro = None
+        version = None
+
+        # Parse distro qualifier (e.g., "ubuntu-24.04.1", "rocky-9.4")
         if distro_qualifier:
             match = re.match(r"([a-z]+)-(.+)", distro_qualifier.lower())
             if match:
-                return match.group(1), match.group(2)
+                distro = match.group(1)
+                version = match.group(2)
+            # For APK packages, distro qualifier is just version (e.g., "3.19.9")
+            elif namespace in ("alpine", "wolfi") and re.match(r"^\d+\.\d+", distro_qualifier):
+                distro = namespace
+                version = distro_qualifier
 
-            # For APK packages (alpine, wolfi), distro qualifier is just version (e.g., "3.19.9")
-            # Extract major.minor for database lookup (e.g., "3.19.9" -> "3.19")
-            if namespace in ("alpine", "wolfi") and re.match(r"^\d+\.\d+", distro_qualifier):
-                version_match = re.match(r"(\d+\.\d+)", distro_qualifier)
-                if version_match:
-                    version = version_match.group(1)
-                    # Check if this version is supported
-                    if namespace in SUPPORTED_DISTROS and version in SUPPORTED_DISTROS[namespace]["versions"]:
-                        return namespace, version
+        # Normalize version to match supported versions (e.g., 24.04.1 -> 24.04)
+        if distro and version:
+            normalized = self._normalize_version(distro, version)
+            if normalized:
+                return distro, normalized
 
         # Fall back to namespace and try to infer version
         if namespace in SUPPORTED_DISTROS:
