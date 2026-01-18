@@ -564,13 +564,19 @@ class TestEvaluateBoolean(unittest.TestCase):
 
     def test_true_values(self):
         """Test values that should evaluate to True."""
-        # Test all case variations since evaluate_boolean uses .lower()
-        for value in ["true", "True", "TRUE", "yes", "Yes", "YES", "yeah", "Yeah", "YEAH", "1"]:
+        # Test lowercase values (function uses .lower() internally)
+        for value in ["true", "yes", "yeah", "1"]:
             self.assertTrue(evaluate_boolean(value), f"'{value}' should be True")
+
+    def test_true_values_case_insensitive(self):
+        """Test that true values are case-insensitive."""
+        # One example of each to verify .lower() works
+        for value in ["TRUE", "Yes", "YEAH"]:
+            self.assertTrue(evaluate_boolean(value), f"'{value}' should be True (case-insensitive)")
 
     def test_false_values(self):
         """Test values that should evaluate to False."""
-        for value in ["false", "False", "no", "No", "0", "anything"]:
+        for value in ["false", "no", "0", "anything", "nope", ""]:
             self.assertFalse(evaluate_boolean(value), f"'{value}' should be False")
 
 

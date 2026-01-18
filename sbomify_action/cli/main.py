@@ -1767,10 +1767,10 @@ def cli(
         raise click.UsageError("Cannot use both --verbose and --quiet")
 
     if verbose:
-        logging.getLogger("sbomify_action").setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
         logger.debug("Verbose logging enabled")
     elif quiet:
-        logging.getLogger("sbomify_action").setLevel(logging.WARNING)
+        logger.setLevel(logging.WARNING)
 
     # Reset transformation tracker for this run
     reset_transformation_tracker()
