@@ -1567,6 +1567,39 @@ def _apply_sbom_purl_override(sbom_file: str, config: "Config") -> None:
 # =============================================================================
 
 
+def _make_bool_envvar_callback(envvar: str, default: bool):
+    """
+    Create a callback for boolean flags with environment variable fallback.
+
+    Click's boolean flags (--flag/--no-flag) don't automatically convert
+    environment variable strings like "true"/"false" to booleans. This
+    callback factory creates a callback that properly handles string env vars.
+
+    Args:
+        envvar: Environment variable name to check
+        default: Default value if neither CLI nor env var is provided
+
+    Returns:
+        Callback function for Click option
+    """
+
+    def callback(ctx: click.Context, param: click.Parameter, value: Optional[bool]) -> bool:
+        # Check if the flag was explicitly provided on command line
+        # by looking at the source of the value
+        if ctx.get_parameter_source(param.name) == click.core.ParameterSource.COMMANDLINE:
+            return value
+
+        # Check environment variable with string-to-bool conversion
+        env_value = os.getenv(envvar)
+        if env_value is not None:
+            return evaluate_boolean(env_value)
+
+        # Fall back to default
+        return default
+
+    return callback
+
+
 def _validate_sbom_format(ctx: click.Context, param: click.Parameter, value: Optional[str]) -> Optional[str]:
     """Validate and normalize SBOM format value."""
     if value is None:
@@ -1632,10 +1665,11 @@ def _parse_upload_destinations_callback(
 )
 @click.option(
     "--upload/--no-upload",
-    envvar="UPLOAD",
     default=True,
     show_default=True,
-    help="Upload SBOM to configured destinations.",
+    callback=_make_bool_envvar_callback("UPLOAD", True),
+    is_eager=True,
+    help="Upload SBOM to configured destinations. [env: UPLOAD]",
 )
 @click.option(
     "--upload-destination",
@@ -1647,24 +1681,27 @@ def _parse_upload_destinations_callback(
 )
 @click.option(
     "--augment/--no-augment",
-    envvar="AUGMENT",
     default=False,
     show_default=True,
-    help="Augment SBOM with metadata from sbomify API.",
+    callback=_make_bool_envvar_callback("AUGMENT", False),
+    is_eager=True,
+    help="Augment SBOM with metadata from sbomify API. [env: AUGMENT]",
 )
 @click.option(
     "--enrich/--no-enrich",
-    envvar="ENRICH",
     default=False,
     show_default=True,
-    help="Enrich SBOM with metadata from package registries.",
+    callback=_make_bool_envvar_callback("ENRICH", False),
+    is_eager=True,
+    help="Enrich SBOM with metadata from package registries. [env: ENRICH]",
 )
 @click.option(
     "--override-sbom-metadata/--no-override-sbom-metadata",
-    envvar="OVERRIDE_SBOM_METADATA",
     default=False,
     show_default=True,
-    help="Override existing SBOM metadata with values from augmentation.",
+    callback=_make_bool_envvar_callback("OVERRIDE_SBOM_METADATA", False),
+    is_eager=True,
+    help="Override existing SBOM metadata with values from augmentation. [env: OVERRIDE_SBOM_METADATA]",
 )
 @click.option(
     "--component-version",
@@ -1758,7 +1795,7 @@ def cli(
       sbomify-action --lock-file requirements.txt --enrich --no-upload
 
       # Process existing SBOM and upload to sbomify
-      sbomify-action --sbom-file sbom.json --token $TOKEN --component-id abc123
+      sbomify-action --sbom-file sbom.json --token <your-token> --component-id abc123
 
       # Generate from Docker image with SPDX format
       sbomify-action --docker-image nginx:latest -f spdx -o sbom.spdx.json

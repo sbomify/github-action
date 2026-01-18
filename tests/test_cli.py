@@ -27,9 +27,9 @@ from sbomify_action.cli.main import (
     evaluate_boolean,
 )
 
-# Import the module using importlib to avoid shadowing by __init__.py exports
-# (sbomify_action.cli.__init__.py exports `main` function which shadows the module
-# when using standard import syntax)
+# Import the module object explicitly so we can patch its attributes (e.g. logger).
+# sbomify_action.cli.__init__.py re-exports the `main` function, so
+# `from sbomify_action.cli.main import main` would give us the function, not the module.
 cli_main_module = import_module("sbomify_action.cli.main")
 
 
@@ -584,6 +584,15 @@ class TestEvaluateBoolean(unittest.TestCase):
         # Verify case variations of false values
         for value in ["FALSE", "False", "NO", "No"]:
             self.assertFalse(evaluate_boolean(value), f"'{value}' should be False (case-insensitive)")
+
+    def test_mixed_case_values(self):
+        """Test that mixed-case values work correctly with .lower()."""
+        # True values with mixed case
+        for value in ["TrUe", "yEs", "YeAh"]:
+            self.assertTrue(evaluate_boolean(value), f"'{value}' should be True (mixed-case)")
+        # False values with mixed case
+        for value in ["FaLsE", "nO"]:
+            self.assertFalse(evaluate_boolean(value), f"'{value}' should be False (mixed-case)")
 
 
 if __name__ == "__main__":
