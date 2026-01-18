@@ -557,7 +557,8 @@ class TestEvaluateBoolean(unittest.TestCase):
 
     def test_true_values(self):
         """Test values that should evaluate to True."""
-        for value in ["true", "True", "TRUE", "yes", "Yes", "yeah", "1"]:
+        # Test all case variations since evaluate_boolean uses .lower()
+        for value in ["true", "True", "TRUE", "yes", "Yes", "YES", "yeah", "Yeah", "YEAH", "1"]:
             self.assertTrue(evaluate_boolean(value), f"'{value}' should be True")
 
     def test_false_values(self):

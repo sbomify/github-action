@@ -1682,6 +1682,7 @@ def _parse_upload_destinations_callback(
 )
 @click.option(
     "--product-release",
+    "product_releases",  # Map to plural name for internal consistency
     envvar="PRODUCT_RELEASE",
     help="Tag SBOM with product releases (JSON array: '[\"product_id:v1.0.0\"]').",
 )
@@ -1739,7 +1740,7 @@ def cli(
     component_version: Optional[str],
     component_name: Optional[str],
     component_purl: Optional[str],
-    product_release: Optional[str],
+    product_releases: Optional[str],
     api_base_url: str,
     sbom_format: str,
     telemetry: bool,
@@ -1805,7 +1806,7 @@ def cli(
         component_version=component_version,
         component_name=component_name,
         component_purl=component_purl,
-        product_releases=product_release,
+        product_releases=product_releases,
         api_base_url=api_base_url,
         sbom_format=sbom_format,
     )
