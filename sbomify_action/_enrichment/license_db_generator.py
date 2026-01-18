@@ -521,11 +521,63 @@ def fetch_ubuntu_packages(
         logger.warning(f"Failed to fetch {url}: {e}")
 
 
+def fetch_copyright_http(filename: str, distro: str = "ubuntu") -> Optional[str]:
+    """Fetch copyright file directly via HTTP (no .deb download needed).
+
+    URL patterns:
+    - Ubuntu: https://changelogs.ubuntu.com/changelogs/{filename_without_arch}/copyright
+    - Debian: https://metadata.ftp-master.debian.org/changelogs/{section}/{prefix}/{src}/{src}_{ver}_copyright
+    """
+    # filename is like: pool/main/a/apt/apt_2.4.11_amd64.deb
+    # We need: pool/main/a/apt/apt_2.4.11 (strip arch and .deb)
+
+    # Remove .deb extension and architecture suffix
+    base = filename.rsplit(".deb", 1)[0]  # pool/main/a/apt/apt_2.4.11_amd64
+    # Remove architecture (last underscore-separated part)
+    parts = base.rsplit("_", 1)
+    if len(parts) == 2:
+        base = parts[0]  # pool/main/a/apt/apt_2.4.11
+
+    if distro == "ubuntu":
+        url = f"https://changelogs.ubuntu.com/changelogs/{base}/copyright"
+    else:
+        # Debian uses a different format: section/prefix/source/source_version_copyright
+        # From pool/main/a/apt/apt_2.4.11 extract components
+        path_parts = base.split("/")
+        if len(path_parts) >= 4:
+            section = path_parts[1]  # main
+            prefix = path_parts[2]  # a
+            rest = "/".join(path_parts[3:])  # apt/apt_2.4.11
+            pkg_ver = rest.split("/")[-1]  # apt_2.4.11
+            url = f"https://metadata.ftp-master.debian.org/changelogs/{section}/{prefix}/{rest.split('/')[0]}/{pkg_ver}_copyright"
+        else:
+            return None
+
+    try:
+        response = SESSION.get(url, timeout=DEFAULT_TIMEOUT)
+        if response.status_code == 200:
+            return response.text
+    except Exception:
+        pass
+
+    return None
+
+
 def download_and_extract_deb(
-    filename: str, package_name: str, archive_base: str = UBUNTU_ARCHIVE_BASE
+    filename: str, package_name: str, archive_base: str = UBUNTU_ARCHIVE_BASE, distro: str = "ubuntu"
 ) -> Optional[str]:
-    """Download a .deb file and extract the copyright file."""
+    """Get copyright file, trying HTTP first, then .deb extraction as fallback.
+
+    The HTTP method uses zero disk space. Fallback extracts only the copyright file.
+    """
+    # Try HTTP first (fast, no disk usage)
+    copyright_text = fetch_copyright_http(filename, distro)
+    if copyright_text:
+        return copyright_text
+
+    # Fallback: download and extract from .deb
     url = urljoin(archive_base, filename)
+    base_name = package_name.split(":")[0]
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -538,46 +590,36 @@ def download_and_extract_deb(
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
 
-            extract_dir = Path(tmpdir) / "extracted"
-            extract_dir.mkdir()
+            subprocess.run(
+                ["ar", "x", str(deb_path)],
+                cwd=tmpdir,
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
 
-            # Use dpkg-deb if available, otherwise ar + tar
-            try:
-                subprocess.run(
-                    ["dpkg-deb", "-x", str(deb_path), str(extract_dir)],
-                    check=True,
-                    capture_output=True,
-                    timeout=30,
-                )
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                subprocess.run(
-                    ["ar", "x", str(deb_path)],
-                    cwd=tmpdir,
-                    check=True,
-                    capture_output=True,
-                    timeout=30,
-                )
-                for data_tar in Path(tmpdir).glob("data.tar.*"):
-                    subprocess.run(
-                        ["tar", "xf", str(data_tar), "-C", str(extract_dir)],
-                        check=True,
-                        capture_output=True,
-                        timeout=60,
-                    )
+            data_tar = None
+            for matches in [list(Path(tmpdir).glob("data.tar.*"))]:
+                if matches:
+                    data_tar = matches[0]
                     break
 
-            # Look for copyright file
-            copyright_paths = [
-                extract_dir / "usr" / "share" / "doc" / package_name / "copyright",
-                extract_dir / "usr" / "share" / "doc" / package_name.split(":")[0] / "copyright",
-            ]
+            if not data_tar:
+                return None
 
-            for cp_path in copyright_paths:
-                if cp_path.exists():
-                    return cp_path.read_text(errors="replace")
-
-            for cp_path in extract_dir.rglob("copyright"):
-                return cp_path.read_text(errors="replace")
+            # Extract copyright directly to stdout
+            for cp_path in [f"./usr/share/doc/{package_name}/copyright", f"./usr/share/doc/{base_name}/copyright"]:
+                try:
+                    result = subprocess.run(
+                        ["tar", "xf", str(data_tar), "-O", cp_path],
+                        cwd=tmpdir,
+                        capture_output=True,
+                        timeout=30,
+                    )
+                    if result.returncode == 0 and result.stdout:
+                        return result.stdout.decode("utf-8", errors="replace")
+                except subprocess.TimeoutExpired:
+                    pass
 
     except Exception as e:
         logger.debug(f"Failed to extract copyright from {package_name}: {e}")
@@ -717,7 +759,7 @@ def process_debian_package(
     # Extract license from copyright file
     spdx = None
     if filename:
-        copyright_text = download_and_extract_deb(filename, name, DEBIAN_ARCHIVE_BASE)
+        copyright_text = download_and_extract_deb(filename, name, DEBIAN_ARCHIVE_BASE, distro="debian")
         if copyright_text:
             spdx = extract_dep5_license(copyright_text)
 
@@ -1226,7 +1268,8 @@ def generate_ubuntu_db(
     processed = 0
 
     # Use parallel processing for faster downloads
-    max_workers = int(os.environ.get("SBOMIFY_LICENSE_DB_WORKERS", "20"))
+    # Default to 5 workers to limit disk usage (each .deb can be 10-100MB)
+    max_workers = int(os.environ.get("SBOMIFY_LICENSE_DB_WORKERS", "5"))
     logger.info(f"Using {max_workers} parallel workers")
 
     def process_one(pkg_info: Dict[str, str]) -> Optional[Tuple[str, Dict[str, Any]]]:
@@ -1333,7 +1376,8 @@ def generate_debian_db(
     processed = 0
 
     # Use parallel processing for faster downloads
-    max_workers = int(os.environ.get("SBOMIFY_LICENSE_DB_WORKERS", "20"))
+    # Default to 5 workers to limit disk usage (each .deb can be 10-100MB)
+    max_workers = int(os.environ.get("SBOMIFY_LICENSE_DB_WORKERS", "5"))
     logger.info(f"Using {max_workers} parallel workers")
 
     def process_one(pkg_info: Dict[str, str]) -> Optional[Tuple[str, Dict[str, Any]]]:
