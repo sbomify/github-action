@@ -243,6 +243,34 @@ DISTRO_LIFECYCLE: Dict[str, Dict[str, LifecycleDates]] = {
             "end_of_life": "2034-04",
         },
     },
+    # -------------------------------------------------------------------------
+    # Debian
+    # Source: https://wiki.debian.org/LTS
+    # Note: Debian publishes 'Regular security support' (EOS) and 'Long Term
+    # Support' (EOL/LTS) dates.
+    # -------------------------------------------------------------------------
+    "debian": {
+        "10": {
+            "release_date": "2019-07-06",
+            "end_of_support": "2022-09-10",  # Regular security support end
+            "end_of_life": "2024-06-30",  # LTS end
+        },
+        "11": {
+            "release_date": "2021-08-14",
+            "end_of_support": "2024-08-14",  # Regular security support end
+            "end_of_life": "2026-08-31",  # LTS end
+        },
+        "12": {
+            "release_date": "2023-06-10",
+            "end_of_support": "2026-06-10",  # Regular security support end
+            "end_of_life": "2028-06-30",  # LTS end
+        },
+        "13": {
+            "release_date": "2025-08-09",
+            "end_of_support": "2028-08-09",  # Full Debian support end
+            "end_of_life": "2030-06-30",  # LTS end
+        },
+    },
 }
 
 
@@ -754,23 +782,6 @@ PACKAGE_LIFECYCLE: Dict[str, PackageLifecycleEntry] = {
 }
 
 
-def get_distro_lifecycle(distro: str, version: str) -> Optional[LifecycleDates]:
-    """
-    Get lifecycle dates for a Linux distribution version.
-
-    Args:
-        distro: Distribution name (e.g., "ubuntu", "alpine")
-        version: Version string (e.g., "24.04", "3.20")
-
-    Returns:
-        LifecycleDates dict or None if not found
-    """
-    distro_data = DISTRO_LIFECYCLE.get(distro.lower())
-    if not distro_data:
-        return None
-    return distro_data.get(version)
-
-
 def get_package_lifecycle_entry(package_name: str) -> Optional[PackageLifecycleEntry]:
     """
     Find the lifecycle entry that matches a package name.
@@ -872,3 +883,58 @@ def get_package_lifecycle(
     # Look up cycle in the entry's cycles
     cycles = entry.get("cycles", {})
     return cycles.get(cycle)
+
+
+def get_distro_lifecycle(distro_name: str, version: str) -> Optional[LifecycleDates]:
+    """
+    Get lifecycle dates for an operating system version.
+
+    Args:
+        distro_name: OS name (e.g., "debian", "ubuntu", "alpine")
+        version: OS version (e.g., "12.12", "22.04", "3.20")
+
+    Returns:
+        LifecycleDates dict or None if not found
+    """
+    import re
+
+    distro_lower = distro_name.lower()
+
+    # Map common OS name variations to our canonical names
+    distro_mappings = {
+        "alma": "almalinux",
+        "amazon": "amazonlinux",
+        "amzn": "amazonlinux",
+    }
+    distro_key = distro_mappings.get(distro_lower, distro_lower)
+
+    distro_data = DISTRO_LIFECYCLE.get(distro_key)
+    if not distro_data:
+        return None
+
+    # Normalize version string
+    # Handle complex versions like "2023.10.20260105 (Amazon Linux)" -> "2023"
+    # or "9.7 (Blue Onyx)" -> "9"
+    version_clean = version.split("(")[0].strip()  # Remove parenthetical suffixes
+
+    # Try exact match first
+    if version_clean in distro_data:
+        return distro_data[version_clean]
+
+    # Try progressively shorter version prefixes
+    # e.g., "12.12" -> "12", "3.20.1" -> "3.20" -> "3"
+    parts = version_clean.split(".")
+    for i in range(len(parts) - 1, 0, -1):
+        prefix = ".".join(parts[:i])
+        if prefix in distro_data:
+            return distro_data[prefix]
+
+    # For Amazon Linux, try extracting just the year (2023, 2)
+    if distro_key == "amazonlinux":
+        year_match = re.match(r"^(\d{4}|\d)", version_clean)
+        if year_match:
+            year = year_match.group(1)
+            if year in distro_data:
+                return distro_data[year]
+
+    return None

@@ -74,6 +74,7 @@ from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
 # Import from plugin architecture
 from ._enrichment.enricher import Enricher, clear_all_caches
+from ._enrichment.lifecycle_data import get_distro_lifecycle
 from ._enrichment.metadata import NormalizedMetadata
 from ._enrichment.sanitization import (
     sanitize_description,
@@ -617,18 +618,48 @@ def _apply_metadata_to_spdx_package(package: Package, metadata: NormalizedMetada
 
 
 def _enrich_os_component(component: Component) -> List[str]:
-    """Enrich an operating-system type component with supplier info."""
+    """Enrich an operating-system type component with supplier and lifecycle info."""
     if component.type.name.lower() != COMPONENT_TYPE_OPERATING_SYSTEM:
         return []
 
     added_fields = []
     os_name = component.name.lower() if component.name else ""
+    os_version = component.version or ""
 
+    # Add publisher/supplier if missing
     if not component.publisher:
         supplier = NAMESPACE_TO_SUPPLIER.get(os_name)
         if supplier:
             component.publisher = supplier
             added_fields.append(f"publisher ({supplier})")
+
+    # Add CLE (Common Lifecycle Enumeration) properties
+    if os_name and os_version:
+        lifecycle = get_distro_lifecycle(os_name, os_version)
+        if lifecycle:
+            # Initialize properties set if needed
+            if component.properties is None:
+                component.properties = set()
+
+            def _add_cle_property(name: str, value: str) -> bool:
+                """Add a CLE property if not already present."""
+                for prop in component.properties:
+                    if prop.name == name:
+                        return False
+                component.properties.add(Property(name=name, value=value))
+                return True
+
+            if lifecycle.get("release_date"):
+                if _add_cle_property("cle:releaseDate", lifecycle["release_date"]):
+                    added_fields.append(f"cle:releaseDate ({lifecycle['release_date']})")
+
+            if lifecycle.get("end_of_support"):
+                if _add_cle_property("cle:eos", lifecycle["end_of_support"]):
+                    added_fields.append(f"cle:eos ({lifecycle['end_of_support']})")
+
+            if lifecycle.get("end_of_life"):
+                if _add_cle_property("cle:eol", lifecycle["end_of_life"]):
+                    added_fields.append(f"cle:eol ({lifecycle['end_of_life']})")
 
     return added_fields
 

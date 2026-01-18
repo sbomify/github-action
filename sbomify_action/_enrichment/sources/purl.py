@@ -32,10 +32,12 @@ NAMESPACE_TO_SUPPLIER: Dict[str, str] = {
     "rhel": "Red Hat, Inc.",
     "centos": "CentOS Project",
     "fedora": "Fedora Project",
-    "amazon": "Amazon Web Services",
+    "amazon": "Amazon Web Services, Inc. (AWS)",
+    "amazonlinux": "Amazon Web Services, Inc. (AWS)",
     "oracle": "Oracle Corporation",
     "rocky": "Rocky Enterprise Software Foundation",
     "almalinux": "AlmaLinux OS Foundation",
+    "alma": "AlmaLinux OS Foundation",  # Trivy uses "alma" as OS name
     # Alpine (apk)
     "alpine": "Alpine Linux",
     # Other distros

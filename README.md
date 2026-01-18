@@ -473,7 +473,7 @@ env:
 | Source         | Package Types                                                    | Data                                            |
 | -------------- | ---------------------------------------------------------------- | ----------------------------------------------- |
 | License DB     | Alpine, Wolfi, Ubuntu, Rocky, Alma, CentOS, Fedora, Amazon Linux | License, description, supplier, homepage        |
-| Lifecycle      | Distros + Python, PHP, Go, Rust, Django, Rails, Laravel, etc.    | CLE (release date, end-of-support, end-of-life) |
+| Lifecycle      | Python, PHP, Go, Rust, Django, Rails, Laravel, React, Vue        | CLE (release date, end-of-support, end-of-life) |
 | PyPI           | Python                                                           | License, author, homepage                       |
 | pub.dev        | Dart                                                             | License, author, homepage, repo                 |
 | crates.io      | Rust/Cargo                                                       | License, author, homepage, repo, description    |
@@ -529,22 +529,22 @@ Set `SBOMIFY_DISABLE_LICENSE_DB_GENERATION=true` to disable automatic local gene
 
 ### Lifecycle Enrichment
 
-sbomify provides [CLE (Common Lifecycle Enumeration)](https://sbomify.com/compliance/cle/) data including release dates, end-of-support, and end-of-life dates. This enables automated tracking of outdated or unsupported components in your dependencies.
+sbomify provides [CLE (Common Lifecycle Enumeration)](https://sbomify.com/compliance/cle/) data including release dates, end-of-support, and end-of-life dates. This enables automated tracking of outdated or unsupported components.
 
-**Supported Linux distributions:**
+**Supported operating systems:**
 
-| Distro       | Tracked Versions    | Detection               |
-| ------------ | ------------------- | ----------------------- |
-| Alpine       | 3.13–3.21           | `pkg:apk/alpine/*`      |
-| Wolfi        | rolling             | `pkg:apk/wolfi/*`       |
-| Ubuntu       | 20.04, 22.04, 24.04 | `pkg:deb/ubuntu/*`      |
-| Rocky Linux  | 8, 9                | `pkg:rpm/rocky/*`       |
-| AlmaLinux    | 8, 9                | `pkg:rpm/almalinux/*`   |
-| CentOS       | Stream 8, Stream 9  | `pkg:rpm/centos/*`      |
-| Fedora       | 39, 40, 41, 42      | `pkg:rpm/fedora/*`      |
-| Amazon Linux | 2, 2023             | `pkg:rpm/amazonlinux/*` |
+| OS           | Tracked Versions       |
+| ------------ | ---------------------- |
+| Debian       | 10, 11, 12             |
+| Ubuntu       | 20.04, 22.04, 24.04    |
+| Alpine       | 3.13–3.21              |
+| Rocky Linux  | 8, 9                   |
+| AlmaLinux    | 8, 9                   |
+| CentOS       | Stream 8, Stream 9     |
+| Fedora       | 39–42                  |
+| Amazon Linux | 2, 2023                |
 
-All packages from a supported distro inherit the distro's lifecycle dates.
+Operating system components (CycloneDX `type: operating-system`) are enriched with lifecycle data based on their name and version.
 
 **Supported runtimes and frameworks:**
 
@@ -562,27 +562,29 @@ All packages from a supported distro inherit the distro's lifecycle dates.
 
 **How it works:**
 
-- **Distros**: Detected via PURL type and namespace (e.g., `pkg:apk/alpine/curl` → Alpine lifecycle)
-- **Runtimes/Frameworks**: Matched by name pattern (e.g., `python3`, `python3.12`, `libpython3.12-stdlib` all match Python)
-- Version cycle extracted from full version (e.g., `3.12.7` → `3.12`, `8.4.1` → `8.4`)
+- **OS components**: Detected by CycloneDX `type: operating-system`, matched by name/version
+- **Runtimes/frameworks**: Matched by name pattern across all package managers
+- Version cycle extracted from full version (e.g., `3.12.7` → `3.12`, `12.12` → `12`)
 - CLE properties added: `cle:releaseDate`, `cle:eos`, `cle:eol`
 
-**Example enriched component:**
+> **Note**: Arbitrary OS packages (curl, nginx, openssl, etc.) do not receive lifecycle data. Only the operating system itself and explicitly tracked runtimes/frameworks get CLE data.
+
+**Example enriched OS component:**
 
 ```json
 {
-  "name": "python3",
-  "version": "3.12.7",
-  "purl": "pkg:deb/ubuntu/python3@3.12.7",
+  "type": "operating-system",
+  "name": "debian",
+  "version": "12.12",
   "properties": [
-    {"name": "cle:releaseDate", "value": "2023-10-02"},
-    {"name": "cle:eos", "value": "2025-04-02"},
-    {"name": "cle:eol", "value": "2028-10-31"}
+    {"name": "cle:releaseDate", "value": "2023-06-10"},
+    {"name": "cle:eos", "value": "2026-06-10"},
+    {"name": "cle:eol", "value": "2028-06-30"}
   ]
 }
 ```
 
-This allows downstream tools to identify components running on unsupported runtimes or distros approaching end-of-life.
+This allows downstream tools to identify components running on unsupported operating systems or runtimes.
 
 ## SBOM Quality Improvement
 

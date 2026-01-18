@@ -800,13 +800,29 @@ class TestOSComponentEnrichment:
     """Test enriching operating-system type components."""
 
     def test_enrich_debian_os(self):
-        """Test enriching a Debian OS component."""
+        """Test enriching a Debian OS component with publisher and CLE."""
         component = Component(name="debian", version="12", type=ComponentType.OPERATING_SYSTEM)
 
         added_fields = _enrich_os_component(component)
 
         assert component.publisher == "Debian Project"
         assert "publisher" in " ".join(added_fields)
+
+        # Check CLE properties
+        props = {p.name: p.value for p in component.properties}
+        assert props.get("cle:releaseDate") == "2023-06-10"
+        assert props.get("cle:eos") == "2026-06-10"
+        assert props.get("cle:eol") == "2028-06-30"
+
+    def test_enrich_debian_os_with_point_release(self):
+        """Test enriching Debian with point release version (12.12 -> 12)."""
+        component = Component(name="debian", version="12.12", type=ComponentType.OPERATING_SYSTEM)
+
+        _enrich_os_component(component)
+
+        # Should still get Debian 12 lifecycle data
+        props = {p.name: p.value for p in component.properties}
+        assert props.get("cle:eol") == "2028-06-30"
 
     def test_enrich_ubuntu_os(self):
         """Test enriching an Ubuntu OS component."""
@@ -816,6 +832,12 @@ class TestOSComponentEnrichment:
 
         assert component.publisher == "Canonical Ltd"
 
+        # Check CLE properties
+        props = {p.name: p.value for p in component.properties}
+        assert props.get("cle:releaseDate") == "2022-04"
+        assert props.get("cle:eos") == "2027-06"
+        assert props.get("cle:eol") == "2032-04"
+
     def test_enrich_alpine_os(self):
         """Test enriching an Alpine OS component."""
         component = Component(name="alpine", version="3.19", type=ComponentType.OPERATING_SYSTEM)
@@ -824,14 +846,20 @@ class TestOSComponentEnrichment:
 
         assert component.publisher == "Alpine Linux"
 
+        # Check CLE properties
+        props = {p.name: p.value for p in component.properties}
+        assert props.get("cle:releaseDate") == "2023-12-07"
+        assert props.get("cle:eol") == "2025-11-01"
+
     def test_enrich_unknown_os(self):
-        """Test that unknown OS is not enriched."""
+        """Test that unknown OS gets no CLE data."""
         component = Component(name="unknownos", version="1.0", type=ComponentType.OPERATING_SYSTEM)
 
-        added_fields = _enrich_os_component(component)
+        _enrich_os_component(component)
 
         assert component.publisher is None
-        assert added_fields == []
+        # No CLE properties for unknown OS
+        assert component.properties is None or len(component.properties) == 0
 
     def test_enrich_non_os_type(self):
         """Test that non-OS types are not enriched."""

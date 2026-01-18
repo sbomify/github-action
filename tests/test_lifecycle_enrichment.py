@@ -55,7 +55,17 @@ class TestDistroLifecycleData:
 
     def test_distro_lifecycle_contains_expected_distros(self):
         """Test that all expected distros are in DISTRO_LIFECYCLE."""
-        expected_distros = ["wolfi", "alpine", "rocky", "almalinux", "amazonlinux", "centos", "fedora", "ubuntu"]
+        expected_distros = [
+            "wolfi",
+            "alpine",
+            "rocky",
+            "almalinux",
+            "amazonlinux",
+            "centos",
+            "fedora",
+            "ubuntu",
+            "debian",
+        ]
         for distro in expected_distros:
             assert distro in DISTRO_LIFECYCLE, f"Missing distro: {distro}"
 
@@ -128,6 +138,58 @@ class TestGetDistroLifecycle:
         """Test that distro lookup is case-insensitive."""
         lifecycle = get_distro_lifecycle("UBUNTU", "24.04")
         assert lifecycle is not None
+
+    def test_get_debian_lifecycle(self):
+        """Test getting Debian 12 lifecycle."""
+        lifecycle = get_distro_lifecycle("debian", "12")
+        assert lifecycle is not None
+        assert lifecycle["release_date"] == "2023-06-10"
+        assert lifecycle["end_of_support"] == "2026-06-10"
+        assert lifecycle["end_of_life"] == "2028-06-30"
+
+    def test_get_debian_version_normalization(self):
+        """Test Debian version normalization (12.12 -> 12)."""
+        lifecycle = get_distro_lifecycle("debian", "12.12")
+        assert lifecycle is not None
+        assert lifecycle["end_of_life"] == "2028-06-30"
+
+    def test_get_debian_11(self):
+        """Test getting Debian 11 lifecycle."""
+        lifecycle = get_distro_lifecycle("debian", "11")
+        assert lifecycle is not None
+        assert lifecycle["end_of_life"] == "2026-08-31"
+
+    def test_get_debian_13(self):
+        """Test getting Debian 13 (trixie) lifecycle."""
+        lifecycle = get_distro_lifecycle("debian", "13")
+        assert lifecycle is not None
+        assert lifecycle["release_date"] == "2025-08-09"
+        assert lifecycle["end_of_support"] == "2028-08-09"
+        assert lifecycle["end_of_life"] == "2030-06-30"
+
+    def test_get_almalinux_via_alma_name(self):
+        """Test that 'alma' name maps to 'almalinux' lifecycle."""
+        lifecycle = get_distro_lifecycle("alma", "9")
+        assert lifecycle is not None
+        assert lifecycle["end_of_life"] == "2032-05-31"
+
+    def test_get_amazonlinux_via_amazon_name(self):
+        """Test that 'amazon' name maps to 'amazonlinux' lifecycle."""
+        lifecycle = get_distro_lifecycle("amazon", "2023")
+        assert lifecycle is not None
+        assert lifecycle["end_of_life"] == "2029-06"
+
+    def test_get_amazonlinux_complex_version(self):
+        """Test Amazon Linux with complex version string like '2023.10.20260105 (Amazon Linux)'."""
+        lifecycle = get_distro_lifecycle("amazon", "2023.10.20260105 (Amazon Linux)")
+        assert lifecycle is not None
+        assert lifecycle["end_of_life"] == "2029-06"
+
+    def test_get_almalinux_with_point_release(self):
+        """Test AlmaLinux with point release version like '9.7'."""
+        lifecycle = get_distro_lifecycle("alma", "9.7")
+        assert lifecycle is not None
+        assert lifecycle["end_of_life"] == "2032-05-31"
 
 
 # =============================================================================
@@ -992,103 +1054,97 @@ class TestEdgeCases:
 
 
 # =============================================================================
-# Test Distro Lifecycle Fallback
+# Test Non-Tracked Packages Return None
 # =============================================================================
 
 
-class TestDistroLifecycleFallback:
-    """Test distro lifecycle fallback for non-runtime packages."""
+class TestNonTrackedPackages:
+    """Test that non-tracked OS packages return None (no distro lifecycle fallback)."""
 
     @pytest.fixture
     def mock_session(self):
         """Create a mock session for testing."""
         return Mock()
 
-    def test_ubuntu_curl_gets_distro_lifecycle(self, mock_session):
-        """Test that curl on Ubuntu gets Ubuntu's lifecycle, not package-specific."""
+    def test_ubuntu_curl_not_supported(self, mock_session):
+        """Test that curl on Ubuntu is not supported (we don't track curl)."""
         source = LifecycleSource()
         purl = PackageURL.from_string("pkg:deb/ubuntu/curl@8.5.0-2ubuntu10.6")
 
-        # curl doesn't have specific lifecycle data, so should fall back to distro
-        assert source.supports(purl) is True
+        # curl is not tracked - we only track specific runtimes/frameworks
+        assert source.supports(purl) is False
 
         metadata = source.fetch(purl, mock_session)
-        assert metadata is not None
-        # Should get Ubuntu lifecycle (some version - depends on DISTRO_LIFECYCLE)
+        assert metadata is None
 
-    def test_alpine_nginx_gets_distro_lifecycle(self, mock_session):
-        """Test that nginx on Alpine gets Alpine's lifecycle."""
+    def test_alpine_nginx_not_supported(self, mock_session):
+        """Test that nginx on Alpine is not supported (we don't track nginx)."""
         source = LifecycleSource()
         purl = PackageURL.from_string("pkg:apk/alpine/nginx@1.27.0-r0")
 
-        assert source.supports(purl) is True
+        assert source.supports(purl) is False
 
         metadata = source.fetch(purl, mock_session)
-        # nginx doesn't have specific lifecycle, falls back to distro
-        assert metadata is not None
+        assert metadata is None
 
-    def test_rocky_openssl_gets_distro_lifecycle(self, mock_session):
-        """Test that openssl on Rocky gets Rocky's lifecycle."""
+    def test_rocky_openssl_not_supported(self, mock_session):
+        """Test that openssl on Rocky is not supported (we don't track openssl)."""
         source = LifecycleSource()
         purl = PackageURL.from_string("pkg:rpm/rocky/openssl@3.0.7")
 
+        assert source.supports(purl) is False
+
+        metadata = source.fetch(purl, mock_session)
+        assert metadata is None
+
+    def test_python_on_ubuntu_is_supported(self, mock_session):
+        """Test that Python on Ubuntu IS supported (we track Python)."""
+        source = LifecycleSource()
+        purl = PackageURL.from_string("pkg:deb/ubuntu/python3@3.12.3-1")
+
         assert source.supports(purl) is True
 
         metadata = source.fetch(purl, mock_session)
         assert metadata is not None
-
-    def test_package_lifecycle_takes_precedence(self, mock_session):
-        """Test that package-specific lifecycle takes precedence over distro."""
-        source = LifecycleSource()
-        # Python on Ubuntu should get Python's lifecycle, not Ubuntu's
-        purl = PackageURL.from_string("pkg:deb/ubuntu/python3@3.12.3-1")
-
-        metadata = source.fetch(purl, mock_session)
-
-        assert metadata is not None
-        # Should be Python 3.12's EOL (2028-10-31), not Ubuntu's
         assert metadata.cle_eol == "2028-10-31"
 
-    def test_php_on_debian_gets_php_lifecycle(self, mock_session):
-        """Test that PHP on Debian gets PHP's lifecycle, not Debian's."""
+    def test_php_on_debian_is_supported(self, mock_session):
+        """Test that PHP on Debian IS supported (we track PHP)."""
         source = LifecycleSource()
         purl = PackageURL.from_string("pkg:deb/debian/php@8.3.6")
 
-        metadata = source.fetch(purl, mock_session)
+        assert source.supports(purl) is True
 
+        metadata = source.fetch(purl, mock_session)
         assert metadata is not None
-        # Should be PHP 8.3's EOL, not Debian's
         assert metadata.cle_eol == "2027-12-31"
 
-    def test_unsupported_distro_returns_none(self, mock_session):
-        """Test that unsupported distros return None."""
+    def test_unknown_package_returns_none(self, mock_session):
+        """Test that unknown packages return None."""
         source = LifecycleSource()
         purl = PackageURL.from_string("pkg:deb/someunknowndistro/curl@8.0.0")
 
-        # Unknown distro without package match should not be supported
-        # (depends on implementation - may return None from fetch)
+        assert source.supports(purl) is False
+
         metadata = source.fetch(purl, mock_session)
-        # If no distro or package match, returns None
         assert metadata is None
 
-    def test_wolfi_package_returns_none(self, mock_session):
-        """Test that Wolfi packages return None (rolling release, no EOL)."""
+    def test_wolfi_busybox_not_supported(self, mock_session):
+        """Test that busybox on Wolfi is not supported (we don't track busybox)."""
         source = LifecycleSource()
         purl = PackageURL.from_string("pkg:apk/wolfi/busybox@1.36.1-r6")
 
-        # Wolfi is a rolling release distro with no lifecycle dates
-        assert source.supports(purl) is True
+        assert source.supports(purl) is False
 
         metadata = source.fetch(purl, mock_session)
-        # Returns None because Wolfi has no EOS/EOL dates (rolling release)
         assert metadata is None
 
-    def test_amazonlinux_package(self, mock_session):
-        """Test Amazon Linux package lifecycle."""
+    def test_amazonlinux_awscli_not_supported(self, mock_session):
+        """Test that aws-cli on Amazon Linux is not supported (we don't track aws-cli)."""
         source = LifecycleSource()
         purl = PackageURL.from_string("pkg:rpm/amzn/aws-cli@2.15.0")
 
-        assert source.supports(purl) is True
+        assert source.supports(purl) is False
 
         metadata = source.fetch(purl, mock_session)
-        assert metadata is not None
+        assert metadata is None
