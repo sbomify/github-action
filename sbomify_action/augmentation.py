@@ -59,6 +59,7 @@ from ._augmentation.utils import build_vcs_url_with_commit, truncate_sha
 
 # Import lockfile constants from generation utils (single source of truth)
 from ._generation.utils import ALL_LOCK_FILES
+from .console import get_audit_trail
 from .exceptions import SBOMValidationError
 from .logging_config import logger
 from .serialization import (
@@ -473,7 +474,6 @@ def _add_sbomify_tool_to_cyclonedx(bom: Bom, spec_version: Optional[str] = None)
 
         # Add to tools.services (do NOT clear existing services or components)
         bom.metadata.tools.services.add(sbomify_service)
-        logger.info(f"Added sbomify as service to tools.services (CycloneDX {spec_version})")
 
     else:
         # Legacy format (1.4): Convert all to Tool objects
@@ -522,7 +522,10 @@ def _add_sbomify_tool_to_cyclonedx(bom: Bom, spec_version: Optional[str] = None)
 
         # Add the tool to the metadata
         bom.metadata.tools.tools.add(sbomify_tool)
-        logger.info(f"Added sbomify as legacy tool to tools.tools (CycloneDX {spec_version})")
+
+    # Record to audit trail (after both branches)
+    audit_trail = get_audit_trail()
+    audit_trail.record_tool_added(SBOMIFY_TOOL_NAME, SBOMIFY_VERSION)
 
 
 def augment_cyclonedx_sbom(
@@ -555,9 +558,11 @@ def augment_cyclonedx_sbom(
     _add_sbomify_tool_to_cyclonedx(bom, spec_version)
 
     # Add supplier information
+    audit_trail = get_audit_trail()
+
     if "supplier" in augmentation_data:
         supplier_data = augmentation_data["supplier"]
-        logger.info(f"Adding supplier information: {supplier_data.get('name', 'Unknown')}")
+        supplier_name = supplier_data.get("name", "Unknown")
 
         # Create backend supplier entity
         backend_supplier = OrganizationalEntity(
@@ -570,8 +575,6 @@ def augment_cyclonedx_sbom(
 
         # Add contacts if present
         if "contact" in supplier_data:
-            contact_count = len(supplier_data["contact"])
-            logger.info(f"Adding {contact_count} supplier contact(s) from sbomify")
             for contact_data in supplier_data["contact"]:
                 contact = OrganizationalContact(
                     name=contact_data.get("name"), email=contact_data.get("email"), phone=contact_data.get("phone")
@@ -581,7 +584,6 @@ def augment_cyclonedx_sbom(
         # Merge with existing supplier or replace
         if bom.metadata.supplier and not override_sbom_metadata:
             # Preserve existing supplier, merge with backend data
-            logger.info("Merging supplier information with existing SBOM data")
             existing_supplier = bom.metadata.supplier
 
             # Keep existing name if present, otherwise use backend
@@ -619,11 +621,10 @@ def augment_cyclonedx_sbom(
             )
         else:
             # Use backend supplier
-            if override_sbom_metadata:
-                logger.info("Replacing existing supplier information with sbomify data (override mode)")
-            else:
-                logger.info("Adding supplier information from sbomify (no existing supplier)")
             bom.metadata.supplier = backend_supplier
+
+        # Record to audit trail
+        audit_trail.record_supplier_added(supplier_name)
 
         # Also propagate supplier to the root component (metadata.component) if it exists
         # This is needed for NTIA compliance - the root component needs its own supplier field
@@ -645,11 +646,7 @@ def augment_cyclonedx_sbom(
         manufacturer_name = manufacturer_data.get("name")
 
         # Skip if no manufacturer name provided
-        if not manufacturer_name:
-            logger.debug("Skipping manufacturer: no name provided")
-        else:
-            logger.info(f"Adding manufacturer information: {manufacturer_name}")
-
+        if manufacturer_name:
             # Create backend manufacturer entity
             backend_manufacturer = OrganizationalEntity(
                 name=manufacturer_name,
@@ -659,8 +656,6 @@ def augment_cyclonedx_sbom(
 
             # Add contacts if present
             if "contacts" in manufacturer_data:
-                contact_count = len(manufacturer_data["contacts"])
-                logger.info(f"Adding {contact_count} manufacturer contact(s) from sbomify")
                 for contact_data in manufacturer_data["contacts"]:
                     contact = OrganizationalContact(
                         name=contact_data.get("name"), email=contact_data.get("email"), phone=contact_data.get("phone")
@@ -669,49 +664,37 @@ def augment_cyclonedx_sbom(
 
             # Determine version for field assignment
             is_v16_or_later = _is_cdx_version_at_least(spec_version, 1, 6)
+            manufacturer_added = False
 
             if is_v16_or_later:
                 # CycloneDX 1.6+: Use metadata.component.manufacturer
                 if bom.metadata.component:
-                    if bom.metadata.component.manufacturer and not override_sbom_metadata:
-                        logger.debug("Preserving existing manufacturer (use override_sbom_metadata to replace)")
-                    else:
-                        if bom.metadata.component.manufacturer:
-                            logger.info("Replacing existing manufacturer with sbomify data (override mode)")
-                        else:
-                            logger.info("Adding manufacturer to component (CycloneDX 1.6+)")
+                    if not bom.metadata.component.manufacturer or override_sbom_metadata:
                         bom.metadata.component.manufacturer = backend_manufacturer
-                else:
-                    logger.debug("No root component in SBOM metadata, cannot add manufacturer for CycloneDX 1.6+")
+                        manufacturer_added = True
             else:
                 # CycloneDX 1.3-1.5: Use metadata.manufacture (no 'r')
-                if bom.metadata.manufacture and not override_sbom_metadata:
-                    logger.debug("Preserving existing manufacture (use override_sbom_metadata to replace)")
-                else:
-                    if bom.metadata.manufacture:
-                        logger.info("Replacing existing manufacture with sbomify data (override mode)")
-                    else:
-                        logger.info("Adding manufacture information (CycloneDX 1.3-1.5)")
+                if not bom.metadata.manufacture or override_sbom_metadata:
                     bom.metadata.manufacture = backend_manufacturer
+                    manufacturer_added = True
+
+            if manufacturer_added:
+                audit_trail.record_manufacturer_added(manufacturer_name)
 
     # Add authors if present
     if "authors" in augmentation_data:
-        author_count = len(augmentation_data["authors"])
-        logger.info(f"Adding {author_count} author(s) from sbomify")
-
         for author_data in augmentation_data["authors"]:
             author = OrganizationalContact(
                 name=author_data.get("name"), email=author_data.get("email"), phone=author_data.get("phone")
             )
             bom.metadata.authors.add(author)
-            logger.debug(f"Added author: {author_data.get('name', 'Unknown')}")
+            audit_trail.record_author_added(author_data.get("name", "Unknown"), author_data.get("email"))
 
     # Add licenses if present
     # Note: CycloneDX spec requires that if LicenseExpression is used, there can be ONLY ONE license
     # See: https://github.com/CycloneDX/specification/pull/205
     if "licenses" in augmentation_data:
         license_count = len(augmentation_data["licenses"])
-        logger.info(f"Adding {license_count} license(s) from sbomify")
 
         # Check if any license contains operators (is an expression)
         has_expressions = any(
@@ -725,16 +708,11 @@ def augment_cyclonedx_sbom(
         elif has_expressions or license_count > 1:
             # Combine all licenses into a single LicenseExpression
             # This is required when: (a) any license has operators, or (b) we have multiple licenses
-            # Note: We use OR because multiple licenses typically represent alternatives (dual-licensing),
-            # not requirements. E.g., "MIT OR Apache-2.0" means "choose one", not "satisfy both".
             license_parts = []
             for license_data in augmentation_data["licenses"]:
                 if isinstance(license_data, str):
-                    # Don't wrap in parentheses - trust the expression as provided by backend
-                    # If the backend sends "Apache-2.0 OR GPL-3.0", that's already a valid expression
                     license_parts.append(license_data)
                 elif isinstance(license_data, dict):
-                    # For custom licenses, use the name
                     license_name = license_data.get("name", "")
                     if license_name:
                         license_parts.append(license_name)
@@ -743,20 +721,15 @@ def augment_cyclonedx_sbom(
                 # Combine all licenses with OR (common pattern for dual/multi-licensing)
                 combined_expression = " OR ".join(license_parts)
                 bom.metadata.licenses.add(LicenseExpression(value=combined_expression))
-                logger.info(
-                    f"Combined {len(license_parts)} licenses with OR (treating as alternatives): {combined_expression}"
-                )
+                audit_trail.record_license_added(combined_expression)
         else:
             # Single license, no operators - safe to use DisjunctiveLicense
             license_data = augmentation_data["licenses"][0]
             license_obj = _process_license_data(license_data)
             if license_obj:
                 bom.metadata.licenses.add(license_obj)
-                if isinstance(license_data, str):
-                    logger.debug(f"Added license: {license_data}")
-                elif isinstance(license_data, dict):
-                    license_name = license_data.get("name", "Unknown")
-                    logger.debug(f"Added license: {license_name}")
+                license_str = license_data if isinstance(license_data, str) else license_data.get("name", "Unknown")
+                audit_trail.record_license_added(license_str)
 
     # Apply component name override if specified
     if component_name:
@@ -806,11 +779,7 @@ def augment_cyclonedx_sbom(
             if phase_value in phase_mapping:
                 lifecycle = PredefinedLifecycle(phase=phase_mapping[phase_value])
                 bom.metadata.lifecycles.add(lifecycle)
-                logger.info(f"Added lifecycle phase: {phase_value}")
-            else:
-                logger.warning(f"Unknown lifecycle phase '{phase_value}', skipping")
-        else:
-            logger.debug(f"Lifecycle phase not supported in CycloneDX {spec_version} (requires 1.5+)")
+                audit_trail.record_lifecycle_added(phase_value)
 
     # Add VCS information if present (from CI providers or sbomify.json config)
     # This adds repository URL and commit info to the root component
@@ -840,7 +809,6 @@ def _add_vcs_info_to_cyclonedx(bom: Bom, augmentation_data: Dict[str, Any]) -> N
 
     # Ensure we have a root component to attach VCS info to
     if not bom.metadata.component:
-        logger.debug("No root component in SBOM metadata, cannot add VCS info")
         return
 
     # Build VCS URL with commit pinning (git+https://...@sha format)
@@ -852,7 +820,6 @@ def _add_vcs_info_to_cyclonedx(bom: Bom, augmentation_data: Dict[str, Any]) -> N
     ]
 
     if existing_vcs_refs:
-        logger.debug("VCS external reference already exists on root component, skipping")
         return
 
     # Add VCS external reference to root component
@@ -868,12 +835,9 @@ def _add_vcs_info_to_cyclonedx(bom: Bom, augmentation_data: Dict[str, Any]) -> N
 
         bom.metadata.component.external_references.add(vcs_ref_obj)
 
-        log_msg = f"Added VCS external reference: {vcs_url}"
-        if vcs_commit_sha:
-            log_msg += f" @ {truncate_sha(vcs_commit_sha)}"
-        if vcs_ref:
-            log_msg += f" ({vcs_ref})"
-        logger.info(log_msg)
+        # Record to audit trail
+        audit_trail = get_audit_trail()
+        audit_trail.record_vcs_info_added(vcs_url, vcs_commit_sha, source="ci-provider")
 
     except Exception as e:
         logger.warning(f"Failed to add VCS external reference: {e}")
