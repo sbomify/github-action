@@ -4,7 +4,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from sbomify_action.cli.main import main
+from click.testing import CliRunner
+
+from sbomify_action.cli.main import cli
 
 
 class TestIntegration(unittest.TestCase):
@@ -15,26 +17,16 @@ class TestIntegration(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
         self.original_cwd = os.getcwd()
         os.chdir(self.test_dir)
+        self.runner = CliRunner()
 
     def tearDown(self):
         """Clean up test fixtures."""
         os.chdir(self.original_cwd)
         # Clean up temporary files
-        for file in ["step_1.json", "step_2.json", "step_3.json", "output.json"]:
+        for file in ["step_1.json", "step_2.json", "step_3.json", "output.json", "sbom_output.json", "test_sbom.json"]:
             if os.path.exists(file):
                 os.remove(file)
 
-    @patch.dict(
-        os.environ,
-        {
-            "TOKEN": "test-token",
-            "COMPONENT_ID": "test-component",
-            "SBOM_FILE": "tests/test-data/syft.cdx.json",
-            "UPLOAD": "false",
-            "AUGMENT": "false",
-            "ENRICH": "false",
-        },
-    )
     @patch("sbomify_action.cli.main.setup_dependencies")
     @patch("sbomify_action.cli.main.initialize_sentry")
     def test_main_sbom_file_workflow(self, mock_sentry, mock_setup):
@@ -44,10 +36,29 @@ class TestIntegration(unittest.TestCase):
         with open("test_sbom.json", "w") as f:
             json.dump(test_sbom, f)
 
-        # Override environment for this test
-        with patch.dict(os.environ, {"SBOM_FILE": "test_sbom.json"}):
-            with patch("sbomify_action.cli.main.print_banner"):
-                main()
+        # Use Click's CliRunner to invoke the CLI with arguments
+        with patch("sbomify_action.cli.main.print_banner"):
+            result = self.runner.invoke(
+                cli,
+                [
+                    "--sbom-file",
+                    "test_sbom.json",
+                    "--token",
+                    "test-token",
+                    "--component-id",
+                    "test-component",
+                    "--no-upload",
+                    "--no-augment",
+                    "--no-enrich",
+                ],
+            )
+
+        # Check the command succeeded
+        if result.exit_code != 0:
+            print(f"CLI output: {result.output}")
+            print(f"CLI exception: {result.exception}")
+
+        self.assertEqual(result.exit_code, 0, f"CLI failed with: {result.output}")
 
         # Verify setup functions were called
         mock_setup.assert_called_once()

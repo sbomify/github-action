@@ -667,5 +667,157 @@ class TestConfig(unittest.TestCase):
                 self.assertEqual(cm.exception.code, 1)
 
 
+class TestBuildConfig(unittest.TestCase):
+    """Test cases for the build_config function (new CLI helper)."""
+
+    def test_build_config_with_all_args(self):
+        """Test build_config with all arguments provided."""
+        from sbomify_action.cli.main import build_config
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock_file = Path(tmp_dir) / "requirements.txt"
+            lock_file.write_text("requests==2.28.0")
+
+            config = build_config(
+                token="test-token",
+                component_id="test-component",
+                lock_file=str(lock_file),
+                output_file="output.json",
+                upload=False,
+                upload_destinations=["sbomify"],
+                augment=True,
+                enrich=True,
+                override_sbom_metadata=True,
+                component_version="1.0.0",
+                component_name="my-component",
+                component_purl="pkg:pypi/my-package@1.0.0",
+                product_releases='["product:v1.0.0"]',
+                api_base_url="https://custom.api.com",
+                sbom_format="spdx",
+            )
+
+            self.assertEqual(config.token, "test-token")
+            self.assertEqual(config.component_id, "test-component")
+            self.assertIn("requirements.txt", config.lock_file)
+            self.assertEqual(config.output_file, "output.json")
+            self.assertFalse(config.upload)
+            self.assertEqual(config.upload_destinations, ["sbomify"])
+            self.assertTrue(config.augment)
+            self.assertTrue(config.enrich)
+            self.assertTrue(config.override_sbom_metadata)
+            self.assertEqual(config.component_version, "1.0.0")
+            self.assertEqual(config.component_name, "my-component")
+            self.assertEqual(config.component_purl, "pkg:pypi/my-package@1.0.0")
+            # product_releases gets validated/parsed
+            self.assertEqual(config.product_releases, ["product:v1.0.0"])
+            self.assertEqual(config.api_base_url, "https://custom.api.com")
+            self.assertEqual(config.sbom_format, "spdx")
+
+    def test_build_config_defaults(self):
+        """Test build_config uses correct defaults."""
+        from sbomify_action.cli.main import SBOMIFY_PRODUCTION_API, build_config
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock_file = Path(tmp_dir) / "requirements.txt"
+            lock_file.write_text("requests==2.28.0")
+
+            config = build_config(
+                lock_file=str(lock_file),
+                upload=False,
+            )
+
+            self.assertEqual(config.output_file, "sbom_output.json")
+            self.assertFalse(config.upload)
+            # Config.__post_init__ sets default to ["sbomify"] when None
+            self.assertEqual(config.upload_destinations, ["sbomify"])
+            self.assertFalse(config.augment)
+            self.assertFalse(config.enrich)
+            self.assertFalse(config.override_sbom_metadata)
+            self.assertEqual(config.api_base_url, SBOMIFY_PRODUCTION_API)
+            self.assertEqual(config.sbom_format, "cyclonedx")
+
+    def test_build_config_normalizes_sbom_format_case(self):
+        """Test that build_config normalizes SBOM format to lowercase."""
+        from sbomify_action.cli.main import build_config
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock_file = Path(tmp_dir) / "requirements.txt"
+            lock_file.write_text("requests==2.28.0")
+
+            # Test various case variations
+            for fmt in ["SPDX", "Spdx", "sPdX"]:
+                config = build_config(
+                    lock_file=str(lock_file),
+                    upload=False,
+                    sbom_format=fmt,
+                )
+                self.assertEqual(config.sbom_format, "spdx")
+
+    def test_build_config_handles_empty_token(self):
+        """Test build_config handles None/empty token correctly."""
+        from sbomify_action.cli.main import build_config
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock_file = Path(tmp_dir) / "requirements.txt"
+            lock_file.write_text("requests==2.28.0")
+
+            # None token should become empty string
+            config = build_config(
+                token=None,
+                component_id=None,
+                lock_file=str(lock_file),
+                upload=False,
+            )
+
+            self.assertEqual(config.token, "")
+            self.assertEqual(config.component_id, "")
+
+
+class TestLoadConfigAndBuildConfigParity(unittest.TestCase):
+    """Test that load_config and build_config produce equivalent results."""
+
+    def test_load_config_and_build_config_parity(self):
+        """Test that load_config produces same config as equivalent build_config call."""
+        from sbomify_action.cli.main import build_config, load_config
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lock_file = Path(tmp_dir) / "requirements.txt"
+            lock_file.write_text("requests==2.28.0")
+
+            env_vars = {
+                "TOKEN": "test-token",
+                "COMPONENT_ID": "test-component",
+                "LOCK_FILE": str(lock_file),
+                "OUTPUT_FILE": "output.json",
+                "UPLOAD": "false",
+                "AUGMENT": "false",
+                "ENRICH": "true",
+                "SBOM_FORMAT": "cyclonedx",
+            }
+
+            with patch.dict(os.environ, env_vars, clear=False):
+                config_from_env = load_config()
+
+            config_from_args = build_config(
+                token="test-token",
+                component_id="test-component",
+                lock_file=str(lock_file),
+                output_file="output.json",
+                upload=False,
+                augment=False,
+                enrich=True,
+                sbom_format="cyclonedx",
+            )
+
+            # Key fields should match
+            self.assertEqual(config_from_env.token, config_from_args.token)
+            self.assertEqual(config_from_env.component_id, config_from_args.component_id)
+            self.assertEqual(config_from_env.output_file, config_from_args.output_file)
+            self.assertEqual(config_from_env.upload, config_from_args.upload)
+            self.assertEqual(config_from_env.augment, config_from_args.augment)
+            self.assertEqual(config_from_env.enrich, config_from_args.enrich)
+            self.assertEqual(config_from_env.sbom_format, config_from_args.sbom_format)
+
+
 if __name__ == "__main__":
     unittest.main()
