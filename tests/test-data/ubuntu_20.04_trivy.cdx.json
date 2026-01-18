@@ -1,0 +1,6654 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:afd4f627-a257-4caf-a5aa-208a95eba747",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-01-18T19:33:50+00:00",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "manufacturer": {
+            "name": "Aqua Security Software Ltd."
+          },
+          "group": "aquasecurity",
+          "name": "trivy",
+          "version": "0.67.2"
+        }
+      ]
+    },
+    "component": {
+      "bom-ref": "pkg:oci/ubuntu@sha256%3A8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214?arch=amd64&repository_url=index.docker.io%2Flibrary%2Fubuntu",
+      "type": "container",
+      "name": "ubuntu:20.04",
+      "purl": "pkg:oci/ubuntu@sha256%3A8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214?arch=amd64&repository_url=index.docker.io%2Flibrary%2Fubuntu",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:DiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:ImageID",
+          "value": "sha256:b7bab04fd9aa0c771e5720bf0cc7cbf993fd6946645983d9096126e5af45d713"
+        },
+        {
+          "name": "aquasecurity:trivy:Labels:org.opencontainers.image.ref.name",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:Labels:org.opencontainers.image.version",
+          "value": "20.04"
+        },
+        {
+          "name": "aquasecurity:trivy:RepoDigest",
+          "value": "ubuntu@sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214"
+        },
+        {
+          "name": "aquasecurity:trivy:RepoTag",
+          "value": "ubuntu:20.04"
+        },
+        {
+          "name": "aquasecurity:trivy:SchemaVersion",
+          "value": "2"
+        },
+        {
+          "name": "aquasecurity:trivy:Size",
+          "value": "75191296"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "c09e31ca-f881-45c0-a0b6-97e6394767de",
+      "type": "operating-system",
+      "name": "ubuntu",
+      "version": "20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:Class",
+          "value": "os-pkgs"
+        },
+        {
+          "name": "aquasecurity:trivy:Type",
+          "value": "ubuntu"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=all&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Core Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "adduser",
+      "version": "3.118ubuntu2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5f7ea9d1d52a2a9c349468f89d160230e21c8542faed1b1a97c23bce873e17b4"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=all&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "adduser@3.118ubuntu2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "adduser"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.118ubuntu2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/apt@2.0.10?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "apt",
+      "version": "2.0.10",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/apt@2.0.10?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "apt@2.0.10"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "apt"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.0.10"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/base-files@11ubuntu5.8?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "base-files",
+      "version": "11ubuntu5.8",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/base-files@11ubuntu5.8?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "base-files@11ubuntu5.8"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "base-files"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "11ubuntu5.8"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/base-passwd@3.5.47?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Colin Watson <cjwatson@debian.org>"
+      },
+      "name": "base-passwd",
+      "version": "3.5.47",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "96477a0b48c43358a7a2fcc958a4271424c16db6594719b05ae90e89a508772c"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "PD"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/base-passwd@3.5.47?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "base-passwd@3.5.47"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "base-passwd"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.5.47"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/bash@5.0-6ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "bash",
+      "version": "5.0-6ubuntu1.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/bash@5.0-6ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "bash@5.0-6ubuntu1.2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "bash"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "6ubuntu1.2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "5.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/bsdutils@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "bsdutils",
+      "version": "1:2.34-0.1ubuntu9.6",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-4-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/bsdutils@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "bsdutils@1:2.34-0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.34"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/bzip2@1.0.8-2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "bzip2",
+      "version": "1.0.8-2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9201778f5a3bd4ff685d41cd677660129e57c544b7526f20ff8c48318c63dbe8"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/bzip2@1.0.8-2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "bzip2@1.0.8-2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "bzip2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.0.8"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/coreutils@8.30-3ubuntu2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "coreutils",
+      "version": "8.30-3ubuntu2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "99aa50af84de1737735f2f51e570d60f5842aa1d4a3129527906e7ffda368853"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/coreutils@8.30-3ubuntu2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "coreutils@8.30-3ubuntu2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "coreutils"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3ubuntu2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "8.30"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/dash@0.5.10.2-6?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "dash",
+      "version": "0.5.10.2-6",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "12607b28478fb815952f47c53394b57405244e675ff3220a982a0b8c7d826b0c"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/dash@0.5.10.2-6?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "dash@0.5.10.2-6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "dash"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.5.10.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/debconf@1.5.73?arch=all&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "debconf",
+      "version": "1.5.73",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7d639ffea1be8e8f5859ca94a0a09b1e4664d10af421c748b4163b08db515990"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/debconf@1.5.73?arch=all&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "debconf@1.5.73"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "debconf"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.5.73"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/debianutils@4.9.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "debianutils",
+      "version": "4.9.1",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "535571a8898bb69476b1d0ed6893b4700c312bff14fc7687b7f1fdfe18f55a1f"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/debianutils@4.9.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "debianutils@4.9.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "debianutils"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.9.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/diffutils@3.7-3?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "diffutils",
+      "version": "1:3.7-3",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1e47f7fb82fedcd69c4b8cba65861ad23e6af108612f8f111244f2a48eb7fd02"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GFDL-1.3-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/diffutils@3.7-3?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "diffutils@1:3.7-3"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "diffutils"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.7"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/dpkg@1.19.7ubuntu3.2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "dpkg",
+      "version": "1.19.7ubuntu3.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain-s-s-d"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain-md5"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/dpkg@1.19.7ubuntu3.2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "dpkg@1.19.7ubuntu3.2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "dpkg"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.19.7ubuntu3.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/e2fsprogs@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "e2fsprogs",
+      "version": "1.45.5-2ubuntu1.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/e2fsprogs@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "e2fsprogs@1.45.5-2ubuntu1.2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "e2fsprogs"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu1.2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.45.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/fdisk@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "fdisk",
+      "version": "2.34-0.1ubuntu9.6",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-4-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/fdisk@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "fdisk@2.34-0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.34"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/findutils@4.7.0-1ubuntu1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "findutils",
+      "version": "4.7.0-1ubuntu1",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f3eccb6088dc4b632e7e9daa2fc36048702fbaef684b9acb1e2317c706c16249"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GFDL-1.3-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/findutils@4.7.0-1ubuntu1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "findutils@4.7.0-1ubuntu1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "findutils"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1ubuntu1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.7.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/gcc-10-base@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Core developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "gcc-10-base",
+      "version": "10.5.0-1ubuntu1~20.04",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GFDL-1.2-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "Artistic-2.0"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/gcc-10-base@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "gcc-10-base@10.5.0-1ubuntu1~20.04"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gcc-10"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1ubuntu1~20.04"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "10.5.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/gpgv@2.2.19-3ubuntu2.4?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "gpgv",
+      "version": "2.2.19-3ubuntu2.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "name": "permissive"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "name": "RFC-Reference"
+          }
+        },
+        {
+          "license": {
+            "name": "TinySCHEME"
+          }
+        },
+        {
+          "license": {
+            "id": "CC0-1.0"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/gpgv@2.2.19-3ubuntu2.4?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "gpgv@2.2.19-3ubuntu2.4"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gnupg2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3ubuntu2.4"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.2.19"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/grep@3.4-1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "grep",
+      "version": "3.4-1",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ca498008bc57c2ccb26c5b467322cd5abbb458e2dd545658d8aef4490ee931de"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/grep@3.4-1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "grep@3.4-1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "grep"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.4"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/gzip@1.10-0ubuntu4.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "gzip",
+      "version": "1.10-0ubuntu4.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/gzip@1.10-0ubuntu4.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "gzip@1.10-0ubuntu4.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gzip"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0ubuntu4.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.10"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/hostname@3.23?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "hostname",
+      "version": "3.23",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "bddd3ac9a78c0f816f24622ef9f0495902da8028de9fc4b24ec8b1a36196a762"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/hostname@3.23?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "hostname@3.23"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "hostname"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.23"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/init-system-helpers@1.57?arch=all&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "init-system-helpers",
+      "version": "1.57",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5628715888e797fcddf2c5b3c3923b0a76dad78916025a52e19375703dd9586c"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/init-system-helpers@1.57?arch=all&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "init-system-helpers@1.57"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "init-system-helpers"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.57"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libacl1@2.2.53-6?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libacl1",
+      "version": "2.2.53-6",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9fa9cc2f8eeccd8d29efcb998111b082432c65de75ca60ad9c333289bb3bb765"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libacl1@2.2.53-6?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libacl1@2.2.53-6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "acl"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.2.53"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libapt-pkg6.0@2.0.10?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libapt-pkg6.0",
+      "version": "2.0.10",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libapt-pkg6.0@2.0.10?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libapt-pkg6.0@2.0.10"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "apt"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.0.10"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libattr1@2.4.48-5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libattr1",
+      "version": "1:2.4.48-5",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d916bb73d9a160ccaa48d997c823af528cb6b4174c5234c744b40ae5aa85ce98"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libattr1@2.4.48-5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libattr1@1:2.4.48-5"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "attr"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.4.48"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libaudit-common@2.8.5-2ubuntu6?arch=all&distro=ubuntu-20.04&epoch=1",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libaudit-common",
+      "version": "1:2.8.5-2ubuntu6",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9fa4a291df5682f5fee12aacdddd9ed09445c352c80d8a1af36056866e4b4906"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-1.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libaudit-common@2.8.5-2ubuntu6?arch=all&distro=ubuntu-20.04&epoch=1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libaudit-common@1:2.8.5-2ubuntu6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "audit"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.8.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libaudit1@2.8.5-2ubuntu6?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libaudit1",
+      "version": "1:2.8.5-2ubuntu6",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "fb539f4d848d00e9472444285831e0204b9e92e7ee65dbb72b56e144a6dbedf8"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-1.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libaudit1@2.8.5-2ubuntu6?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libaudit1@1:2.8.5-2ubuntu6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "audit"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.8.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libblkid1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libblkid1",
+      "version": "2.34-0.1ubuntu9.6",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-4-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libblkid1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libblkid1@2.34-0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.34"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libbz2-1.0@1.0.8-2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libbz2-1.0",
+      "version": "1.0.8-2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f3632ec38402ca0f9c61a6854469f1a0eba9389d3f73827b466033c3d5bbec69"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libbz2-1.0@1.0.8-2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libbz2-1.0@1.0.8-2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "bzip2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.0.8"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libc-bin@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libc-bin",
+      "version": "2.31-0ubuntu9.17",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libc-bin@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libc-bin@2.31-0ubuntu9.17"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "glibc"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0ubuntu9.17"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.31"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libc6",
+      "version": "2.31-0ubuntu9.17",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libc6@2.31-0ubuntu9.17"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "glibc"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0ubuntu9.17"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.31"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libcap-ng0@0.7.9-2.1build1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libcap-ng0",
+      "version": "0.7.9-2.1build1",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e8606a60a92aa8054d1620781889a8b709c3db8714e3b03b3987f81c7e168d06"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libcap-ng0@0.7.9-2.1build1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libcap-ng0@0.7.9-2.1build1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libcap-ng"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2.1build1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.7.9"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libcom-err2@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libcom-err2",
+      "version": "1.45.5-2ubuntu1.2",
+      "purl": "pkg:deb/ubuntu/libcom-err2@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libcom-err2@1.45.5-2ubuntu1.2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "e2fsprogs"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu1.2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.45.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libcrypt1@4.4.10-10ubuntu4?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libcrypt1",
+      "version": "1:4.4.10-10ubuntu4",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "231b4dbbe5865775f118cfa61394f1e16fa7102b6953a327e672499a20876d73"
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libcrypt1@4.4.10-10ubuntu4?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libcrypt1@1:4.4.10-10ubuntu4"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libxcrypt"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "10ubuntu4"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.4.10"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libdb5.3@5.3.28%2Bdfsg1-0.6ubuntu2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libdb5.3",
+      "version": "5.3.28+dfsg1-0.6ubuntu2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "330775026b5e31340387fb58e12e40e241ca34cbbb6c0c28331bd83cb47c3656"
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libdb5.3@5.3.28%2Bdfsg1-0.6ubuntu2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libdb5.3@5.3.28+dfsg1-0.6ubuntu2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "db5.3"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0.6ubuntu2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "5.3.28+dfsg1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libdebconfclient0@0.251ubuntu1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libdebconfclient0",
+      "version": "0.251ubuntu1",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "98cc9975a3e4d9c4f505db3845fff2820337c82ea7c8174d9664d2c36cfef248"
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libdebconfclient0@0.251ubuntu1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libdebconfclient0@0.251ubuntu1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "cdebconf"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.251ubuntu1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libext2fs2@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libext2fs2",
+      "version": "1.45.5-2ubuntu1.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libext2fs2@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libext2fs2@1.45.5-2ubuntu1.2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "e2fsprogs"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu1.2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.45.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libfdisk1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libfdisk1",
+      "version": "2.34-0.1ubuntu9.6",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-4-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libfdisk1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libfdisk1@2.34-0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.34"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libffi7@3.3-4?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libffi7",
+      "version": "3.3-4",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4584aa8fef1bf5086168ce2f7078cd2ebd78fdc4cc0d86d958d795d4e0b0f50d"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libffi7@3.3-4?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libffi7@3.3-4"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libffi"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "4"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.3"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libgcc-s1@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Core developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libgcc-s1",
+      "version": "10.5.0-1ubuntu1~20.04",
+      "purl": "pkg:deb/ubuntu/libgcc-s1@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libgcc-s1@10.5.0-1ubuntu1~20.04"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gcc-10"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1ubuntu1~20.04"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "10.5.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libgcrypt20@1.8.5-5ubuntu1.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libgcrypt20",
+      "version": "1.8.5-5ubuntu1.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libgcrypt20@1.8.5-5ubuntu1.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libgcrypt20@1.8.5-5ubuntu1.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libgcrypt20"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5ubuntu1.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.8.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libgmp10@6.2.0%2Bdfsg-4ubuntu0.1?arch=amd64&distro=ubuntu-20.04&epoch=2",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libgmp10",
+      "version": "2:6.2.0+dfsg-4ubuntu0.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libgmp10@6.2.0%2Bdfsg-4ubuntu0.1?arch=amd64&distro=ubuntu-20.04&epoch=2",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libgmp10@2:6.2.0+dfsg-4ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gmp"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "4ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "6.2.0+dfsg"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libgnutls30@3.6.13-2ubuntu1.12?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libgnutls30",
+      "version": "3.6.13-2ubuntu1.12",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GFDL-1.3-only"
+          }
+        },
+        {
+          "license": {
+            "id": "CC0-1.0"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libgnutls30@3.6.13-2ubuntu1.12?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libgnutls30@3.6.13-2ubuntu1.12"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gnutls28"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu1.12"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.6.13"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libgpg-error0@1.37-1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libgpg-error0",
+      "version": "1.37-1",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4744163850851f60080a8b0fdf3dd3258d93114bd83f8024414737a2826da7fe"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "name": "g10-permissive"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libgpg-error0@1.37-1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libgpg-error0@1.37-1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libgpg-error"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.37"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libhogweed5@3.5.1%2Breally3.5.1-2ubuntu0.2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libhogweed5",
+      "version": "3.5.1+really3.5.1-2ubuntu0.2",
+      "purl": "pkg:deb/ubuntu/libhogweed5@3.5.1%2Breally3.5.1-2ubuntu0.2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libhogweed5@3.5.1+really3.5.1-2ubuntu0.2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "nettle"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu0.2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.5.1+really3.5.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libidn2-0@2.2.0-2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libidn2-0",
+      "version": "2.2.0-2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "698abe11d444c7e87c656c2083373d1e0fae04b3a64be0371adb2bb180092537"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "name": "Unicode"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libidn2-0@2.2.0-2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libidn2-0@2.2.0-2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libidn2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.2.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/liblz4-1@1.9.2-2ubuntu0.20.04.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "liblz4-1",
+      "version": "1.9.2-2ubuntu0.20.04.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/liblz4-1@1.9.2-2ubuntu0.20.04.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "liblz4-1@1.9.2-2ubuntu0.20.04.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "lz4"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu0.20.04.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.9.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/liblzma5@5.2.4-1ubuntu1.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "liblzma5",
+      "version": "5.2.4-1ubuntu1.1",
+      "licenses": [
+        {
+          "license": {
+            "name": "PD"
+          }
+        },
+        {
+          "license": {
+            "name": "probably-PD"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "name": "permissive-fsf"
+          }
+        },
+        {
+          "license": {
+            "name": "Autoconf"
+          }
+        },
+        {
+          "license": {
+            "name": "permissive-nowarranty"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "none"
+          }
+        },
+        {
+          "license": {
+            "name": "config-h"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "name": "noderivs"
+          }
+        },
+        {
+          "license": {
+            "name": "PD-debian"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/liblzma5@5.2.4-1ubuntu1.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "liblzma5@5.2.4-1ubuntu1.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "xz-utils"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1ubuntu1.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "5.2.4"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libmount1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libmount1",
+      "version": "2.34-0.1ubuntu9.6",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-4-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libmount1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libmount1@2.34-0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.34"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libncurses6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libncurses6",
+      "version": "6.2-0ubuntu2.1",
+      "purl": "pkg:deb/ubuntu/libncurses6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libncurses6@6.2-0ubuntu2.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "ncurses"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0ubuntu2.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "6.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libncursesw6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libncursesw6",
+      "version": "6.2-0ubuntu2.1",
+      "purl": "pkg:deb/ubuntu/libncursesw6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libncursesw6@6.2-0ubuntu2.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "ncurses"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0ubuntu2.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "6.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libnettle7@3.5.1%2Breally3.5.1-2ubuntu0.2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libnettle7",
+      "version": "3.5.1+really3.5.1-2ubuntu0.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "other"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "name": "GPL-2.0-only WITH autoconf-exception+"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "GAP"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libnettle7@3.5.1%2Breally3.5.1-2ubuntu0.2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libnettle7@3.5.1+really3.5.1-2ubuntu0.2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "nettle"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu0.2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.5.1+really3.5.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libp11-kit0@0.23.20-1ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libp11-kit0",
+      "version": "0.23.20-1ubuntu0.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "name": "permissive-like-automake-output"
+          }
+        },
+        {
+          "license": {
+            "id": "ISC"
+          }
+        },
+        {
+          "license": {
+            "name": "ISC-IBM"
+          }
+        },
+        {
+          "license": {
+            "name": "same-as-rest-of-p11kit"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libp11-kit0@0.23.20-1ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libp11-kit0@0.23.20-1ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "p11-kit"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.23.20"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libpam-modules-bin@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libpam-modules-bin",
+      "version": "1.3.1-5ubuntu4.7",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libpam-modules-bin@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libpam-modules-bin@1.3.1-5ubuntu4.7"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "pam"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5ubuntu4.7"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.3.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libpam-modules@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libpam-modules",
+      "version": "1.3.1-5ubuntu4.7",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libpam-modules@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libpam-modules@1.3.1-5ubuntu4.7"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "pam"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5ubuntu4.7"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.3.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libpam-runtime@1.3.1-5ubuntu4.7?arch=all&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libpam-runtime",
+      "version": "1.3.1-5ubuntu4.7",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libpam-runtime@1.3.1-5ubuntu4.7?arch=all&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libpam-runtime@1.3.1-5ubuntu4.7"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "pam"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5ubuntu4.7"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.3.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libpam0g@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libpam0g",
+      "version": "1.3.1-5ubuntu4.7",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libpam0g@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libpam0g@1.3.1-5ubuntu4.7"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "pam"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5ubuntu4.7"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.3.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libpcre2-8-0@10.34-7ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libpcre2-8-0",
+      "version": "10.34-7ubuntu0.1",
+      "purl": "pkg:deb/ubuntu/libpcre2-8-0@10.34-7ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libpcre2-8-0@10.34-7ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "pcre2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "7ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "10.34"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libpcre3@8.39-12ubuntu0.1?arch=amd64&distro=ubuntu-20.04&epoch=2",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libpcre3",
+      "version": "2:8.39-12ubuntu0.1",
+      "purl": "pkg:deb/ubuntu/libpcre3@8.39-12ubuntu0.1?arch=amd64&distro=ubuntu-20.04&epoch=2",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libpcre3@2:8.39-12ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "pcre3"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "12ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "8.39"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libprocps8@3.3.16-1ubuntu2.4?arch=amd64&distro=ubuntu-20.04&epoch=2",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libprocps8",
+      "version": "2:3.3.16-1ubuntu2.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libprocps8@3.3.16-1ubuntu2.4?arch=amd64&distro=ubuntu-20.04&epoch=2",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libprocps8@2:3.3.16-1ubuntu2.4"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "procps"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1ubuntu2.4"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.3.16"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libseccomp2@2.5.1-1ubuntu1~20.04.2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libseccomp2",
+      "version": "2.5.1-1ubuntu1~20.04.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libseccomp2@2.5.1-1ubuntu1~20.04.2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libseccomp2@2.5.1-1ubuntu1~20.04.2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libseccomp"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1ubuntu1~20.04.2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.5.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libselinux1@3.0-1build2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libselinux1",
+      "version": "3.0-1build2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1b8674b6f9e62fbae768d9ffbd686955d08db889ee4107d15ae02d1ec033cc7b"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libselinux1@3.0-1build2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libselinux1@3.0-1build2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libselinux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1build2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libsemanage-common@3.0-1build2?arch=all&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libsemanage-common",
+      "version": "3.0-1build2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4141f803c811277d2ea56568a676a79f06017b8c5eb57891741808a27c55fffb"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libsemanage-common@3.0-1build2?arch=all&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libsemanage-common@3.0-1build2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libsemanage"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1build2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libsemanage1@3.0-1build2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libsemanage1",
+      "version": "3.0-1build2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0d0acf32d855061b30ee8d2a84421e08adbaa781ce8884730ec3c3e3b49bd1f9"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libsemanage1@3.0-1build2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libsemanage1@3.0-1build2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libsemanage"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1build2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libsepol1@3.0-1ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libsepol1",
+      "version": "3.0-1ubuntu0.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libsepol1@3.0-1ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libsepol1@3.0-1ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libsepol"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libsmartcols1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libsmartcols1",
+      "version": "2.34-0.1ubuntu9.6",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-4-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libsmartcols1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libsmartcols1@2.34-0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.34"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libss2@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libss2",
+      "version": "1.45.5-2ubuntu1.2",
+      "purl": "pkg:deb/ubuntu/libss2@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libss2@1.45.5-2ubuntu1.2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "e2fsprogs"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu1.2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.45.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libstdc%2B%2B6@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Core developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libstdc++6",
+      "version": "10.5.0-1ubuntu1~20.04",
+      "purl": "pkg:deb/ubuntu/libstdc%2B%2B6@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libstdc++6@10.5.0-1ubuntu1~20.04"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gcc-10"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1ubuntu1~20.04"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "10.5.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libsystemd0@245.4-4ubuntu3.24?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libsystemd0",
+      "version": "245.4-4ubuntu3.24",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "CC0-1.0"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "GPL-2.0-only WITH Linux-syscall-note-exception"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libsystemd0@245.4-4ubuntu3.24?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libsystemd0@245.4-4ubuntu3.24"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "systemd"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "4ubuntu3.24"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "245.4"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libtasn1-6@4.16.0-2ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libtasn1-6",
+      "version": "4.16.0-2ubuntu0.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GFDL-1.3-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libtasn1-6@4.16.0-2ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libtasn1-6@4.16.0-2ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libtasn1-6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.16.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libtinfo6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libtinfo6",
+      "version": "6.2-0ubuntu2.1",
+      "purl": "pkg:deb/ubuntu/libtinfo6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libtinfo6@6.2-0ubuntu2.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "ncurses"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0ubuntu2.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "6.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libudev1@245.4-4ubuntu3.24?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libudev1",
+      "version": "245.4-4ubuntu3.24",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "CC0-1.0"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "GPL-2.0-only WITH Linux-syscall-note-exception"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libudev1@245.4-4ubuntu3.24?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libudev1@245.4-4ubuntu3.24"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "systemd"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "4ubuntu3.24"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "245.4"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libunistring2@0.9.10-2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libunistring2",
+      "version": "0.9.10-2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4ccfbc1e3a1cbc42616bd4fd407e01eb1434996c8500ac2fbccb7a2e1bcb166a"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "name": "FreeSoftware"
+          }
+        },
+        {
+          "license": {
+            "name": "GPL-2.0-or-later WITH distribution-exception"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GFDL-1.2-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GFDL-1.2-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libunistring2@0.9.10-2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libunistring2@0.9.10-2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libunistring"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.9.10"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libuuid1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libuuid1",
+      "version": "2.34-0.1ubuntu9.6",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-4-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libuuid1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libuuid1@2.34-0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.34"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libzstd1@1.4.4%2Bdfsg-3ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "libzstd1",
+      "version": "1.4.4+dfsg-3ubuntu0.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "Zlib"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/libzstd1@1.4.4%2Bdfsg-3ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libzstd1@1.4.4+dfsg-3ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libzstd"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3ubuntu0.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.4.4+dfsg"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/login@4.8.1-1ubuntu5.20.04.5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "login",
+      "version": "1:4.8.1-1ubuntu5.20.04.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/login@4.8.1-1ubuntu5.20.04.5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "login@1:4.8.1-1ubuntu5.20.04.5"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "shadow"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1ubuntu5.20.04.5"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.8.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/logsave@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "logsave",
+      "version": "1.45.5-2ubuntu1.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/logsave@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "logsave@1.45.5-2ubuntu1.2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "e2fsprogs"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu1.2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.45.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/lsb-base@11.1.0ubuntu2?arch=all&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "lsb-base",
+      "version": "11.1.0ubuntu2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "eb40f6e96189cbde27a9cc4681f7ba7b4d51552d1ad74b876aea6a7ccb83f628"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/lsb-base@11.1.0ubuntu2?arch=all&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "lsb-base@11.1.0ubuntu2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "lsb"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "11.1.0ubuntu2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/mawk@1.3.4.20200120-2?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "mawk",
+      "version": "1.3.4.20200120-2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "79cb23a9c68a8e84db2788f821f4c85855f5bda8f56cf8d9e64fabe4593daced"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/mawk@1.3.4.20200120-2?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "mawk@1.3.4.20200120-2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "mawk"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.3.4.20200120"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/mount@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "mount",
+      "version": "2.34-0.1ubuntu9.6",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-4-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/mount@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "mount@2.34-0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.34"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/ncurses-base@6.2-0ubuntu2.1?arch=all&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "ncurses-base",
+      "version": "6.2-0ubuntu2.1",
+      "purl": "pkg:deb/ubuntu/ncurses-base@6.2-0ubuntu2.1?arch=all&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "ncurses-base@6.2-0ubuntu2.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "ncurses"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0ubuntu2.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "6.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/ncurses-bin@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "ncurses-bin",
+      "version": "6.2-0ubuntu2.1",
+      "purl": "pkg:deb/ubuntu/ncurses-bin@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "ncurses-bin@6.2-0ubuntu2.1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "ncurses"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0ubuntu2.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "6.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/passwd@4.8.1-1ubuntu5.20.04.5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "passwd",
+      "version": "1:4.8.1-1ubuntu5.20.04.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/passwd@4.8.1-1ubuntu5.20.04.5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "passwd@1:4.8.1-1ubuntu5.20.04.5"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "shadow"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1ubuntu5.20.04.5"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.8.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/perl-base@5.30.0-9ubuntu0.5?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "perl-base",
+      "version": "5.30.0-9ubuntu0.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-1.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "Artistic-2.0"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "name": "REGCOMP"
+          }
+        },
+        {
+          "license": {
+            "name": "GPL-2.0-only WITH bison-exception+"
+          }
+        },
+        {
+          "license": {
+            "name": "Unicode"
+          }
+        },
+        {
+          "license": {
+            "name": "BZIP"
+          }
+        },
+        {
+          "license": {
+            "id": "Zlib"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "name": "RRA-KEEP-THIS-NOTICE"
+          }
+        },
+        {
+          "license": {
+            "name": "BSD-3-Clause WITH weird-numbering"
+          }
+        },
+        {
+          "license": {
+            "id": "CC0-1.0"
+          }
+        },
+        {
+          "license": {
+            "name": "TEXT-TABS"
+          }
+        },
+        {
+          "license": {
+            "name": "BSD-4-clause-POWERDOG"
+          }
+        },
+        {
+          "license": {
+            "name": "BSD-3-clause-GENERIC"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "name": "SDBM-PUBLIC-DOMAIN"
+          }
+        },
+        {
+          "license": {
+            "name": "DONT-CHANGE-THE-GPL"
+          }
+        },
+        {
+          "license": {
+            "name": "Artistic-dist"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-1.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "Artistic-2"
+          }
+        },
+        {
+          "license": {
+            "name": "HSIEH-DERIVATIVE"
+          }
+        },
+        {
+          "license": {
+            "name": "HSIEH-BSD"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/perl-base@5.30.0-9ubuntu0.5?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "perl-base@5.30.0-9ubuntu0.5"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "perl"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "9ubuntu0.5"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "5.30.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/procps@3.3.16-1ubuntu2.4?arch=amd64&distro=ubuntu-20.04&epoch=2",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "procps",
+      "version": "2:3.3.16-1ubuntu2.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/procps@3.3.16-1ubuntu2.4?arch=amd64&distro=ubuntu-20.04&epoch=2",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "procps@2:3.3.16-1ubuntu2.4"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "procps"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1ubuntu2.4"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.3.16"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/sed@4.7-1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "sed",
+      "version": "4.7-1",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a5428ddec609149eb6086cec20bf14a0300972a191eb0cc010e7f1c7f17186f4"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/sed@4.7-1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "sed@4.7-1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "sed"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.7"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/sensible-utils@0.0.12%2Bnmu1?arch=all&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "sensible-utils",
+      "version": "0.0.12+nmu1",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9ef20f3a2c2eac2d6d80b9ee0550f315d21fc7bc9e643f2f1b1e94c93f444601"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "name": "All-permissive"
+          }
+        },
+        {
+          "license": {
+            "name": "configure"
+          }
+        },
+        {
+          "license": {
+            "name": "installsh"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/sensible-utils@0.0.12%2Bnmu1?arch=all&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "sensible-utils@0.0.12+nmu1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "sensible-utils"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.0.12+nmu1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/sysvinit-utils@2.96-2.1ubuntu1?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "sysvinit-utils",
+      "version": "2.96-2.1ubuntu1",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ab9c644c65a6b48968991801f4e2846bbfcb1393e0dcbc656a1aa26003b6c57b"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/sysvinit-utils@2.96-2.1ubuntu1?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "sysvinit-utils@2.96-2.1ubuntu1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "sysvinit"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2.1ubuntu1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.96"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/tar@1.30%2Bdfsg-7ubuntu0.20.04.4?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "tar",
+      "version": "1.30+dfsg-7ubuntu0.20.04.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/tar@1.30%2Bdfsg-7ubuntu0.20.04.4?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "tar@1.30+dfsg-7ubuntu0.20.04.4"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "tar"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "7ubuntu0.20.04.4"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.30+dfsg"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/ubuntu-keyring@2020.02.11.4?arch=all&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Dimitri John Ledkov <dimitri.ledkov@canonical.com>"
+      },
+      "name": "ubuntu-keyring",
+      "version": "2020.02.11.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/ubuntu-keyring@2020.02.11.4?arch=all&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "ubuntu-keyring@2020.02.11.4"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "ubuntu-keyring"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2020.02.11.4"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/util-linux@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "util-linux",
+      "version": "2.34-0.1ubuntu9.6",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "name": "public-domain"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-4-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-or-later"
+          }
+        },
+        {
+          "license": {
+            "id": "GPL-3.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.0-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-2.1-only"
+          }
+        },
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/util-linux@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "util-linux@2.34-0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "0.1ubuntu9.6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.34"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/zlib1g@1.2.11.dfsg-2ubuntu1.5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "type": "library",
+      "supplier": {
+        "name": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+      },
+      "name": "zlib1g",
+      "version": "1:1.2.11.dfsg-2ubuntu1.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "Zlib"
+          }
+        }
+      ],
+      "purl": "pkg:deb/ubuntu/zlib1g@1.2.11.dfsg-2ubuntu1.5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:470b66ea5123c93b0d5606e4213bf9e47d3d426b640d32472e4ac213186c4bb6"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:13b7e930469f6d3575a320709035c6acf6f5485a76abcf03d1b92a64c09c2476"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "zlib1g@1:1.2.11.dfsg-2ubuntu1.5"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "ubuntu"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "zlib"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2ubuntu1.5"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.2.11.dfsg"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "c09e31ca-f881-45c0-a0b6-97e6394767de",
+      "dependsOn": [
+        "pkg:deb/ubuntu/apt@2.0.10?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/base-passwd@3.5.47?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/bash@5.0-6ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/bsdutils@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04&epoch=1",
+        "pkg:deb/ubuntu/bzip2@1.0.8-2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/coreutils@8.30-3ubuntu2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/dash@0.5.10.2-6?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/diffutils@3.7-3?arch=amd64&distro=ubuntu-20.04&epoch=1",
+        "pkg:deb/ubuntu/e2fsprogs@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/fdisk@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/findutils@4.7.0-1ubuntu1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/grep@3.4-1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/gzip@1.10-0ubuntu4.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/hostname@3.23?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libacl1@2.2.53-6?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libattr1@2.4.48-5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+        "pkg:deb/ubuntu/libc-bin@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libdb5.3@5.3.28%2Bdfsg1-0.6ubuntu2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libext2fs2@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libpam-modules-bin@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libpam-runtime@1.3.1-5ubuntu4.7?arch=all&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libpcre3@8.39-12ubuntu0.1?arch=amd64&distro=ubuntu-20.04&epoch=2",
+        "pkg:deb/ubuntu/libss2@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/mawk@1.3.4.20200120-2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/mount@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/ncurses-base@6.2-0ubuntu2.1?arch=all&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/ncurses-bin@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/procps@3.3.16-1ubuntu2.4?arch=amd64&distro=ubuntu-20.04&epoch=2",
+        "pkg:deb/ubuntu/sed@4.7-1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/sensible-utils@0.0.12%2Bnmu1?arch=all&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/sysvinit-utils@2.96-2.1ubuntu1?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=all&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/debconf@1.5.73?arch=all&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/passwd@4.8.1-1ubuntu5.20.04.5?arch=amd64&distro=ubuntu-20.04&epoch=1"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/apt@2.0.10?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=all&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/gpgv@2.2.19-3ubuntu2.4?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libapt-pkg6.0@2.0.10?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libgcc-s1@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libgnutls30@3.6.13-2ubuntu1.12?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libseccomp2@2.5.1-1ubuntu1~20.04.2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libstdc%2B%2B6@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libsystemd0@245.4-4ubuntu3.24?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/ubuntu-keyring@2020.02.11.4?arch=all&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/base-files@11ubuntu5.8?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libcrypt1@4.4.10-10ubuntu4?arch=amd64&distro=ubuntu-20.04&epoch=1"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/base-passwd@3.5.47?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libdebconfclient0@0.251ubuntu1?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/bash@5.0-6ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/base-files@11ubuntu5.8?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/debianutils@4.9.1?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/bsdutils@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/bzip2@1.0.8-2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libbz2-1.0@1.0.8-2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/coreutils@8.30-3ubuntu2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/dash@0.5.10.2-6?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/debconf@1.5.73?arch=all&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/debianutils@4.9.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/dpkg@1.19.7ubuntu3.2?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/debconf@1.5.73?arch=all&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/debianutils@4.9.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/diffutils@3.7-3?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/dpkg@1.19.7ubuntu3.2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/tar@1.30%2Bdfsg-7ubuntu0.20.04.4?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/e2fsprogs@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/logsave@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/fdisk@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libfdisk1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libmount1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libncursesw6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libsmartcols1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libtinfo6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/findutils@4.7.0-1ubuntu1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/gcc-10-base@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/gpgv@2.2.19-3ubuntu2.4?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libbz2-1.0@1.0.8-2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libgcrypt20@1.8.5-5ubuntu1.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libgpg-error0@1.37-1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/zlib1g@1.2.11.dfsg-2ubuntu1.5?arch=amd64&distro=ubuntu-20.04&epoch=1"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/grep@3.4-1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/dpkg@1.19.7ubuntu3.2?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/gzip@1.10-0ubuntu4.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/dpkg@1.19.7ubuntu3.2?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/hostname@3.23?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/init-system-helpers@1.57?arch=all&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/perl-base@5.30.0-9ubuntu0.5?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libacl1@2.2.53-6?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libapt-pkg6.0@2.0.10?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libbz2-1.0@1.0.8-2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libgcc-s1@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libgcrypt20@1.8.5-5ubuntu1.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/liblz4-1@1.9.2-2ubuntu0.20.04.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/liblzma5@5.2.4-1ubuntu1.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libstdc%2B%2B6@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libsystemd0@245.4-4ubuntu3.24?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libudev1@245.4-4ubuntu3.24?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libzstd1@1.4.4%2Bdfsg-3ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/zlib1g@1.2.11.dfsg-2ubuntu1.5?arch=amd64&distro=ubuntu-20.04&epoch=1"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libattr1@2.4.48-5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libaudit-common@2.8.5-2ubuntu6?arch=all&distro=ubuntu-20.04&epoch=1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libaudit1@2.8.5-2ubuntu6?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libaudit-common@2.8.5-2ubuntu6?arch=all&distro=ubuntu-20.04&epoch=1",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libcap-ng0@0.7.9-2.1build1?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libblkid1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libbz2-1.0@1.0.8-2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libc-bin@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libcrypt1@4.4.10-10ubuntu4?arch=amd64&distro=ubuntu-20.04&epoch=1",
+        "pkg:deb/ubuntu/libgcc-s1@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libcap-ng0@0.7.9-2.1build1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libcom-err2@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libcrypt1@4.4.10-10ubuntu4?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libdb5.3@5.3.28%2Bdfsg1-0.6ubuntu2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libdebconfclient0@0.251ubuntu1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libext2fs2@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libfdisk1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libblkid1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libuuid1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libffi7@3.3-4?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libgcc-s1@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/gcc-10-base@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libgcrypt20@1.8.5-5ubuntu1.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libgpg-error0@1.37-1?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libgmp10@6.2.0%2Bdfsg-4ubuntu0.1?arch=amd64&distro=ubuntu-20.04&epoch=2",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libgnutls30@3.6.13-2ubuntu1.12?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libgmp10@6.2.0%2Bdfsg-4ubuntu0.1?arch=amd64&distro=ubuntu-20.04&epoch=2",
+        "pkg:deb/ubuntu/libhogweed5@3.5.1%2Breally3.5.1-2ubuntu0.2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libidn2-0@2.2.0-2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libnettle7@3.5.1%2Breally3.5.1-2ubuntu0.2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libp11-kit0@0.23.20-1ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libtasn1-6@4.16.0-2ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libunistring2@0.9.10-2?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libgpg-error0@1.37-1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libhogweed5@3.5.1%2Breally3.5.1-2ubuntu0.2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libgmp10@6.2.0%2Bdfsg-4ubuntu0.1?arch=amd64&distro=ubuntu-20.04&epoch=2",
+        "pkg:deb/ubuntu/libnettle7@3.5.1%2Breally3.5.1-2ubuntu0.2?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libidn2-0@2.2.0-2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libunistring2@0.9.10-2?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/liblz4-1@1.9.2-2ubuntu0.20.04.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/liblzma5@5.2.4-1ubuntu1.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libmount1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libblkid1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libselinux1@3.0-1build2?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libncurses6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libtinfo6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libncursesw6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libtinfo6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libnettle7@3.5.1%2Breally3.5.1-2ubuntu0.2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libp11-kit0@0.23.20-1ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libffi7@3.3-4?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libpam-modules-bin@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libaudit1@2.8.5-2ubuntu6?arch=amd64&distro=ubuntu-20.04&epoch=1",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libcrypt1@4.4.10-10ubuntu4?arch=amd64&distro=ubuntu-20.04&epoch=1",
+        "pkg:deb/ubuntu/libpam0g@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libselinux1@3.0-1build2?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libpam-modules@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libpam-runtime@1.3.1-5ubuntu4.7?arch=all&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/debconf@1.5.73?arch=all&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libpam-modules@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libpam0g@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/debconf@1.5.73?arch=all&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libaudit1@2.8.5-2ubuntu6?arch=amd64&distro=ubuntu-20.04&epoch=1",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libpcre2-8-0@10.34-7ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libpcre3@8.39-12ubuntu0.1?arch=amd64&distro=ubuntu-20.04&epoch=2",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libprocps8@3.3.16-1ubuntu2.4?arch=amd64&distro=ubuntu-20.04&epoch=2",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libsystemd0@245.4-4ubuntu3.24?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libseccomp2@2.5.1-1ubuntu1~20.04.2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libselinux1@3.0-1build2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libpcre2-8-0@10.34-7ubuntu0.1?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libsemanage-common@3.0-1build2?arch=all&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libsemanage1@3.0-1build2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libaudit1@2.8.5-2ubuntu6?arch=amd64&distro=ubuntu-20.04&epoch=1",
+        "pkg:deb/ubuntu/libbz2-1.0@1.0.8-2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libselinux1@3.0-1build2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libsemanage-common@3.0-1build2?arch=all&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libsepol1@3.0-1ubuntu0.1?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libsepol1@3.0-1ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libsmartcols1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libss2@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libcom-err2@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libstdc%2B%2B6@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/gcc-10-base@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libgcc-s1@10.5.0-1ubuntu1~20.04?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libsystemd0@245.4-4ubuntu3.24?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libtasn1-6@4.16.0-2ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libtinfo6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libudev1@245.4-4ubuntu3.24?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libunistring2@0.9.10-2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libuuid1@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libzstd1@1.4.4%2Bdfsg-3ubuntu0.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/login@4.8.1-1ubuntu5.20.04.5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/logsave@1.45.5-2ubuntu1.2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/lsb-base@11.1.0ubuntu2?arch=all&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/mawk@1.3.4.20200120-2?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/mount@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/util-linux@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/ncurses-base@6.2-0ubuntu2.1?arch=all&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/ncurses-bin@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/passwd@4.8.1-1ubuntu5.20.04.5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libaudit1@2.8.5-2ubuntu6?arch=amd64&distro=ubuntu-20.04&epoch=1",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libcrypt1@4.4.10-10ubuntu4?arch=amd64&distro=ubuntu-20.04&epoch=1",
+        "pkg:deb/ubuntu/libpam-modules@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libpam0g@1.3.1-5ubuntu4.7?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libselinux1@3.0-1build2?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libsemanage1@3.0-1build2?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/perl-base@5.30.0-9ubuntu0.5?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/procps@3.3.16-1ubuntu2.4?arch=amd64&distro=ubuntu-20.04&epoch=2",
+      "dependsOn": [
+        "pkg:deb/ubuntu/init-system-helpers@1.57?arch=all&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libncurses6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libncursesw6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libprocps8@3.3.16-1ubuntu2.4?arch=amd64&distro=ubuntu-20.04&epoch=2",
+        "pkg:deb/ubuntu/libtinfo6@6.2-0ubuntu2.1?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/lsb-base@11.1.0ubuntu2?arch=all&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/sed@4.7-1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/sensible-utils@0.0.12%2Bnmu1?arch=all&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/sysvinit-utils@2.96-2.1ubuntu1?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/init-system-helpers@1.57?arch=all&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/lsb-base@11.1.0ubuntu2?arch=all&distro=ubuntu-20.04",
+        "pkg:deb/ubuntu/util-linux@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/tar@1.30%2Bdfsg-7ubuntu0.20.04.4?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/ubuntu-keyring@2020.02.11.4?arch=all&distro=ubuntu-20.04",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:deb/ubuntu/util-linux@2.34-0.1ubuntu9.6?arch=amd64&distro=ubuntu-20.04",
+      "dependsOn": [
+        "pkg:deb/ubuntu/login@4.8.1-1ubuntu5.20.04.5?arch=amd64&distro=ubuntu-20.04&epoch=1"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/zlib1g@1.2.11.dfsg-2ubuntu1.5?arch=amd64&distro=ubuntu-20.04&epoch=1",
+      "dependsOn": [
+        "pkg:deb/ubuntu/libc6@2.31-0ubuntu9.17?arch=amd64&distro=ubuntu-20.04"
+      ]
+    },
+    {
+      "ref": "pkg:oci/ubuntu@sha256%3A8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214?arch=amd64&repository_url=index.docker.io%2Flibrary%2Fubuntu",
+      "dependsOn": [
+        "c09e31ca-f881-45c0-a0b6-97e6394767de"
+      ]
+    }
+  ],
+  "vulnerabilities": []
+}

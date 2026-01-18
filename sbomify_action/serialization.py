@@ -788,11 +788,14 @@ def _is_valid_spdx_license_id(license_id: str) -> bool:
 
 def sanitize_cyclonedx_licenses(data: dict) -> int:
     """
-    Sanitize CycloneDX license data by moving invalid license IDs to license names.
+    Sanitize CycloneDX license data by fixing invalid license IDs and expressions.
 
-    Some SBOM generators (like Trivy) incorrectly put non-SPDX license strings
-    in the license.id field, which causes schema validation failures.
-    This function moves such values to the license.name field instead.
+    This handles two cases:
+    1. Invalid license.id values: moved to license.name field
+    2. Invalid expression values: invalid IDs replaced with LicenseRef-* format
+
+    Some SBOM generators incorrectly put non-SPDX license strings in the
+    license.id field, which causes schema validation failures.
 
     Args:
         data: CycloneDX SBOM data as a dict (modified in place)
@@ -809,17 +812,25 @@ def sanitize_cyclonedx_licenses(data: dict) -> int:
             if not isinstance(choice, dict):
                 continue
 
+            # Handle license.id field
             license_obj = choice.get("license")
-            if not isinstance(license_obj, dict):
-                continue
+            if isinstance(license_obj, dict):
+                license_id = license_obj.get("id")
+                if license_id and not _is_valid_spdx_license_id(license_id):
+                    # Move id to name
+                    logger.debug(f"Sanitizing invalid license ID: {license_id} -> name")
+                    del license_obj["id"]
+                    license_obj["name"] = license_id
+                    count += 1
 
-            license_id = license_obj.get("id")
-            if license_id and not _is_valid_spdx_license_id(license_id):
-                # Move id to name
-                logger.debug(f"Sanitizing invalid license ID: {license_id} -> name")
-                del license_obj["id"]
-                license_obj["name"] = license_id
-                count += 1
+            # Handle expression field
+            expression = choice.get("expression")
+            if expression and isinstance(expression, str):
+                sanitized_expr, was_modified = _sanitize_spdx_license_expression(expression)
+                if was_modified:
+                    logger.debug(f"Sanitizing invalid license expression: {expression} -> {sanitized_expr}")
+                    choice["expression"] = sanitized_expr
+                    count += 1
 
         return count
 
@@ -842,5 +853,152 @@ def sanitize_cyclonedx_licenses(data: dict) -> int:
 
     if sanitized_count > 0:
         logger.info(f"Sanitized {sanitized_count} invalid license ID(s) to license name(s)")
+
+    return sanitized_count
+
+
+def _sanitize_spdx_license_expression(expression: str) -> tuple[str, bool]:
+    """
+    Sanitize an SPDX license expression by converting invalid IDs to LicenseRef format.
+
+    Uses the license-expression library to properly parse SPDX expressions and
+    identify invalid license keys, then replaces them with LicenseRef-* equivalents.
+
+    Args:
+        expression: The license expression to sanitize
+
+    Returns:
+        Tuple of (sanitized expression, was_modified)
+    """
+    import re
+
+    from license_expression import ExpressionError, get_spdx_licensing
+
+    if not expression or expression in ("NOASSERTION", "NONE"):
+        return expression, False
+
+    # Get the SPDX licensing instance
+    spdx_licensing = get_spdx_licensing()
+
+    try:
+        # Parse without validation to find unknown keys
+        parsed = spdx_licensing.parse(expression, validate=False)
+        unknown_keys = spdx_licensing.unknown_license_keys(parsed)
+
+        if not unknown_keys:
+            # All license keys are valid
+            return expression, False
+
+        # Build a mapping of invalid keys to their LicenseRef replacements
+        # Skip keys that are already LicenseRef-* (library may report them as unknown)
+        replacements = {}
+        for key in unknown_keys:
+            key_str = str(key)
+            # Skip if already a LicenseRef
+            if key_str.startswith("LicenseRef-"):
+                continue
+
+            # Sanitize the key to be valid LicenseRef format (alphanumeric, ., -)
+            sanitized_id = re.sub(r"[^a-zA-Z0-9.\-]", "-", key_str)
+            sanitized_id = re.sub(r"-+", "-", sanitized_id).strip("-")
+            if sanitized_id:
+                license_ref = f"LicenseRef-{sanitized_id}"
+            else:
+                license_ref = "LicenseRef-unknown"
+            replacements[key_str] = license_ref
+            logger.debug(f"Converting invalid SPDX license '{key}' to '{license_ref}'")
+
+        if not replacements:
+            # All unknown keys were LicenseRef-* which are valid
+            return expression, False
+
+        # Replace invalid keys in the expression
+        # We need to be careful to replace whole words only
+        result = expression
+        for old_key, new_key in replacements.items():
+            # Use word boundaries to avoid partial replacements
+            pattern = r"\b" + re.escape(old_key) + r"\b"
+            result = re.sub(pattern, new_key, result)
+
+        return result, True
+
+    except ExpressionError as e:
+        # Expression couldn't be parsed at all - convert entire thing to LicenseRef
+        logger.debug(f"Could not parse license expression '{expression}': {e}")
+        sanitized_id = re.sub(r"[^a-zA-Z0-9.\-]", "-", expression)
+        sanitized_id = re.sub(r"-+", "-", sanitized_id).strip("-")
+        if sanitized_id and len(sanitized_id) <= 64:
+            return f"LicenseRef-{sanitized_id}", True
+        else:
+            # Too long or empty - use hash
+            import hashlib
+
+            hash_val = hashlib.md5(expression.encode()).hexdigest()[:16]
+            return f"LicenseRef-{hash_val}", True
+
+
+def sanitize_spdx_licenses(data: dict) -> int:
+    """
+    Sanitize SPDX license data by converting invalid license IDs to LicenseRef format.
+
+    Some SBOM generators (like Trivy) output non-SPDX license strings in license fields.
+    This function converts invalid licenses to LicenseRef-* format which is valid in SPDX.
+
+    Args:
+        data: SPDX SBOM data as a dict (modified in place)
+
+    Returns:
+        Number of licenses that were sanitized
+    """
+    sanitized_count = 0
+
+    def _sanitize_license_field(obj: dict, field: str) -> int:
+        """Sanitize a single license field."""
+        value = obj.get(field)
+        if not value or not isinstance(value, str):
+            return 0
+
+        sanitized, was_modified = _sanitize_spdx_license_expression(value)
+        if was_modified:
+            logger.debug(f"Sanitizing invalid SPDX license: {value} -> {sanitized}")
+            obj[field] = sanitized
+            return 1
+        return 0
+
+    def _sanitize_license_list(obj: dict, field: str) -> int:
+        """Sanitize a list of license strings."""
+        values = obj.get(field)
+        if not values or not isinstance(values, list):
+            return 0
+
+        count = 0
+        for i, value in enumerate(values):
+            if not isinstance(value, str):
+                continue
+            sanitized, was_modified = _sanitize_spdx_license_expression(value)
+            if was_modified:
+                logger.debug(f"Sanitizing invalid SPDX license: {value} -> {sanitized}")
+                values[i] = sanitized
+                count += 1
+        return count
+
+    # Process packages
+    for package in data.get("packages", []):
+        sanitized_count += _sanitize_license_field(package, "licenseConcluded")
+        sanitized_count += _sanitize_license_field(package, "licenseDeclared")
+        sanitized_count += _sanitize_license_list(package, "licenseInfoFromFiles")
+
+    # Process files
+    for file in data.get("files", []):
+        sanitized_count += _sanitize_license_field(file, "licenseConcluded")
+        sanitized_count += _sanitize_license_list(file, "licenseInfoInFiles")
+
+    # Process snippets
+    for snippet in data.get("snippets", []):
+        sanitized_count += _sanitize_license_field(snippet, "licenseConcluded")
+        sanitized_count += _sanitize_license_list(snippet, "licenseInfoInSnippets")
+
+    if sanitized_count > 0:
+        logger.info(f"Sanitized {sanitized_count} invalid SPDX license(s) to LicenseRef format")
 
     return sanitized_count
