@@ -28,16 +28,18 @@ import gzip
 import io
 import json
 import lzma
+import os
 import re
 import subprocess
 import sys
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, Optional, Tuple
 from urllib.parse import urljoin
 
 import requests
@@ -1037,45 +1039,50 @@ def generate_alpine_db(
     """Generate license database for Alpine Linux."""
     logger.info(f"Generating license database for Alpine {distro_version}")
 
-    packages: Dict[str, Dict[str, Any]] = {}
+    # Collect all packages first to know total count
+    all_packages = []
     seen_names: set = set()
+    for repo in ALPINE_REPOS:
+        for pkg_info in fetch_alpine_packages(distro_version, repo):
+            if pkg_info.name not in seen_names:
+                seen_names.add(pkg_info.name)
+                all_packages.append(pkg_info)
+
+    total = len(all_packages)
+    if max_packages:
+        all_packages = all_packages[:max_packages]
+        total = len(all_packages)
+
+    logger.info(f"Found {total} unique packages to process")
+
+    packages: Dict[str, Dict[str, Any]] = {}
     count = 0
     skipped = 0
 
-    for repo in ALPINE_REPOS:
-        for pkg_info in fetch_alpine_packages(distro_version, repo):
-            if pkg_info.name in seen_names:
-                continue
+    for idx, pkg_info in enumerate(all_packages, 1):
+        result = process_alpine_package(pkg_info, distro_version)
+        if result:
+            packages[result.purl] = {
+                "name": result.name,
+                "version": result.version,
+                "spdx": result.spdx,
+                "license_raw": result.license_raw,
+                "description": result.description,
+                "supplier": result.supplier,
+                "maintainer_name": result.maintainer_name,
+                "maintainer_email": result.maintainer_email,
+                "homepage": result.homepage,
+                "download_url": result.download_url,
+                "confidence": result.confidence,
+                "source": result.source,
+            }
+            count += 1
+        else:
+            skipped += 1
 
-            seen_names.add(pkg_info.name)
-
-            if max_packages and count >= max_packages:
-                break
-
-            result = process_alpine_package(pkg_info, distro_version)
-            if result:
-                packages[result.purl] = {
-                    "name": result.name,
-                    "version": result.version,
-                    "spdx": result.spdx,
-                    "license_raw": result.license_raw,
-                    "description": result.description,
-                    "supplier": result.supplier,
-                    "maintainer_name": result.maintainer_name,
-                    "maintainer_email": result.maintainer_email,
-                    "homepage": result.homepage,
-                    "download_url": result.download_url,
-                    "confidence": result.confidence,
-                    "source": result.source,
-                }
-                count += 1
-                if count % 500 == 0:
-                    logger.info(f"Processed {count} packages with valid licenses...")
-            else:
-                skipped += 1
-
-        if max_packages and count >= max_packages:
-            break
+        if idx % 500 == 0 or idx == total:
+            pct = (idx / total) * 100
+            logger.info(f"Processed {idx}/{total} ({pct:.1f}%) - {count} valid licenses...")
 
     # Get CLE lifecycle data
     lifecycle = DISTRO_LIFECYCLE.get("alpine", {}).get(distro_version, {})
@@ -1101,7 +1108,7 @@ def generate_alpine_db(
 
     logger.info(f"Wrote {len(packages)} packages to {output_path}")
     logger.info(f"Skipped: {skipped} (license not validated)")
-    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+    logger.info(f"Total: {total}, Success rate: {len(packages) / max(total, 1) * 100:.1f}%")
 
 
 def generate_wolfi_db(
@@ -1111,20 +1118,26 @@ def generate_wolfi_db(
     """Generate license database for Wolfi (Chainguard)."""
     logger.info("Generating license database for Wolfi (rolling release)")
 
-    packages: Dict[str, Dict[str, Any]] = {}
+    # Collect all packages first to know total count
+    all_packages = []
     seen_names: set = set()
+    for pkg_info in fetch_wolfi_packages():
+        if pkg_info.name not in seen_names:
+            seen_names.add(pkg_info.name)
+            all_packages.append(pkg_info)
+
+    total = len(all_packages)
+    if max_packages:
+        all_packages = all_packages[:max_packages]
+        total = len(all_packages)
+
+    logger.info(f"Found {total} unique packages to process")
+
+    packages: Dict[str, Dict[str, Any]] = {}
     count = 0
     skipped = 0
 
-    for pkg_info in fetch_wolfi_packages():
-        if pkg_info.name in seen_names:
-            continue
-
-        seen_names.add(pkg_info.name)
-
-        if max_packages and count >= max_packages:
-            break
-
+    for idx, pkg_info in enumerate(all_packages, 1):
         result = process_wolfi_package(pkg_info)
         if result:
             packages[result.purl] = {
@@ -1142,10 +1155,12 @@ def generate_wolfi_db(
                 "source": result.source,
             }
             count += 1
-            if count % 500 == 0:
-                logger.info(f"Processed {count} packages with valid licenses...")
         else:
             skipped += 1
+
+        if idx % 500 == 0 or idx == total:
+            pct = (idx / total) * 100
+            logger.info(f"Processed {idx}/{total} ({pct:.1f}%) - {count} valid licenses...")
 
     # Get CLE lifecycle data (rolling release - dates may be null)
     lifecycle = DISTRO_LIFECYCLE.get("wolfi", {}).get("rolling", {})
@@ -1171,7 +1186,7 @@ def generate_wolfi_db(
 
     logger.info(f"Wrote {len(packages)} packages to {output_path}")
     logger.info(f"Skipped: {skipped} (license not validated)")
-    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+    logger.info(f"Total: {total}, Success rate: {len(packages) / max(total, 1) * 100:.1f}%")
 
 
 def generate_ubuntu_db(
@@ -1187,49 +1202,72 @@ def generate_ubuntu_db(
 
     logger.info(f"Generating license database for Ubuntu {distro_version} ({codename})")
 
-    packages: Dict[str, Dict[str, Any]] = {}
+    # Collect all packages first to know total count
+    all_packages = []
     seen_names: set = set()
-    count = 0
-    skipped = 0
-
     for component in UBUNTU_COMPONENTS:
         for pocket in UBUNTU_POCKETS:
             for pkg_info in fetch_ubuntu_packages(codename, component, pocket):
                 name = pkg_info.get("Package")
-                if not name or name in seen_names:
-                    continue
+                if name and name not in seen_names:
+                    seen_names.add(name)
+                    all_packages.append(pkg_info)
 
-                seen_names.add(name)
+    total = len(all_packages)
+    if max_packages:
+        all_packages = all_packages[:max_packages]
+        total = len(all_packages)
 
-                if max_packages and count >= max_packages:
-                    break
+    logger.info(f"Found {total} unique packages to process")
 
-                result = process_ubuntu_package(pkg_info, distro_version, codename)
-                if result:
-                    packages[result.purl] = {
-                        "name": result.name,
-                        "version": result.version,
-                        "spdx": result.spdx,
-                        "license_raw": result.license_raw,
-                        "description": result.description,
-                        "supplier": result.supplier,
-                        "maintainer_name": result.maintainer_name,
-                        "maintainer_email": result.maintainer_email,
-                        "homepage": result.homepage,
-                        "download_url": result.download_url,
-                        "confidence": result.confidence,
-                        "source": result.source,
-                    }
-                    count += 1
-                    if count % 100 == 0:
-                        logger.info(f"Processed {count} packages with valid licenses...")
-                else:
-                    skipped += 1
+    packages: Dict[str, Dict[str, Any]] = {}
+    count = 0
+    skipped = 0
+    processed = 0
 
-            if max_packages and count >= max_packages:
-                break
-        if max_packages and count >= max_packages:
-            break
+    # Use parallel processing for faster downloads
+    max_workers = int(os.environ.get("SBOMIFY_LICENSE_DB_WORKERS", "20"))
+    logger.info(f"Using {max_workers} parallel workers")
+
+    def process_one(pkg_info: Dict[str, str]) -> Optional[Tuple[str, Dict[str, Any]]]:
+        """Process a single package and return (purl, data) or None."""
+        result = process_ubuntu_package(pkg_info, distro_version, codename)
+        if result:
+            return (
+                result.purl,
+                {
+                    "name": result.name,
+                    "version": result.version,
+                    "spdx": result.spdx,
+                    "license_raw": result.license_raw,
+                    "description": result.description,
+                    "supplier": result.supplier,
+                    "maintainer_name": result.maintainer_name,
+                    "maintainer_email": result.maintainer_email,
+                    "homepage": result.homepage,
+                    "download_url": result.download_url,
+                    "confidence": result.confidence,
+                    "source": result.source,
+                },
+            )
+        return None
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_one, pkg): pkg for pkg in all_packages}
+
+        for future in as_completed(futures):
+            processed += 1
+            result = future.result()
+            if result:
+                purl, data = result
+                packages[purl] = data
+                count += 1
+            else:
+                skipped += 1
+
+            if processed % 100 == 0 or processed == total:
+                pct = (processed / total) * 100
+                logger.info(f"Processed {processed}/{total} ({pct:.1f}%) - {count} valid licenses...")
 
     # Get CLE lifecycle data
     lifecycle = DISTRO_LIFECYCLE.get("ubuntu", {}).get(distro_version, {})
@@ -1255,7 +1293,7 @@ def generate_ubuntu_db(
 
     logger.info(f"Wrote {len(packages)} packages to {output_path}")
     logger.info(f"Skipped: {skipped} (license not validated)")
-    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+    logger.info(f"Total: {total}, Success rate: {len(packages) / max(total, 1) * 100:.1f}%")
 
 
 def generate_debian_db(
@@ -1271,49 +1309,72 @@ def generate_debian_db(
 
     logger.info(f"Generating license database for Debian {distro_version} ({codename})")
 
-    packages: Dict[str, Dict[str, Any]] = {}
+    # Collect all packages first to know total count
+    all_packages = []
     seen_names: set = set()
-    count = 0
-    skipped = 0
-
     for component in DEBIAN_COMPONENTS:
         for pocket in DEBIAN_POCKETS:
             for pkg_info in fetch_debian_packages(codename, component, pocket):
                 name = pkg_info.get("Package")
-                if not name or name in seen_names:
-                    continue
+                if name and name not in seen_names:
+                    seen_names.add(name)
+                    all_packages.append(pkg_info)
 
-                seen_names.add(name)
+    total = len(all_packages)
+    if max_packages:
+        all_packages = all_packages[:max_packages]
+        total = len(all_packages)
 
-                if max_packages and count >= max_packages:
-                    break
+    logger.info(f"Found {total} unique packages to process")
 
-                result = process_debian_package(pkg_info, distro_version, codename)
-                if result:
-                    packages[result.purl] = {
-                        "name": result.name,
-                        "version": result.version,
-                        "spdx": result.spdx,
-                        "license_raw": result.license_raw,
-                        "description": result.description,
-                        "supplier": result.supplier,
-                        "maintainer_name": result.maintainer_name,
-                        "maintainer_email": result.maintainer_email,
-                        "homepage": result.homepage,
-                        "download_url": result.download_url,
-                        "confidence": result.confidence,
-                        "source": result.source,
-                    }
-                    count += 1
-                    if count % 100 == 0:
-                        logger.info(f"Processed {count} packages with valid licenses...")
-                else:
-                    skipped += 1
+    packages: Dict[str, Dict[str, Any]] = {}
+    count = 0
+    skipped = 0
+    processed = 0
 
-            if max_packages and count >= max_packages:
-                break
-        if max_packages and count >= max_packages:
-            break
+    # Use parallel processing for faster downloads
+    max_workers = int(os.environ.get("SBOMIFY_LICENSE_DB_WORKERS", "20"))
+    logger.info(f"Using {max_workers} parallel workers")
+
+    def process_one(pkg_info: Dict[str, str]) -> Optional[Tuple[str, Dict[str, Any]]]:
+        """Process a single package and return (purl, data) or None."""
+        result = process_debian_package(pkg_info, distro_version, codename)
+        if result:
+            return (
+                result.purl,
+                {
+                    "name": result.name,
+                    "version": result.version,
+                    "spdx": result.spdx,
+                    "license_raw": result.license_raw,
+                    "description": result.description,
+                    "supplier": result.supplier,
+                    "maintainer_name": result.maintainer_name,
+                    "maintainer_email": result.maintainer_email,
+                    "homepage": result.homepage,
+                    "download_url": result.download_url,
+                    "confidence": result.confidence,
+                    "source": result.source,
+                },
+            )
+        return None
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_one, pkg): pkg for pkg in all_packages}
+
+        for future in as_completed(futures):
+            processed += 1
+            result = future.result()
+            if result:
+                purl, data = result
+                packages[purl] = data
+                count += 1
+            else:
+                skipped += 1
+
+            if processed % 100 == 0 or processed == total:
+                pct = (processed / total) * 100
+                logger.info(f"Processed {processed}/{total} ({pct:.1f}%) - {count} valid licenses...")
 
     # Get CLE lifecycle data
     lifecycle = DISTRO_LIFECYCLE.get("debian", {}).get(distro_version, {})
@@ -1339,7 +1400,7 @@ def generate_debian_db(
 
     logger.info(f"Wrote {len(packages)} packages to {output_path}")
     logger.info(f"Skipped: {skipped} (license not validated)")
-    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+    logger.info(f"Total: {total}, Success rate: {len(packages) / max(total, 1) * 100:.1f}%")
 
 
 def resolve_mirror_url(mirror_list_url: str) -> Optional[str]:
@@ -1394,45 +1455,51 @@ def generate_rpm_db(
 
     logger.info(f"Generating license database for {distro} {distro_version}")
 
-    packages: Dict[str, Dict[str, Any]] = {}
+    # Collect all packages first to know total count
+    # Store as (pkg_info, repo_url) tuples since we need repo_url for processing
+    all_packages = []
     seen_names: set = set()
+    for repo_url in repos:
+        for pkg_info in fetch_rpm_packages(repo_url):
+            if pkg_info.name not in seen_names:
+                seen_names.add(pkg_info.name)
+                all_packages.append((pkg_info, repo_url))
+
+    total = len(all_packages)
+    if max_packages:
+        all_packages = all_packages[:max_packages]
+        total = len(all_packages)
+
+    logger.info(f"Found {total} unique packages to process")
+
+    packages: Dict[str, Dict[str, Any]] = {}
     count = 0
     skipped = 0
 
-    for repo_url in repos:
-        for pkg_info in fetch_rpm_packages(repo_url):
-            if pkg_info.name in seen_names:
-                continue
+    for idx, (pkg_info, repo_url) in enumerate(all_packages, 1):
+        result = process_rpm_package(pkg_info, distro, distro_version, repo_url)
+        if result:
+            packages[result.purl] = {
+                "name": result.name,
+                "version": result.version,
+                "spdx": result.spdx,
+                "license_raw": result.license_raw,
+                "description": result.description,
+                "supplier": result.supplier,
+                "maintainer_name": result.maintainer_name,
+                "maintainer_email": result.maintainer_email,
+                "homepage": result.homepage,
+                "download_url": result.download_url,
+                "confidence": result.confidence,
+                "source": result.source,
+            }
+            count += 1
+        else:
+            skipped += 1
 
-            seen_names.add(pkg_info.name)
-
-            if max_packages and count >= max_packages:
-                break
-
-            result = process_rpm_package(pkg_info, distro, distro_version, repo_url)
-            if result:
-                packages[result.purl] = {
-                    "name": result.name,
-                    "version": result.version,
-                    "spdx": result.spdx,
-                    "license_raw": result.license_raw,
-                    "description": result.description,
-                    "supplier": result.supplier,
-                    "maintainer_name": result.maintainer_name,
-                    "maintainer_email": result.maintainer_email,
-                    "homepage": result.homepage,
-                    "download_url": result.download_url,
-                    "confidence": result.confidence,
-                    "source": result.source,
-                }
-                count += 1
-                if count % 500 == 0:
-                    logger.info(f"Processed {count} packages with valid licenses...")
-            else:
-                skipped += 1
-
-        if max_packages and count >= max_packages:
-            break
+        if idx % 500 == 0 or idx == total:
+            pct = (idx / total) * 100
+            logger.info(f"Processed {idx}/{total} ({pct:.1f}%) - {count} valid licenses...")
 
     # Get CLE lifecycle data
     lifecycle = DISTRO_LIFECYCLE.get(distro, {}).get(distro_version, {})
@@ -1458,7 +1525,7 @@ def generate_rpm_db(
 
     logger.info(f"Wrote {len(packages)} packages to {output_path}")
     logger.info(f"Skipped: {skipped} (license not validated)")
-    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+    logger.info(f"Total: {total}, Success rate: {len(packages) / max(total, 1) * 100:.1f}%")
 
 
 # =============================================================================

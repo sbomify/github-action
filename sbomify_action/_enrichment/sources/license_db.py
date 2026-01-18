@@ -45,6 +45,9 @@ DEFAULT_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"
 # Flag to disable local generation (useful for testing or CI environments)
 DISABLE_LOCAL_GENERATION = os.environ.get("SBOMIFY_DISABLE_LICENSE_DB_GENERATION", "").lower() in ("1", "true", "yes")
 
+# Flag to completely disable the license-db source (useful for tests that don't need license lookups)
+DISABLE_LICENSE_DB = os.environ.get("SBOMIFY_DISABLE_LICENSE_DB", "").lower() in ("1", "true", "yes")
+
 # Supported distros and their database file patterns
 SUPPORTED_DISTROS = {
     "alpine": {
@@ -155,6 +158,10 @@ class LicenseDBSource:
 
     def supports(self, purl: PackageURL) -> bool:
         """Check if this source supports the given PURL."""
+        # Allow completely disabling this source via environment variable
+        if DISABLE_LICENSE_DB:
+            return False
+
         # Check package type
         if purl.type == "apk":
             namespace = (purl.namespace or "").lower()
