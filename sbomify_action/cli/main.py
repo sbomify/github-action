@@ -14,6 +14,7 @@ import sentry_sdk
 # Add cyclonedx imports for proper SBOM handling
 from cyclonedx.model.bom import Bom
 
+from .. import format_display_name
 from .._upload import VALID_DESTINATIONS
 from ..additional_packages import inject_additional_packages
 from ..augmentation import augment_sbom_from_file
@@ -137,18 +138,6 @@ def _get_current_utc_timestamp() -> str:
         Current UTC timestamp as ISO-8601 string (e.g., "2024-12-19T14:30:00Z")
     """
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _format_display_name(fmt: str) -> str:
-    """Return properly capitalized display name for SBOM format.
-
-    Args:
-        fmt: Format string ('cyclonedx' or 'spdx')
-
-    Returns:
-        Display name: 'CycloneDX' or 'SPDX'
-    """
-    return "CycloneDX" if fmt.lower() == "cyclonedx" else "SPDX"
 
 
 """
@@ -478,7 +467,7 @@ def build_config(
 
     # Log SBOM format
     sbom_format_lower = sbom_format.lower()
-    logger.info(f"SBOM format: {_format_display_name(sbom_format_lower)}")
+    logger.info(f"SBOM format: {format_display_name(sbom_format_lower)}")
 
     # Expand paths if provided
     expanded_sbom_file = path_expansion(sbom_file) if sbom_file else None
@@ -996,7 +985,7 @@ def run_pipeline(config: Config) -> None:
     try:
         if FILE_TYPE != "SBOM":  # Only detect format if we generated the SBOM
             FORMAT = _detect_sbom_format_silent(STEP_1_FILE)
-            logger.info(f"Generated SBOM format: {_format_display_name(FORMAT)}")
+            logger.info(f"Generated SBOM format: {format_display_name(FORMAT)}")
     except SBOMValidationError as e:
         logger.error(f"Generated SBOM validation failed: {e}")
         logger.error("The SBOM generation tool produced an invalid output file.")
@@ -1068,7 +1057,7 @@ def run_pipeline(config: Config) -> None:
                 component_version=config.component_version,
             )
 
-            logger.info(f"{_format_display_name(sbom_format)} SBOM augmentation completed")
+            logger.info(f"{format_display_name(sbom_format)} SBOM augmentation completed")
             _log_step_end(2)
 
         except (FileProcessingError, APIError, SBOMValidationError) as e:

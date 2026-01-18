@@ -3,6 +3,7 @@
 import json
 from typing import Any, Dict, List, Optional
 
+from sbomify_action import format_display_name
 from sbomify_action.logging_config import logger
 from sbomify_action.serialization import (
     sanitize_cyclonedx_licenses,
@@ -209,7 +210,7 @@ class GeneratorRegistry:
         )
 
         if validation_result.valid:
-            logger.info(f"SBOM validated successfully: {result.sbom_format} {result.spec_version}")
+            logger.info(f"SBOM validated successfully: {format_display_name(result.sbom_format)} {result.spec_version}")
             return GenerationResult.success_result(
                 output_file=result.output_file,
                 sbom_format=result.sbom_format,

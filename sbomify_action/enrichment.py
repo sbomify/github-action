@@ -72,6 +72,8 @@ from spdx_tools.spdx.parser.jsonlikedict.license_expression_parser import Licens
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
+from . import format_display_name
+
 # Import from plugin architecture
 from ._enrichment.enricher import Enricher, clear_all_caches
 from ._enrichment.lifecycle_data import get_distro_lifecycle
@@ -1080,13 +1082,14 @@ def enrich_sbom(input_file: str, output_file: str, validate: bool = True) -> Non
     if validate:
         validation_result = validate_sbom_file_auto(str(output_path))
         if validation_result.valid is None:
-            fmt = validation_result.sbom_format
+            fmt = format_display_name(validation_result.sbom_format)
             ver = validation_result.spec_version
             logger.warning(f"Enriched SBOM could not be validated ({fmt} {ver}): {validation_result.error_message}")
         elif not validation_result.valid:
             raise SBOMValidationError(f"Enriched SBOM failed validation: {validation_result.error_message}")
         else:
-            logger.info(f"Enriched SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}")
+            fmt = format_display_name(validation_result.sbom_format)
+            logger.info(f"Enriched SBOM validated: {fmt} {validation_result.spec_version}")
 
 
 def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: Path, enricher: Enricher) -> None:
