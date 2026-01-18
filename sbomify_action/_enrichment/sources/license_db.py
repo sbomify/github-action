@@ -231,20 +231,8 @@ class LicenseDBSource:
         if maintainer_email:
             field_sources["maintainer_email"] = self.name
 
-        # CLE (Common Lifecycle Enumeration) data from database metadata
-        # These are distro-level lifecycle dates applied to all packages
-        # See: https://sbomify.com/compliance/cle/
-        db_metadata = db.get("metadata", {})
-        cle_eos = db_metadata.get("end_of_support")
-        cle_eol = db_metadata.get("end_of_life")
-        cle_release_date = db_metadata.get("release_date")
-
-        if cle_eos:
-            field_sources["cle_eos"] = self.name
-        if cle_eol:
-            field_sources["cle_eol"] = self.name
-        if cle_release_date:
-            field_sources["cle_release_date"] = self.name
+        # Note: CLE (lifecycle) data is now provided by the dedicated LifecycleSource
+        # See: sbomify_action/_enrichment/sources/lifecycle.py
 
         return NormalizedMetadata(
             licenses=licenses,
@@ -254,9 +242,6 @@ class LicenseDBSource:
             download_url=download_url,
             maintainer_name=maintainer_name,
             maintainer_email=maintainer_email,
-            cle_eos=cle_eos,
-            cle_eol=cle_eol,
-            cle_release_date=cle_release_date,
             source=self.name,
             field_sources=field_sources,
         )

@@ -1093,8 +1093,10 @@ class TestEndToEndEnrichment:
         component = result["components"][0]
         assert component["publisher"] == "Canonical Ltd"
         # Check for enrichment source property
+        # May include "lifecycle" (for distro CLE) and/or "purl" (for publisher)
         props = {p["name"]: p["value"] for p in component.get("properties", [])}
-        assert props.get("sbomify:enrichment:source") == "purl"
+        source = props.get("sbomify:enrichment:source", "")
+        assert "purl" in source or "lifecycle" in source
 
 
 # =============================================================================
