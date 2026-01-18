@@ -533,32 +533,32 @@ sbomify provides [CLE (Common Lifecycle Enumeration)](https://sbomify.com/compli
 
 **Supported Linux distributions:**
 
-| Distro       | Tracked Versions    | Detection                          |
-| ------------ | ------------------- | ---------------------------------- |
-| Alpine       | 3.13–3.21           | `pkg:apk/alpine/*`                 |
-| Wolfi        | rolling             | `pkg:apk/wolfi/*`                  |
-| Ubuntu       | 20.04, 22.04, 24.04 | `pkg:deb/ubuntu/*`                 |
-| Rocky Linux  | 8, 9                | `pkg:rpm/rocky/*`                  |
-| AlmaLinux    | 8, 9                | `pkg:rpm/almalinux/*`              |
-| CentOS       | Stream 8, Stream 9  | `pkg:rpm/centos/*`                 |
-| Fedora       | 39, 40, 41, 42      | `pkg:rpm/fedora/*`                 |
-| Amazon Linux | 2, 2023             | `pkg:rpm/amazonlinux/*`            |
+| Distro       | Tracked Versions    | Detection               |
+| ------------ | ------------------- | ----------------------- |
+| Alpine       | 3.13–3.21           | `pkg:apk/alpine/*`      |
+| Wolfi        | rolling             | `pkg:apk/wolfi/*`       |
+| Ubuntu       | 20.04, 22.04, 24.04 | `pkg:deb/ubuntu/*`      |
+| Rocky Linux  | 8, 9                | `pkg:rpm/rocky/*`       |
+| AlmaLinux    | 8, 9                | `pkg:rpm/almalinux/*`   |
+| CentOS       | Stream 8, Stream 9  | `pkg:rpm/centos/*`      |
+| Fedora       | 39, 40, 41, 42      | `pkg:rpm/fedora/*`      |
+| Amazon Linux | 2, 2023             | `pkg:rpm/amazonlinux/*` |
 
 All packages from a supported distro inherit the distro's lifecycle dates.
 
 **Supported runtimes and frameworks:**
 
-| Package   | Tracked Versions               | PURL Matching                       |
-| --------- | ------------------------------ | ----------------------------------- |
-| Python    | 2.7, 3.10–3.14                 | All types (pypi, deb, rpm, apk)     |
-| PHP       | 7.4, 8.0–8.5                   | All types (composer, deb, rpm, apk) |
-| Go        | 1.22–1.25                      | All types (golang, deb, rpm, apk)   |
-| Rust      | 1.90–1.92                      | All types (cargo, deb, rpm, apk)    |
-| Django    | 4.2, 5.2, 6.0                  | PyPI only                           |
-| Rails     | 7.0–8.1 (+ all component gems) | RubyGems only                       |
-| Laravel   | 10–13                          | Composer only                       |
-| React     | 17–19                          | npm only                            |
-| Vue       | 2, 3                           | npm only                            |
+| Package | Tracked Versions               | PURL Matching                       |
+| ------- | ------------------------------ | ----------------------------------- |
+| Python  | 2.7, 3.10–3.14                 | All types (pypi, deb, rpm, apk)     |
+| PHP     | 7.4, 8.0–8.5                   | All types (composer, deb, rpm, apk) |
+| Go      | 1.22–1.25                      | All types (golang, deb, rpm, apk)   |
+| Rust    | 1.90–1.92                      | All types (cargo, deb, rpm, apk)    |
+| Django  | 4.2, 5.2, 6.0                  | PyPI only                           |
+| Rails   | 7.0–8.1 (+ all component gems) | RubyGems only                       |
+| Laravel | 10–13                          | Composer only                       |
+| React   | 17–19                          | npm only                            |
+| Vue     | 2, 3                           | npm only                            |
 
 **How it works:**
 
