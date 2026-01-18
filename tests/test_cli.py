@@ -175,8 +175,8 @@ class TestCLIBooleanFlags(unittest.TestCase):
     @patch.object(cli_main_module, "run_pipeline")
     @patch.object(cli_main_module, "setup_dependencies")
     @patch.object(cli_main_module, "initialize_sentry")
-    def test_upload_flag_default(self, mock_sentry, mock_deps, mock_run):
-        """Test that --upload defaults to True."""
+    def test_upload_flag_explicit(self, mock_sentry, mock_deps, mock_run):
+        """Test that --upload explicitly enables upload."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             lock_file = Path(tmp_dir) / "requirements.txt"
             lock_file.write_text("requests==2.28.0")
@@ -190,6 +190,7 @@ class TestCLIBooleanFlags(unittest.TestCase):
                     "test-token",
                     "--component-id",
                     "test-id",
+                    "--upload",  # Explicitly enable upload
                 ],
             )
 
