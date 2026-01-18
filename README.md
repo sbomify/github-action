@@ -487,7 +487,7 @@ env:
 For Linux distro packages, sbomify uses pre-computed databases that provide comprehensive package metadata. The databases are built by pulling data directly from official distro sources (Alpine APKINDEX, Ubuntu/Debian apt repositories, RPM repos) and normalizing it into a consistent format with validated SPDX license expressions.
 
 - **Generated automatically** on each release from official distro repositories
-- **Downloaded on-demand** from GitHub Releases during enrichment
+- **Downloaded on-demand** from GitHub Releases during enrichment (checks up to 5 recent releases)
 - **Cached locally** (~/.cache/sbomify/license-db/) for faster subsequent runs
 - **Normalized** — vendor-specific license strings converted to valid SPDX expressions
 
@@ -510,6 +510,7 @@ For Linux distro packages, sbomify uses pre-computed databases that provide comp
 | ------------ | ------------------- |
 | Alpine       | 3.13–3.21           |
 | Wolfi        | rolling             |
+| Debian       | 11, 12, 13          |
 | Ubuntu       | 20.04, 22.04, 24.04 |
 | Rocky Linux  | 8, 9                |
 | AlmaLinux    | 8, 9                |
@@ -525,7 +526,7 @@ The license database is the **primary source** for Linux distro packages, taking
 sbomify-license-db --distro alpine --version 3.20 --output alpine-3.20.json.gz
 ```
 
-Set `SBOMIFY_DISABLE_LICENSE_DB_GENERATION=true` to disable automatic local generation fallback.
+> **Note**: Local generation fallback is disabled by default (Ubuntu/Debian can take hours to generate). Set `SBOMIFY_ENABLE_LICENSE_DB_GENERATION=true` to enable it.
 
 ### Lifecycle Enrichment
 
@@ -533,16 +534,16 @@ sbomify provides [CLE (Common Lifecycle Enumeration)](https://sbomify.com/compli
 
 **Supported operating systems:**
 
-| OS           | Tracked Versions       |
-| ------------ | ---------------------- |
-| Debian       | 10, 11, 12             |
-| Ubuntu       | 20.04, 22.04, 24.04    |
-| Alpine       | 3.13–3.21              |
-| Rocky Linux  | 8, 9                   |
-| AlmaLinux    | 8, 9                   |
-| CentOS       | Stream 8, Stream 9     |
-| Fedora       | 39–42                  |
-| Amazon Linux | 2, 2023                |
+| OS           | Tracked Versions    |
+| ------------ | ------------------- |
+| Debian       | 10, 11, 12          |
+| Ubuntu       | 20.04, 22.04, 24.04 |
+| Alpine       | 3.13–3.21           |
+| Rocky Linux  | 8, 9                |
+| AlmaLinux    | 8, 9                |
+| CentOS       | Stream 8, Stream 9  |
+| Fedora       | 39–42               |
+| Amazon Linux | 2, 2023             |
 
 Operating system components (CycloneDX `type: operating-system`) are enriched with lifecycle data based on their name and version.
 
