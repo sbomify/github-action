@@ -139,6 +139,18 @@ def _get_current_utc_timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _format_display_name(fmt: str) -> str:
+    """Return properly capitalized display name for SBOM format.
+
+    Args:
+        fmt: Format string ('cyclonedx' or 'spdx')
+
+    Returns:
+        Display name: 'CycloneDX' or 'SPDX'
+    """
+    return "CycloneDX" if fmt.lower() == "cyclonedx" else "SPDX"
+
+
 """
 
 There are three steps in our SBOM generation.
@@ -466,7 +478,7 @@ def build_config(
 
     # Log SBOM format
     sbom_format_lower = sbom_format.lower()
-    logger.info(f"SBOM format: {sbom_format_lower.upper()}")
+    logger.info(f"SBOM format: {_format_display_name(sbom_format_lower)}")
 
     # Expand paths if provided
     expanded_sbom_file = path_expansion(sbom_file) if sbom_file else None
@@ -777,18 +789,6 @@ def validate_sbom(file_path: str) -> str:
         return "spdx"
     else:
         raise SBOMValidationError("Neither CycloneDX nor SPDX format found in JSON file")
-
-
-def _format_display_name(fmt: str) -> str:
-    """Return properly capitalized display name for SBOM format.
-
-    Args:
-        fmt: Format string ('cyclonedx' or 'spdx')
-
-    Returns:
-        Display name: 'CycloneDX' or 'SPDX'
-    """
-    return "CycloneDX" if fmt == "cyclonedx" else "SPDX"
 
 
 def _detect_sbom_format_silent(file_path: str) -> str:
