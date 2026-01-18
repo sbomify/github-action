@@ -2412,3 +2412,127 @@ class TestEnrichmentValidation:
             enrich_sbom(str(input_file), str(output_file), validate=True)
 
         assert output_file.exists()
+
+
+# =============================================================================
+# Test LicenseDBSource Architecture-Agnostic Lookup
+# =============================================================================
+
+
+class TestLicenseDBSourceArchAgnostic:
+    """Test the LicenseDBSource architecture-agnostic PURL lookup."""
+
+    @pytest.fixture
+    def license_db_source(self, tmp_path):
+        """Create a LicenseDBSource with a temporary cache directory."""
+        from sbomify_action._enrichment.sources.license_db import LicenseDBSource
+
+        return LicenseDBSource(cache_dir=tmp_path)
+
+    @pytest.fixture
+    def sample_db(self):
+        """Create a sample license database for testing."""
+        return {
+            "metadata": {
+                "distro": "debian",
+                "version": "12",
+                "package_count": 3,
+            },
+            "packages": {
+                "pkg:deb/debian/apt@2.6.1?arch=amd64&distro=debian-12": {
+                    "name": "apt",
+                    "spdx": "GPL-2.0-only",
+                    "supplier": "APT Development Team",
+                },
+                "pkg:deb/debian/bash@5.2.15?arch=amd64&distro=debian-12": {
+                    "name": "bash",
+                    "spdx": "GPL-3.0-or-later",
+                    "supplier": "Bash Maintainers",
+                },
+                "pkg:deb/debian/coreutils@9.1?arch=amd64&distro=debian-12": {
+                    "name": "coreutils",
+                    "spdx": "GPL-3.0-only",
+                    "supplier": "GNU Project",
+                },
+            },
+        }
+
+    def test_arch_agnostic_lookup_arm64_matches_amd64(self, license_db_source, sample_db):
+        """Test that arm64 PURL matches amd64 database entry."""
+        # Input is arm64, database has amd64
+        purl = PackageURL.from_string("pkg:deb/debian/apt@2.6.1?arch=arm64&distro=debian-12")
+
+        result = license_db_source._lookup_arch_agnostic(sample_db, purl)
+
+        assert result is not None
+        assert result["name"] == "apt"
+        assert result["spdx"] == "GPL-2.0-only"
+
+    def test_arch_agnostic_lookup_i386_matches_amd64(self, license_db_source, sample_db):
+        """Test that i386 PURL matches amd64 database entry."""
+        purl = PackageURL.from_string("pkg:deb/debian/bash@5.2.15?arch=i386&distro=debian-12")
+
+        result = license_db_source._lookup_arch_agnostic(sample_db, purl)
+
+        assert result is not None
+        assert result["name"] == "bash"
+        assert result["spdx"] == "GPL-3.0-or-later"
+
+    def test_arch_agnostic_lookup_no_match_different_version(self, license_db_source, sample_db):
+        """Test that different version does not match."""
+        # Version 9.2 not in database (only 9.1)
+        purl = PackageURL.from_string("pkg:deb/debian/coreutils@9.2?arch=arm64&distro=debian-12")
+
+        result = license_db_source._lookup_arch_agnostic(sample_db, purl)
+
+        assert result is None
+
+    def test_arch_agnostic_lookup_no_match_different_distro(self, license_db_source, sample_db):
+        """Test that different distro qualifier does not match."""
+        # distro=debian-11 not in database (only debian-12)
+        purl = PackageURL.from_string("pkg:deb/debian/apt@2.6.1?arch=arm64&distro=debian-11")
+
+        result = license_db_source._lookup_arch_agnostic(sample_db, purl)
+
+        assert result is None
+
+    def test_arch_agnostic_lookup_no_arch_qualifier_returns_none(self, license_db_source, sample_db):
+        """Test that PURL without arch qualifier returns None (exact match already tried)."""
+        # No arch qualifier - should return None since exact match is tried first
+        purl = PackageURL.from_string("pkg:deb/debian/apt@2.6.1?distro=debian-12")
+
+        result = license_db_source._lookup_arch_agnostic(sample_db, purl)
+
+        assert result is None
+
+    def test_arch_agnostic_lookup_builds_index_once(self, license_db_source, sample_db):
+        """Test that the index is built only once and cached."""
+        purl1 = PackageURL.from_string("pkg:deb/debian/apt@2.6.1?arch=arm64&distro=debian-12")
+        purl2 = PackageURL.from_string("pkg:deb/debian/bash@5.2.15?arch=arm64&distro=debian-12")
+
+        # First lookup builds the index
+        license_db_source._lookup_arch_agnostic(sample_db, purl1)
+        assert "_arch_agnostic_index" in sample_db
+
+        # Second lookup uses cached index
+        result = license_db_source._lookup_arch_agnostic(sample_db, purl2)
+        assert result is not None
+        assert result["name"] == "bash"
+
+    def test_arch_agnostic_index_structure(self, license_db_source, sample_db):
+        """Test that the index has correct structure."""
+        index = license_db_source._build_arch_agnostic_index(sample_db)
+
+        # Should have 3 unique keys (one per package)
+        assert len(index) == 3
+
+        # Check apt entry
+        apt_key = ("deb", "debian", "apt", "2.6.1")
+        assert apt_key in index
+        assert len(index[apt_key]) == 1
+
+        # Qualifiers should not include arch
+        qualifiers, pkg_data = index[apt_key][0]
+        assert "arch" not in qualifiers
+        assert "distro" in qualifiers
+        assert qualifiers["distro"] == "debian-12"
