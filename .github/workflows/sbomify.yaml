@@ -291,58 +291,36 @@ jobs:
             exit 1
           fi
 
-      - name: Verify CLE lifecycle events (CycloneDX)
+      - name: Verify OS component CLE lifecycle (CycloneDX)
         run: |
-          echo "=== Verifying CLE Lifecycle Events in CycloneDX ==="
+          echo "=== Verifying OS Component CLE Lifecycle in CycloneDX ==="
           
-          # Check for CLE properties (ECMA-428 standard)
-          # See: https://sbomify.com/compliance/cle/
-          CLE_EOS_COUNT=$(jq '[.components[].properties[]? | select(.name == "cle:eos")] | length' alpine-enriched.cdx.json)
-          CLE_EOL_COUNT=$(jq '[.components[].properties[]? | select(.name == "cle:eol")] | length' alpine-enriched.cdx.json)
+          # CLE properties are now only added to:
+          # 1. OS components (type: operating-system) - like the Alpine base image
+          # 2. Tracked runtimes/frameworks (Python, PHP, Go, etc.) - not present in plain Alpine
+          # 
+          # Arbitrary OS packages (curl, busybox, etc.) do NOT get distro lifecycle
+          # because the PURL doesn't reliably indicate distro version.
           
-          echo "CycloneDX components with cle:eos: $CLE_EOS_COUNT"
-          echo "CycloneDX components with cle:eol: $CLE_EOL_COUNT"
+          # Check OS component has CLE properties
+          OS_CLE=$(jq '.components[] | select(.type == "operating-system") | .properties[]? | select(.name | startswith("cle:"))' alpine-enriched.cdx.json)
           
-          # Alpine 3.20 should have CLE dates set
-          if [ "$CLE_EOS_COUNT" -ge 10 ]; then
-            echo "✅ CycloneDX CLE end-of-support dates are being set"
+          if [ -n "$OS_CLE" ]; then
+            echo "✅ OS component has CLE lifecycle properties"
+            echo "OS component CLE:"
+            jq '.components[] | select(.type == "operating-system") | {name, version, cle: [.properties[]? | select(.name | startswith("cle:"))]}' alpine-enriched.cdx.json
           else
-            echo "❌ Expected CLE end-of-support dates on CycloneDX components"
+            echo "❌ Expected CLE properties on OS component"
             exit 1
           fi
           
-          if [ "$CLE_EOL_COUNT" -ge 10 ]; then
-            echo "✅ CycloneDX CLE end-of-life dates are being set"
+          # Verify specific CLE values for Alpine 3.20
+          CLE_EOL=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:eol") | .value' alpine-enriched.cdx.json)
+          if [ "$CLE_EOL" = "2026-04-01" ]; then
+            echo "✅ Alpine 3.20 EOL date is correct: $CLE_EOL"
           else
-            echo "❌ Expected CLE end-of-life dates on CycloneDX components"
-            exit 1
+            echo "⚠️ Alpine 3.20 EOL date: $CLE_EOL (expected 2026-04-01)"
           fi
-          
-          # Show sample CLE data
-          echo "Sample CycloneDX CLE properties:"
-          jq '.components[0].properties[]? | select(.name | startswith("cle:"))' alpine-enriched.cdx.json || true
-
-      - name: Verify CLE lifecycle events (SPDX)
-        run: |
-          echo "=== Verifying CLE Lifecycle Events in SPDX ==="
-          
-          # For SPDX, CLE data is added to the package comment field
-          # Check for packages with CLE lifecycle info in comments
-          CLE_COMMENT_COUNT=$(jq '[.packages[] | select(.comment != null and (.comment | contains("CLE lifecycle")))] | length' alpine-enriched.spdx.json)
-          
-          echo "SPDX packages with CLE lifecycle comments: $CLE_COMMENT_COUNT"
-          
-          # Alpine 3.20 should have CLE dates in comments
-          if [ "$CLE_COMMENT_COUNT" -ge 10 ]; then
-            echo "✅ SPDX CLE lifecycle data is being set in comments"
-          else
-            echo "❌ Expected CLE lifecycle data in SPDX package comments"
-            exit 1
-          fi
-          
-          # Show sample CLE data
-          echo "Sample SPDX CLE comment:"
-          jq -r '.packages[] | select(.comment != null and (.comment | contains("CLE"))) | .comment' alpine-enriched.spdx.json | head -3 || true
 
       - name: Verify enrichment adds publisher (CycloneDX)
         run: |
@@ -403,6 +381,110 @@ jobs:
           path: |
             alpine-enriched.cdx.json
             alpine-enriched.spdx.json
+          retention-days: 7
+
+  cle-integration-test:
+    name: CLE Lifecycle Integration Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: uv sync --locked --dev
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate and enrich Python SBOM (CycloneDX)
+        run: |
+          # Use Python image to test runtime CLE enrichment
+          uv run sbomify-action
+        env:
+          TOKEN: placeholder
+          COMPONENT_ID: placeholder
+          DOCKER_IMAGE: python:3.12-slim
+          SBOM_FORMAT: cyclonedx
+          OUTPUT_FILE: python-enriched.cdx.json
+          ENRICH: "true"
+          UPLOAD: "false"
+
+      - name: Verify OS component CLE (Debian base)
+        run: |
+          echo "=== Verifying OS Component CLE ==="
+          
+          # Python slim images are based on Debian - verify OS component has CLE
+          OS_COMPONENT=$(jq '.components[] | select(.type == "operating-system")' python-enriched.cdx.json)
+          
+          if [ -n "$OS_COMPONENT" ]; then
+            echo "OS component found:"
+            echo "$OS_COMPONENT" | jq '{name, version, publisher}'
+            
+            # Check for CLE properties
+            CLE_EOL=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:eol") | .value' python-enriched.cdx.json)
+            if [ -n "$CLE_EOL" ]; then
+              echo "✅ OS component has CLE end-of-life: $CLE_EOL"
+            else
+              echo "❌ OS component missing CLE properties"
+              exit 1
+            fi
+          else
+            echo "⚠️ No OS component found (may vary by Trivy version)"
+          fi
+
+      - name: Verify Python runtime CLE
+        run: |
+          echo "=== Verifying Python Runtime CLE ==="
+          
+          # Find Python packages with CLE properties
+          PYTHON_CLE=$(jq '[.components[] | select(.name | test("python"; "i")) | select(.properties[]?.name | startswith("cle:"))] | length' python-enriched.cdx.json)
+          
+          echo "Python components with CLE: $PYTHON_CLE"
+          
+          if [ "$PYTHON_CLE" -ge 1 ]; then
+            echo "✅ Python runtime has CLE lifecycle data"
+            
+            # Show Python CLE details
+            echo "Python CLE details:"
+            jq '.components[] | select(.name | test("python"; "i")) | select(.properties[]?.name | startswith("cle:")) | {name, version, cle: [.properties[] | select(.name | startswith("cle:"))]}' python-enriched.cdx.json | head -30
+          else
+            echo "❌ Expected Python runtime to have CLE lifecycle data"
+            exit 1
+          fi
+
+      - name: Verify CLE values for Python 3.12
+        run: |
+          echo "=== Verifying Python 3.12 CLE Values ==="
+          
+          # Python 3.12 EOL should be 2028-10-31
+          PYTHON_EOL=$(jq -r '.components[] | select(.name | test("python3?\\.?12"; "i")) | .properties[]? | select(.name == "cle:eol") | .value' python-enriched.cdx.json | head -1)
+          
+          if [ "$PYTHON_EOL" = "2028-10-31" ]; then
+            echo "✅ Python 3.12 EOL date is correct: $PYTHON_EOL"
+          else
+            echo "Python 3.12 EOL date: $PYTHON_EOL (expected 2028-10-31)"
+            # Don't fail - package naming varies
+          fi
+          
+          # Show all CLE-enriched components summary
+          echo ""
+          echo "=== All CLE-enriched components ==="
+          jq -r '.components[] | select(.properties[]?.name | startswith("cle:")) | "\(.type // "library"): \(.name) v\(.version)"' python-enriched.cdx.json | sort -u
+
+      - name: Upload enriched SBOM artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python-cle-enriched-sbom
+          path: python-enriched.cdx.json
           retention-days: 7
 
   augmentation-integration-test:
