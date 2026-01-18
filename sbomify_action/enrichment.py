@@ -72,6 +72,8 @@ from spdx_tools.spdx.parser.jsonlikedict.license_expression_parser import Licens
 from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
 from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
+from . import format_display_name
+
 # Import from plugin architecture
 from ._enrichment.enricher import Enricher, clear_all_caches
 from ._enrichment.lifecycle_data import get_distro_lifecycle
@@ -750,6 +752,120 @@ def _enrich_self_referencing_packages(document: Document) -> int:
     return enriched_count
 
 
+def _enrich_spdx_os_packages(document: Document) -> Dict[str, int]:
+    """
+    Enrich OS packages in SPDX with lifecycle data (parity with CycloneDX).
+
+    For SPDX, we detect OS packages via:
+    1. primaryPackagePurpose == "OPERATING-SYSTEM" (Trivy uses this)
+    2. Parsing document name for distro:version patterns (Syft fallback)
+
+    Lifecycle data is added to the package comment since SPDX doesn't have
+    properties like CycloneDX.
+
+    Args:
+        document: SPDX Document to enrich
+
+    Returns:
+        Enrichment statistics
+    """
+    import re
+
+    stats = {"os_packages_enriched": 0, "lifecycle_added": 0}
+
+    if not document.packages:
+        return stats
+
+    # First, try to find OS package by primaryPackagePurpose
+    os_package = None
+    os_name = None
+    os_version = None
+
+    for pkg in document.packages:
+        # Check for OPERATING_SYSTEM purpose (Trivy)
+        purpose = getattr(pkg, "primary_package_purpose", None)
+        if purpose and purpose.name == "OPERATING_SYSTEM":
+            os_package = pkg
+            os_name = pkg.name.lower() if pkg.name else ""
+            os_version = pkg.version if pkg.version else ""
+            break
+
+    # Fallback: parse document name for Syft-style "distro:version" patterns
+    doc_name_attr = getattr(document.creation_info, "name", None) if document.creation_info else None
+    if not os_package and doc_name_attr:
+        # Match patterns like "debian", "alpine", "ubuntu" in document name
+        doc_name = doc_name_attr.lower()
+        known_distros = [
+            "alpine",
+            "debian",
+            "ubuntu",
+            "fedora",
+            "centos",
+            "rocky",
+            "alma",
+            "amazon",
+            "oracle",
+            "opensuse",
+        ]
+        for distro in known_distros:
+            if distro in doc_name:
+                # Try to find a container package with matching name
+                for pkg in document.packages:
+                    purpose = getattr(pkg, "primary_package_purpose", None)
+                    if purpose and purpose.name == "CONTAINER":
+                        # Parse "debian:12-slim" or "alpine:3.20" from package name
+                        pkg_name = pkg.name or ""
+                        match = re.match(r"([a-zA-Z-]+):?(\d+\.?\d*)?", pkg_name)
+                        if match:
+                            os_name = match.group(1).lower()
+                            # Try to get version from versionInfo or parse from name
+                            if pkg.version:
+                                # Clean version: "12-slim" -> "12", "3.20.8" -> "3.20.8"
+                                version_match = re.match(r"(\d+\.?\d*\.?\d*)", pkg.version)
+                                os_version = version_match.group(1) if version_match else pkg.version
+                            elif match.group(2):
+                                os_version = match.group(2)
+                            os_package = pkg
+                            break
+                break
+
+    if not os_name:
+        return stats
+
+    # Get lifecycle data
+    lifecycle = get_distro_lifecycle(os_name, os_version)
+    if not lifecycle:
+        logger.debug(f"No lifecycle data found for {os_name} {os_version}")
+        return stats
+
+    stats["os_packages_enriched"] = 1
+
+    # Build lifecycle comment
+    lifecycle_parts = []
+    if lifecycle.get("release_date"):
+        lifecycle_parts.append(f"cle:releaseDate={lifecycle['release_date']}")
+    if lifecycle.get("end_of_support"):
+        lifecycle_parts.append(f"cle:eos={lifecycle['end_of_support']}")
+    if lifecycle.get("end_of_life"):
+        lifecycle_parts.append(f"cle:eol={lifecycle['end_of_life']}")
+
+    if lifecycle_parts:
+        lifecycle_comment = COMMENT_DELIMITER.join(lifecycle_parts)
+
+        # Add to OS package comment if we found one
+        if os_package:
+            existing_comment = os_package.comment or ""
+            if lifecycle_comment not in existing_comment:
+                if existing_comment:
+                    os_package.comment = f"{existing_comment}{COMMENT_DELIMITER}{lifecycle_comment}"
+                else:
+                    os_package.comment = lifecycle_comment
+                stats["lifecycle_added"] = 1
+                logger.info(f"Added lifecycle data to {os_name} {os_version}: {lifecycle_comment}")
+
+    return stats
+
+
 def _enrich_cyclonedx_bom_with_plugin_architecture(bom: Bom, enricher: Enricher) -> Dict[str, int]:
     """
     Enrich CycloneDX BOM using the plugin architecture.
@@ -966,14 +1082,14 @@ def enrich_sbom(input_file: str, output_file: str, validate: bool = True) -> Non
     if validate:
         validation_result = validate_sbom_file_auto(str(output_path))
         if validation_result.valid is None:
-            logger.warning(
-                f"Enriched SBOM could not be validated ({validation_result.sbom_format} {validation_result.spec_version}): "
-                f"{validation_result.error_message}"
-            )
+            fmt = format_display_name(validation_result.sbom_format)
+            ver = validation_result.spec_version
+            logger.warning(f"Enriched SBOM could not be validated ({fmt} {ver}): {validation_result.error_message}")
         elif not validation_result.valid:
             raise SBOMValidationError(f"Enriched SBOM failed validation: {validation_result.error_message}")
         else:
-            logger.info(f"Enriched SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}")
+            fmt = format_display_name(validation_result.sbom_format)
+            logger.info(f"Enriched SBOM validated: {fmt} {validation_result.spec_version}")
 
 
 def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: Path, enricher: Enricher) -> None:
@@ -1084,6 +1200,11 @@ def _enrich_spdx_sbom(input_path: Path, output_path: Path, enricher: Enricher) -
     if self_ref_enriched > 0:
         stats["components_enriched"] += self_ref_enriched
         stats["suppliers_added"] += self_ref_enriched
+
+    # Enrich OS packages with lifecycle data (parity with CycloneDX)
+    os_stats = _enrich_spdx_os_packages(document)
+    if os_stats.get("lifecycle_added", 0) > 0:
+        stats["os_lifecycle_added"] = os_stats["lifecycle_added"]
 
     # Print summary
     _log_spdx_enrichment_summary(stats, len(packages))

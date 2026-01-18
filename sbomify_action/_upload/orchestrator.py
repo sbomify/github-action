@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
+from sbomify_action import format_display_name
 from sbomify_action.logging_config import logger
 
 from .destinations import DependencyTrackDestination, SbomifyDestination
@@ -118,7 +119,9 @@ class UploadOrchestrator:
         Returns:
             UploadResult with upload outcome and metadata
         """
-        logger.info(f"Uploading SBOM to {destination}: format={input.sbom_format}, file={input.sbom_file}")
+        logger.info(
+            f"Uploading SBOM to {destination}: format={format_display_name(input.sbom_format)}, file={input.sbom_file}"
+        )
 
         return self._registry.upload(input, destination_name=destination)
 

@@ -24,6 +24,7 @@ from typing import Literal, Optional, Tuple
 
 import jsonschema
 
+from sbomify_action import format_display_name
 from sbomify_action.logging_config import logger
 
 # SBOM format type - matches _generation.protocol.SBOMFormat
@@ -167,7 +168,7 @@ def validate_sbom_data(
 
     try:
         jsonschema.validate(instance=sbom_data, schema=schema)
-        logger.info(f"SBOM validated successfully against {sbom_format} {spec_version} schema")
+        logger.info(f"SBOM validated successfully against {format_display_name(sbom_format)} {spec_version} schema")
         return ValidationResult.success(sbom_format, spec_version)
     except jsonschema.ValidationError as e:
         error_path = ".".join(str(p) for p in e.absolute_path) if e.absolute_path else None

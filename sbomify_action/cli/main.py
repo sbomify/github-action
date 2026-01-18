@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import shutil
 import sys
@@ -7,11 +8,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+import click
 import sentry_sdk
 
 # Add cyclonedx imports for proper SBOM handling
 from cyclonedx.model.bom import Bom
 
+from .. import format_display_name
 from .._upload import VALID_DESTINATIONS
 from ..additional_packages import inject_additional_packages
 from ..augmentation import augment_sbom_from_file
@@ -119,6 +122,7 @@ SBOMIFY_PRODUCTION_API = "https://app.sbomify.com"
 SBOMIFY_TOOL_NAME = "sbomify-action"
 SBOMIFY_VENDOR_NAME = "sbomify"
 LOCALHOST_PATTERNS = ["127.0.0.1", "localhost", "0.0.0.0"]
+VALID_SBOM_FORMATS: tuple[str, ...] = ("cyclonedx", "spdx")
 
 # Intermediate SBOM files for pipeline steps
 STEP_1_FILE = "step_1.json"  # Output of generation/validation
@@ -248,10 +252,9 @@ class Config:
             raise ConfigurationError("Please provide one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
 
         # Validate SBOM format
-        valid_formats = ("cyclonedx", "spdx")
-        if self.sbom_format not in valid_formats:
+        if self.sbom_format not in VALID_SBOM_FORMATS:
             raise ConfigurationError(
-                f"Invalid SBOM_FORMAT: '{self.sbom_format}'. Must be one of: {', '.join(valid_formats)}"
+                f"Invalid SBOM_FORMAT: '{self.sbom_format}'. Must be one of: {', '.join(VALID_SBOM_FORMATS)}"
             )
 
         # Validate product releases format
@@ -324,63 +327,129 @@ class Config:
             self.api_base_url = self.api_base_url.rstrip("/")
 
 
-def load_config() -> Config:
+def _handle_deprecated_version(component_version: Optional[str], sbom_version: Optional[str]) -> Optional[str]:
     """
-    Load and validate configuration from environment variables.
+    Handle component version with deprecation support for SBOM_VERSION.
+
+    Args:
+        component_version: Value from COMPONENT_VERSION or --component-version
+        sbom_version: Value from deprecated SBOM_VERSION env var
 
     Returns:
-        Validated configuration object
-
-    Raises:
-        ConfigurationError: If configuration is invalid
+        The resolved component version
     """
-    # Handle component version with deprecation support
-    component_version = os.getenv("COMPONENT_VERSION")
-    sbom_version = os.getenv("SBOM_VERSION")  # Deprecated
-
-    # Determine which version to use and show appropriate warnings
-    final_component_version = None
     if component_version and sbom_version:
         logger.warning(
             "Both COMPONENT_VERSION and SBOM_VERSION are set. Using COMPONENT_VERSION and ignoring SBOM_VERSION."
         )
         logger.warning("SBOM_VERSION is deprecated. Please use COMPONENT_VERSION instead.")
-        final_component_version = component_version
+        return component_version
     elif sbom_version:
         logger.warning("SBOM_VERSION is deprecated. Please use COMPONENT_VERSION instead.")
-        final_component_version = sbom_version
-    elif component_version:
-        final_component_version = component_version
+        return sbom_version
+    return component_version
 
-    # Log the determined component version for user visibility
-    if final_component_version:
-        logger.info(f"Using component version: {final_component_version}")
-    else:
-        logger.info("No component version specified (COMPONENT_VERSION not set)")
 
-    # Handle component name with deprecation support
-    component_name = os.getenv("COMPONENT_NAME")
-    override_name = evaluate_boolean(os.getenv("OVERRIDE_NAME", "False"))  # Deprecated
+def _handle_deprecated_name(
+    component_name: Optional[str], override_name_env: Optional[str]
+) -> tuple[Optional[str], bool]:
+    """
+    Handle component name with deprecation support for OVERRIDE_NAME.
 
-    # Determine which name approach to use and show appropriate warnings
-    final_component_name = None
-    final_override_name = False
+    Args:
+        component_name: Value from COMPONENT_NAME or --component-name
+        override_name_env: Value from deprecated OVERRIDE_NAME env var
+
+    Returns:
+        Tuple of (final_component_name, final_override_name)
+    """
+    override_name = evaluate_boolean(override_name_env) if override_name_env else False
+
     if component_name and override_name:
         logger.warning(
             "Both COMPONENT_NAME and OVERRIDE_NAME are set. Using COMPONENT_NAME and ignoring OVERRIDE_NAME."
         )
         logger.warning("OVERRIDE_NAME is deprecated. Please use COMPONENT_NAME instead.")
-        final_component_name = component_name
-        final_override_name = False
+        return component_name, False
     elif override_name:
         logger.warning("OVERRIDE_NAME is deprecated. Please use COMPONENT_NAME instead.")
-        final_component_name = None
-        final_override_name = True
-    elif component_name:
-        final_component_name = component_name
-        final_override_name = False
+        return None, True
+    return component_name, False
 
-    # Log the determined component name for user visibility
+
+def _parse_upload_destinations(destinations_str: Optional[str]) -> Optional[list[str]]:
+    """
+    Parse and validate upload destinations from a comma-separated string.
+
+    Args:
+        destinations_str: Comma-separated list of destinations
+
+    Returns:
+        List of valid destination names, or None if not specified
+
+    Raises:
+        SystemExit: If invalid destinations are specified
+    """
+    if not destinations_str:
+        return None
+
+    destinations = [d.strip() for d in destinations_str.split(",") if d.strip()]
+    invalid_destinations = [d for d in destinations if d not in VALID_DESTINATIONS]
+
+    if invalid_destinations:
+        logger.error(f"Invalid upload destination(s): {invalid_destinations}")
+        logger.error(f"Valid destinations are: {sorted(VALID_DESTINATIONS)}")
+        sys.exit(1)
+
+    logger.info(f"Upload destinations: {destinations}")
+    return destinations
+
+
+def build_config(
+    token: Optional[str] = None,
+    component_id: Optional[str] = None,
+    sbom_file: Optional[str] = None,
+    docker_image: Optional[str] = None,
+    lock_file: Optional[str] = None,
+    output_file: str = "sbom_output.json",
+    upload: bool = True,
+    upload_destinations: Optional[list[str]] = None,
+    augment: bool = False,
+    enrich: bool = False,
+    override_sbom_metadata: bool = False,
+    component_version: Optional[str] = None,
+    component_name: Optional[str] = None,
+    component_purl: Optional[str] = None,
+    product_releases: Optional[str] = None,
+    api_base_url: str = SBOMIFY_PRODUCTION_API,
+    sbom_format: str = "cyclonedx",
+) -> Config:
+    """
+    Build and validate configuration from provided arguments.
+
+    This function handles deprecation warnings and path expansion.
+
+    Returns:
+        Validated configuration object
+
+    Raises:
+        SystemExit: If configuration is invalid
+    """
+    # Handle deprecated SBOM_VERSION env var (only applies when using env vars)
+    sbom_version_env = os.getenv("SBOM_VERSION")
+    final_component_version = _handle_deprecated_version(component_version, sbom_version_env)
+
+    # Log component version
+    if final_component_version:
+        logger.info(f"Using component version: {final_component_version}")
+    else:
+        logger.info("No component version specified (COMPONENT_VERSION not set)")
+
+    # Handle deprecated OVERRIDE_NAME env var
+    override_name_env = os.getenv("OVERRIDE_NAME")
+    final_component_name, final_override_name = _handle_deprecated_name(component_name, override_name_env)
+
+    # Log component name
     if final_component_name:
         logger.info(f"Using component name: {final_component_name}")
     elif final_override_name:
@@ -388,56 +457,41 @@ def load_config() -> Config:
     else:
         logger.info("No component name specified")
 
-    # Handle component PURL override
-    component_purl = os.getenv("COMPONENT_PURL")
+    # Log component PURL
     if component_purl:
         logger.info(f"Using component PURL: {component_purl}")
 
-    # Handle product releases
-    product_releases = None
-    product_release_env = os.getenv("PRODUCT_RELEASE")
-    if product_release_env:
-        logger.info(f"Raw product release input: {product_release_env}")
-        # Store the raw value for validation later in Config.validate()
-        product_releases = product_release_env
+    # Log product releases
+    if product_releases:
+        logger.info(f"Raw product release input: {product_releases}")
 
-    # Handle upload destinations
-    upload_destinations = None
-    upload_destinations_env = os.getenv("UPLOAD_DESTINATIONS")
-    if upload_destinations_env:
-        # Parse comma-separated list of destinations
-        upload_destinations = [d.strip() for d in upload_destinations_env.split(",") if d.strip()]
-        # Validate destination names using centralized registry constant
-        invalid_destinations = [d for d in upload_destinations if d not in VALID_DESTINATIONS]
-        if invalid_destinations:
-            logger.error(f"Invalid upload destination(s): {invalid_destinations}")
-            logger.error(f"Valid destinations are: {sorted(VALID_DESTINATIONS)}")
-            sys.exit(1)
-        logger.info(f"Upload destinations: {upload_destinations}")
+    # Log SBOM format
+    sbom_format_lower = sbom_format.lower()
+    logger.info(f"SBOM format: {format_display_name(sbom_format_lower)}")
 
-    # Handle SBOM format (cyclonedx or spdx)
-    sbom_format = os.getenv("SBOM_FORMAT", "cyclonedx").lower()
-    logger.info(f"SBOM format: {sbom_format.upper()}")
+    # Expand paths if provided
+    expanded_sbom_file = path_expansion(sbom_file) if sbom_file else None
+    expanded_lock_file = path_expansion(lock_file) if lock_file else None
 
     config = Config(
-        token=os.getenv("TOKEN", ""),
-        component_id=os.getenv("COMPONENT_ID", ""),
-        sbom_file=path_expansion(os.getenv("SBOM_FILE")) if os.getenv("SBOM_FILE") else None,
-        docker_image=os.getenv("DOCKER_IMAGE"),
-        lock_file=path_expansion(os.getenv("LOCK_FILE")) if os.getenv("LOCK_FILE") else None,
-        output_file=os.getenv("OUTPUT_FILE", "sbom_output.json"),
-        upload=evaluate_boolean(os.getenv("UPLOAD", "True")),
+        token=token or "",
+        component_id=component_id or "",
+        sbom_file=expanded_sbom_file,
+        docker_image=docker_image,
+        lock_file=expanded_lock_file,
+        output_file=output_file,
+        upload=upload,
         upload_destinations=upload_destinations,
-        augment=evaluate_boolean(os.getenv("AUGMENT", "False")),
-        enrich=evaluate_boolean(os.getenv("ENRICH", "False")),
-        override_sbom_metadata=evaluate_boolean(os.getenv("OVERRIDE_SBOM_METADATA", "False")),
+        augment=augment,
+        enrich=enrich,
+        override_sbom_metadata=override_sbom_metadata,
         override_name=final_override_name,
         component_version=final_component_version,
         component_name=final_component_name,
         component_purl=component_purl,
         product_releases=product_releases,
-        api_base_url=os.getenv("API_BASE_URL", SBOMIFY_PRODUCTION_API),
-        sbom_format=sbom_format,
+        api_base_url=api_base_url,
+        sbom_format=sbom_format_lower,
     )
 
     try:
@@ -447,6 +501,43 @@ def load_config() -> Config:
         sys.exit(1)
 
     return config
+
+
+def load_config() -> Config:
+    """
+    Load and validate configuration from environment variables.
+
+    This is the legacy function for backward compatibility.
+    New code should use build_config() or the CLI directly.
+
+    Returns:
+        Validated configuration object
+
+    Raises:
+        ConfigurationError: If configuration is invalid
+    """
+    # Parse upload destinations from env var
+    upload_destinations = _parse_upload_destinations(os.getenv("UPLOAD_DESTINATIONS"))
+
+    return build_config(
+        token=os.getenv("TOKEN"),
+        component_id=os.getenv("COMPONENT_ID"),
+        sbom_file=os.getenv("SBOM_FILE"),
+        docker_image=os.getenv("DOCKER_IMAGE"),
+        lock_file=os.getenv("LOCK_FILE"),
+        output_file=os.getenv("OUTPUT_FILE", "sbom_output.json"),
+        upload=evaluate_boolean(os.getenv("UPLOAD", "True")),
+        upload_destinations=upload_destinations,
+        augment=evaluate_boolean(os.getenv("AUGMENT", "False")),
+        enrich=evaluate_boolean(os.getenv("ENRICH", "False")),
+        override_sbom_metadata=evaluate_boolean(os.getenv("OVERRIDE_SBOM_METADATA", "False")),
+        component_version=os.getenv("COMPONENT_VERSION"),
+        component_name=os.getenv("COMPONENT_NAME"),
+        component_purl=os.getenv("COMPONENT_PURL"),
+        product_releases=os.getenv("PRODUCT_RELEASE"),
+        api_base_url=os.getenv("API_BASE_URL", SBOMIFY_PRODUCTION_API),
+        sbom_format=os.getenv("SBOM_FORMAT", "cyclonedx"),
+    )
 
 
 def setup_dependencies() -> None:
@@ -689,18 +780,6 @@ def validate_sbom(file_path: str) -> str:
         raise SBOMValidationError("Neither CycloneDX nor SPDX format found in JSON file")
 
 
-def _format_display_name(fmt: str) -> str:
-    """Return properly capitalized display name for SBOM format.
-
-    Args:
-        fmt: Format string ('cyclonedx' or 'spdx')
-
-    Returns:
-        Display name: 'CycloneDX' or 'SPDX'
-    """
-    return "CycloneDX" if fmt == "cyclonedx" else "SPDX"
-
-
 def _detect_sbom_format_silent(file_path: str) -> str:
     """
     Silently detect the format of an SBOM file without logging.
@@ -824,25 +903,15 @@ def _log_step_end(step_num: int, success: bool = True) -> None:
     print_step_end(step_num, success)
 
 
-def main() -> None:
-    """Main entry point for the sbomify action."""
-    # Reset transformation tracker for this run (tracks all SBOM modifications for attestation)
-    reset_transformation_tracker()
+def run_pipeline(config: Config) -> None:
+    """
+    Run the SBOM pipeline with the given configuration.
 
-    print_banner()
+    This is the core business logic, separated from CLI/config handling.
 
-    # Setup dependencies
-    try:
-        setup_dependencies()
-    except SBOMGenerationError as e:
-        logger.error(f"Dependency setup failed: {e}")
-        sys.exit(1)
-
-    # Initialize Sentry
-    initialize_sentry()
-
-    config = load_config()
-
+    Args:
+        config: Validated configuration object
+    """
     # Log the API base URL being used for transparency
     if config.api_base_url != SBOMIFY_PRODUCTION_API:
         logger.info(f"Using custom API base URL: {config.api_base_url}")
@@ -916,7 +985,7 @@ def main() -> None:
     try:
         if FILE_TYPE != "SBOM":  # Only detect format if we generated the SBOM
             FORMAT = _detect_sbom_format_silent(STEP_1_FILE)
-            logger.info(f"Generated SBOM format: {_format_display_name(FORMAT)}")
+            logger.info(f"Generated SBOM format: {format_display_name(FORMAT)}")
     except SBOMValidationError as e:
         logger.error(f"Generated SBOM validation failed: {e}")
         logger.error("The SBOM generation tool produced an invalid output file.")
@@ -988,7 +1057,7 @@ def main() -> None:
                 component_version=config.component_version,
             )
 
-            logger.info(f"{_format_display_name(sbom_format)} SBOM augmentation completed")
+            logger.info(f"{format_display_name(sbom_format)} SBOM augmentation completed")
             _log_step_end(2)
 
         except (FileProcessingError, APIError, SBOMValidationError) as e:
@@ -1480,6 +1549,309 @@ def _apply_sbom_purl_override(sbom_file: str, config: "Config") -> None:
     except Exception as e:
         logger.warning(f"Failed to apply component PURL override: {e}")
         # Don't fail the entire process for PURL override issues
+
+
+# =============================================================================
+# Click CLI
+# =============================================================================
+
+
+def _make_bool_envvar_callback(envvar: str, default: bool):
+    """
+    Create a callback for boolean flags with environment variable fallback.
+
+    Click's boolean flags (--flag/--no-flag) don't automatically convert
+    environment variable strings like "true"/"false" to booleans. This
+    callback factory creates a callback that properly handles string env vars.
+
+    Args:
+        envvar: Environment variable name to check
+        default: Default value if neither CLI nor env var is provided
+
+    Returns:
+        Callback function for Click option
+    """
+
+    def callback(ctx: click.Context, param: click.Parameter, value: Optional[bool]) -> bool:
+        # Check if the flag was explicitly provided on command line
+        # by looking at the source of the value
+        if ctx.get_parameter_source(param.name) == click.core.ParameterSource.COMMANDLINE:
+            return value
+
+        # Check environment variable with string-to-bool conversion
+        env_value = os.getenv(envvar)
+        if env_value is not None:
+            return evaluate_boolean(env_value)
+
+        # Fall back to default
+        return default
+
+    return callback
+
+
+def _validate_sbom_format(ctx: click.Context, param: click.Parameter, value: Optional[str]) -> Optional[str]:
+    """Validate and normalize SBOM format value."""
+    if value is None:
+        return None
+    value_lower = value.lower()
+    if value_lower not in VALID_SBOM_FORMATS:
+        valid_formats_str = "', '".join(VALID_SBOM_FORMATS)
+        raise click.BadParameter(f"Invalid format '{value}'. Must be one of: '{valid_formats_str}'.")
+    return value_lower
+
+
+def _parse_upload_destinations_callback(
+    ctx: click.Context, param: click.Parameter, value: Optional[tuple[str, ...]]
+) -> Optional[list[str]]:
+    """Parse upload destinations from CLI (multiple values) or fall back to env var."""
+    if value:
+        # CLI provided values as tuple from multiple=True
+        return list(value)
+
+    # Fall back to environment variable (comma-separated)
+    env_value = os.getenv("UPLOAD_DESTINATIONS")
+    if env_value:
+        return _parse_upload_destinations(env_value)
+
+    return None
+
+
+@click.command(context_settings={"help_option_names": ["-h", "--help"]})
+@click.option(
+    "--token",
+    envvar="TOKEN",
+    help="sbomify API token (required for upload/augment).",
+)
+@click.option(
+    "--component-id",
+    envvar="COMPONENT_ID",
+    help="sbomify component ID (required for upload/augment).",
+)
+@click.option(
+    "--sbom-file",
+    envvar="SBOM_FILE",
+    type=click.Path(exists=False),
+    help="Path to existing SBOM file to process.",
+)
+@click.option(
+    "--docker-image",
+    envvar="DOCKER_IMAGE",
+    help="Docker image to generate SBOM from (e.g., nginx:latest).",
+)
+@click.option(
+    "--lock-file",
+    envvar="LOCK_FILE",
+    type=click.Path(exists=False),
+    help="Path to lock file (requirements.txt, Cargo.lock, etc.).",
+)
+@click.option(
+    "-o",
+    "--output-file",
+    envvar="OUTPUT_FILE",
+    default="sbom_output.json",
+    show_default=True,
+    help="Output path for the generated SBOM.",
+)
+@click.option(
+    "--upload/--no-upload",
+    default=True,
+    show_default=True,
+    callback=_make_bool_envvar_callback("UPLOAD", True),
+    is_eager=True,
+    help="Upload SBOM to configured destinations. [env: UPLOAD]",
+)
+@click.option(
+    "--upload-destination",
+    "upload_destinations",
+    multiple=True,
+    type=click.Choice(sorted(VALID_DESTINATIONS), case_sensitive=False),
+    callback=_parse_upload_destinations_callback,
+    help="Upload destination (can be specified multiple times). [env: UPLOAD_DESTINATIONS]",
+)
+@click.option(
+    "--augment/--no-augment",
+    default=False,
+    show_default=True,
+    callback=_make_bool_envvar_callback("AUGMENT", False),
+    is_eager=True,
+    help="Augment SBOM with metadata from sbomify API. [env: AUGMENT]",
+)
+@click.option(
+    "--enrich/--no-enrich",
+    default=False,
+    show_default=True,
+    callback=_make_bool_envvar_callback("ENRICH", False),
+    is_eager=True,
+    help="Enrich SBOM with metadata from package registries. [env: ENRICH]",
+)
+@click.option(
+    "--override-sbom-metadata/--no-override-sbom-metadata",
+    default=False,
+    show_default=True,
+    callback=_make_bool_envvar_callback("OVERRIDE_SBOM_METADATA", False),
+    is_eager=True,
+    help="Override existing SBOM metadata with values from augmentation. [env: OVERRIDE_SBOM_METADATA]",
+)
+@click.option(
+    "--component-version",
+    envvar="COMPONENT_VERSION",
+    help="Override the component version in the SBOM.",
+)
+@click.option(
+    "--component-name",
+    envvar="COMPONENT_NAME",
+    help="Override the component name in the SBOM.",
+)
+@click.option(
+    "--component-purl",
+    envvar="COMPONENT_PURL",
+    help="Add or override the component PURL in the SBOM.",
+)
+@click.option(
+    "--product-release",
+    "product_releases",  # Map to plural name for internal consistency
+    envvar="PRODUCT_RELEASE",
+    help="Tag SBOM with product releases (JSON array: '[\"product_id:v1.0.0\"]').",
+)
+@click.option(
+    "--api-base-url",
+    envvar="API_BASE_URL",
+    default=SBOMIFY_PRODUCTION_API,
+    show_default=True,
+    help="sbomify API base URL (for self-hosted instances).",
+)
+@click.option(
+    "-f",
+    "--sbom-format",
+    envvar="SBOM_FORMAT",
+    type=click.Choice(["cyclonedx", "spdx"], case_sensitive=False),
+    default="cyclonedx",
+    show_default=True,
+    callback=_validate_sbom_format,
+    help="Output SBOM format.",
+)
+@click.option(
+    "--telemetry/--no-telemetry",
+    envvar="TELEMETRY",
+    default=True,
+    show_default=True,
+    help="Enable/disable error telemetry (Sentry).",
+)
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    default=False,
+    help="Enable verbose/debug logging.",
+)
+@click.option(
+    "-q",
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress non-essential output.",
+)
+@click.version_option(version=SBOMIFY_VERSION, prog_name="sbomify Action")
+def cli(
+    token: Optional[str],
+    component_id: Optional[str],
+    sbom_file: Optional[str],
+    docker_image: Optional[str],
+    lock_file: Optional[str],
+    output_file: str,
+    upload: bool,
+    upload_destinations: Optional[list[str]],
+    augment: bool,
+    enrich: bool,
+    override_sbom_metadata: bool,
+    component_version: Optional[str],
+    component_name: Optional[str],
+    component_purl: Optional[str],
+    product_releases: Optional[str],
+    api_base_url: str,
+    sbom_format: str,
+    telemetry: bool,
+    verbose: bool,
+    quiet: bool,
+) -> None:
+    """Generate, augment, enrich, and manage SBOMs in your CI/CD pipeline.
+
+    Provide one of: --sbom-file, --lock-file, or --docker-image as input.
+
+    \b
+    Examples:
+      # Generate SBOM from lock file
+      sbomify-action --lock-file requirements.txt --enrich --no-upload
+
+      # Process existing SBOM and upload to sbomify
+      sbomify-action --sbom-file sbom.json --token <your-token> --component-id abc123
+
+      # Generate from Docker image with SPDX format
+      sbomify-action --docker-image nginx:latest -f spdx -o sbom.spdx.json
+    """
+    # Configure logging level
+    if verbose and quiet:
+        raise click.UsageError("Cannot use both --verbose and --quiet")
+
+    if verbose:
+        logger.setLevel(logging.DEBUG)
+        logger.debug("Verbose logging enabled")
+    elif quiet:
+        logger.setLevel(logging.WARNING)
+
+    # Reset transformation tracker for this run
+    reset_transformation_tracker()
+
+    print_banner()
+
+    # Setup dependencies
+    try:
+        setup_dependencies()
+    except SBOMGenerationError as e:
+        logger.error(f"Dependency setup failed: {e}")
+        sys.exit(1)
+
+    # Initialize Sentry (respecting telemetry flag)
+    if telemetry:
+        initialize_sentry()
+    else:
+        logger.debug("Telemetry disabled via --no-telemetry flag")
+
+    # Build configuration from CLI arguments
+    config = build_config(
+        token=token,
+        component_id=component_id,
+        sbom_file=sbom_file,
+        docker_image=docker_image,
+        lock_file=lock_file,
+        output_file=output_file,
+        upload=upload,
+        upload_destinations=upload_destinations,
+        augment=augment,
+        enrich=enrich,
+        override_sbom_metadata=override_sbom_metadata,
+        component_version=component_version,
+        component_name=component_name,
+        component_purl=component_purl,
+        product_releases=product_releases,
+        api_base_url=api_base_url,
+        sbom_format=sbom_format,
+    )
+
+    # Run the pipeline
+    run_pipeline(config)
+
+
+def main() -> None:
+    """Main entry point for the sbomify action.
+
+    This function provides backward compatibility with environment variable-based
+    configuration while also supporting the new CLI interface.
+
+    When called without arguments, it will use environment variables for configuration.
+    When called with CLI arguments, those take precedence over environment variables.
+    """
+    cli(standalone_mode=True)
 
 
 if __name__ == "__main__":

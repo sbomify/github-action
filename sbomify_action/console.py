@@ -76,17 +76,29 @@ console = Console(
 def print_banner(version: str = "unknown") -> None:
     """Print the sbomify banner with gradient colors."""
     banner = Text()
-    banner.append("      _                     _  __\n", style=BRAND_COLORS["blue"])
-    banner.append("     | |                   (_)/ _|\n", style=BRAND_COLORS["blue"])
-    banner.append("  ___| |__   ___  _ __ ___  _| |_ _   _\n", style=BRAND_COLORS["purple_light"])
-    banner.append(" / __| '_ \\ / _ \\| '_ ` _ \\| |  _| | | |\n", style=BRAND_COLORS["purple"])
-    banner.append(" \\__ \\ |_) | (_) | | | | | | | | | |_| |\n", style=BRAND_COLORS["pink"])
-    banner.append(" |___/_.__/ \\___/|_| |_| |_|_|_|  \\__, |\n", style=BRAND_COLORS["peach"])
-    banner.append("                                   __/ |\n", style=BRAND_COLORS["orange"])
-    banner.append(" From zero to SBOM hero.           |___/\n", style=BRAND_COLORS["orange"])
+    banner.append(
+        "         __                    _ ____         ___        __  _           \n", style=BRAND_COLORS["blue"]
+    )
+    banner.append(
+        "   _____/ /_  ____  ____ ___  (_) __/_  __   /   | _____/ /_(_)___  ____ \n",
+        style=BRAND_COLORS["purple_light"],
+    )
+    banner.append(
+        "  / ___/ __ \\/ __ \\/ __ `__ \\/ / /_/ / / /  / /| |/ ___/ __/ / __ \\/ __ \\\n", style=BRAND_COLORS["purple"]
+    )
+    banner.append(
+        " (__  ) /_/ / /_/ / / / / / / / __/ /_/ /  / ___ / /__/ /_/ / /_/ / / / /\n", style=BRAND_COLORS["pink"]
+    )
+    banner.append(
+        "/____/_.___/\\____/_/ /_/ /_/_/_/  \\__, /  /_/  |_\\___/\\__/_/\\____/_/ /_/ \n", style=BRAND_COLORS["peach"]
+    )
+    banner.append(
+        "                                 /____/                                  \n", style=BRAND_COLORS["orange"]
+    )
     # Only prefix with 'v' if version looks like semver (starts with digit)
     version_display = f"v{version}" if version and version[0:1].isdigit() else version
-    banner.append(f" {version_display}\n", style=BRAND_COLORS["orange"])
+    banner.append(f" {version_display}", style=BRAND_COLORS["orange"])
+    banner.append(" - Zero to SBOM hero\n", style=BRAND_COLORS["purple_light"])
 
     console.print(banner)
 

@@ -1,6 +1,27 @@
 """sbomify-action package for SBOM generation and enrichment."""
 
 
+def format_display_name(fmt: str) -> str:
+    """Return properly capitalized display name for SBOM format.
+
+    This is the canonical function for displaying SBOM format names.
+    Use this everywhere format names are shown to users.
+
+    Args:
+        fmt: Format string ('cyclonedx' or 'spdx', case-insensitive)
+
+    Returns:
+        Display name: 'CycloneDX' or 'SPDX'
+
+    Examples:
+        >>> format_display_name("cyclonedx")
+        'CycloneDX'
+        >>> format_display_name("SPDX")
+        'SPDX'
+    """
+    return "CycloneDX" if fmt.lower() == "cyclonedx" else "SPDX"
+
+
 def _get_version() -> str:
     """Get package version with fallback mechanisms.
 

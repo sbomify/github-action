@@ -13,6 +13,7 @@ Verified capabilities (Syft 1.38.2):
 
 from pathlib import Path
 
+from sbomify_action import format_display_name
 from sbomify_action.exceptions import SBOMGenerationError
 from sbomify_action.logging_config import logger
 from sbomify_action.tool_checks import check_tool_available
@@ -130,7 +131,9 @@ class SyftFsGenerator:
             input.lock_file_name or "unknown",
         ]
 
-        logger.info(f"Running syft scan for {input.lock_file_name} ({input.output_format} {version})")
+        logger.info(
+            f"Running syft scan for {input.lock_file_name} ({format_display_name(input.output_format)} {version})"
+        )
 
         try:
             result = run_command(cmd, "syft", timeout=DEFAULT_TIMEOUT)
@@ -264,7 +267,9 @@ class SyftImageGenerator:
             output_spec,
         ]
 
-        logger.info(f"Running syft scan for {input.docker_image} ({input.output_format} {version})")
+        logger.info(
+            f"Running syft scan for {input.docker_image} ({format_display_name(input.output_format)} {version})"
+        )
 
         try:
             result = run_command(cmd, "syft", timeout=DEFAULT_TIMEOUT)

@@ -1,0 +1,5879 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:d8de5b39-de39-4050-95ea-8a9b9020f542",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-01-18T19:35:23+00:00",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "manufacturer": {
+            "name": "Aqua Security Software Ltd."
+          },
+          "group": "aquasecurity",
+          "name": "trivy",
+          "version": "0.67.2"
+        }
+      ]
+    },
+    "component": {
+      "bom-ref": "pkg:oci/rockylinux@sha256%3Ac584db6d77f40a71ab2364b55be18c154b8e92ba48189e2d82ba0aef64ffee32?arch=amd64&repository_url=index.docker.io%2Flibrary%2Frockylinux",
+      "type": "container",
+      "name": "rockylinux:8-minimal",
+      "purl": "pkg:oci/rockylinux@sha256%3Ac584db6d77f40a71ab2364b55be18c154b8e92ba48189e2d82ba0aef64ffee32?arch=amd64&repository_url=index.docker.io%2Flibrary%2Frockylinux",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:DiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:ImageID",
+          "value": "sha256:f63d8d2889fdbb0b12bde4a7879e843b13c1d61f93562d8a41729244536214d9"
+        },
+        {
+          "name": "aquasecurity:trivy:RepoDigest",
+          "value": "rockylinux@sha256:c584db6d77f40a71ab2364b55be18c154b8e92ba48189e2d82ba0aef64ffee32"
+        },
+        {
+          "name": "aquasecurity:trivy:RepoTag",
+          "value": "rockylinux:8-minimal"
+        },
+        {
+          "name": "aquasecurity:trivy:SchemaVersion",
+          "value": "2"
+        },
+        {
+          "name": "aquasecurity:trivy:Size",
+          "value": "96158720"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "812c7f62-d001-4c54-9f96-bb6047cd21e4",
+      "type": "operating-system",
+      "name": "rocky",
+      "version": "8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:Class",
+          "value": "os-pkgs"
+        },
+        {
+          "name": "aquasecurity:trivy:Type",
+          "value": "rocky"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/audit-libs@3.0.7-5.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "audit-libs",
+      "version": "3.0.7-5.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "3c49455ddb5f810a00d20eea01886f50"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/audit-libs@3.0.7-5.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "audit-libs@3.0.7-5.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "audit"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.0.7"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/basesystem@11-5.el8?arch=noarch&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "basesystem",
+      "version": "11-5.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "35e3e1ffde688fbb9c7c595333a3abea"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "Public-Domain"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/basesystem@11-5.el8?arch=noarch&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "basesystem@11-5.el8.noarch"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "basesystem"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "11"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "bash",
+      "version": "4.4.20-4.el8_6",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "8de99aafc36d888c68ae7e4d41687b15"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "bash@4.4.20-4.el8_6.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "bash"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "4.el8_6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.4.20"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/bzip2-libs@1.0.6-26.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "bzip2-libs",
+      "version": "1.0.6-26.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "352647f1607f27e2bb7f4d455be3c2f2"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/bzip2-libs@1.0.6-26.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "bzip2-libs@1.0.6-26.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "bzip2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "26.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.0.6"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/ca-certificates@2023.2.60_v7.0.306-80.0.el8_8?arch=noarch&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "ca-certificates",
+      "version": "2023.2.60_v7.0.306-80.0.el8_8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "5cfb9a6738c6575c27955f34452c5463"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "Public-Domain"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/ca-certificates@2023.2.60_v7.0.306-80.0.el8_8?arch=noarch&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "ca-certificates@2023.2.60_v7.0.306-80.0.el8_8.noarch"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "ca-certificates"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "80.0.el8_8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2023.2.60_v7.0.306"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/chkconfig@1.19.2-1.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "chkconfig",
+      "version": "1.19.2-1.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "eba10a6107d67b1a897ff0e076be90ca"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/chkconfig@1.19.2-1.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "chkconfig@1.19.2-1.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "chkconfig"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.19.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/coreutils-single@8.30-15.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "coreutils-single",
+      "version": "8.30-15.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "e86ffebab0346e6c582e023ef8d3782b"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/coreutils-single@8.30-15.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "coreutils-single@8.30-15.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "coreutils"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "15.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "8.30"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/crypto-policies@20230731-1.git3177e06.el8?arch=noarch&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "crypto-policies",
+      "version": "20230731-1.git3177e06.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "641458d176f22105083c7592a7d7dfdd"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/crypto-policies@20230731-1.git3177e06.el8?arch=noarch&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "crypto-policies@20230731-1.git3177e06.el8.noarch"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "crypto-policies"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.git3177e06.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "20230731"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/curl@7.61.1-33.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "curl",
+      "version": "7.61.1-33.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "e1032fc44b897a52edc7c17b0cb43494"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/curl@7.61.1-33.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "curl@7.61.1-33.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "curl"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "33.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "7.61.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/cyrus-sasl-lib@2.1.27-6.el8_5?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "cyrus-sasl-lib",
+      "version": "2.1.27-6.el8_5",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "5af5a87432545aad76c174bd6b9bc0e3"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "BSD-3-Clause WITH advertising"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/cyrus-sasl-lib@2.1.27-6.el8_5?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "cyrus-sasl-lib@2.1.27-6.el8_5.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "cyrus-sasl"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "6.el8_5"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.1.27"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/elfutils-libelf@0.189-3.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "elfutils-libelf",
+      "version": "0.189-3.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "a1c1946523f3203549124c4e96c196f0"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "GPL-2.0-or-later OR LGPL-3.0-or-later"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/elfutils-libelf@0.189-3.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "elfutils-libelf@0.189-3.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "elfutils"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.189"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/file-libs@5.33-25.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "file-libs",
+      "version": "5.33-25.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "2c72471d3b7a0646448b1f6b92d47e77"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/file-libs@5.33-25.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "file-libs@5.33-25.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "file"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "25.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "5.33"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/filesystem@3.8-6.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "filesystem",
+      "version": "3.8-6.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "2c2cb2603556f0a4d5c1ce01a879cc0c"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "Public-Domain"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/filesystem@3.8-6.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "filesystem@3.8-6.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "filesystem"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "6.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.8"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/gawk@4.2.1-4.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "gawk",
+      "version": "4.2.1-4.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "74c7856d9f2be112847e1dbc76552b92"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "GPL-3.0-or-later AND GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/gawk@4.2.1-4.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "gawk@4.2.1-4.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gawk"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "4.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.2.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/glib2@2.56.4-161.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "glib2",
+      "version": "2.56.4-161.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "ce751b2e7fabd82932af60d02e83f5e4"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/glib2@2.56.4-161.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "glib2@2.56.4-161.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "glib2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "161.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.56.4"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/glibc-common@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "glibc-common",
+      "version": "2.28-236.el8_9.7",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "0eacfa135013b412d9e7697558564604"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "LGPL-2.0-or-later AND LGPL-2.0-or-later WITH exceptions AND GPL-2.0-or-later AND GPL-2.0-or-later WITH exceptions AND BSD-3-Clause AND Inner-Net AND ISC AND Public-Domain AND GFDL-1.3-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/glibc-common@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "glibc-common@2.28-236.el8_9.7.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "glibc"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "236.el8_9.7"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.28"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/glibc-minimal-langpack@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "glibc-minimal-langpack",
+      "version": "2.28-236.el8_9.7",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "3774a61acea53941bab16ecb99633c72"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "LGPL-2.0-or-later AND LGPL-2.0-or-later WITH exceptions AND GPL-2.0-or-later AND GPL-2.0-or-later WITH exceptions AND BSD-3-Clause AND Inner-Net AND ISC AND Public-Domain AND GFDL-1.3-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/glibc-minimal-langpack@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "glibc-minimal-langpack@2.28-236.el8_9.7.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "glibc"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "236.el8_9.7"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.28"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "glibc",
+      "version": "2.28-236.el8_9.7",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "1b2ec41c69daf04a4f94b4741ba8e3a5"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "LGPL-2.0-or-later AND LGPL-2.0-or-later WITH exceptions AND GPL-2.0-or-later AND GPL-2.0-or-later WITH exceptions AND BSD-3-Clause AND Inner-Net AND ISC AND Public-Domain AND GFDL-1.3-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "glibc@2.28-236.el8_9.7.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "glibc"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "236.el8_9.7"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.28"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/gmp@6.1.2-10.el8?arch=x86_64&distro=rocky-8.9&epoch=1",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "gmp",
+      "version": "1:6.1.2-10.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "49dda6bd97c2c4d91fd1b67bf4d3ecfc"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "LGPL-3.0-or-later OR GPL-2.0-or-later"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/gmp@6.1.2-10.el8?arch=x86_64&distro=rocky-8.9&epoch=1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "gmp@6.1.2-10.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gmp"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "10.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "6.1.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/gnupg2@2.2.20-3.el8_6?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "gnupg2",
+      "version": "2.2.20-3.el8_6",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "d05c55dd70fe635aeb4183c284a89d33"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/gnupg2@2.2.20-3.el8_6?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "gnupg2@2.2.20-3.el8_6.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gnupg2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3.el8_6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.2.20"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/gnutls@3.6.16-7.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "gnutls",
+      "version": "3.6.16-7.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "b7650416ec6b845a582d429f5c7bbe26"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "GPL-3.0-or-later AND LGPL-2.0-or-later"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/gnutls@3.6.16-7.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "gnutls@3.6.16-7.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gnutls"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "7.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.6.16"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/gobject-introspection@1.56.1-1.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "gobject-introspection",
+      "version": "1.56.1-1.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "158f6b351377deea452a3b7b7e086973"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "GPLv2---LGPLv2---MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/gobject-introspection@1.56.1-1.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "gobject-introspection@1.56.1-1.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gobject-introspection"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.56.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/gpgme@1.13.1-11.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "gpgme",
+      "version": "1.13.1-11.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "a3d2a6a863903a6684f3a395c3dab962"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "LGPL-2.0-or-later AND GPL-3.0-or-later"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/gpgme@1.13.1-11.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "gpgme@1.13.1-11.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gpgme"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "11.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.13.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/grep@3.1-6.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "grep",
+      "version": "3.1-6.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "4aa4f0cb28bde33c760a9912ea41ded5"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/grep@3.1-6.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "grep@3.1-6.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "grep"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "6.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/info@6.5-7.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "info",
+      "version": "6.5-7.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "743e7d3da1e6b6cc2189fe603ab2fabe"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/info@6.5-7.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "info@6.5-7.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "texinfo"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "7.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "6.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/json-c@0.13.1-3.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "json-c",
+      "version": "0.13.1-3.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "a87b255b9b62019fde242387b5c3cbed"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/json-c@0.13.1-3.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "json-c@0.13.1-3.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "json-c"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.13.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/keyutils-libs@1.5.10-9.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "keyutils-libs",
+      "version": "1.5.10-9.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "d242119c86645e076b92e3121f5c3eb4"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "GPL-2.0-or-later AND LGPL-2.0-or-later"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/keyutils-libs@1.5.10-9.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "keyutils-libs@1.5.10-9.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "keyutils"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "9.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.5.10"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/krb5-libs@1.18.2-26.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "krb5-libs",
+      "version": "1.18.2-26.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "591d08967313ecfa7e4500443e456aae"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/krb5-libs@1.18.2-26.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "krb5-libs@1.18.2-26.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "krb5"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "26.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.18.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/langpacks-en@1.0-12.el8?arch=noarch&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "langpacks-en",
+      "version": "1.0-12.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "2daca270344b4df41b46c4a52dbace1c"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/langpacks-en@1.0-12.el8?arch=noarch&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "langpacks-en@1.0-12.el8.noarch"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "langpacks"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "12.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libacl@2.2.53-1.el8.1?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libacl",
+      "version": "2.2.53-1.el8.1",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "807be6a265fbc007fde148d692d07228"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libacl@2.2.53-1.el8.1?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libacl@2.2.53-1.el8.1.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "acl"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.el8.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.2.53"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libarchive@3.3.3-5.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libarchive",
+      "version": "3.3.3-5.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "edb7cbcf46669b286ae58a5dc75183cc"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libarchive@3.3.3-5.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libarchive@3.3.3-5.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libarchive"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.3.3"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libassuan@2.5.1-3.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libassuan",
+      "version": "2.5.1-3.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "950cb6323f21d4aca43acc44507db461"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "LGPL-2.0-or-later AND GPL-3.0-or-later"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libassuan@2.5.1-3.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libassuan@2.5.1-3.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libassuan"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.5.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libattr@2.4.48-3.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libattr",
+      "version": "2.4.48-3.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "101681478ffe0ba9efa5eb65c638b24c"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libattr@2.4.48-3.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libattr@2.4.48-3.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "attr"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.4.48"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libblkid@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libblkid",
+      "version": "2.32.1-43.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "8c85dc132521022dd05bb7828f10d526"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libblkid@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libblkid@2.32.1-43.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "43.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.32.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libcap-ng@0.7.11-1.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libcap-ng",
+      "version": "0.7.11-1.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "a0a09a51ab6440fc415e009e75ecf956"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libcap-ng@0.7.11-1.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libcap-ng@0.7.11-1.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libcap-ng"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.7.11"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libcap@2.48-5.el8_8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libcap",
+      "version": "2.48-5.el8_8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "70b96fabfe6391b780c1739f4de5f9cc"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause OR GPL-2.0-only"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libcap@2.48-5.el8_8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libcap@2.48-5.el8_8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libcap"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5.el8_8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.48"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libcom_err@1.45.6-5.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libcom_err",
+      "version": "1.45.6-5.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "ddf38de50fd96d8304ee3da87a47e09a"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libcom_err@1.45.6-5.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libcom_err@1.45.6-5.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "e2fsprogs"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.45.6"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libcurl-minimal@7.61.1-33.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libcurl-minimal",
+      "version": "7.61.1-33.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "053621c3105822cc0ccf161c3772339d"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libcurl-minimal@7.61.1-33.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libcurl-minimal@7.61.1-33.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "curl"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "33.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "7.61.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libdb-utils@5.3.28-42.el8_4?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libdb-utils",
+      "version": "5.3.28-42.el8_4",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "668ea5bd5c05594d5b1fb06cc0e1c083"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause AND LGPL-2.0-only AND Sleepycat"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libdb-utils@5.3.28-42.el8_4?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libdb-utils@5.3.28-42.el8_4.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libdb"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "42.el8_4"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "5.3.28"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libdb@5.3.28-42.el8_4?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libdb",
+      "version": "5.3.28-42.el8_4",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "0c8dc7ae4fa641f618bc3df82ee7fba3"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause AND LGPL-2.0-only AND Sleepycat"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libdb@5.3.28-42.el8_4?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libdb@5.3.28-42.el8_4.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libdb"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "42.el8_4"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "5.3.28"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libdnf@0.63.0-17.el8_9?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libdnf",
+      "version": "0.63.0-17.el8_9",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "22fb6e556007ae29d6a7f14be8fb829a"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libdnf@0.63.0-17.el8_9?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libdnf@0.63.0-17.el8_9.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libdnf"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "17.el8_9"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.63.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libffi@3.1-24.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libffi",
+      "version": "3.1-24.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "33fe8096068575e8f4fef8b7d6b66e6a"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libffi@3.1-24.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libffi@3.1-24.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libffi"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "24.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libgcc@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libgcc",
+      "version": "8.5.0-20.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "6ff2e677fda46bfe5ef06838bc44cbbe"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "GPL-3.0-or-later AND GPL-3.0-or-later WITH exceptions AND GPL-2.0-or-later WITH exceptions AND LGPL-2.0-or-later AND BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libgcc@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libgcc@8.5.0-20.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gcc"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "20.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "8.5.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libgcrypt@1.8.5-7.el8_6?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libgcrypt",
+      "version": "1.8.5-7.el8_6",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "afaec8e662224efed8ec6ac3d4af23c8"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libgcrypt@1.8.5-7.el8_6?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libgcrypt@1.8.5-7.el8_6.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libgcrypt"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "7.el8_6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.8.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libgpg-error@1.31-1.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libgpg-error",
+      "version": "1.31-1.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "23c178c287840acf1c0d1d0dc64dbb0d"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libgpg-error@1.31-1.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libgpg-error@1.31-1.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libgpg-error"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.31"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libidn2@2.2.0-1.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libidn2",
+      "version": "2.2.0-1.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "d908bef043cd2ddf714df4569b3fbfea"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "(GPL-2.0-or-later OR LGPL-3.0-or-later) AND GPL-3.0-or-later"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libidn2@2.2.0-1.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libidn2@2.2.0-1.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libidn2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.2.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libksba@1.3.5-9.el8_7?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libksba",
+      "version": "1.3.5-9.el8_7",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "5f4045473fcd0a194770b0a59c425ce7"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "(LGPL-3.0-or-later OR GPL-2.0-or-later) AND GPL-3.0-or-later"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libksba@1.3.5-9.el8_7?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libksba@1.3.5-9.el8_7.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libksba"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "9.el8_7"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.3.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libmodulemd@2.13.0-1.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libmodulemd",
+      "version": "2.13.0-1.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "eb9ce743b3d535c9b439969cfb97f502"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libmodulemd@2.13.0-1.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libmodulemd@2.13.0-1.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libmodulemd"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.13.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libmount@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libmount",
+      "version": "2.32.1-43.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "ca77268e7d13850c9208e9ef15edf2d7"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libmount@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libmount@2.32.1-43.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "43.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.32.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libnghttp2@1.33.0-5.el8_8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libnghttp2",
+      "version": "1.33.0-5.el8_8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "b6dfe7fb569fd3236ae2d2d4380c2a65"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libnghttp2@1.33.0-5.el8_8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libnghttp2@1.33.0-5.el8_8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "nghttp2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5.el8_8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.33.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libpeas@1.22.0-6.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libpeas",
+      "version": "1.22.0-6.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "60e1d62fde469193ee60d61df724f0b2"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libpeas@1.22.0-6.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libpeas@1.22.0-6.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libpeas"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "6.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.22.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/librepo@1.14.2-4.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "librepo",
+      "version": "1.14.2-4.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "537d25c4e9166bf3be87cec5a6f7e9f4"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/librepo@1.14.2-4.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "librepo@1.14.2-4.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "librepo"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "4.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.14.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libselinux@2.9-8.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libselinux",
+      "version": "2.9-8.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "709af84ea4473d0372caf9d418df16f2"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "Public-Domain"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libselinux@2.9-8.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libselinux@2.9-8.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libselinux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "8.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.9"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libsepol@2.9-3.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libsepol",
+      "version": "2.9-3.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "c7067be1cf97cb06c3a53eb4a79b914e"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libsepol@2.9-3.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libsepol@2.9-3.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libsepol"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.9"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libsigsegv@2.11-5.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libsigsegv",
+      "version": "2.11-5.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "20d0e7481cc700ef71f53bf7decfe81b"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libsigsegv@2.11-5.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libsigsegv@2.11-5.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libsigsegv"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.11"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libsmartcols@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libsmartcols",
+      "version": "2.32.1-43.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "6878ac25192fdfd72d885d91ad1df4ae"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libsmartcols@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libsmartcols@2.32.1-43.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "43.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.32.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libsolv@0.7.20-6.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libsolv",
+      "version": "0.7.20-6.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "049e2735a5dac101c42af368cdd3a515"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libsolv@0.7.20-6.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libsolv@0.7.20-6.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libsolv"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "6.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.7.20"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libstdc%2B%2B@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libstdc++",
+      "version": "8.5.0-20.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "82d81d20cbfe1d2d38b8a20b4b3ab20e"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "GPL-3.0-or-later AND GPL-3.0-or-later WITH exceptions AND GPL-2.0-or-later WITH exceptions AND LGPL-2.0-or-later AND BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libstdc%2B%2B@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libstdc++@8.5.0-20.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "gcc"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "20.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "8.5.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libtasn1@4.13-4.el8_7?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libtasn1",
+      "version": "4.13-4.el8_7",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "c1f485635e1ec4c9f16e5e543620bca7"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "GPL-3.0-or-later AND LGPL-2.0-or-later"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libtasn1@4.13-4.el8_7?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libtasn1@4.13-4.el8_7.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libtasn1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "4.el8_7"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.13"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libunistring@0.9.9-3.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libunistring",
+      "version": "0.9.9-3.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "f13ee693d00b04361e2f7e53fec7e521"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "GPL-2.0-or-later OR LGPL-3.0-or-later"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libunistring@0.9.9-3.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libunistring@0.9.9-3.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libunistring"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.9.9"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libusbx@1.0.23-4.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libusbx",
+      "version": "1.0.23-4.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "d6393e6e9aa7422fc04ea988c6ee5d38"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libusbx@1.0.23-4.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libusbx@1.0.23-4.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libusbx"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "4.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.0.23"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libuuid@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libuuid",
+      "version": "2.32.1-43.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "17e198d053e38ad9e299beb8beb49c2e"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libuuid@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libuuid@2.32.1-43.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "util-linux"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "43.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.32.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libverto@0.3.2-2.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libverto",
+      "version": "0.3.2-2.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "4566dea94a3cc10477ecc308f8279ac9"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libverto@0.3.2-2.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libverto@0.3.2-2.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libverto"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.3.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libxcrypt@4.1.1-6.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libxcrypt",
+      "version": "4.1.1-6.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "7728dfbab60091ee720da7beb6c89744"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "LGPL-2.0-or-later AND BSD-3-Clause AND Public-Domain"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libxcrypt@4.1.1-6.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libxcrypt@4.1.1-6.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libxcrypt"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "6.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.1.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libxml2@2.9.7-16.el8_8.1?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libxml2",
+      "version": "2.9.7-16.el8_8.1",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "732ca1fc73c47ebea3cc1ffd7133bd27"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libxml2@2.9.7-16.el8_8.1?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libxml2@2.9.7-16.el8_8.1.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libxml2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "16.el8_8.1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.9.7"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libyaml@0.1.7-5.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libyaml",
+      "version": "0.1.7-5.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "f850c25ceaa2137d74132fa5801b984b"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libyaml@0.1.7-5.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libyaml@0.1.7-5.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "libyaml"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.1.7"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/libzstd@1.4.4-1.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "libzstd",
+      "version": "1.4.4-1.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "195f2147eba07752b7379cda0b5b10ee"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause AND GPL-2.0-only"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/libzstd@1.4.4-1.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "libzstd@1.4.4-1.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "zstd"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.4.4"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/lua-libs@5.3.4-12.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "lua-libs",
+      "version": "5.3.4-12.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "970e7450259ecde75826e371438da69a"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/lua-libs@5.3.4-12.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "lua-libs@5.3.4-12.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "lua"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "12.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "5.3.4"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/lz4-libs@1.8.3-3.el8_4?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "lz4-libs",
+      "version": "1.8.3-3.el8_4",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "78abf340051675c911361844c0fa7ab7"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "GPL-2.0-or-later AND BSD-3-Clause"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/lz4-libs@1.8.3-3.el8_4?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "lz4-libs@1.8.3-3.el8_4.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "lz4"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3.el8_4"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.8.3"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/microdnf@3.8.0-2.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "microdnf",
+      "version": "3.8.0-2.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "171384d3ae3652c526bfbaa1ed46e016"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/microdnf@3.8.0-2.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "microdnf@3.8.0-2.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "microdnf"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.8.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/mpfr@3.1.6-1.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "mpfr",
+      "version": "3.1.6-1.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "9106fc663a4df6594ce7183082510695"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "LGPL-3.0-or-later AND GPL-3.0-or-later AND GFDL-1.3-or-later"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/mpfr@3.1.6-1.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "mpfr@3.1.6-1.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "mpfr"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.1.6"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/ncurses-base@6.1-10.20180224.el8?arch=noarch&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "ncurses-base",
+      "version": "6.1-10.20180224.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "a9616bf30ff3a435f41b7b757c6916ce"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/ncurses-base@6.1-10.20180224.el8?arch=noarch&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "ncurses-base@6.1-10.20180224.el8.noarch"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "ncurses"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "10.20180224.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "6.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/ncurses-libs@6.1-10.20180224.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "ncurses-libs",
+      "version": "6.1-10.20180224.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "9b9a6cf5eb9a9145fc96df169b3f1c25"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/ncurses-libs@6.1-10.20180224.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "ncurses-libs@6.1-10.20180224.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "ncurses"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "10.20180224.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "6.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/nettle@3.4.1-7.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "nettle",
+      "version": "3.4.1-7.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "760434ba9fc5611539c49970064a7171"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "LGPL-3.0-or-later OR GPL-2.0-or-later"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/nettle@3.4.1-7.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "nettle@3.4.1-7.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "nettle"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "7.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.4.1"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/npth@1.5-4.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "npth",
+      "version": "1.5-4.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "e55b1ce55d5136e1f3d995d96f5daf99"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/npth@1.5-4.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "npth@1.5-4.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "npth"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "4.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/openldap@2.4.46-18.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "openldap",
+      "version": "2.4.46-18.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "56df35ff38bee5054a133ef127e6f118"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "OpenLDAP"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/openldap@2.4.46-18.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "openldap@2.4.46-18.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "openldap"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "18.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.4.46"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "openssl-libs",
+      "version": "1:1.1.1k-9.el8_7",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "58e84528dab86ddf5321df145957236c"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "OpenSSL AND Apache-2.0"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "openssl-libs@1.1.1k-9.el8_7.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcEpoch",
+          "value": "1"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "openssl"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "9.el8_7"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.1.1k"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/p11-kit-trust@0.23.22-1.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "p11-kit-trust",
+      "version": "0.23.22-1.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "9dc74f55efd508352a77926b1be5d6e7"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/p11-kit-trust@0.23.22-1.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "p11-kit-trust@0.23.22-1.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "p11-kit"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.23.22"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/p11-kit@0.23.22-1.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "p11-kit",
+      "version": "0.23.22-1.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "16e226e9456a2cc578d292dc3a569df0"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/p11-kit@0.23.22-1.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "p11-kit@0.23.22-1.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "p11-kit"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "0.23.22"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/pcre2@10.32-3.el8_6?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "pcre2",
+      "version": "10.32-3.el8_6",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "cf46a48e822600c3049e341e262b4843"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/pcre2@10.32-3.el8_6?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "pcre2@10.32-3.el8_6.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "pcre2"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "3.el8_6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "10.32"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/pcre@8.42-6.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "pcre",
+      "version": "8.42-6.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "d085a89af6bdb3144a989e6ebe63404f"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/pcre@8.42-6.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "pcre@8.42-6.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "pcre"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "6.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "8.42"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/popt@1.18-1.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "popt",
+      "version": "1.18-1.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "494d21cfde487bd3276e20d1d0b6c2f3"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/popt@1.18-1.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "popt@1.18-1.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "popt"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.18"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/readline@7.0-10.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "readline",
+      "version": "7.0-10.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "c56a997ed469ee5cb4958043bcc90bea"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/readline@7.0-10.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "readline@7.0-10.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "readline"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "10.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "7.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/rocky-gpg-keys@8.9-1.6.el8?arch=noarch&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "rocky-gpg-keys",
+      "version": "8.9-1.6.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "925fcb26a8d9ef3cab4e8ce55ddd371a"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/rocky-gpg-keys@8.9-1.6.el8?arch=noarch&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "rocky-gpg-keys@8.9-1.6.el8.noarch"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "rocky-release"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.6.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "8.9"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/rocky-release@8.9-1.6.el8?arch=noarch&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "rocky-release",
+      "version": "8.9-1.6.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "8dda265066d883d5e95b804b94980e60"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/rocky-release@8.9-1.6.el8?arch=noarch&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "rocky-release@8.9-1.6.el8.noarch"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "rocky-release"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.6.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "8.9"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/rocky-repos@8.9-1.6.el8?arch=noarch&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "rocky-repos",
+      "version": "8.9-1.6.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "e772b41b286ad8ea413250690439d7bf"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/rocky-repos@8.9-1.6.el8?arch=noarch&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "rocky-repos@8.9-1.6.el8.noarch"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "rocky-release"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "1.6.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "8.9"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/rpm-libs@4.14.3-26.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "rpm-libs",
+      "version": "4.14.3-26.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "2058787fb8a72e68ae0673fa1efb1d4b"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "GPL-2.0-or-later AND LGPL-2.0-or-later WITH exceptions"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/rpm-libs@4.14.3-26.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "rpm-libs@4.14.3-26.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "rpm"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "26.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.14.3"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/rpm@4.14.3-26.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "rpm",
+      "version": "4.14.3-26.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "56e99d000efaf5c2b96ca56a406fd774"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/rpm@4.14.3-26.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "rpm@4.14.3-26.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "rpm"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "26.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.14.3"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/sed@4.5-5.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "sed",
+      "version": "4.5-5.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "79de4a3226743a7357613c471630e107"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/sed@4.5-5.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "sed@4.5-5.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "sed"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "5.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "4.5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/setup@2.12.2-9.el8?arch=noarch&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "setup",
+      "version": "2.12.2-9.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "273390db2ca26ff0895efb77f3b0c41a"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "Public-Domain"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/setup@2.12.2-9.el8?arch=noarch&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "setup@2.12.2-9.el8.noarch"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "setup"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "9.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2.12.2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/sqlite-libs@3.26.0-18.el8_8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "sqlite-libs",
+      "version": "3.26.0-18.el8_8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "4e20ff95f5e24f3c56a69204c328c8cd"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "Public-Domain"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/sqlite-libs@3.26.0-18.el8_8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "sqlite-libs@3.26.0-18.el8_8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "sqlite"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "18.el8_8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "3.26.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/systemd-libs@239-78.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "systemd-libs",
+      "version": "239-78.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "479579e66c4881b2bf9bcd525f201701"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "LGPL-2.0-or-later AND MIT"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/systemd-libs@239-78.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "systemd-libs@239-78.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "systemd"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "78.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "239"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/tzdata@2023c-2.el8?arch=noarch&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "tzdata",
+      "version": "2023c-2.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "954fd5496f4f600469f5f5ab48ec9115"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "Public-Domain"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/tzdata@2023c-2.el8?arch=noarch&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "tzdata@2023c-2.el8.noarch"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "tzdata"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "2.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "2023c"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/xz-libs@5.2.4-4.el8_6?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "xz-libs",
+      "version": "5.2.4-4.el8_6",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "ed5111e1013891df01d9acfb5478d66a"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "Public-Domain"
+          }
+        }
+      ],
+      "purl": "pkg:rpm/rocky/xz-libs@5.2.4-4.el8_6?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "xz-libs@5.2.4-4.el8_6.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "xz"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "4.el8_6"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "5.2.4"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9",
+      "type": "library",
+      "supplier": {
+        "name": "Rocky"
+      },
+      "name": "zlib",
+      "version": "1.2.11-25.el8",
+      "hashes": [
+        {
+          "alg": "MD5",
+          "content": "81f30936159f421b8bae8fbdaa14eb88"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Zlib AND BSL-1.0"
+        }
+      ],
+      "purl": "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:LayerDiffID",
+          "value": "sha256:f92f0c7f442f2cdb38f0bac2d07dc4c6b010bbf644ed1c40408c59b496799adc"
+        },
+        {
+          "name": "aquasecurity:trivy:LayerDigest",
+          "value": "sha256:b74b2b89b591f01164316eb45e38709cdcef520738cc4d12bc6cb7b723e3ba2a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "zlib@1.2.11-25.el8.x86_64"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "rocky"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcName",
+          "value": "zlib"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcRelease",
+          "value": "25.el8"
+        },
+        {
+          "name": "aquasecurity:trivy:SrcVersion",
+          "value": "1.2.11"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "812c7f62-d001-4c54-9f96-bb6047cd21e4",
+      "dependsOn": [
+        "pkg:rpm/rocky/chkconfig@1.19.2-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/langpacks-en@1.0-12.el8?arch=noarch&distro=rocky-8.9",
+        "pkg:rpm/rocky/libdb-utils@5.3.28-42.el8_4?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/microdnf@3.8.0-2.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:oci/rockylinux@sha256%3Ac584db6d77f40a71ab2364b55be18c154b8e92ba48189e2d82ba0aef64ffee32?arch=amd64&repository_url=index.docker.io%2Flibrary%2Frockylinux",
+      "dependsOn": [
+        "812c7f62-d001-4c54-9f96-bb6047cd21e4"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/audit-libs@3.0.7-5.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libcap-ng@0.7.11-1.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/basesystem@11-5.el8?arch=noarch&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/filesystem@3.8-6.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/setup@2.12.2-9.el8?arch=noarch&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/filesystem@3.8-6.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/ncurses-libs@6.1-10.20180224.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/bzip2-libs@1.0.6-26.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/ca-certificates@2023.2.60_v7.0.306-80.0.el8_8?arch=noarch&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/coreutils-single@8.30-15.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/grep@3.1-6.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/p11-kit-trust@0.23.22-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/p11-kit@0.23.22-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/sed@4.5-5.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/chkconfig@1.19.2-1.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libselinux@2.9-8.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libsepol@2.9-3.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/popt@1.18-1.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/coreutils-single@8.30-15.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libacl@2.2.53-1.el8.1?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libattr@2.4.48-3.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libcap@2.48-5.el8_8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libselinux@2.9-8.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/crypto-policies@20230731-1.git3177e06.el8?arch=noarch&distro=rocky-8.9",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:rpm/rocky/curl@7.61.1-33.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libcurl-minimal@7.61.1-33.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/cyrus-sasl-lib@2.1.27-6.el8_5?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/krb5-libs@1.18.2-26.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libcom_err@1.45.6-5.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libdb@5.3.28-42.el8_4?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libxcrypt@4.1.1-6.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/elfutils-libelf@0.189-3.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bzip2-libs@1.0.6-26.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libzstd@1.4.4-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/xz-libs@5.2.4-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/file-libs@5.33-25.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/filesystem@3.8-6.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/setup@2.12.2-9.el8?arch=noarch&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/gawk@4.2.1-4.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/filesystem@3.8-6.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/gmp@6.1.2-10.el8?arch=x86_64&distro=rocky-8.9&epoch=1",
+        "pkg:rpm/rocky/libsigsegv@2.11-5.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/mpfr@3.1.6-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/readline@7.0-10.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/glib2@2.56.4-161.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/gnutls@3.6.16-7.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libffi@3.1-24.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgcc@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libmount@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libselinux@2.9-8.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/pcre@8.42-6.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/glibc-common@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libselinux@2.9-8.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/tzdata@2023c-2.el8?arch=noarch&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/glibc-minimal-langpack@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc-common@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/basesystem@11-5.el8?arch=noarch&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc-common@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc-minimal-langpack@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/gmp@6.1.2-10.el8?arch=x86_64&distro=rocky-8.9&epoch=1",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/gnupg2@2.2.20-3.el8_6?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/bzip2-libs@1.0.6-26.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/gnutls@3.6.16-7.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libassuan@2.5.1-3.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgcrypt@1.8.5-7.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgpg-error@1.31-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libksba@1.3.5-9.el8_7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libusbx@1.0.23-4.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/npth@1.5-4.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openldap@2.4.46-18.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/readline@7.0-10.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/sqlite-libs@3.26.0-18.el8_8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/gnutls@3.6.16-7.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/crypto-policies@20230731-1.git3177e06.el8?arch=noarch&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/gmp@6.1.2-10.el8?arch=x86_64&distro=rocky-8.9&epoch=1",
+        "pkg:rpm/rocky/libidn2@2.2.0-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libtasn1@4.13-4.el8_7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libunistring@0.9.9-3.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/nettle@3.4.1-7.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/p11-kit-trust@0.23.22-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/p11-kit@0.23.22-1.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/gobject-introspection@1.56.1-1.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glib2@2.56.4-161.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libffi@3.1-24.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/gpgme@1.13.1-11.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/gnupg2@2.2.20-3.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libassuan@2.5.1-3.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgpg-error@1.31-1.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/grep@3.1-6.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/pcre@8.42-6.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/info@6.5-7.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/ncurses-libs@6.1-10.20180224.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/json-c@0.13.1-3.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/keyutils-libs@1.5.10-9.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/krb5-libs@1.18.2-26.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/coreutils-single@8.30-15.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/gawk@4.2.1-4.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/grep@3.1-6.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/keyutils-libs@1.5.10-9.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libcom_err@1.45.6-5.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libselinux@2.9-8.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libverto@0.3.2-2.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1",
+        "pkg:rpm/rocky/sed@4.5-5.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/langpacks-en@1.0-12.el8?arch=noarch&distro=rocky-8.9",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:rpm/rocky/libacl@2.2.53-1.el8.1?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libattr@2.4.48-3.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libarchive@3.3.3-5.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bzip2-libs@1.0.6-26.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libacl@2.2.53-1.el8.1?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libxml2@2.9.7-16.el8_8.1?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libzstd@1.4.4-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/lz4-libs@1.8.3-3.el8_4?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1",
+        "pkg:rpm/rocky/xz-libs@5.2.4-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libassuan@2.5.1-3.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgpg-error@1.31-1.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libattr@2.4.48-3.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libblkid@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/coreutils-single@8.30-15.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libuuid@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libcap-ng@0.7.11-1.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libcap@2.48-5.el8_8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgcc@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libcom_err@1.45.6-5.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libcurl-minimal@7.61.1-33.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/krb5-libs@1.18.2-26.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libcom_err@1.45.6-5.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libnghttp2@1.33.0-5.el8_8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libdb-utils@5.3.28-42.el8_4?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libdb@5.3.28-42.el8_4?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libdb@5.3.28-42.el8_4?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libdnf@0.63.0-17.el8_9?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glib2@2.56.4-161.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/gpgme@1.13.1-11.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/json-c@0.13.1-3.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgcc@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgpg-error@1.31-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libmodulemd@2.13.0-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/librepo@1.14.2-4.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libsmartcols@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libsolv@0.7.20-6.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libstdc%2B%2B@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1",
+        "pkg:rpm/rocky/rpm-libs@4.14.3-26.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/sqlite-libs@3.26.0-18.el8_8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libffi@3.1-24.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libgcc@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:rpm/rocky/libgcrypt@1.8.5-7.el8_6?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgpg-error@1.31-1.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libgpg-error@1.31-1.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libidn2@2.2.0-1.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libunistring@0.9.9-3.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libksba@1.3.5-9.el8_7?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgpg-error@1.31-1.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libmodulemd@2.13.0-1.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/file-libs@5.33-25.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glib2@2.56.4-161.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgcc@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libyaml@0.1.7-5.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/rpm-libs@4.14.3-26.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libmount@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libblkid@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libselinux@2.9-8.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libuuid@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libnghttp2@1.33.0-5.el8_8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libpeas@1.22.0-6.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glib2@2.56.4-161.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/gobject-introspection@1.56.1-1.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/librepo@1.14.2-4.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glib2@2.56.4-161.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/gpgme@1.13.1-11.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libcurl-minimal@7.61.1-33.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgcc@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgpg-error@1.31-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libxml2@2.9.7-16.el8_8.1?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libselinux@2.9-8.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libsepol@2.9-3.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/pcre2@10.32-3.el8_6?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libsepol@2.9-3.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libsigsegv@2.11-5.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libsmartcols@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libsolv@0.7.20-6.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bzip2-libs@1.0.6-26.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libxml2@2.9.7-16.el8_8.1?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libzstd@1.4.4-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1",
+        "pkg:rpm/rocky/rpm-libs@4.14.3-26.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/xz-libs@5.2.4-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libstdc%2B%2B@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgcc@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libtasn1@4.13-4.el8_7?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libunistring@0.9.9-3.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/info@6.5-7.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libusbx@1.0.23-4.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/systemd-libs@239-78.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libuuid@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libverto@0.3.2-2.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libxcrypt@4.1.1-6.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libxml2@2.9.7-16.el8_8.1?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/xz-libs@5.2.4-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libyaml@0.1.7-5.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/libzstd@1.4.4-1.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/lua-libs@5.3.4-12.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/lz4-libs@1.8.3-3.el8_4?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/microdnf@3.8.0-2.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glib2@2.56.4-161.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libdnf@0.63.0-17.el8_9?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgcc@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libpeas@1.22.0-6.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libsmartcols@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/rpm-libs@4.14.3-26.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/mpfr@3.1.6-1.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/gmp@6.1.2-10.el8?arch=x86_64&distro=rocky-8.9&epoch=1"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/ncurses-base@6.1-10.20180224.el8?arch=noarch&distro=rocky-8.9",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:rpm/rocky/ncurses-libs@6.1-10.20180224.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/ncurses-base@6.1-10.20180224.el8?arch=noarch&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/nettle@3.4.1-7.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/gmp@6.1.2-10.el8?arch=x86_64&distro=rocky-8.9&epoch=1",
+        "pkg:rpm/rocky/info@6.5-7.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/npth@1.5-4.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/openldap@2.4.46-18.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/cyrus-sasl-lib@2.1.27-6.el8_5?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1",
+      "dependsOn": [
+        "pkg:rpm/rocky/ca-certificates@2023.2.60_v7.0.306-80.0.el8_8?arch=noarch&distro=rocky-8.9",
+        "pkg:rpm/rocky/crypto-policies@20230731-1.git3177e06.el8?arch=noarch&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/p11-kit-trust@0.23.22-1.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libtasn1@4.13-4.el8_7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/p11-kit@0.23.22-1.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/p11-kit@0.23.22-1.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libffi@3.1-24.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/pcre2@10.32-3.el8_6?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/pcre@8.42-6.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/popt@1.18-1.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/readline@7.0-10.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/info@6.5-7.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/ncurses-libs@6.1-10.20180224.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/rocky-gpg-keys@8.9-1.6.el8?arch=noarch&distro=rocky-8.9",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:rpm/rocky/rocky-release@8.9-1.6.el8?arch=noarch&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/rocky-repos@8.9-1.6.el8?arch=noarch&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/rocky-repos@8.9-1.6.el8?arch=noarch&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/rocky-gpg-keys@8.9-1.6.el8?arch=noarch&distro=rocky-8.9",
+        "pkg:rpm/rocky/rocky-release@8.9-1.6.el8?arch=noarch&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/rpm-libs@4.14.3-26.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/audit-libs@3.0.7-5.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/bzip2-libs@1.0.6-26.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/elfutils-libelf@0.189-3.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libacl@2.2.53-1.el8.1?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libcap@2.48-5.el8_8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libdb@5.3.28-42.el8_4?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libzstd@1.4.4-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/lua-libs@5.3.4-12.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1",
+        "pkg:rpm/rocky/popt@1.18-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/rpm@4.14.3-26.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/sqlite-libs@3.26.0-18.el8_8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/xz-libs@5.2.4-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/rpm@4.14.3-26.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/audit-libs@3.0.7-5.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/bzip2-libs@1.0.6-26.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/coreutils-single@8.30-15.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/curl@7.61.1-33.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/elfutils-libelf@0.189-3.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libacl@2.2.53-1.el8.1?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libarchive@3.3.3-5.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libcap@2.48-5.el8_8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libdb@5.3.28-42.el8_4?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libzstd@1.4.4-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/lua-libs@5.3.4-12.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/openssl-libs@1.1.1k-9.el8_7?arch=x86_64&distro=rocky-8.9&epoch=1",
+        "pkg:rpm/rocky/popt@1.18-1.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/rpm-libs@4.14.3-26.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/sqlite-libs@3.26.0-18.el8_8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/xz-libs@5.2.4-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/sed@4.5-5.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libacl@2.2.53-1.el8.1?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libselinux@2.9-8.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/setup@2.12.2-9.el8?arch=noarch&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/rocky-release@8.9-1.6.el8?arch=noarch&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/sqlite-libs@3.26.0-18.el8_8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/systemd-libs@239-78.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/bash@4.4.20-4.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/coreutils-single@8.30-15.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/grep@3.1-6.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libcap@2.48-5.el8_8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgcc@8.5.0-20.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libgcrypt@1.8.5-7.el8_6?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/libmount@2.32.1-43.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/lz4-libs@1.8.3-3.el8_4?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/sed@4.5-5.el8?arch=x86_64&distro=rocky-8.9",
+        "pkg:rpm/rocky/xz-libs@5.2.4-4.el8_6?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/tzdata@2023c-2.el8?arch=noarch&distro=rocky-8.9",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:rpm/rocky/xz-libs@5.2.4-4.el8_6?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    },
+    {
+      "ref": "pkg:rpm/rocky/zlib@1.2.11-25.el8?arch=x86_64&distro=rocky-8.9",
+      "dependsOn": [
+        "pkg:rpm/rocky/glibc@2.28-236.el8_9.7?arch=x86_64&distro=rocky-8.9"
+      ]
+    }
+  ],
+  "vulnerabilities": []
+}

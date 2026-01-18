@@ -25,6 +25,8 @@ Usage:
 from pathlib import Path
 from typing import Optional
 
+from . import format_display_name
+
 # Re-export public API from plugin architecture
 from ._generation import (
     GenerationInput,
@@ -185,5 +187,7 @@ def process_lock_file(
     if not result.success:
         raise SBOMGenerationError(result.error_message or "SBOM generation failed")
 
-    logger.info(f"Generated {result.sbom_format} {result.spec_version} SBOM with {result.generator_name}")
+    logger.info(
+        f"Generated {format_display_name(result.sbom_format)} {result.spec_version} SBOM with {result.generator_name}"
+    )
     return result

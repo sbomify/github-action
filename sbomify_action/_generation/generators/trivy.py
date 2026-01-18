@@ -11,6 +11,7 @@ It outputs fixed versions (no version selection):
 import json
 from pathlib import Path
 
+from sbomify_action import format_display_name
 from sbomify_action.exceptions import SBOMGenerationError
 from sbomify_action.logging_config import logger
 from sbomify_action.tool_checks import check_tool_available
@@ -130,7 +131,7 @@ class TrivyFsGenerator:
             trivy_format,
         ]
 
-        logger.info(f"Running trivy fs for {input.lock_file_name} ({input.output_format})")
+        logger.info(f"Running trivy fs for {input.lock_file_name} ({format_display_name(input.output_format)})")
 
         try:
             result = run_command(cmd, "trivy", timeout=DEFAULT_TIMEOUT)
@@ -270,7 +271,7 @@ class TrivyImageGenerator:
             input.docker_image,
         ]
 
-        logger.info(f"Running trivy image for {input.docker_image} ({input.output_format})")
+        logger.info(f"Running trivy image for {input.docker_image} ({format_display_name(input.output_format)})")
 
         try:
             result = run_command(cmd, "trivy", timeout=DEFAULT_TIMEOUT)
