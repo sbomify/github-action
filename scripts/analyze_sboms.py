@@ -21,7 +21,6 @@ from license_expression import ExpressionError, get_spdx_licensing
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sbomify_action.serialization import (
-    _sanitize_spdx_license_expression,
     sanitize_cyclonedx_licenses,
     sanitize_spdx_licenses,
 )

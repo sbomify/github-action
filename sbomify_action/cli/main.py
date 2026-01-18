@@ -1762,7 +1762,7 @@ def _parse_upload_destinations_callback(
     default=False,
     help="Suppress non-essential output.",
 )
-@click.version_option(version=SBOMIFY_VERSION, prog_name="sbomify-action")
+@click.version_option(version=SBOMIFY_VERSION, prog_name="sbomify Action")
 def cli(
     token: Optional[str],
     component_id: Optional[str],

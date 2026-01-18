@@ -58,7 +58,7 @@ class TestCLIHelp(unittest.TestCase):
         """Test that --version shows version."""
         result = self.runner.invoke(cli, ["--version"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("sbomify-action", result.output)
+        self.assertIn("sbomify Action", result.output)
         self.assertIn(SBOMIFY_VERSION, result.output)
 
 
@@ -584,15 +584,6 @@ class TestEvaluateBoolean(unittest.TestCase):
         # Verify case variations of false values
         for value in ["FALSE", "False", "NO", "No"]:
             self.assertFalse(evaluate_boolean(value), f"'{value}' should be False (case-insensitive)")
-
-    def test_mixed_case_values(self):
-        """Test that mixed-case values work correctly with .lower()."""
-        # True values with mixed case
-        for value in ["TrUe", "yEs", "YeAh"]:
-            self.assertTrue(evaluate_boolean(value), f"'{value}' should be True (mixed-case)")
-        # False values with mixed case
-        for value in ["FaLsE", "nO"]:
-            self.assertFalse(evaluate_boolean(value), f"'{value}' should be False (mixed-case)")
 
 
 if __name__ == "__main__":

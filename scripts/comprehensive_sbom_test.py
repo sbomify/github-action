@@ -21,7 +21,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from license_expression import ExpressionError, get_spdx_licensing
 
-from sbomify_action._enrichment.enricher import Enricher, create_default_registry
 from sbomify_action._enrichment.lifecycle_data import DISTRO_LIFECYCLE, get_distro_lifecycle
 from sbomify_action._enrichment.sources.license_db import LicenseDBSource
 from sbomify_action._enrichment.sources.lifecycle import LifecycleSource
@@ -217,7 +216,7 @@ def test_enrichment_sources():
 
     # Test LicenseDBSource
     license_db = LicenseDBSource()
-    print(f"\nLicenseDBSource:")
+    print("\nLicenseDBSource:")
     print(f"  Priority: {license_db.priority}")
 
     # Test with a sample PURL
@@ -242,7 +241,7 @@ def test_enrichment_sources():
 
     # Test LifecycleSource
     lifecycle = LifecycleSource()
-    print(f"\nLifecycleSource:")
+    print("\nLifecycleSource:")
     print(f"  Priority: {lifecycle.priority}")
 
     # Test with distro lifecycle
@@ -292,8 +291,8 @@ def test_parity():
         print(f"    SPDX sanitized: {spdx_result} (modified: {spdx_modified})")
 
         if not cdx_valid:
-            print(f"    CDX: would move to license.name field")
-            print(f"    SPDX: converts to LicenseRef-* format")
+            print("    CDX: would move to license.name field")
+            print("    SPDX: converts to LicenseRef-* format")
 
     print("\n" + "-" * 70)
     print("Note: CDX and SPDX use different sanitization strategies:")
