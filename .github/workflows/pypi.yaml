@@ -24,16 +24,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libxml2-dev libxslt-dev
-
       - name: Determine version
         id: version
         run: |
@@ -46,22 +36,20 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Building version: ${VERSION}"
 
-      - name: Update version in pyproject.toml
+      - name: Build wheel using Docker
         run: |
-          sed -i "s/^version = [\"'].*/version = \"${{ steps.version.outputs.version }}\"/" pyproject.toml
-          echo "Updated pyproject.toml:"
-          grep '^version = ' pyproject.toml
+          docker build \
+            --target builder \
+            --build-arg VERSION=${{ steps.version.outputs.version }} \
+            -t sbomify-builder .
 
-      - name: Install UV
+      - name: Extract wheel from Docker image
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Build a binary wheel and a source tarball
-        run: |
-          uv sync --frozen
-          rm -rf dist/
-          uv build
+          container_id=$(docker create sbomify-builder)
+          docker cp ${container_id}:/app/dist/ ./dist/
+          docker rm ${container_id}
+          echo "Built artifacts:"
+          ls -la dist/
 
       - name: Publish distribution to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -83,26 +71,28 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-
-      - name: Install build dependencies
+      - name: Determine version
+        id: version
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libxml2-dev libxslt-dev
+          # Use version from pyproject.toml (should match release tag)
+          VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Building version: ${VERSION}"
 
-      - name: Install UV
+      - name: Build wheel using Docker
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          docker build \
+            --target builder \
+            --build-arg VERSION=${{ steps.version.outputs.version }} \
+            -t sbomify-builder .
 
-      - name: Build a binary wheel and a source tarball
+      - name: Extract wheel from Docker image
         run: |
-          uv sync --frozen
-          rm -rf dist/
-          uv build
+          container_id=$(docker create sbomify-builder)
+          docker cp ${container_id}:/app/dist/ ./dist/
+          docker rm ${container_id}
+          echo "Built artifacts:"
+          ls -la dist/
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
