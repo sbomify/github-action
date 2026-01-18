@@ -82,7 +82,7 @@ def extract_os_info_from_cdx(data: dict) -> Optional[tuple[str, str]]:
 def extract_os_info_from_spdx(data: dict) -> Optional[tuple[str, str]]:
     """Extract OS distro and version from SPDX SBOM."""
     import re
-    
+
     # Look for packages with primaryPackagePurpose: OPERATING-SYSTEM
     for pkg in data.get("packages", []):
         purpose = pkg.get("primaryPackagePurpose", "")
@@ -90,7 +90,7 @@ def extract_os_info_from_spdx(data: dict) -> Optional[tuple[str, str]]:
             name = pkg.get("name", "").lower()
             version = pkg.get("versionInfo", "")
             return name, version
-    
+
     # Fallback: look for CONTAINER purpose (Syft)
     for pkg in data.get("packages", []):
         purpose = pkg.get("primaryPackagePurpose", "")
@@ -103,7 +103,7 @@ def extract_os_info_from_spdx(data: dict) -> Optional[tuple[str, str]]:
                 if version_match:
                     version = version_match.group(1)
             return name, version
-    
+
     return None
 
 
@@ -274,7 +274,6 @@ def test_parity():
     print("\nLicense sanitization comparison:")
     print("-" * 70)
 
-    all_match = True
     for lic in test_licenses:
         # Test SPDX sanitization
         spdx_result, spdx_modified = _sanitize_spdx_license_expression(lic)

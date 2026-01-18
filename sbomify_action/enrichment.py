@@ -794,8 +794,16 @@ def _enrich_spdx_os_packages(document: Document) -> Dict[str, int]:
         # Match patterns like "debian", "alpine", "ubuntu" in document name
         doc_name = doc_name_attr.lower()
         known_distros = [
-            "alpine", "debian", "ubuntu", "fedora", "centos",
-            "rocky", "alma", "amazon", "oracle", "opensuse",
+            "alpine",
+            "debian",
+            "ubuntu",
+            "fedora",
+            "centos",
+            "rocky",
+            "alma",
+            "amazon",
+            "oracle",
+            "opensuse",
         ]
         for distro in known_distros:
             if distro in doc_name:
@@ -1074,10 +1082,7 @@ def enrich_sbom(input_file: str, output_file: str, validate: bool = True) -> Non
         if validation_result.valid is None:
             fmt = validation_result.sbom_format
             ver = validation_result.spec_version
-            logger.warning(
-                f"Enriched SBOM could not be validated ({fmt} {ver}): "
-                f"{validation_result.error_message}"
-            )
+            logger.warning(f"Enriched SBOM could not be validated ({fmt} {ver}): {validation_result.error_message}")
         elif not validation_result.valid:
             raise SBOMValidationError(f"Enriched SBOM failed validation: {validation_result.error_message}")
         else:
