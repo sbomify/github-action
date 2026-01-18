@@ -2,11 +2,15 @@ import json
 import os
 import tempfile
 import unittest
+from importlib import import_module
 from unittest.mock import patch
 
 from click.testing import CliRunner
 
 from sbomify_action.cli.main import cli
+
+# Import the module using importlib to avoid shadowing by __init__.py exports
+cli_main_module = import_module("sbomify_action.cli.main")
 
 
 class TestIntegration(unittest.TestCase):
@@ -27,8 +31,8 @@ class TestIntegration(unittest.TestCase):
             if os.path.exists(file):
                 os.remove(file)
 
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_main_sbom_file_workflow(self, mock_sentry, mock_setup):
         """Test main workflow with SBOM file input."""
         # Create a temporary SBOM file
@@ -37,7 +41,7 @@ class TestIntegration(unittest.TestCase):
             json.dump(test_sbom, f)
 
         # Use Click's CliRunner to invoke the CLI with arguments
-        with patch("sbomify_action.cli.main.print_banner"):
+        with patch.object(cli_main_module, "print_banner"):
             result = self.runner.invoke(
                 cli,
                 [

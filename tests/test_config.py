@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from importlib import import_module
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,6 +11,9 @@ from sbomify_action.cli.main import (
     load_config,
 )
 from sbomify_action.exceptions import ConfigurationError
+
+# Import the module using importlib to avoid shadowing by __init__.py exports
+cli_main_module = import_module("sbomify_action.cli.main")
 
 
 class TestConfig(unittest.TestCase):
@@ -217,7 +221,7 @@ class TestConfig(unittest.TestCase):
 
         self.assertIn("API base URL must include a valid hostname", str(cm.exception))
 
-    @patch("sbomify_action.cli.main.logger")
+    @patch.object(cli_main_module, "logger")
     def test_config_url_validation_http_warning(self, mock_logger):
         """Test that Config issues warning for HTTP on non-localhost."""
         config = Config(
@@ -232,7 +236,7 @@ class TestConfig(unittest.TestCase):
             "Using HTTP (not HTTPS) for API communication - consider using HTTPS in production"
         )
 
-    @patch("sbomify_action.cli.main.logger")
+    @patch.object(cli_main_module, "logger")
     def test_config_url_validation_http_localhost_no_warning(self, mock_logger):
         """Test that Config does not warn for HTTP on localhost."""
         config = Config(

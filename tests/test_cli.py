@@ -10,6 +10,7 @@ These tests verify that:
 
 import tempfile
 import unittest
+from importlib import import_module
 from pathlib import Path
 from unittest.mock import patch
 
@@ -25,6 +26,11 @@ from sbomify_action.cli.main import (
     cli,
     evaluate_boolean,
 )
+
+# Import the module using importlib to avoid shadowing by __init__.py exports
+# (sbomify_action.cli.__init__.py exports `main` function which shadows the module
+# when using standard import syntax)
+cli_main_module = import_module("sbomify_action.cli.main")
 
 
 class TestCLIHelp(unittest.TestCase):
@@ -62,9 +68,9 @@ class TestCLIArgumentParsing(unittest.TestCase):
     def setUp(self):
         self.runner = CliRunner()
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_lock_file_argument(self, mock_sentry, mock_deps, mock_run):
         """Test --lock-file argument is parsed correctly."""
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -90,9 +96,9 @@ class TestCLIArgumentParsing(unittest.TestCase):
                 config = mock_run.call_args[0][0]
                 self.assertIn("requirements.txt", config.lock_file)
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_output_file_argument(self, mock_sentry, mock_deps, mock_run):
         """Test -o/--output-file argument."""
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -115,9 +121,9 @@ class TestCLIArgumentParsing(unittest.TestCase):
                 config = mock_run.call_args[0][0]
                 self.assertEqual(config.output_file, "custom_output.json")
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_sbom_format_argument(self, mock_sentry, mock_deps, mock_run):
         """Test -f/--sbom-format argument."""
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -166,9 +172,9 @@ class TestCLIBooleanFlags(unittest.TestCase):
     def setUp(self):
         self.runner = CliRunner()
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_upload_flag_default(self, mock_sentry, mock_deps, mock_run):
         """Test that --upload defaults to True."""
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -192,9 +198,9 @@ class TestCLIBooleanFlags(unittest.TestCase):
                 config = mock_run.call_args[0][0]
                 self.assertTrue(config.upload)
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_no_upload_flag(self, mock_sentry, mock_deps, mock_run):
         """Test --no-upload flag."""
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -215,9 +221,9 @@ class TestCLIBooleanFlags(unittest.TestCase):
                 config = mock_run.call_args[0][0]
                 self.assertFalse(config.upload)
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_enrich_flag(self, mock_sentry, mock_deps, mock_run):
         """Test --enrich flag."""
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -239,9 +245,9 @@ class TestCLIBooleanFlags(unittest.TestCase):
                 config = mock_run.call_args[0][0]
                 self.assertTrue(config.enrich)
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_augment_flag(self, mock_sentry, mock_deps, mock_run):
         """Test --augment flag."""
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -267,15 +273,15 @@ class TestCLIBooleanFlags(unittest.TestCase):
                 config = mock_run.call_args[0][0]
                 self.assertTrue(config.augment)
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
     def test_no_telemetry_flag(self, mock_deps, mock_run):
         """Test --no-telemetry flag skips Sentry initialization."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             lock_file = Path(tmp_dir) / "requirements.txt"
             lock_file.write_text("requests==2.28.0")
 
-            with patch("sbomify_action.cli.main.initialize_sentry") as mock_sentry:
+            with patch.object(cli_main_module, "initialize_sentry") as mock_sentry:
                 self.runner.invoke(
                     cli,
                     [
@@ -296,9 +302,9 @@ class TestCLIEnvVarFallback(unittest.TestCase):
     def setUp(self):
         self.runner = CliRunner()
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_env_var_fallback_for_token(self, mock_sentry, mock_deps, mock_run):
         """Test that TOKEN env var is used when --token is not provided."""
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -321,9 +327,9 @@ class TestCLIEnvVarFallback(unittest.TestCase):
                 config = mock_run.call_args[0][0]
                 self.assertEqual(config.token, "env-token")
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_cli_takes_precedence_over_env(self, mock_sentry, mock_deps, mock_run):
         """Test that CLI arguments take precedence over env vars."""
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -348,9 +354,9 @@ class TestCLIEnvVarFallback(unittest.TestCase):
                 config = mock_run.call_args[0][0]
                 self.assertEqual(config.token, "cli-token")
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_env_var_for_upload_boolean(self, mock_sentry, mock_deps, mock_run):
         """Test UPLOAD env var with boolean string."""
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -375,9 +381,9 @@ class TestCLIUploadDestinations(unittest.TestCase):
     def setUp(self):
         self.runner = CliRunner()
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_single_upload_destination(self, mock_sentry, mock_deps, mock_run):
         """Test single --upload-destination."""
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -403,9 +409,9 @@ class TestCLIUploadDestinations(unittest.TestCase):
                 config = mock_run.call_args[0][0]
                 self.assertEqual(config.upload_destinations, ["sbomify"])
 
-    @patch("sbomify_action.cli.main.run_pipeline")
-    @patch("sbomify_action.cli.main.setup_dependencies")
-    @patch("sbomify_action.cli.main.initialize_sentry")
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
     def test_multiple_upload_destinations(self, mock_sentry, mock_deps, mock_run):
         """Test multiple --upload-destination flags."""
         with tempfile.TemporaryDirectory() as tmp_dir:
