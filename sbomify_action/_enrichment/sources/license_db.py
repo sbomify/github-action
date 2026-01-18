@@ -200,7 +200,12 @@ class LicenseDBSource:
         purl_str = str(purl)
         pkg_data = db.get("packages", {}).get(purl_str)
 
-        # If no exact match, try lookup by name only
+        # If no exact match, try architecture-agnostic lookup
+        # Licenses are the same across architectures (amd64, arm64, etc.)
+        if not pkg_data:
+            pkg_data = self._lookup_arch_agnostic(db, purl)
+
+        # If still no match, try lookup by name only
         if not pkg_data:
             pkg_data = self._lookup_by_name(db, purl.name)
 
@@ -578,6 +583,60 @@ class LicenseDBSource:
 
         except Exception as e:
             logger.warning(f"Failed to generate license database locally: {e}")
+
+        return None
+
+    def _lookup_arch_agnostic(self, db: Dict[str, Any], purl: PackageURL) -> Optional[Dict[str, Any]]:
+        """
+        Look up package ignoring architecture qualifier.
+
+        Licenses are the same across architectures (amd64, arm64, i386, etc.),
+        so we can match packages regardless of the arch qualifier.
+
+        Args:
+            db: Loaded database
+            purl: PackageURL to look up
+
+        Returns:
+            Package data dict or None
+        """
+        packages = db.get("packages", {})
+
+        # Create a normalized version of the input PURL without arch
+        input_qualifiers = dict(purl.qualifiers) if purl.qualifiers else {}
+        input_arch = input_qualifiers.pop("arch", None)
+
+        # If no arch qualifier, nothing to do - exact match already tried
+        if not input_arch:
+            return None
+
+        # Search for a matching PURL with different architecture
+        for db_purl_str, pkg_data in packages.items():
+            try:
+                db_purl = PackageURL.from_string(db_purl_str)
+
+                # Check type, namespace, name, version match
+                if (
+                    db_purl.type != purl.type
+                    or db_purl.namespace != purl.namespace
+                    or db_purl.name != purl.name
+                    or db_purl.version != purl.version
+                ):
+                    continue
+
+                # Check qualifiers match (ignoring arch)
+                db_qualifiers = dict(db_purl.qualifiers) if db_purl.qualifiers else {}
+                db_qualifiers.pop("arch", None)
+
+                if db_qualifiers == input_qualifiers:
+                    logger.debug(
+                        f"Architecture-agnostic match: {purl.name} "
+                        f"(input arch={input_arch}, db arch={db_purl.qualifiers.get('arch') if db_purl.qualifiers else None})"
+                    )
+                    return pkg_data
+
+            except Exception:
+                continue
 
         return None
 
