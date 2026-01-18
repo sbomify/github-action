@@ -135,6 +135,7 @@ DEP5_LICENSE_ALIASES: Dict[str, str] = {
     "artistic": "Artistic-1.0",
     "artistic-1.0": "Artistic-1.0",
     "artistic-2.0": "Artistic-2.0",
+    "artistic-dist": "Artistic-1.0-Perl",  # Debian variant of Artistic license
     "zlib": "Zlib",
     "zlib/libpng": "Zlib",
     "public-domain": "CC0-1.0",

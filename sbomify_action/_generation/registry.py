@@ -1,8 +1,14 @@
 """Generator registry for managing SBOM generator plugins."""
 
+import json
 from typing import Any, Dict, List, Optional
 
 from sbomify_action.logging_config import logger
+from sbomify_action.serialization import (
+    sanitize_cyclonedx_licenses,
+    sanitize_spdx_json_file,
+    sanitize_spdx_licenses,
+)
 from sbomify_action.tool_checks import check_tool_for_input, format_no_tools_error
 from sbomify_action.validation import validate_sbom_file
 
@@ -187,6 +193,15 @@ class GeneratorRegistry:
         if not result.output_file:
             return result
 
+        # Sanitize SBOM before validation
+        # Some generators produce output that needs fixing before validation passes
+        if result.sbom_format == "cyclonedx":
+            # CycloneDX: fix invalid license IDs (e.g., Trivy puts non-SPDX IDs in license.id)
+            self._sanitize_cyclonedx_before_validation(result.output_file)
+        elif result.sbom_format == "spdx":
+            # SPDX: fix invalid licenses and enum values
+            self._sanitize_spdx_before_validation(result.output_file)
+
         validation_result = validate_sbom_file(
             result.output_file,
             result.sbom_format,
@@ -213,6 +228,57 @@ class GeneratorRegistry:
                 validated=True,
                 validation_error=validation_result.error_message,
             )
+
+    def _sanitize_cyclonedx_before_validation(self, output_file: str) -> None:
+        """Sanitize CycloneDX SBOM licenses before validation.
+
+        Some generators (like Trivy) put non-SPDX license identifiers in the
+        license.id field, which causes schema validation failures. This method
+        reads the generated SBOM, sanitizes invalid license IDs (moving them to
+        license.name), and writes the file back.
+
+        Args:
+            output_file: Path to the CycloneDX SBOM file
+        """
+        try:
+            with open(output_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            sanitized_count = sanitize_cyclonedx_licenses(data)
+
+            if sanitized_count > 0:
+                with open(output_file, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                logger.debug(f"Pre-validation: sanitized {sanitized_count} license ID(s)")
+        except Exception as e:
+            logger.debug(f"Could not sanitize licenses before validation: {e}")
+
+    def _sanitize_spdx_before_validation(self, output_file: str) -> None:
+        """Sanitize SPDX SBOM before validation.
+
+        This fixes:
+        1. Invalid license IDs (converted to LicenseRef-* format)
+        2. Invalid enum values (e.g., Python enum names to SPDX spec values)
+
+        Args:
+            output_file: Path to the SPDX SBOM file
+        """
+        try:
+            with open(output_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # Sanitize licenses first
+            license_count = sanitize_spdx_licenses(data)
+
+            if license_count > 0:
+                with open(output_file, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                logger.debug(f"Pre-validation: sanitized {license_count} SPDX license(s)")
+
+            # Then fix enum values (this reads/writes the file itself)
+            sanitize_spdx_json_file(output_file)
+        except Exception as e:
+            logger.debug(f"Could not sanitize SPDX SBOM before validation: {e}")
 
     def _supports_format(self, generator: Generator, format: str) -> bool:
         """Check if generator supports a format."""

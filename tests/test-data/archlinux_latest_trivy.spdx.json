@@ -1,0 +1,317 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "archlinux:latest",
+  "documentNamespace": "http://trivy.dev/container_image/archlinux:latest-fc858653-48af-418c-af25-dfed27d69d8e",
+  "creationInfo": {
+    "creators": [
+      "Organization: aquasecurity",
+      "Tool: trivy-0.67.2"
+    ],
+    "created": "2026-01-18T19:46:19Z"
+  },
+  "packages": [
+    {
+      "name": "usr/bin/captree",
+      "SPDXID": "SPDXRef-Application-f46a0d0f8760a883",
+      "downloadLocation": "NONE",
+      "filesAnalyzed": false,
+      "primaryPackagePurpose": "APPLICATION",
+      "annotations": [
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Class: lang-pkgs"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Type: gobinary"
+        }
+      ]
+    },
+    {
+      "name": "archlinux:latest",
+      "SPDXID": "SPDXRef-ContainerImage-1de0652cc3b54b84",
+      "downloadLocation": "NONE",
+      "filesAnalyzed": false,
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:oci/archlinux@sha256%3A417aa2d3e8e4cc8377360a94bf48ae1ed38e593cbecfcb34feb16d57e3efa1b5?arch=amd64\u0026repository_url=index.docker.io%2Flibrary%2Farchlinux"
+        }
+      ],
+      "primaryPackagePurpose": "CONTAINER",
+      "annotations": [
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "DiffID: sha256:c79abc3732a5976e8a7e948a36295a5fe24dd39a929fec3191ebab58e11d3696"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "DiffID: sha256:f3dbad08f68d9c756c5309208cd2cb74ddb8df8c07796f84647a23220c63e748"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "ImageID: sha256:d7ead43a9bf672282b8fd0b2a2c07466c68b91f3127f069671fc7e17ad9ff4a2"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Labels:org.opencontainers.image.authors: Santiago Torres-Arias \u003csantiago@archlinux.org\u003e (@SantiagoTorres), Christian Rebischke \u003cChris.Rebischke@archlinux.org\u003e (@shibumi), Justin Kromlinger \u003chashworks@archlinux.org\u003e (@hashworks)"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Labels:org.opencontainers.image.created: 2026-01-11T00:07:19+00:00"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Labels:org.opencontainers.image.description: Official containerd image of Arch Linux, a simple, lightweight Linux distribution aimed for flexibility."
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Labels:org.opencontainers.image.documentation: https://wiki.archlinux.org/title/Docker#Arch_Linux"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Labels:org.opencontainers.image.licenses: GPL-3.0-or-later"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Labels:org.opencontainers.image.revision: 0d7c4c0017584f9bcb495105cc412d6575f04564"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Labels:org.opencontainers.image.source: https://gitlab.archlinux.org/archlinux/archlinux-docker"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Labels:org.opencontainers.image.title: Arch Linux base Image"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Labels:org.opencontainers.image.url: https://gitlab.archlinux.org/archlinux/archlinux-docker/-/blob/master/README.md"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Labels:org.opencontainers.image.version: 20260111.0.480139"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "RepoDigest: archlinux@sha256:417aa2d3e8e4cc8377360a94bf48ae1ed38e593cbecfcb34feb16d57e3efa1b5"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "RepoTag: archlinux:latest"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "SchemaVersion: 2"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "Size: 539511296"
+        }
+      ]
+    },
+    {
+      "name": "kernel.org/pub/linux/libs/security/libcap/cap",
+      "SPDXID": "SPDXRef-Package-92ae6ee5158d275e",
+      "versionInfo": "v1.2.77",
+      "supplier": "NOASSERTION",
+      "downloadLocation": "NONE",
+      "filesAnalyzed": false,
+      "sourceInfo": "package found in: usr/bin/captree",
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:golang/kernel.org/pub/linux/libs/security/libcap/cap@v1.2.77"
+        }
+      ],
+      "primaryPackagePurpose": "LIBRARY",
+      "annotations": [
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "LayerDiffID: sha256:c79abc3732a5976e8a7e948a36295a5fe24dd39a929fec3191ebab58e11d3696"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "LayerDigest: sha256:1783afd91fdd549adee0628532122581a17d849598d0cdbd9b23ae3b1cb1916e"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "PkgID: kernel.org/pub/linux/libs/security/libcap/cap@v1.2.77"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "PkgType: gobinary"
+        }
+      ]
+    },
+    {
+      "name": "kernel.org/pub/linux/libs/security/libcap/psx",
+      "SPDXID": "SPDXRef-Package-373f741df95dee4c",
+      "versionInfo": "v1.2.77",
+      "supplier": "NOASSERTION",
+      "downloadLocation": "NONE",
+      "filesAnalyzed": false,
+      "sourceInfo": "package found in: usr/bin/captree",
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:golang/kernel.org/pub/linux/libs/security/libcap/psx@v1.2.77"
+        }
+      ],
+      "primaryPackagePurpose": "LIBRARY",
+      "annotations": [
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "LayerDiffID: sha256:c79abc3732a5976e8a7e948a36295a5fe24dd39a929fec3191ebab58e11d3696"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "LayerDigest: sha256:1783afd91fdd549adee0628532122581a17d849598d0cdbd9b23ae3b1cb1916e"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "PkgID: kernel.org/pub/linux/libs/security/libcap/psx@v1.2.77"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "PkgType: gobinary"
+        }
+      ]
+    },
+    {
+      "name": "stdlib",
+      "SPDXID": "SPDXRef-Package-3a0a549541d610d1",
+      "versionInfo": "v1.25.3",
+      "supplier": "NOASSERTION",
+      "downloadLocation": "NONE",
+      "filesAnalyzed": false,
+      "sourceInfo": "package found in: usr/bin/captree",
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:golang/stdlib@v1.25.3"
+        }
+      ],
+      "primaryPackagePurpose": "LIBRARY",
+      "annotations": [
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "LayerDiffID: sha256:c79abc3732a5976e8a7e948a36295a5fe24dd39a929fec3191ebab58e11d3696"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "LayerDigest: sha256:1783afd91fdd549adee0628532122581a17d849598d0cdbd9b23ae3b1cb1916e"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "PkgID: stdlib@v1.25.3"
+        },
+        {
+          "annotator": "Tool: trivy-0.67.2",
+          "annotationDate": "2026-01-18T19:46:19Z",
+          "annotationType": "OTHER",
+          "comment": "PkgType: gobinary"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-Application-f46a0d0f8760a883",
+      "relatedSpdxElement": "SPDXRef-Package-373f741df95dee4c",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Application-f46a0d0f8760a883",
+      "relatedSpdxElement": "SPDXRef-Package-3a0a549541d610d1",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-Application-f46a0d0f8760a883",
+      "relatedSpdxElement": "SPDXRef-Package-92ae6ee5158d275e",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-ContainerImage-1de0652cc3b54b84",
+      "relatedSpdxElement": "SPDXRef-Application-f46a0d0f8760a883",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-ContainerImage-1de0652cc3b54b84",
+      "relationshipType": "DESCRIBES"
+    }
+  ]
+}

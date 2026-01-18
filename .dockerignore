@@ -41,3 +41,6 @@ htmlcov/
 # Misc
 .DS_Store
 Thumbs.db
+
+# Dont include all sample SBOMs
+tests/test-data

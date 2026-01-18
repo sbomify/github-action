@@ -221,6 +221,40 @@ DISTRO_LIFECYCLE: Dict[str, Dict[str, LifecycleDates]] = {
         },
     },
     # -------------------------------------------------------------------------
+    # openSUSE Leap
+    # Source: https://en.opensuse.org/Lifetime
+    # Note: openSUSE Leap has ~18 months support per release.
+    # -------------------------------------------------------------------------
+    "opensuse-leap": {
+        "15.5": {
+            "release_date": "2023-06-07",
+            "end_of_support": "2024-12-31",
+            "end_of_life": "2024-12-31",
+        },
+        "15.6": {
+            "release_date": "2024-06-12",
+            "end_of_support": "2025-12-31",
+            "end_of_life": "2025-12-31",
+        },
+    },
+    # -------------------------------------------------------------------------
+    # Oracle Linux
+    # Source: https://www.oracle.com/a/ocom/docs/elsp-lifetime-069338.pdf
+    # Note: Oracle Linux follows RHEL lifecycle with extended support.
+    # -------------------------------------------------------------------------
+    "oracle": {
+        "8": {
+            "release_date": "2019-07-18",
+            "end_of_support": "2024-05-01",  # Premier support end
+            "end_of_life": "2029-07-01",  # Extended support end
+        },
+        "9": {
+            "release_date": "2022-07-06",
+            "end_of_support": "2027-05-31",  # Premier support end
+            "end_of_life": "2032-05-31",  # Extended support end
+        },
+    },
+    # -------------------------------------------------------------------------
     # Ubuntu
     # Source: https://ubuntu.com/about/release-cycle
     # Note: Ubuntu publishes 'Standard security maintenance' (EOS) and
@@ -905,6 +939,8 @@ def get_distro_lifecycle(distro_name: str, version: str) -> Optional[LifecycleDa
         "alma": "almalinux",
         "amazon": "amazonlinux",
         "amzn": "amazonlinux",
+        "ol": "oracle",  # Oracle Linux
+        "oraclelinux": "oracle",
     }
     distro_key = distro_mappings.get(distro_lower, distro_lower)
 
@@ -936,5 +972,12 @@ def get_distro_lifecycle(distro_name: str, version: str) -> Optional[LifecycleDa
             year = year_match.group(1)
             if year in distro_data:
                 return distro_data[year]
+
+    # For CentOS, version "9" should map to "stream9"
+    # (CentOS Stream is the only supported CentOS now)
+    if distro_key == "centos":
+        stream_version = f"stream{version_clean}"
+        if stream_version in distro_data:
+            return distro_data[stream_version]
 
     return None
