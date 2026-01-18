@@ -760,3 +760,87 @@ def get_supported_spdx_versions() -> list[str]:
         List of version strings (e.g., ["2.2", "2.3"])
     """
     return SUPPORTED_SPDX_VERSIONS.copy()
+
+
+# ============================================================================
+# License Sanitization
+# ============================================================================
+
+
+def _is_valid_spdx_license_id(license_id: str) -> bool:
+    """
+    Check if a string is a valid SPDX license ID using the license-expression library.
+
+    Args:
+        license_id: The license ID string to check
+
+    Returns:
+        True if it's a valid SPDX license ID, False otherwise
+    """
+    if not license_id:
+        return False
+
+    # Import here to avoid circular imports
+    from ._enrichment.license_utils import validate_spdx_expression
+
+    return validate_spdx_expression(license_id)
+
+
+def sanitize_cyclonedx_licenses(data: dict) -> int:
+    """
+    Sanitize CycloneDX license data by moving invalid license IDs to license names.
+
+    Some SBOM generators (like Trivy) incorrectly put non-SPDX license strings
+    in the license.id field, which causes schema validation failures.
+    This function moves such values to the license.name field instead.
+
+    Args:
+        data: CycloneDX SBOM data as a dict (modified in place)
+
+    Returns:
+        Number of licenses that were sanitized
+    """
+    sanitized_count = 0
+
+    def _sanitize_license_choices(license_choices: list) -> int:
+        """Process a list of licenseChoice objects."""
+        count = 0
+        for choice in license_choices:
+            if not isinstance(choice, dict):
+                continue
+
+            license_obj = choice.get("license")
+            if not isinstance(license_obj, dict):
+                continue
+
+            license_id = license_obj.get("id")
+            if license_id and not _is_valid_spdx_license_id(license_id):
+                # Move id to name
+                logger.debug(f"Sanitizing invalid license ID: {license_id} -> name")
+                del license_obj["id"]
+                license_obj["name"] = license_id
+                count += 1
+
+        return count
+
+    # Process metadata licenses
+    metadata = data.get("metadata", {})
+    if "licenses" in metadata:
+        sanitized_count += _sanitize_license_choices(metadata["licenses"])
+
+    # Process component licenses
+    components = data.get("components", [])
+    for component in components:
+        if "licenses" in component:
+            sanitized_count += _sanitize_license_choices(component["licenses"])
+
+    # Process service licenses (if present)
+    services = data.get("services", [])
+    for service in services:
+        if "licenses" in service:
+            sanitized_count += _sanitize_license_choices(service["licenses"])
+
+    if sanitized_count > 0:
+        logger.info(f"Sanitized {sanitized_count} invalid license ID(s) to license name(s)")
+
+    return sanitized_count

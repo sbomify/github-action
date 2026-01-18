@@ -20,6 +20,7 @@ import io
 import json
 import os
 import re
+import threading
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -62,6 +63,11 @@ SUPPORTED_DISTROS = {
         "type": "rpm",
         "versions": ["stream8", "stream9"],
     },
+    "debian": {
+        "type": "deb",
+        "versions": ["11", "12", "13"],
+        "codenames": {"11": "bullseye", "12": "bookworm", "13": "trixie"},
+    },
     "ubuntu": {
         "type": "deb",
         "versions": ["20.04", "22.04", "24.04"],
@@ -87,6 +93,9 @@ _db_cache: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
 # Cache for latest release assets
 _latest_release_assets: Optional[Dict[str, str]] = None  # filename -> download_url
+
+# Lock for database loading/generation to prevent race conditions
+_db_lock = threading.Lock()
 
 
 def clear_cache() -> None:
@@ -152,7 +161,7 @@ class LicenseDBSource:
             return namespace in ("alpine", "wolfi")
         elif purl.type == "deb":
             namespace = (purl.namespace or "").lower()
-            return namespace == "ubuntu"
+            return namespace in ("debian", "ubuntu")
         elif purl.type == "rpm":
             namespace = (purl.namespace or "").lower()
             return namespace in ("rocky", "almalinux", "amazonlinux", "centos", "fedora")
@@ -330,10 +339,12 @@ class LicenseDBSource:
         Load the license database for a distro/version.
 
         Strategy:
-        1. Check in-memory cache
-        2. Check local file cache
-        3. Try to download from latest GitHub release
-        4. Fallback: generate locally if download fails
+        1. Check in-memory cache (fast path, no lock)
+        2. Acquire lock to prevent race conditions
+        3. Double-check cache after acquiring lock
+        4. Check local file cache
+        5. Try to download from latest GitHub release
+        6. Fallback: generate locally if download fails
 
         Args:
             distro: Distribution name (ubuntu, rocky, etc.)
@@ -345,44 +356,50 @@ class LicenseDBSource:
         """
         cache_key = (distro, version)
 
-        # Check in-memory cache
+        # Fast path: check in-memory cache without lock
         if cache_key in _db_cache:
             return _db_cache[cache_key]
 
-        # Check local file cache
-        cache_file = self._cache_dir / f"{distro}-{version}.json.gz"
-        if cache_file.exists():
-            try:
-                db = self._load_from_file(cache_file)
-                _db_cache[cache_key] = db
-                logger.debug(f"Loaded license database from cache: {cache_file}")
-                return db
-            except Exception as e:
-                logger.warning(f"Failed to load cached database {cache_file}: {e}")
-                cache_file.unlink(missing_ok=True)
+        # Acquire lock to prevent race conditions during download/generation
+        with _db_lock:
+            # Double-check cache after acquiring lock (another thread may have loaded it)
+            if cache_key in _db_cache:
+                return _db_cache[cache_key]
 
-        # Try to download from latest GitHub Release
-        db = self._download_from_release(distro, version, session)
-        if db:
-            _db_cache[cache_key] = db
-            # Save to local cache
-            try:
-                self._save_to_file(cache_file, db)
-                logger.info(f"Cached license database: {cache_file}")
-            except Exception as e:
-                logger.warning(f"Failed to save database to cache: {e}")
-            return db
+            # Check local file cache
+            cache_file = self._cache_dir / f"{distro}-{version}.json.gz"
+            if cache_file.exists():
+                try:
+                    db = self._load_from_file(cache_file)
+                    _db_cache[cache_key] = db
+                    logger.debug(f"Loaded license database from cache: {cache_file}")
+                    return db
+                except Exception as e:
+                    logger.warning(f"Failed to load cached database {cache_file}: {e}")
+                    cache_file.unlink(missing_ok=True)
 
-        # Fallback: generate locally
-        if not DISABLE_LOCAL_GENERATION:
-            logger.info(f"Database not found in release, generating locally for {distro}-{version}...")
-            db = self._generate_locally(distro, version, cache_file)
+            # Try to download from latest GitHub Release
+            db = self._download_from_release(distro, version, session)
             if db:
                 _db_cache[cache_key] = db
+                # Save to local cache
+                try:
+                    self._save_to_file(cache_file, db)
+                    logger.info(f"Cached license database: {cache_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to save database to cache: {e}")
                 return db
 
-        logger.debug(f"No license database available for {distro}-{version}")
-        return None
+            # Fallback: generate locally
+            if not DISABLE_LOCAL_GENERATION:
+                logger.info(f"Database not found in release, generating locally for {distro}-{version}...")
+                db = self._generate_locally(distro, version, cache_file)
+                if db:
+                    _db_cache[cache_key] = db
+                    return db
+
+            logger.debug(f"No license database available for {distro}-{version}")
+            return None
 
     def _load_from_file(self, path: Path) -> Dict[str, Any]:
         """Load a gzipped JSON database from file."""
@@ -496,6 +513,7 @@ class LicenseDBSource:
             # Import generator functions
             from ..license_db_generator import (
                 generate_alpine_db,
+                generate_debian_db,
                 generate_rpm_db,
                 generate_ubuntu_db,
                 generate_wolfi_db,
@@ -512,6 +530,8 @@ class LicenseDBSource:
                 generate_wolfi_db(output_path)
             elif distro == "ubuntu":
                 generate_ubuntu_db(version, output_path)
+            elif distro == "debian":
+                generate_debian_db(version, output_path)
             elif distro in ("rocky", "almalinux", "fedora", "amazonlinux", "centos"):
                 generate_rpm_db(distro, version, output_path)
             else:

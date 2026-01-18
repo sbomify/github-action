@@ -9,6 +9,7 @@ Supported distros:
 - Wolfi (Chainguard) - rolling release
 - Amazon Linux (2, 2023)
 - CentOS Stream (8, 9)
+- Debian (11, 12, 13)
 - Ubuntu (20.04, 22.04, 24.04)
 - Rocky Linux (8, 9)
 - AlmaLinux (8, 9)
@@ -17,6 +18,7 @@ Supported distros:
 Usage:
     sbomify-license-db --distro alpine --version 3.20 --output alpine-3.20.json.gz
     sbomify-license-db --distro wolfi --version rolling --output wolfi-rolling.json.gz
+    sbomify-license-db --distro debian --version 12 --output debian-12.json.gz
     sbomify-license-db --distro ubuntu --version 24.04 --output ubuntu-24.04.json.gz
     sbomify-license-db --distro rocky --version 9 --output rocky-9.json.gz
 """
@@ -449,6 +451,16 @@ UBUNTU_CODENAMES = {
 UBUNTU_COMPONENTS = ["main", "universe", "restricted", "multiverse"]
 UBUNTU_POCKETS = ["-security", "-updates", ""]
 
+# Debian archive configuration
+DEBIAN_ARCHIVE_BASE = "https://deb.debian.org/debian/"
+DEBIAN_CODENAMES = {
+    "11": "bullseye",
+    "12": "bookworm",
+    "13": "trixie",
+}
+DEBIAN_COMPONENTS = ["main", "contrib", "non-free", "non-free-firmware"]
+DEBIAN_POCKETS = ["-updates", ""]  # No -security, that's in security.debian.org
+
 
 def parse_deb822(text: str) -> Iterator[Dict[str, str]]:
     """Parse Debian control-style stanzas."""
@@ -506,9 +518,11 @@ def fetch_ubuntu_packages(
         logger.warning(f"Failed to fetch {url}: {e}")
 
 
-def download_and_extract_deb(filename: str, package_name: str) -> Optional[str]:
+def download_and_extract_deb(
+    filename: str, package_name: str, archive_base: str = UBUNTU_ARCHIVE_BASE
+) -> Optional[str]:
     """Download a .deb file and extract the copyright file."""
-    url = urljoin(UBUNTU_ARCHIVE_BASE, filename)
+    url = urljoin(archive_base, filename)
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -624,6 +638,97 @@ def process_ubuntu_package(
         name=name,
         version=version,
         distro="ubuntu",
+        distro_version=distro_version,
+    )
+
+    return PackageMetadata(
+        purl=purl,
+        name=name,
+        version=version,
+        spdx=spdx,
+        license_raw=spdx,
+        description=description,
+        supplier=maintainer,
+        maintainer_name=maintainer_name,
+        maintainer_email=maintainer_email,
+        homepage=homepage,
+        download_url=download_url,
+        confidence="high",
+        source="deb_metadata",
+    )
+
+
+def fetch_debian_packages(
+    codename: str,
+    component: str = "main",
+    pocket: str = "",
+    arch: str = "amd64",
+) -> Iterator[Dict[str, str]]:
+    """Fetch and parse Debian Packages.gz index."""
+    suite = f"{codename}{pocket}"
+    url = urljoin(
+        DEBIAN_ARCHIVE_BASE,
+        f"dists/{suite}/{component}/binary-{arch}/Packages.gz",
+    )
+
+    logger.info(f"Fetching {url}")
+
+    try:
+        response = SESSION.get(url, timeout=DOWNLOAD_TIMEOUT)
+        response.raise_for_status()
+
+        with gzip.GzipFile(fileobj=io.BytesIO(response.content)) as gz:
+            text = gz.read().decode("utf-8", errors="replace")
+
+        yield from parse_deb822(text)
+    except Exception as e:
+        logger.warning(f"Failed to fetch {url}: {e}")
+
+
+def process_debian_package(
+    pkg_info: Dict[str, str],
+    distro_version: str,
+    codename: str,
+) -> Optional[PackageMetadata]:
+    """Process a single Debian package and extract all metadata."""
+    name = pkg_info.get("Package")
+    version = pkg_info.get("Version")
+    filename = pkg_info.get("Filename")
+
+    if not name or not version:
+        return None
+
+    # Extract license from copyright file
+    spdx = None
+    if filename:
+        copyright_text = download_and_extract_deb(filename, name, DEBIAN_ARCHIVE_BASE)
+        if copyright_text:
+            spdx = extract_dep5_license(copyright_text)
+
+    # We still require a valid license for inclusion
+    if not spdx:
+        return None
+
+    # Extract other metadata from Packages.gz
+    description = pkg_info.get("Description")
+    if description:
+        # Take first line only (rest is long description)
+        description = description.split("\n")[0].strip()
+
+    maintainer = pkg_info.get("Maintainer")
+    maintainer_name, maintainer_email = parse_maintainer(maintainer)
+
+    homepage = pkg_info.get("Homepage")
+
+    # Construct download URL
+    download_url = None
+    if filename:
+        download_url = urljoin(DEBIAN_ARCHIVE_BASE, filename)
+
+    purl = make_deb_purl(
+        name=name,
+        version=version,
+        distro="debian",
         distro_version=distro_version,
     )
 
@@ -1139,6 +1244,90 @@ def generate_ubuntu_db(
     logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
 
 
+def generate_debian_db(
+    distro_version: str,
+    output_path: Path,
+    max_packages: Optional[int] = None,
+) -> None:
+    """Generate license database for Debian."""
+    codename = DEBIAN_CODENAMES.get(distro_version)
+    if not codename:
+        logger.error(f"Unknown Debian version: {distro_version}")
+        sys.exit(1)
+
+    logger.info(f"Generating license database for Debian {distro_version} ({codename})")
+
+    packages: Dict[str, Dict[str, Any]] = {}
+    seen_names: set = set()
+    count = 0
+    skipped = 0
+
+    for component in DEBIAN_COMPONENTS:
+        for pocket in DEBIAN_POCKETS:
+            for pkg_info in fetch_debian_packages(codename, component, pocket):
+                name = pkg_info.get("Package")
+                if not name or name in seen_names:
+                    continue
+
+                seen_names.add(name)
+
+                if max_packages and count >= max_packages:
+                    break
+
+                result = process_debian_package(pkg_info, distro_version, codename)
+                if result:
+                    packages[result.purl] = {
+                        "name": result.name,
+                        "version": result.version,
+                        "spdx": result.spdx,
+                        "license_raw": result.license_raw,
+                        "description": result.description,
+                        "supplier": result.supplier,
+                        "maintainer_name": result.maintainer_name,
+                        "maintainer_email": result.maintainer_email,
+                        "homepage": result.homepage,
+                        "download_url": result.download_url,
+                        "confidence": result.confidence,
+                        "source": result.source,
+                    }
+                    count += 1
+                    if count % 100 == 0:
+                        logger.info(f"Processed {count} packages with valid licenses...")
+                else:
+                    skipped += 1
+
+            if max_packages and count >= max_packages:
+                break
+        if max_packages and count >= max_packages:
+            break
+
+    # Get CLE lifecycle data
+    lifecycle = DISTRO_LIFECYCLE.get("debian", {}).get(distro_version, {})
+
+    db = {
+        "metadata": asdict(
+            DatabaseMetadata(
+                distro="debian",
+                version=distro_version,
+                codename=codename,
+                generated_at=datetime.now(timezone.utc).isoformat(),
+                package_count=len(packages),
+                release_date=lifecycle.get("release_date"),
+                end_of_support=lifecycle.get("end_of_support"),
+                end_of_life=lifecycle.get("end_of_life"),
+            )
+        ),
+        "packages": packages,
+    }
+
+    with gzip.open(output_path, "wt", encoding="utf-8") as f:
+        json.dump(db, f, separators=(",", ":"))
+
+    logger.info(f"Wrote {len(packages)} packages to {output_path}")
+    logger.info(f"Skipped: {skipped} (license not validated)")
+    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+
+
 def resolve_mirror_url(mirror_list_url: str) -> Optional[str]:
     """Resolve a mirror.list URL to the actual repository URL.
 
@@ -1272,7 +1461,7 @@ def main() -> None:
     parser.add_argument(
         "--distro",
         required=True,
-        choices=["alpine", "amazonlinux", "centos", "ubuntu", "rocky", "almalinux", "fedora", "wolfi"],
+        choices=["alpine", "amazonlinux", "centos", "debian", "ubuntu", "rocky", "almalinux", "fedora", "wolfi"],
         help="Distribution name",
     )
     parser.add_argument(
@@ -1304,6 +1493,8 @@ def main() -> None:
     elif args.distro == "wolfi":
         # Wolfi is rolling release, version is ignored
         generate_wolfi_db(output_path, args.max_packages)
+    elif args.distro == "debian":
+        generate_debian_db(args.version, output_path, args.max_packages)
     elif args.distro == "ubuntu":
         generate_ubuntu_db(args.version, output_path, args.max_packages)
     else:

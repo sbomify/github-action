@@ -97,6 +97,7 @@ from .generation import (
 from .logging_config import logger
 from .serialization import (
     link_root_dependencies,
+    sanitize_cyclonedx_licenses,
     sanitize_dependency_graph,
     sanitize_purls,
     sanitize_spdx_json_file,
@@ -1003,6 +1004,9 @@ def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: 
                         component_data["type"] = "application"
                     components.append(component_data)
                 data["metadata"]["tools"] = {"components": components, "services": []}
+
+    # Sanitize invalid license IDs (e.g., Trivy puts non-SPDX IDs in license.id field)
+    sanitize_cyclonedx_licenses(data)
 
     # Parse BOM
     try:
