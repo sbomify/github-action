@@ -27,6 +27,7 @@ import argparse
 import gzip
 import io
 import json
+import lzma
 import re
 import subprocess
 import sys
@@ -664,25 +665,38 @@ def fetch_debian_packages(
     pocket: str = "",
     arch: str = "amd64",
 ) -> Iterator[Dict[str, str]]:
-    """Fetch and parse Debian Packages.gz index."""
+    """Fetch and parse Debian Packages index (.gz or .xz)."""
     suite = f"{codename}{pocket}"
-    url = urljoin(
-        DEBIAN_ARCHIVE_BASE,
-        f"dists/{suite}/{component}/binary-{arch}/Packages.gz",
-    )
+    base_url = f"dists/{suite}/{component}/binary-{arch}/Packages"
 
-    logger.info(f"Fetching {url}")
+    # Try .gz first, then .xz (some pockets like -updates only have .xz)
+    for ext in [".gz", ".xz"]:
+        url = urljoin(DEBIAN_ARCHIVE_BASE, f"{base_url}{ext}")
+        logger.info(f"Fetching {url}")
 
-    try:
-        response = SESSION.get(url, timeout=DOWNLOAD_TIMEOUT)
-        response.raise_for_status()
+        try:
+            response = SESSION.get(url, timeout=DOWNLOAD_TIMEOUT)
+            response.raise_for_status()
 
-        with gzip.GzipFile(fileobj=io.BytesIO(response.content)) as gz:
-            text = gz.read().decode("utf-8", errors="replace")
+            if ext == ".gz":
+                with gzip.GzipFile(fileobj=io.BytesIO(response.content)) as gz:
+                    text = gz.read().decode("utf-8", errors="replace")
+            else:  # .xz
+                text = lzma.decompress(response.content).decode("utf-8", errors="replace")
 
-        yield from parse_deb822(text)
-    except Exception as e:
-        logger.warning(f"Failed to fetch {url}: {e}")
+            yield from parse_deb822(text)
+            return  # Success, don't try other formats
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                logger.debug(f"Not found: {url}, trying next format...")
+                continue
+            logger.warning(f"Failed to fetch {url}: {e}")
+            return
+        except Exception as e:
+            logger.warning(f"Failed to fetch {url}: {e}")
+            return
+
+    logger.warning(f"No Packages index found for {suite}/{component}")
 
 
 def process_debian_package(
