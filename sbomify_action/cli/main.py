@@ -121,6 +121,7 @@ SBOMIFY_PRODUCTION_API = "https://app.sbomify.com"
 SBOMIFY_TOOL_NAME = "sbomify-action"
 SBOMIFY_VENDOR_NAME = "sbomify"
 LOCALHOST_PATTERNS = ["127.0.0.1", "localhost", "0.0.0.0"]
+VALID_SBOM_FORMATS: tuple[str, ...] = ("cyclonedx", "spdx")
 
 # Intermediate SBOM files for pipeline steps
 STEP_1_FILE = "step_1.json"  # Output of generation/validation
@@ -250,10 +251,9 @@ class Config:
             raise ConfigurationError("Please provide one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
 
         # Validate SBOM format
-        valid_formats = ("cyclonedx", "spdx")
-        if self.sbom_format not in valid_formats:
+        if self.sbom_format not in VALID_SBOM_FORMATS:
             raise ConfigurationError(
-                f"Invalid SBOM_FORMAT: '{self.sbom_format}'. Must be one of: {', '.join(valid_formats)}"
+                f"Invalid SBOM_FORMAT: '{self.sbom_format}'. Must be one of: {', '.join(VALID_SBOM_FORMATS)}"
             )
 
         # Validate product releases format
@@ -1572,8 +1572,9 @@ def _validate_sbom_format(ctx: click.Context, param: click.Parameter, value: Opt
     if value is None:
         return None
     value_lower = value.lower()
-    if value_lower not in ("cyclonedx", "spdx"):
-        raise click.BadParameter(f"Invalid format '{value}'. Must be 'cyclonedx' or 'spdx'.")
+    if value_lower not in VALID_SBOM_FORMATS:
+        valid_formats_str = "', '".join(VALID_SBOM_FORMATS)
+        raise click.BadParameter(f"Invalid format '{value}'. Must be one of: '{valid_formats_str}'.")
     return value_lower
 
 

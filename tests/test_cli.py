@@ -579,6 +579,12 @@ class TestEvaluateBoolean(unittest.TestCase):
         for value in ["false", "no", "0", "anything", "nope", ""]:
             self.assertFalse(evaluate_boolean(value), f"'{value}' should be False")
 
+    def test_false_values_case_insensitive(self):
+        """Test that false values are case-insensitive."""
+        # Verify case variations of false values
+        for value in ["FALSE", "False", "NO", "No"]:
+            self.assertFalse(evaluate_boolean(value), f"'{value}' should be False (case-insensitive)")
+
 
 if __name__ == "__main__":
     unittest.main()
