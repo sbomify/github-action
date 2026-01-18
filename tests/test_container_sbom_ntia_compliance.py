@@ -7,8 +7,8 @@ Crosswalk: https://sbomify.com/compliance/schema-crosswalk/
 This module tests enrichment and augmentation on SBOMs generated from:
 - Ubuntu 22.04
 - Alpine 3.19
-- Debian 12
-- Red Hat UBI9
+- Debian 12-slim
+- Fedora 41
 
 Both CycloneDX and SPDX formats are tested with Trivy and Syft outputs.
 
@@ -35,8 +35,16 @@ from .ntia_checker import NTIAComplianceChecker
 # Test data directory
 TEST_DATA_DIR = Path(__file__).parent / "test-data"
 
-# Container images we generated SBOMs for
-CONTAINER_IMAGES = ["ubuntu", "alpine", "debian", "redhat"]
+# Container images we generated SBOMs for (maps display name to file prefix)
+CONTAINER_IMAGE_FILES = {
+    "ubuntu_22.04": "ubuntu_22.04",
+    "alpine_3.19": "alpine_3.19",
+    "debian_12-slim": "debian_12-slim",
+    "fedora_41": "fedora_41",
+}
+
+# For parametrize - use the keys
+CONTAINER_IMAGES = list(CONTAINER_IMAGE_FILES.keys())
 
 # Sample backend metadata for augmentation testing
 SAMPLE_BACKEND_METADATA = {
@@ -70,25 +78,25 @@ class TestContainerSBOMsExist:
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_trivy_cdx_exists(self, image):
         """Test that Trivy CycloneDX SBOM exists."""
-        sbom_path = TEST_DATA_DIR / f"{image}-trivy.cdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_trivy.cdx.json"
         assert sbom_path.exists(), f"Missing: {sbom_path}"
 
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_trivy_spdx_exists(self, image):
         """Test that Trivy SPDX SBOM exists."""
-        sbom_path = TEST_DATA_DIR / f"{image}-trivy.spdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_trivy.spdx.json"
         assert sbom_path.exists(), f"Missing: {sbom_path}"
 
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_syft_cdx_exists(self, image):
         """Test that Syft CycloneDX SBOM exists."""
-        sbom_path = TEST_DATA_DIR / f"{image}-syft.cdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_syft.cdx.json"
         assert sbom_path.exists(), f"Missing: {sbom_path}"
 
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_syft_spdx_exists(self, image):
         """Test that Syft SPDX SBOM exists."""
-        sbom_path = TEST_DATA_DIR / f"{image}-syft.spdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_syft.spdx.json"
         assert sbom_path.exists(), f"Missing: {sbom_path}"
 
 
@@ -98,7 +106,7 @@ class TestRawSBOMNTIACompliance:
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_raw_trivy_cyclonedx_compliance(self, image):
         """Test NTIA compliance of raw Trivy CycloneDX output."""
-        sbom_path = TEST_DATA_DIR / f"{image}-trivy.cdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_trivy.cdx.json"
         if not sbom_path.exists():
             pytest.skip(f"SBOM not found: {sbom_path}")
 
@@ -120,7 +128,7 @@ class TestRawSBOMNTIACompliance:
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_raw_trivy_spdx_compliance(self, image):
         """Test NTIA compliance of raw Trivy SPDX output."""
-        sbom_path = TEST_DATA_DIR / f"{image}-trivy.spdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_trivy.spdx.json"
         if not sbom_path.exists():
             pytest.skip(f"SBOM not found: {sbom_path}")
 
@@ -139,7 +147,7 @@ class TestRawSBOMNTIACompliance:
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_raw_syft_cyclonedx_compliance(self, image):
         """Test NTIA compliance of raw Syft CycloneDX output."""
-        sbom_path = TEST_DATA_DIR / f"{image}-syft.cdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_syft.cdx.json"
         if not sbom_path.exists():
             pytest.skip(f"SBOM not found: {sbom_path}")
 
@@ -158,7 +166,7 @@ class TestRawSBOMNTIACompliance:
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_raw_syft_spdx_compliance(self, image):
         """Test NTIA compliance of raw Syft SPDX output."""
-        sbom_path = TEST_DATA_DIR / f"{image}-syft.spdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_syft.spdx.json"
         if not sbom_path.exists():
             pytest.skip(f"SBOM not found: {sbom_path}")
 
@@ -181,7 +189,7 @@ class TestEnrichmentNTIACompliance:
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_enriched_trivy_cyclonedx_compliance(self, image, tmp_path):
         """Test NTIA compliance after enrichment of Trivy CycloneDX."""
-        sbom_path = TEST_DATA_DIR / f"{image}-trivy.cdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_trivy.cdx.json"
         if not sbom_path.exists():
             pytest.skip(f"SBOM not found: {sbom_path}")
 
@@ -213,7 +221,7 @@ class TestEnrichmentNTIACompliance:
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_enriched_trivy_spdx_compliance(self, image, tmp_path):
         """Test NTIA compliance after enrichment of Trivy SPDX."""
-        sbom_path = TEST_DATA_DIR / f"{image}-trivy.spdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_trivy.spdx.json"
         if not sbom_path.exists():
             pytest.skip(f"SBOM not found: {sbom_path}")
 
@@ -250,7 +258,7 @@ class TestAugmentationNTIACompliance:
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_augmented_trivy_cyclonedx(self, image, tmp_path, mock_backend_response):
         """Test augmentation adds supplier to CycloneDX SBOM."""
-        sbom_path = TEST_DATA_DIR / f"{image}-trivy.cdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_trivy.cdx.json"
         if not sbom_path.exists():
             pytest.skip(f"SBOM not found: {sbom_path}")
 
@@ -296,7 +304,7 @@ class TestAugmentationNTIACompliance:
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_augmented_trivy_spdx(self, image, tmp_path, mock_backend_response):
         """Test augmentation adds supplier to SPDX SBOM."""
-        sbom_path = TEST_DATA_DIR / f"{image}-trivy.spdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_trivy.spdx.json"
         if not sbom_path.exists():
             pytest.skip(f"SBOM not found: {sbom_path}")
 
@@ -336,7 +344,7 @@ class TestFullPipelineNTIACompliance:
     @pytest.mark.parametrize("image", CONTAINER_IMAGES)
     def test_full_pipeline_cyclonedx(self, image, tmp_path):
         """Test full pipeline achieves NTIA compliance for CycloneDX."""
-        sbom_path = TEST_DATA_DIR / f"{image}-trivy.cdx.json"
+        sbom_path = TEST_DATA_DIR / f"{image}_trivy.cdx.json"
         if not sbom_path.exists():
             pytest.skip(f"SBOM not found: {sbom_path}")
 
