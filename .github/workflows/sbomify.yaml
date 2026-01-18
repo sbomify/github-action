@@ -291,58 +291,36 @@ jobs:
             exit 1
           fi
 
-      - name: Verify CLE lifecycle events (CycloneDX)
+      - name: Verify OS component CLE lifecycle (CycloneDX)
         run: |
-          echo "=== Verifying CLE Lifecycle Events in CycloneDX ==="
+          echo "=== Verifying OS Component CLE Lifecycle in CycloneDX ==="
           
-          # Check for CLE properties (ECMA-428 standard)
-          # See: https://sbomify.com/compliance/cle/
-          CLE_EOS_COUNT=$(jq '[.components[].properties[]? | select(.name == "cle:eos")] | length' alpine-enriched.cdx.json)
-          CLE_EOL_COUNT=$(jq '[.components[].properties[]? | select(.name == "cle:eol")] | length' alpine-enriched.cdx.json)
+          # CLE properties are now only added to:
+          # 1. OS components (type: operating-system) - like the Alpine base image
+          # 2. Tracked runtimes/frameworks (Python, PHP, Go, etc.) - not present in plain Alpine
+          # 
+          # Arbitrary OS packages (curl, busybox, etc.) do NOT get distro lifecycle
+          # because the PURL doesn't reliably indicate distro version.
           
-          echo "CycloneDX components with cle:eos: $CLE_EOS_COUNT"
-          echo "CycloneDX components with cle:eol: $CLE_EOL_COUNT"
+          # Check OS component has CLE properties
+          OS_CLE=$(jq '.components[] | select(.type == "operating-system") | .properties[]? | select(.name | startswith("cle:"))' alpine-enriched.cdx.json)
           
-          # Alpine 3.20 should have CLE dates set
-          if [ "$CLE_EOS_COUNT" -ge 10 ]; then
-            echo "✅ CycloneDX CLE end-of-support dates are being set"
+          if [ -n "$OS_CLE" ]; then
+            echo "✅ OS component has CLE lifecycle properties"
+            echo "OS component CLE:"
+            jq '.components[] | select(.type == "operating-system") | {name, version, cle: [.properties[]? | select(.name | startswith("cle:"))]}' alpine-enriched.cdx.json
           else
-            echo "❌ Expected CLE end-of-support dates on CycloneDX components"
+            echo "❌ Expected CLE properties on OS component"
             exit 1
           fi
           
-          if [ "$CLE_EOL_COUNT" -ge 10 ]; then
-            echo "✅ CycloneDX CLE end-of-life dates are being set"
+          # Verify specific CLE values for Alpine 3.20
+          CLE_EOL=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:eol") | .value' alpine-enriched.cdx.json)
+          if [ "$CLE_EOL" = "2026-04-01" ]; then
+            echo "✅ Alpine 3.20 EOL date is correct: $CLE_EOL"
           else
-            echo "❌ Expected CLE end-of-life dates on CycloneDX components"
-            exit 1
+            echo "⚠️ Alpine 3.20 EOL date: $CLE_EOL (expected 2026-04-01)"
           fi
-          
-          # Show sample CLE data
-          echo "Sample CycloneDX CLE properties:"
-          jq '.components[0].properties[]? | select(.name | startswith("cle:"))' alpine-enriched.cdx.json || true
-
-      - name: Verify CLE lifecycle events (SPDX)
-        run: |
-          echo "=== Verifying CLE Lifecycle Events in SPDX ==="
-          
-          # For SPDX, CLE data is added to the package comment field
-          # Check for packages with CLE lifecycle info in comments
-          CLE_COMMENT_COUNT=$(jq '[.packages[] | select(.comment != null and (.comment | contains("CLE lifecycle")))] | length' alpine-enriched.spdx.json)
-          
-          echo "SPDX packages with CLE lifecycle comments: $CLE_COMMENT_COUNT"
-          
-          # Alpine 3.20 should have CLE dates in comments
-          if [ "$CLE_COMMENT_COUNT" -ge 10 ]; then
-            echo "✅ SPDX CLE lifecycle data is being set in comments"
-          else
-            echo "❌ Expected CLE lifecycle data in SPDX package comments"
-            exit 1
-          fi
-          
-          # Show sample CLE data
-          echo "Sample SPDX CLE comment:"
-          jq -r '.packages[] | select(.comment != null and (.comment | contains("CLE"))) | .comment' alpine-enriched.spdx.json | head -3 || true
 
       - name: Verify enrichment adds publisher (CycloneDX)
         run: |
@@ -403,6 +381,121 @@ jobs:
           path: |
             alpine-enriched.cdx.json
             alpine-enriched.spdx.json
+          retention-days: 7
+
+  cle-integration-test:
+    name: CLE Lifecycle Integration Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: uv sync --locked --dev
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate and enrich Debian SBOM (CycloneDX)
+        run: |
+          # Use Debian image to test OS component CLE enrichment
+          uv run sbomify-action
+        env:
+          TOKEN: placeholder
+          COMPONENT_ID: placeholder
+          DOCKER_IMAGE: debian:12-slim
+          SBOM_FORMAT: cyclonedx
+          OUTPUT_FILE: debian-enriched.cdx.json
+          ENRICH: "true"
+          UPLOAD: "false"
+
+      - name: Verify OS component CLE (Debian 12)
+        run: |
+          echo "=== Verifying OS Component CLE ==="
+          
+          # Verify OS component has CLE properties
+          OS_COMPONENT=$(jq '.components[] | select(.type == "operating-system")' debian-enriched.cdx.json)
+          
+          if [ -n "$OS_COMPONENT" ]; then
+            echo "OS component found:"
+            jq '.components[] | select(.type == "operating-system") | {name, version, publisher}' debian-enriched.cdx.json
+            
+            # Check for CLE properties
+            CLE_EOL=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:eol") | .value' debian-enriched.cdx.json)
+            CLE_EOS=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:eos") | .value' debian-enriched.cdx.json)
+            CLE_RELEASE=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:releaseDate") | .value' debian-enriched.cdx.json)
+            
+            echo "CLE Release Date: $CLE_RELEASE"
+            echo "CLE End of Support: $CLE_EOS"  
+            echo "CLE End of Life: $CLE_EOL"
+            
+            if [ -n "$CLE_EOL" ] && [ -n "$CLE_EOS" ]; then
+              echo "✅ OS component has CLE lifecycle properties"
+            else
+              echo "❌ OS component missing CLE properties"
+              exit 1
+            fi
+          else
+            echo "❌ No OS component found"
+            exit 1
+          fi
+
+      - name: Verify Debian 12 CLE values
+        run: |
+          echo "=== Verifying Debian 12 CLE Values ==="
+          
+          # Debian 12 EOL should be 2028-06-30 (LTS end)
+          CLE_EOL=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:eol") | .value' debian-enriched.cdx.json)
+          
+          if [ "$CLE_EOL" = "2028-06-30" ]; then
+            echo "✅ Debian 12 EOL date is correct: $CLE_EOL"
+          else
+            echo "❌ Debian 12 EOL date incorrect: $CLE_EOL (expected 2028-06-30)"
+            exit 1
+          fi
+          
+          # Debian 12 EOS should be 2026-06-10 (regular support end)
+          CLE_EOS=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:eos") | .value' debian-enriched.cdx.json)
+          
+          if [ "$CLE_EOS" = "2026-06-10" ]; then
+            echo "✅ Debian 12 EOS date is correct: $CLE_EOS"
+          else
+            echo "❌ Debian 12 EOS date incorrect: $CLE_EOS (expected 2026-06-10)"
+            exit 1
+          fi
+
+      - name: Verify publisher enrichment
+        run: |
+          echo "=== Verifying Publisher Enrichment ==="
+          
+          PUBLISHER=$(jq -r '.components[] | select(.type == "operating-system") | .publisher' debian-enriched.cdx.json)
+          
+          if [ "$PUBLISHER" = "Debian Project" ]; then
+            echo "✅ OS component publisher is correct: $PUBLISHER"
+          else
+            echo "❌ OS component publisher incorrect: $PUBLISHER (expected 'Debian Project')"
+            exit 1
+          fi
+          
+          # Show all CLE-enriched components summary
+          echo ""
+          echo "=== All CLE-enriched components ==="
+          jq -r '.components[] | select(.properties[]?.name | startswith("cle:")) | "\(.type // "library"): \(.name) v\(.version)"' debian-enriched.cdx.json | sort -u
+
+      - name: Upload enriched SBOM artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: debian-cle-enriched-sbom
+          path: debian-enriched.cdx.json
           retention-days: 7
 
   augmentation-integration-test:
@@ -917,6 +1010,7 @@ jobs:
       - integration-tests
       - container-tests
       - license-db-integration-test
+      - cle-integration-test
       - augmentation-integration-test
     if: github.event_name == 'push'
     permissions:
@@ -987,8 +1081,159 @@ jobs:
           echo "Use $DOCKER_HUB_IMAGE_ID:$VERSION outside of GitHub" >> ${GITHUB_STEP_SUMMARY}
           echo \`\`\` >> ${GITHUB_STEP_SUMMARY}
 
-  upload-sbom:
-    name: Upload SBOM
+  # =========================================================================
+  # Generate Source SBOMs - runs in parallel with push-images
+  # (action and javascript components don't need the Docker image)
+  # =========================================================================
+  generate-source-sboms:
+    name: Generate SBOMs (${{ matrix.component }}-${{ matrix.format }}-${{ matrix.target }})
+    needs:
+      - sanity-checks
+      - integration-tests
+      - container-tests
+      - license-db-integration-test
+      - cle-integration-test
+      - augmentation-integration-test
+    if: github.event_name == 'push'
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ===========================================
+          # Staging - master branch only
+          # ===========================================
+          - target: staging
+            component: action
+            format: cyclonedx
+            component_id: 'XNsX40tonzvv'
+            component_name: 'sbomify Action'
+            lock_file: 'uv.lock'
+            output_file: 'github-action.cdx.json'
+            product_release_id: 'Engh9j4XTTwD'
+            has_product_release: true
+          - target: staging
+            component: action
+            format: spdx
+            component_id: 'XNsX40tonzvv'
+            component_name: 'sbomify Action'
+            lock_file: 'uv.lock'
+            output_file: 'github-action.spdx.json'
+            has_product_release: false
+          - target: staging
+            component: javascript
+            format: cyclonedx
+            component_id: 'PGyKXNbQd5eq'
+            component_name: 'JavaScript Dependencies'
+            lock_file: 'bun.lock'
+            output_file: 'github-action-frontend.cdx.json'
+            product_release_id: 'Engh9j4XTTwD'
+            has_product_release: true
+          - target: staging
+            component: javascript
+            format: spdx
+            component_id: 'PGyKXNbQd5eq'
+            component_name: 'JavaScript Dependencies'
+            lock_file: 'bun.lock'
+            output_file: 'github-action-frontend.spdx.json'
+            has_product_release: false
+          # ===========================================
+          # Production - tags only
+          # ===========================================
+          - target: production
+            component: action
+            format: cyclonedx
+            component_id: 'Gu9wem8mkX'
+            component_name: 'sbomify Action'
+            lock_file: 'uv.lock'
+            output_file: 'github-action.cdx.json'
+            product_release_id: 'IeIn1dGJXULh'
+            has_product_release: true
+          - target: production
+            component: action
+            format: spdx
+            component_id: 'Gu9wem8mkX'
+            component_name: 'sbomify Action'
+            lock_file: 'uv.lock'
+            output_file: 'github-action.spdx.json'
+            has_product_release: false
+          - target: production
+            component: javascript
+            format: cyclonedx
+            component_id: 'IxwrYSb9rGql'
+            component_name: 'JavaScript Dependencies'
+            lock_file: 'bun.lock'
+            output_file: 'github-action-frontend.cdx.json'
+            product_release_id: 'IeIn1dGJXULh'
+            has_product_release: true
+          - target: production
+            component: javascript
+            format: spdx
+            component_id: 'IxwrYSb9rGql'
+            component_name: 'JavaScript Dependencies'
+            lock_file: 'bun.lock'
+            output_file: 'github-action-frontend.spdx.json'
+            has_product_release: false
+    steps:
+      - name: Check if job should run
+        id: should_run
+        run: |
+          if [[ "${{ matrix.target }}" == "staging" && "${{ github.ref }}" == "refs/heads/master" ]]; then
+            echo "run=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.target }}" == "production" && "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout code
+        if: steps.should_run.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        if: steps.should_run.outputs.run == 'true'
+        id: version
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          if [[ "${{ matrix.target }}" == "staging" ]]; then
+            echo "version=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate and Upload SBOM
+        if: steps.should_run.outputs.run == 'true'
+        uses: sbomify/github-action@master
+        env:
+          TOKEN: ${{ matrix.target == 'staging' && secrets.SBOMIFY_STAGE_TOKEN || secrets.SBOMIFY_TOKEN }}
+          API_BASE_URL: ${{ matrix.target == 'staging' && 'https://stage.sbomify.com' || '' }}
+          COMPONENT_ID: ${{ matrix.component_id }}
+          COMPONENT_NAME: ${{ matrix.component_name }}
+          COMPONENT_VERSION: ${{ steps.version.outputs.version }}
+          COMPONENT_PURL: ${{ matrix.component == 'action' && format('pkg:docker/sbomifyhub/sbomify-action@{0}', steps.version.outputs.version) || '' }}
+          LOCK_FILE: ${{ matrix.lock_file }}
+          PRODUCT_RELEASE: ${{ matrix.has_product_release && format('["{0}:{1}"]', matrix.product_release_id, steps.version.outputs.version) || '' }}
+          SBOM_FORMAT: ${{ matrix.format }}
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: true
+          OUTPUT_FILE: ${{ matrix.output_file }}
+
+      - name: Attest SBOM
+        if: steps.should_run.outputs.run == 'true'
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: '${{ github.workspace }}/${{ matrix.output_file }}'
+
+  # =========================================================================
+  # Generate Container SBOMs - needs push-images (requires Docker image)
+  # =========================================================================
+  generate-container-sboms:
+    name: Generate SBOMs (container-${{ matrix.format }}-${{ matrix.target }})
     needs: push-images
     if: github.event_name == 'push'
     permissions:
@@ -996,255 +1241,96 @@ jobs:
       contents: read
       attestations: write
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ===========================================
+          # Staging - master branch only
+          # ===========================================
+          - target: staging
+            format: cyclonedx
+            component_id: 'gco2pG10whmy'
+            component_name: 'sbomify Action Container'
+            output_file: 'github-action-container.cdx.json'
+            product_release_id: 'Engh9j4XTTwD'
+            has_product_release: true
+          - target: staging
+            format: spdx
+            component_id: 'gco2pG10whmy'
+            component_name: 'sbomify Action Container'
+            output_file: 'github-action-container.spdx.json'
+            has_product_release: false
+          # ===========================================
+          # Production - tags only
+          # ===========================================
+          - target: production
+            format: cyclonedx
+            component_id: 'ryD0Hcu4vq6y'
+            component_name: 'sbomify Action Container'
+            output_file: 'github-action-container.cdx.json'
+            product_release_id: 'IeIn1dGJXULh'
+            has_product_release: true
+          - target: production
+            format: spdx
+            component_id: 'ryD0Hcu4vq6y'
+            component_name: 'sbomify Action Container'
+            output_file: 'github-action-container.spdx.json'
+            has_product_release: false
     steps:
+      - name: Check if job should run
+        id: should_run
+        run: |
+          if [[ "${{ matrix.target }}" == "staging" && "${{ github.ref }}" == "refs/heads/master" ]]; then
+            echo "run=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.target }}" == "production" && "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "run=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout code
+        if: steps.should_run.outputs.run == 'true'
         uses: actions/checkout@v4
 
       - name: Generate additional packages from Dockerfile
+        if: steps.should_run.outputs.run == 'true'
         run: ./scripts/generate_additional_packages.sh > container_additional_packages.txt
 
       - name: Determine version
+        if: steps.should_run.outputs.run == 'true'
         id: version
         run: |
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          if [[ "${{ matrix.target }}" == "staging" ]]; then
+            echo "version=${SHORT_SHA}" >> $GITHUB_OUTPUT
+            echo "docker_tag=latest" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "docker_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Upload SBOM to Staging (CycloneDX)
-        if: github.ref == 'refs/heads/master'
+      - name: Generate and Upload SBOM
+        if: steps.should_run.outputs.run == 'true'
         uses: sbomify/github-action@master
         env:
-          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
-          API_BASE_URL: https://stage.sbomify.com
-          COMPONENT_ID: 'XNsX40tonzvv'
-          LOCK_FILE: 'uv.lock'
-          COMPONENT_NAME: 'sbomify Action'
-          COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
-          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ steps.version.outputs.short_sha }}'
-          PRODUCT_RELEASE: '["Engh9j4XTTwD:${{ steps.version.outputs.short_sha }}"]'
-          SBOM_FORMAT: cyclonedx
-          AUGMENT: true
-          ENRICH: true
-          UPLOAD: true
-          OUTPUT_FILE: github-action.cdx.json
-
-      - name: Upload SBOM to Staging (SPDX)
-        if: github.ref == 'refs/heads/master'
-        uses: sbomify/github-action@master
-        env:
-          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
-          API_BASE_URL: https://stage.sbomify.com
-          COMPONENT_ID: 'XNsX40tonzvv'
-          LOCK_FILE: 'uv.lock'
-          COMPONENT_NAME: 'sbomify Action'
-          COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
-          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ steps.version.outputs.short_sha }}'
-          SBOM_FORMAT: spdx
-          AUGMENT: true
-          ENRICH: true
-          UPLOAD: true
-          OUTPUT_FILE: github-action.spdx.json
-
-      - name: Upload Container SBOM to Staging (CycloneDX)
-        if: github.ref == 'refs/heads/master'
-        uses: sbomify/github-action@master
-        env:
-          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
-          API_BASE_URL: https://stage.sbomify.com
-          COMPONENT_ID: 'gco2pG10whmy'
-          DOCKER_IMAGE: 'sbomifyhub/sbomify-action:latest'
-          COMPONENT_NAME: 'sbomify Action Container'
-          COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
-          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ steps.version.outputs.short_sha }}'
-          PRODUCT_RELEASE: '["Engh9j4XTTwD:${{ steps.version.outputs.short_sha }}"]'
+          TOKEN: ${{ matrix.target == 'staging' && secrets.SBOMIFY_STAGE_TOKEN || secrets.SBOMIFY_TOKEN }}
+          API_BASE_URL: ${{ matrix.target == 'staging' && 'https://stage.sbomify.com' || '' }}
+          COMPONENT_ID: ${{ matrix.component_id }}
+          COMPONENT_NAME: ${{ matrix.component_name }}
+          COMPONENT_VERSION: ${{ steps.version.outputs.version }}
+          COMPONENT_PURL: pkg:docker/sbomifyhub/sbomify-action@${{ steps.version.outputs.version }}
+          DOCKER_IMAGE: sbomifyhub/sbomify-action:${{ steps.version.outputs.docker_tag }}
           ADDITIONAL_PACKAGES_FILE: container_additional_packages.txt
-          SBOM_FORMAT: cyclonedx
+          PRODUCT_RELEASE: ${{ matrix.has_product_release && format('["{0}:{1}"]', matrix.product_release_id, steps.version.outputs.version) || '' }}
+          SBOM_FORMAT: ${{ matrix.format }}
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
-          OUTPUT_FILE: github-action-container.cdx.json
+          OUTPUT_FILE: ${{ matrix.output_file }}
 
-      - name: Upload Container SBOM to Staging (SPDX)
-        if: github.ref == 'refs/heads/master'
-        uses: sbomify/github-action@master
-        env:
-          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
-          API_BASE_URL: https://stage.sbomify.com
-          COMPONENT_ID: 'gco2pG10whmy'
-          DOCKER_IMAGE: 'sbomifyhub/sbomify-action:latest'
-          COMPONENT_NAME: 'sbomify Action Container'
-          COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
-          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ steps.version.outputs.short_sha }}'
-          ADDITIONAL_PACKAGES_FILE: container_additional_packages.txt
-          SBOM_FORMAT: spdx
-          AUGMENT: true
-          ENRICH: true
-          UPLOAD: true
-          OUTPUT_FILE: github-action-container.spdx.json
-
-      - name: Upload JavaScript Dependencies SBOM to Staging (CycloneDX)
-        if: github.ref == 'refs/heads/master'
-        uses: sbomify/github-action@master
-        env:
-          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
-          API_BASE_URL: https://stage.sbomify.com
-          COMPONENT_ID: 'PGyKXNbQd5eq'
-          LOCK_FILE: 'bun.lock'
-          COMPONENT_NAME: 'JavaScript Dependencies'
-          COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
-          PRODUCT_RELEASE: '["Engh9j4XTTwD:${{ steps.version.outputs.short_sha }}"]'
-          SBOM_FORMAT: cyclonedx
-          AUGMENT: true
-          ENRICH: true
-          UPLOAD: true
-          OUTPUT_FILE: github-action-frontend.cdx.json
-
-      - name: Upload JavaScript Dependencies SBOM to Staging (SPDX)
-        if: github.ref == 'refs/heads/master'
-        uses: sbomify/github-action@master
-        env:
-          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
-          API_BASE_URL: https://stage.sbomify.com
-          COMPONENT_ID: 'PGyKXNbQd5eq'
-          LOCK_FILE: 'bun.lock'
-          COMPONENT_NAME: 'JavaScript Dependencies'
-          COMPONENT_VERSION: ${{ steps.version.outputs.short_sha }}
-          SBOM_FORMAT: spdx
-          AUGMENT: true
-          ENRICH: true
-          UPLOAD: true
-          OUTPUT_FILE: github-action-frontend.spdx.json
-
-      - name: Upload SBOM to Production (CycloneDX)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: sbomify/github-action@master
-        env:
-          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-          COMPONENT_ID: 'Gu9wem8mkX'
-          LOCK_FILE: 'uv.lock'
-          COMPONENT_NAME: 'sbomify Action'
-          COMPONENT_VERSION: ${{ github.ref_name }}
-          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ github.ref_name }}'
-          PRODUCT_RELEASE: '["IeIn1dGJXULh:${{ github.ref_name }}"]'
-          SBOM_FORMAT: cyclonedx
-          AUGMENT: true
-          ENRICH: true
-          UPLOAD: true
-          OUTPUT_FILE: github-action.cdx.json
-
-      - name: Upload SBOM to Production (SPDX)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: sbomify/github-action@master
-        env:
-          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-          COMPONENT_ID: 'Gu9wem8mkX'
-          LOCK_FILE: 'uv.lock'
-          COMPONENT_NAME: 'sbomify Action'
-          COMPONENT_VERSION: ${{ github.ref_name }}
-          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ github.ref_name }}'
-          SBOM_FORMAT: spdx
-          AUGMENT: true
-          ENRICH: true
-          UPLOAD: true
-          OUTPUT_FILE: github-action.spdx.json
-
-      - name: Upload Container SBOM to Production (CycloneDX)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: sbomify/github-action@master
-        env:
-          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-          COMPONENT_ID: 'ryD0Hcu4vq6y'
-          DOCKER_IMAGE: 'sbomifyhub/sbomify-action:${{ github.ref_name }}'
-          COMPONENT_NAME: 'sbomify Action Container'
-          COMPONENT_VERSION: ${{ github.ref_name }}
-          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ github.ref_name }}'
-          PRODUCT_RELEASE: '["IeIn1dGJXULh:${{ github.ref_name }}"]'
-          ADDITIONAL_PACKAGES_FILE: container_additional_packages.txt
-          SBOM_FORMAT: cyclonedx
-          AUGMENT: true
-          ENRICH: true
-          UPLOAD: true
-          OUTPUT_FILE: github-action-container.cdx.json
-
-      - name: Upload Container SBOM to Production (SPDX)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: sbomify/github-action@master
-        env:
-          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-          COMPONENT_ID: 'ryD0Hcu4vq6y'
-          DOCKER_IMAGE: 'sbomifyhub/sbomify-action:${{ github.ref_name }}'
-          COMPONENT_NAME: 'sbomify Action Container'
-          COMPONENT_VERSION: ${{ github.ref_name }}
-          COMPONENT_PURL: 'pkg:docker/sbomifyhub/sbomify-action@${{ github.ref_name }}'
-          ADDITIONAL_PACKAGES_FILE: container_additional_packages.txt
-          SBOM_FORMAT: spdx
-          AUGMENT: true
-          ENRICH: true
-          UPLOAD: true
-          OUTPUT_FILE: github-action-container.spdx.json
-
-      - name: Upload JavaScript Dependencies SBOM to Production (CycloneDX)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: sbomify/github-action@master
-        env:
-          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-          COMPONENT_ID: 'IxwrYSb9rGql'
-          LOCK_FILE: 'bun.lock'
-          COMPONENT_NAME: 'JavaScript Dependencies'
-          COMPONENT_VERSION: ${{ github.ref_name }}
-          PRODUCT_RELEASE: '["IeIn1dGJXULh:${{ github.ref_name }}"]'
-          SBOM_FORMAT: cyclonedx
-          AUGMENT: true
-          ENRICH: true
-          UPLOAD: true
-          OUTPUT_FILE: github-action-frontend.cdx.json
-
-      - name: Upload JavaScript Dependencies SBOM to Production (SPDX)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: sbomify/github-action@master
-        env:
-          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-          COMPONENT_ID: 'IxwrYSb9rGql'
-          LOCK_FILE: 'bun.lock'
-          COMPONENT_NAME: 'JavaScript Dependencies'
-          COMPONENT_VERSION: ${{ github.ref_name }}
-          SBOM_FORMAT: spdx
-          AUGMENT: true
-          ENRICH: true
-          UPLOAD: true
-          OUTPUT_FILE: github-action-frontend.spdx.json
-
-      - name: Attest Source SBOM (CycloneDX)
-        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+      - name: Attest SBOM
+        if: steps.should_run.outputs.run == 'true'
         uses: actions/attest-build-provenance@v1
         with:
-          subject-path: '${{ github.workspace }}/github-action.cdx.json'
-
-      - name: Attest Source SBOM (SPDX)
-        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
-        uses: actions/attest-build-provenance@v1
-        with:
-          subject-path: '${{ github.workspace }}/github-action.spdx.json'
-
-      - name: Attest Container SBOM (CycloneDX)
-        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
-        uses: actions/attest-build-provenance@v1
-        with:
-          subject-path: '${{ github.workspace }}/github-action-container.cdx.json'
-
-      - name: Attest Container SBOM (SPDX)
-        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
-        uses: actions/attest-build-provenance@v1
-        with:
-          subject-path: '${{ github.workspace }}/github-action-container.spdx.json'
-
-      - name: Attest JavaScript Dependencies SBOM (CycloneDX)
-        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
-        uses: actions/attest-build-provenance@v1
-        with:
-          subject-path: '${{ github.workspace }}/github-action-frontend.cdx.json'
-
-      - name: Attest JavaScript Dependencies SBOM (SPDX)
-        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
-        uses: actions/attest-build-provenance@v1
-        with:
-          subject-path: '${{ github.workspace }}/github-action-frontend.spdx.json'
+          subject-path: '${{ github.workspace }}/${{ matrix.output_file }}'

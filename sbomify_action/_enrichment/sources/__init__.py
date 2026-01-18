@@ -6,6 +6,7 @@ from .debian import DebianSource
 from .depsdev import DepsDevSource
 from .ecosystems import EcosystemsSource
 from .license_db import LicenseDBSource
+from .lifecycle import LifecycleSource
 from .pubdev import PubDevSource
 from .purl import PURLSource
 from .pypi import PyPISource
@@ -22,4 +23,5 @@ __all__ = [
     "ClearlyDefinedSource",
     "RepologySource",
     "LicenseDBSource",
+    "LifecycleSource",
 ]

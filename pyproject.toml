@@ -5,7 +5,7 @@ description = "Generate, augment, enrich, and manage SBOMs in your CI/CD pipelin
 authors = [{ name = "sbomify", email = "hello@sbomify.com" }]
 requires-python = ">=3.10"
 readme = "README.md"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 keywords = ["sbom", "cyclonedx", "spdx", "supply-chain", "security", "bom", "software-composition-analysis"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -52,6 +52,7 @@ dev = [
     "ruff>=0.12.0,<0.13",
     "pre-commit>=4.2.0,<5",
     "jsonschema>=4.25.1",
+    "twine>=6.2.0",
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -59,9 +60,11 @@ include = [
     "sbomify_action/**/*.py",
     "sbomify_action/**/*.json",
 ]
+core-metadata-version = "2.3"
 
 [tool.hatch.build.targets.wheel]
 packages = ["sbomify_action"]
+core-metadata-version = "2.3"
 
 [tool.hatch.build]
 include = [

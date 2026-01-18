@@ -9,6 +9,7 @@ Supported distros:
 - Wolfi (Chainguard) - rolling release
 - Amazon Linux (2, 2023)
 - CentOS Stream (8, 9)
+- Debian (11, 12, 13)
 - Ubuntu (20.04, 22.04, 24.04)
 - Rocky Linux (8, 9)
 - AlmaLinux (8, 9)
@@ -17,6 +18,7 @@ Supported distros:
 Usage:
     sbomify-license-db --distro alpine --version 3.20 --output alpine-3.20.json.gz
     sbomify-license-db --distro wolfi --version rolling --output wolfi-rolling.json.gz
+    sbomify-license-db --distro debian --version 12 --output debian-12.json.gz
     sbomify-license-db --distro ubuntu --version 24.04 --output ubuntu-24.04.json.gz
     sbomify-license-db --distro rocky --version 9 --output rocky-9.json.gz
 """
@@ -25,16 +27,19 @@ import argparse
 import gzip
 import io
 import json
+import lzma
+import os
 import re
 import subprocess
 import sys
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, Optional, Tuple
 from urllib.parse import urljoin
 
 import requests
@@ -47,6 +52,7 @@ from .license_normalizer import (
     normalize_rpm_license,
     validate_spdx_expression,
 )
+from .lifecycle_data import DISTRO_LIFECYCLE
 
 # Initialize logger
 logger = setup_logging(level="INFO", use_rich=True)
@@ -105,212 +111,7 @@ class DatabaseMetadata:
     end_of_life: Optional[str] = None  # ISO 8601 date when all support ends
 
 
-# CLE (Common Lifecycle Enumeration) data for supported distros
-#
-# Schema:
-#   release_date: ISO-8601 date (YYYY-MM-DD) or YYYY-MM when only month is known
-#   end_of_support: When standard/active updates end (or same as EOL when upstream publishes only one date)
-#   end_of_life: When all updates end (security support end)
-#
-# Sources and calculation methodology documented per-distro below.
-# For rolling releases, all dates are None.
-
-DISTRO_LIFECYCLE = {
-    # -------------------------------------------------------------------------
-    # Wolfi (Chainguard) - Rolling Release
-    # Source: https://docs.chainguard.dev/open-source/wolfi/
-    # Note: Wolfi is a rolling-release distribution; lifecycle is not expressed
-    # as fixed version EOL dates. All fields are None.
-    # -------------------------------------------------------------------------
-    "wolfi": {
-        "rolling": {
-            "release_date": None,
-            "end_of_support": None,
-            "end_of_life": None,
-        },
-    },
-    # -------------------------------------------------------------------------
-    # Alpine Linux
-    # Source: https://alpinelinux.org/releases/
-    # Note: Alpine publishes a single per-branch end date. Alpine does not
-    # separately publish EOS vs EOL for the branch, so the published end date
-    # is used as both end_of_support and end_of_life.
-    # -------------------------------------------------------------------------
-    "alpine": {
-        "3.13": {
-            "release_date": "2021-01-14",
-            "end_of_support": "2022-11-01",
-            "end_of_life": "2022-11-01",
-        },
-        "3.14": {
-            "release_date": "2021-06-15",
-            "end_of_support": "2023-05-01",
-            "end_of_life": "2023-05-01",
-        },
-        "3.15": {
-            "release_date": "2021-11-24",
-            "end_of_support": "2023-11-01",
-            "end_of_life": "2023-11-01",
-        },
-        "3.16": {
-            "release_date": "2022-05-23",
-            "end_of_support": "2024-05-23",
-            "end_of_life": "2024-05-23",
-        },
-        "3.17": {
-            "release_date": "2022-11-22",
-            "end_of_support": "2024-11-22",
-            "end_of_life": "2024-11-22",
-        },
-        "3.18": {
-            "release_date": "2023-05-09",
-            "end_of_support": "2025-05-09",
-            "end_of_life": "2025-05-09",
-        },
-        "3.19": {
-            "release_date": "2023-12-07",
-            "end_of_support": "2025-11-01",
-            "end_of_life": "2025-11-01",
-        },
-        "3.20": {
-            "release_date": "2024-05-22",
-            "end_of_support": "2026-04-01",
-            "end_of_life": "2026-04-01",
-        },
-        "3.21": {
-            "release_date": "2024-12-05",
-            "end_of_support": "2026-11-01",
-            "end_of_life": "2026-11-01",
-        },
-    },
-    # -------------------------------------------------------------------------
-    # Rocky Linux
-    # Source: https://docs.rockylinux.org/
-    # Note: Rocky publishes both 'general support until' (EOS) and 'security
-    # support through' (EOL) dates.
-    # -------------------------------------------------------------------------
-    "rocky": {
-        "8": {
-            "release_date": "2021-06-21",
-            "end_of_support": "2024-05-01",  # General support end
-            "end_of_life": "2029-05-01",  # Security support end
-        },
-        "9": {
-            "release_date": "2022-07-14",
-            "end_of_support": "2027-05-31",  # General support end
-            "end_of_life": "2032-05-31",  # Security support end
-        },
-    },
-    # -------------------------------------------------------------------------
-    # AlmaLinux
-    # Source: https://wiki.almalinux.org/release-notes/
-    # Note: AlmaLinux publishes 'active support until' (EOS) and 'security
-    # support until' (EOL) dates.
-    # -------------------------------------------------------------------------
-    "almalinux": {
-        "8": {
-            "release_date": "2021-03-30",
-            "end_of_support": "2024-05-31",  # Active support end
-            "end_of_life": "2029-05-31",  # Security support end
-        },
-        "9": {
-            "release_date": "2022-05-26",
-            "end_of_support": "2027-05-31",  # Active support end
-            "end_of_life": "2032-05-31",  # Security support end
-        },
-    },
-    # -------------------------------------------------------------------------
-    # Amazon Linux
-    # Source: https://aws.amazon.com/amazon-linux-2/faqs/
-    # Note: AWS publishes an explicit end-of-support date but does not publish
-    # separate EOS vs EOL semantics, so the published date is used for both.
-    # AL2023 only specifies month ("until June 2029").
-    # -------------------------------------------------------------------------
-    "amazonlinux": {
-        "2": {
-            "release_date": "2017-12-19",  # AWS announcement date
-            "end_of_support": "2026-06-30",
-            "end_of_life": "2026-06-30",
-        },
-        "2023": {
-            "release_date": None,  # Not explicitly published
-            "end_of_support": "2029-06",  # Month precision only
-            "end_of_life": "2029-06",
-        },
-    },
-    # -------------------------------------------------------------------------
-    # CentOS Stream
-    # Source: https://www.centos.org/cl-vs-cs/
-    # Note: CentOS publishes an 'expected end of life (EOL)' date. No separate
-    # EOS date is published, so EOL is used for both.
-    # -------------------------------------------------------------------------
-    "centos": {
-        "stream8": {
-            "release_date": None,  # Not explicitly published
-            "end_of_support": "2024-05-31",
-            "end_of_life": "2024-05-31",
-        },
-        "stream9": {
-            "release_date": None,  # Not explicitly published
-            "end_of_support": "2027-05-31",
-            "end_of_life": "2027-05-31",
-        },
-    },
-    # -------------------------------------------------------------------------
-    # Fedora
-    # Source: https://fedorapeople.org/groups/schedule/
-    # Note: Fedora schedules publish explicit EOL dates. Fedora publishes only
-    # one end date per release, so it's used for both EOS and EOL.
-    # Release dates are from 'Current Final Target date' in the schedule.
-    # -------------------------------------------------------------------------
-    "fedora": {
-        "39": {
-            "release_date": None,  # Not captured
-            "end_of_support": "2024-11-26",
-            "end_of_life": "2024-11-26",
-        },
-        "40": {
-            "release_date": None,  # Not captured
-            "end_of_support": "2025-05-13",
-            "end_of_life": "2025-05-13",
-        },
-        "41": {
-            "release_date": "2024-10-29",
-            "end_of_support": "2025-12-15",
-            "end_of_life": "2025-12-15",
-        },
-        "42": {
-            "release_date": "2025-04-15",
-            # EOL date not yet captured from Fedora sources
-            # See: https://fedorapeople.org/groups/schedule/f-42/f-42-key-tasks.html
-            "end_of_support": None,
-            "end_of_life": None,
-        },
-    },
-    # -------------------------------------------------------------------------
-    # Ubuntu
-    # Source: https://ubuntu.com/about/release-cycle
-    # Note: Ubuntu publishes 'Standard security maintenance' (EOS) and
-    # 'Expanded security maintenance' (EOL) dates at month precision.
-    # -------------------------------------------------------------------------
-    "ubuntu": {
-        "20.04": {
-            "release_date": "2020-04",  # Month precision
-            "end_of_support": "2025-05",  # Standard security maintenance end
-            "end_of_life": "2030-04",  # Expanded security maintenance end
-        },
-        "22.04": {
-            "release_date": "2022-04",
-            "end_of_support": "2027-06",
-            "end_of_life": "2032-04",
-        },
-        "24.04": {
-            "release_date": "2024-04",
-            "end_of_support": "2029-05",
-            "end_of_life": "2034-04",
-        },
-    },
-}
+# Note: DISTRO_LIFECYCLE is now imported from lifecycle_data.py
 
 
 # =============================================================================
@@ -653,6 +454,16 @@ UBUNTU_CODENAMES = {
 UBUNTU_COMPONENTS = ["main", "universe", "restricted", "multiverse"]
 UBUNTU_POCKETS = ["-security", "-updates", ""]
 
+# Debian archive configuration
+DEBIAN_ARCHIVE_BASE = "https://deb.debian.org/debian/"
+DEBIAN_CODENAMES = {
+    "11": "bullseye",
+    "12": "bookworm",
+    "13": "trixie",
+}
+DEBIAN_COMPONENTS = ["main", "contrib", "non-free", "non-free-firmware"]
+DEBIAN_POCKETS = ["-updates", ""]  # No -security, that's in security.debian.org
+
 
 def parse_deb822(text: str) -> Iterator[Dict[str, str]]:
     """Parse Debian control-style stanzas."""
@@ -710,9 +521,63 @@ def fetch_ubuntu_packages(
         logger.warning(f"Failed to fetch {url}: {e}")
 
 
-def download_and_extract_deb(filename: str, package_name: str) -> Optional[str]:
-    """Download a .deb file and extract the copyright file."""
-    url = urljoin(UBUNTU_ARCHIVE_BASE, filename)
+def fetch_copyright_http(filename: str, distro: str = "ubuntu") -> Optional[str]:
+    """Fetch copyright file directly via HTTP (no .deb download needed).
+
+    URL patterns:
+    - Ubuntu: https://changelogs.ubuntu.com/changelogs/{filename_without_arch}/copyright
+    - Debian: https://metadata.ftp-master.debian.org/changelogs/{section}/{prefix}/{src}/{src}_{ver}_copyright
+    """
+    # filename is like: pool/main/a/apt/apt_2.4.11_amd64.deb
+    # We need: pool/main/a/apt/apt_2.4.11 (strip arch and .deb)
+
+    # Remove .deb extension and architecture suffix
+    base = filename.rsplit(".deb", 1)[0]  # pool/main/a/apt/apt_2.4.11_amd64
+    # Remove architecture (last underscore-separated part)
+    parts = base.rsplit("_", 1)
+    if len(parts) == 2:
+        base = parts[0]  # pool/main/a/apt/apt_2.4.11
+
+    if distro == "ubuntu":
+        url = f"https://changelogs.ubuntu.com/changelogs/{base}/copyright"
+    else:
+        # Debian uses a different format: section/prefix/source/source_version_copyright
+        # From pool/main/a/apt/apt_2.4.11 extract components
+        path_parts = base.split("/")
+        if len(path_parts) >= 4:
+            section = path_parts[1]  # main
+            prefix = path_parts[2]  # a
+            rest = "/".join(path_parts[3:])  # apt/apt_2.4.11
+            pkg_ver = rest.split("/")[-1]  # apt_2.4.11
+            url = f"https://metadata.ftp-master.debian.org/changelogs/{section}/{prefix}/{rest.split('/')[0]}/{pkg_ver}_copyright"
+        else:
+            return None
+
+    try:
+        response = SESSION.get(url, timeout=DEFAULT_TIMEOUT)
+        if response.status_code == 200:
+            return response.text
+    except Exception:
+        pass
+
+    return None
+
+
+def download_and_extract_deb(
+    filename: str, package_name: str, archive_base: str = UBUNTU_ARCHIVE_BASE, distro: str = "ubuntu"
+) -> Optional[str]:
+    """Get copyright file, trying HTTP first, then .deb extraction as fallback.
+
+    The HTTP method uses zero disk space. Fallback extracts only the copyright file.
+    """
+    # Try HTTP first (fast, no disk usage)
+    copyright_text = fetch_copyright_http(filename, distro)
+    if copyright_text:
+        return copyright_text
+
+    # Fallback: download and extract from .deb
+    url = urljoin(archive_base, filename)
+    base_name = package_name.split(":")[0]
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -725,46 +590,36 @@ def download_and_extract_deb(filename: str, package_name: str) -> Optional[str]:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
 
-            extract_dir = Path(tmpdir) / "extracted"
-            extract_dir.mkdir()
+            subprocess.run(
+                ["ar", "x", str(deb_path)],
+                cwd=tmpdir,
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
 
-            # Use dpkg-deb if available, otherwise ar + tar
-            try:
-                subprocess.run(
-                    ["dpkg-deb", "-x", str(deb_path), str(extract_dir)],
-                    check=True,
-                    capture_output=True,
-                    timeout=30,
-                )
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                subprocess.run(
-                    ["ar", "x", str(deb_path)],
-                    cwd=tmpdir,
-                    check=True,
-                    capture_output=True,
-                    timeout=30,
-                )
-                for data_tar in Path(tmpdir).glob("data.tar.*"):
-                    subprocess.run(
-                        ["tar", "xf", str(data_tar), "-C", str(extract_dir)],
-                        check=True,
-                        capture_output=True,
-                        timeout=60,
-                    )
+            data_tar = None
+            for matches in [list(Path(tmpdir).glob("data.tar.*"))]:
+                if matches:
+                    data_tar = matches[0]
                     break
 
-            # Look for copyright file
-            copyright_paths = [
-                extract_dir / "usr" / "share" / "doc" / package_name / "copyright",
-                extract_dir / "usr" / "share" / "doc" / package_name.split(":")[0] / "copyright",
-            ]
+            if not data_tar:
+                return None
 
-            for cp_path in copyright_paths:
-                if cp_path.exists():
-                    return cp_path.read_text(errors="replace")
-
-            for cp_path in extract_dir.rglob("copyright"):
-                return cp_path.read_text(errors="replace")
+            # Extract copyright directly to stdout
+            for cp_path in [f"./usr/share/doc/{package_name}/copyright", f"./usr/share/doc/{base_name}/copyright"]:
+                try:
+                    result = subprocess.run(
+                        ["tar", "xf", str(data_tar), "-O", cp_path],
+                        cwd=tmpdir,
+                        capture_output=True,
+                        timeout=30,
+                    )
+                    if result.returncode == 0 and result.stdout:
+                        return result.stdout.decode("utf-8", errors="replace")
+                except subprocess.TimeoutExpired:
+                    pass
 
     except Exception as e:
         logger.debug(f"Failed to extract copyright from {package_name}: {e}")
@@ -828,6 +683,110 @@ def process_ubuntu_package(
         name=name,
         version=version,
         distro="ubuntu",
+        distro_version=distro_version,
+    )
+
+    return PackageMetadata(
+        purl=purl,
+        name=name,
+        version=version,
+        spdx=spdx,
+        license_raw=spdx,
+        description=description,
+        supplier=maintainer,
+        maintainer_name=maintainer_name,
+        maintainer_email=maintainer_email,
+        homepage=homepage,
+        download_url=download_url,
+        confidence="high",
+        source="deb_metadata",
+    )
+
+
+def fetch_debian_packages(
+    codename: str,
+    component: str = "main",
+    pocket: str = "",
+    arch: str = "amd64",
+) -> Iterator[Dict[str, str]]:
+    """Fetch and parse Debian Packages index (.gz or .xz)."""
+    suite = f"{codename}{pocket}"
+    base_url = f"dists/{suite}/{component}/binary-{arch}/Packages"
+
+    # Try .gz first, then .xz (some pockets like -updates only have .xz)
+    for ext in [".gz", ".xz"]:
+        url = urljoin(DEBIAN_ARCHIVE_BASE, f"{base_url}{ext}")
+        logger.info(f"Fetching {url}")
+
+        try:
+            response = SESSION.get(url, timeout=DOWNLOAD_TIMEOUT)
+            response.raise_for_status()
+
+            if ext == ".gz":
+                with gzip.GzipFile(fileobj=io.BytesIO(response.content)) as gz:
+                    text = gz.read().decode("utf-8", errors="replace")
+            else:  # .xz
+                text = lzma.decompress(response.content).decode("utf-8", errors="replace")
+
+            yield from parse_deb822(text)
+            return  # Success, don't try other formats
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                logger.debug(f"Not found: {url}, trying next format...")
+                continue
+            logger.warning(f"Failed to fetch {url}: {e}")
+            return
+        except Exception as e:
+            logger.warning(f"Failed to fetch {url}: {e}")
+            return
+
+    logger.warning(f"No Packages index found for {suite}/{component}")
+
+
+def process_debian_package(
+    pkg_info: Dict[str, str],
+    distro_version: str,
+    codename: str,
+) -> Optional[PackageMetadata]:
+    """Process a single Debian package and extract all metadata."""
+    name = pkg_info.get("Package")
+    version = pkg_info.get("Version")
+    filename = pkg_info.get("Filename")
+
+    if not name or not version:
+        return None
+
+    # Extract license from copyright file
+    spdx = None
+    if filename:
+        copyright_text = download_and_extract_deb(filename, name, DEBIAN_ARCHIVE_BASE, distro="debian")
+        if copyright_text:
+            spdx = extract_dep5_license(copyright_text)
+
+    # We still require a valid license for inclusion
+    if not spdx:
+        return None
+
+    # Extract other metadata from Packages.gz
+    description = pkg_info.get("Description")
+    if description:
+        # Take first line only (rest is long description)
+        description = description.split("\n")[0].strip()
+
+    maintainer = pkg_info.get("Maintainer")
+    maintainer_name, maintainer_email = parse_maintainer(maintainer)
+
+    homepage = pkg_info.get("Homepage")
+
+    # Construct download URL
+    download_url = None
+    if filename:
+        download_url = urljoin(DEBIAN_ARCHIVE_BASE, filename)
+
+    purl = make_deb_purl(
+        name=name,
+        version=version,
+        distro="debian",
         distro_version=distro_version,
     )
 
@@ -1122,45 +1081,50 @@ def generate_alpine_db(
     """Generate license database for Alpine Linux."""
     logger.info(f"Generating license database for Alpine {distro_version}")
 
-    packages: Dict[str, Dict[str, Any]] = {}
+    # Collect all packages first to know total count
+    all_packages = []
     seen_names: set = set()
+    for repo in ALPINE_REPOS:
+        for pkg_info in fetch_alpine_packages(distro_version, repo):
+            if pkg_info.name not in seen_names:
+                seen_names.add(pkg_info.name)
+                all_packages.append(pkg_info)
+
+    total = len(all_packages)
+    if max_packages:
+        all_packages = all_packages[:max_packages]
+        total = len(all_packages)
+
+    logger.info(f"Found {total} unique packages to process")
+
+    packages: Dict[str, Dict[str, Any]] = {}
     count = 0
     skipped = 0
 
-    for repo in ALPINE_REPOS:
-        for pkg_info in fetch_alpine_packages(distro_version, repo):
-            if pkg_info.name in seen_names:
-                continue
+    for idx, pkg_info in enumerate(all_packages, 1):
+        result = process_alpine_package(pkg_info, distro_version)
+        if result:
+            packages[result.purl] = {
+                "name": result.name,
+                "version": result.version,
+                "spdx": result.spdx,
+                "license_raw": result.license_raw,
+                "description": result.description,
+                "supplier": result.supplier,
+                "maintainer_name": result.maintainer_name,
+                "maintainer_email": result.maintainer_email,
+                "homepage": result.homepage,
+                "download_url": result.download_url,
+                "confidence": result.confidence,
+                "source": result.source,
+            }
+            count += 1
+        else:
+            skipped += 1
 
-            seen_names.add(pkg_info.name)
-
-            if max_packages and count >= max_packages:
-                break
-
-            result = process_alpine_package(pkg_info, distro_version)
-            if result:
-                packages[result.purl] = {
-                    "name": result.name,
-                    "version": result.version,
-                    "spdx": result.spdx,
-                    "license_raw": result.license_raw,
-                    "description": result.description,
-                    "supplier": result.supplier,
-                    "maintainer_name": result.maintainer_name,
-                    "maintainer_email": result.maintainer_email,
-                    "homepage": result.homepage,
-                    "download_url": result.download_url,
-                    "confidence": result.confidence,
-                    "source": result.source,
-                }
-                count += 1
-                if count % 500 == 0:
-                    logger.info(f"Processed {count} packages with valid licenses...")
-            else:
-                skipped += 1
-
-        if max_packages and count >= max_packages:
-            break
+        if idx % 500 == 0 or idx == total:
+            pct = (idx / total) * 100
+            logger.info(f"Processed {idx}/{total} ({pct:.1f}%) - {count} valid licenses...")
 
     # Get CLE lifecycle data
     lifecycle = DISTRO_LIFECYCLE.get("alpine", {}).get(distro_version, {})
@@ -1186,7 +1150,7 @@ def generate_alpine_db(
 
     logger.info(f"Wrote {len(packages)} packages to {output_path}")
     logger.info(f"Skipped: {skipped} (license not validated)")
-    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+    logger.info(f"Total: {total}, Success rate: {len(packages) / max(total, 1) * 100:.1f}%")
 
 
 def generate_wolfi_db(
@@ -1196,20 +1160,26 @@ def generate_wolfi_db(
     """Generate license database for Wolfi (Chainguard)."""
     logger.info("Generating license database for Wolfi (rolling release)")
 
-    packages: Dict[str, Dict[str, Any]] = {}
+    # Collect all packages first to know total count
+    all_packages = []
     seen_names: set = set()
+    for pkg_info in fetch_wolfi_packages():
+        if pkg_info.name not in seen_names:
+            seen_names.add(pkg_info.name)
+            all_packages.append(pkg_info)
+
+    total = len(all_packages)
+    if max_packages:
+        all_packages = all_packages[:max_packages]
+        total = len(all_packages)
+
+    logger.info(f"Found {total} unique packages to process")
+
+    packages: Dict[str, Dict[str, Any]] = {}
     count = 0
     skipped = 0
 
-    for pkg_info in fetch_wolfi_packages():
-        if pkg_info.name in seen_names:
-            continue
-
-        seen_names.add(pkg_info.name)
-
-        if max_packages and count >= max_packages:
-            break
-
+    for idx, pkg_info in enumerate(all_packages, 1):
         result = process_wolfi_package(pkg_info)
         if result:
             packages[result.purl] = {
@@ -1227,10 +1197,12 @@ def generate_wolfi_db(
                 "source": result.source,
             }
             count += 1
-            if count % 500 == 0:
-                logger.info(f"Processed {count} packages with valid licenses...")
         else:
             skipped += 1
+
+        if idx % 500 == 0 or idx == total:
+            pct = (idx / total) * 100
+            logger.info(f"Processed {idx}/{total} ({pct:.1f}%) - {count} valid licenses...")
 
     # Get CLE lifecycle data (rolling release - dates may be null)
     lifecycle = DISTRO_LIFECYCLE.get("wolfi", {}).get("rolling", {})
@@ -1256,7 +1228,7 @@ def generate_wolfi_db(
 
     logger.info(f"Wrote {len(packages)} packages to {output_path}")
     logger.info(f"Skipped: {skipped} (license not validated)")
-    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+    logger.info(f"Total: {total}, Success rate: {len(packages) / max(total, 1) * 100:.1f}%")
 
 
 def generate_ubuntu_db(
@@ -1272,49 +1244,73 @@ def generate_ubuntu_db(
 
     logger.info(f"Generating license database for Ubuntu {distro_version} ({codename})")
 
-    packages: Dict[str, Dict[str, Any]] = {}
+    # Collect all packages first to know total count
+    all_packages = []
     seen_names: set = set()
-    count = 0
-    skipped = 0
-
     for component in UBUNTU_COMPONENTS:
         for pocket in UBUNTU_POCKETS:
             for pkg_info in fetch_ubuntu_packages(codename, component, pocket):
                 name = pkg_info.get("Package")
-                if not name or name in seen_names:
-                    continue
+                if name and name not in seen_names:
+                    seen_names.add(name)
+                    all_packages.append(pkg_info)
 
-                seen_names.add(name)
+    total = len(all_packages)
+    if max_packages:
+        all_packages = all_packages[:max_packages]
+        total = len(all_packages)
 
-                if max_packages and count >= max_packages:
-                    break
+    logger.info(f"Found {total} unique packages to process")
 
-                result = process_ubuntu_package(pkg_info, distro_version, codename)
-                if result:
-                    packages[result.purl] = {
-                        "name": result.name,
-                        "version": result.version,
-                        "spdx": result.spdx,
-                        "license_raw": result.license_raw,
-                        "description": result.description,
-                        "supplier": result.supplier,
-                        "maintainer_name": result.maintainer_name,
-                        "maintainer_email": result.maintainer_email,
-                        "homepage": result.homepage,
-                        "download_url": result.download_url,
-                        "confidence": result.confidence,
-                        "source": result.source,
-                    }
-                    count += 1
-                    if count % 100 == 0:
-                        logger.info(f"Processed {count} packages with valid licenses...")
-                else:
-                    skipped += 1
+    packages: Dict[str, Dict[str, Any]] = {}
+    count = 0
+    skipped = 0
+    processed = 0
 
-            if max_packages and count >= max_packages:
-                break
-        if max_packages and count >= max_packages:
-            break
+    # Use parallel processing for faster downloads
+    # Default to 5 workers to limit disk usage (each .deb can be 10-100MB)
+    max_workers = int(os.environ.get("SBOMIFY_LICENSE_DB_WORKERS", "5"))
+    logger.info(f"Using {max_workers} parallel workers")
+
+    def process_one(pkg_info: Dict[str, str]) -> Optional[Tuple[str, Dict[str, Any]]]:
+        """Process a single package and return (purl, data) or None."""
+        result = process_ubuntu_package(pkg_info, distro_version, codename)
+        if result:
+            return (
+                result.purl,
+                {
+                    "name": result.name,
+                    "version": result.version,
+                    "spdx": result.spdx,
+                    "license_raw": result.license_raw,
+                    "description": result.description,
+                    "supplier": result.supplier,
+                    "maintainer_name": result.maintainer_name,
+                    "maintainer_email": result.maintainer_email,
+                    "homepage": result.homepage,
+                    "download_url": result.download_url,
+                    "confidence": result.confidence,
+                    "source": result.source,
+                },
+            )
+        return None
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_one, pkg): pkg for pkg in all_packages}
+
+        for future in as_completed(futures):
+            processed += 1
+            result = future.result()
+            if result:
+                purl, data = result
+                packages[purl] = data
+                count += 1
+            else:
+                skipped += 1
+
+            if processed % 100 == 0 or processed == total:
+                pct = (processed / total) * 100
+                logger.info(f"Processed {processed}/{total} ({pct:.1f}%) - {count} valid licenses...")
 
     # Get CLE lifecycle data
     lifecycle = DISTRO_LIFECYCLE.get("ubuntu", {}).get(distro_version, {})
@@ -1340,7 +1336,115 @@ def generate_ubuntu_db(
 
     logger.info(f"Wrote {len(packages)} packages to {output_path}")
     logger.info(f"Skipped: {skipped} (license not validated)")
-    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+    logger.info(f"Total: {total}, Success rate: {len(packages) / max(total, 1) * 100:.1f}%")
+
+
+def generate_debian_db(
+    distro_version: str,
+    output_path: Path,
+    max_packages: Optional[int] = None,
+) -> None:
+    """Generate license database for Debian."""
+    codename = DEBIAN_CODENAMES.get(distro_version)
+    if not codename:
+        logger.error(f"Unknown Debian version: {distro_version}")
+        sys.exit(1)
+
+    logger.info(f"Generating license database for Debian {distro_version} ({codename})")
+
+    # Collect all packages first to know total count
+    all_packages = []
+    seen_names: set = set()
+    for component in DEBIAN_COMPONENTS:
+        for pocket in DEBIAN_POCKETS:
+            for pkg_info in fetch_debian_packages(codename, component, pocket):
+                name = pkg_info.get("Package")
+                if name and name not in seen_names:
+                    seen_names.add(name)
+                    all_packages.append(pkg_info)
+
+    total = len(all_packages)
+    if max_packages:
+        all_packages = all_packages[:max_packages]
+        total = len(all_packages)
+
+    logger.info(f"Found {total} unique packages to process")
+
+    packages: Dict[str, Dict[str, Any]] = {}
+    count = 0
+    skipped = 0
+    processed = 0
+
+    # Use parallel processing for faster downloads
+    # Default to 5 workers to limit disk usage (each .deb can be 10-100MB)
+    max_workers = int(os.environ.get("SBOMIFY_LICENSE_DB_WORKERS", "5"))
+    logger.info(f"Using {max_workers} parallel workers")
+
+    def process_one(pkg_info: Dict[str, str]) -> Optional[Tuple[str, Dict[str, Any]]]:
+        """Process a single package and return (purl, data) or None."""
+        result = process_debian_package(pkg_info, distro_version, codename)
+        if result:
+            return (
+                result.purl,
+                {
+                    "name": result.name,
+                    "version": result.version,
+                    "spdx": result.spdx,
+                    "license_raw": result.license_raw,
+                    "description": result.description,
+                    "supplier": result.supplier,
+                    "maintainer_name": result.maintainer_name,
+                    "maintainer_email": result.maintainer_email,
+                    "homepage": result.homepage,
+                    "download_url": result.download_url,
+                    "confidence": result.confidence,
+                    "source": result.source,
+                },
+            )
+        return None
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_one, pkg): pkg for pkg in all_packages}
+
+        for future in as_completed(futures):
+            processed += 1
+            result = future.result()
+            if result:
+                purl, data = result
+                packages[purl] = data
+                count += 1
+            else:
+                skipped += 1
+
+            if processed % 100 == 0 or processed == total:
+                pct = (processed / total) * 100
+                logger.info(f"Processed {processed}/{total} ({pct:.1f}%) - {count} valid licenses...")
+
+    # Get CLE lifecycle data
+    lifecycle = DISTRO_LIFECYCLE.get("debian", {}).get(distro_version, {})
+
+    db = {
+        "metadata": asdict(
+            DatabaseMetadata(
+                distro="debian",
+                version=distro_version,
+                codename=codename,
+                generated_at=datetime.now(timezone.utc).isoformat(),
+                package_count=len(packages),
+                release_date=lifecycle.get("release_date"),
+                end_of_support=lifecycle.get("end_of_support"),
+                end_of_life=lifecycle.get("end_of_life"),
+            )
+        ),
+        "packages": packages,
+    }
+
+    with gzip.open(output_path, "wt", encoding="utf-8") as f:
+        json.dump(db, f, separators=(",", ":"))
+
+    logger.info(f"Wrote {len(packages)} packages to {output_path}")
+    logger.info(f"Skipped: {skipped} (license not validated)")
+    logger.info(f"Total: {total}, Success rate: {len(packages) / max(total, 1) * 100:.1f}%")
 
 
 def resolve_mirror_url(mirror_list_url: str) -> Optional[str]:
@@ -1395,45 +1499,51 @@ def generate_rpm_db(
 
     logger.info(f"Generating license database for {distro} {distro_version}")
 
-    packages: Dict[str, Dict[str, Any]] = {}
+    # Collect all packages first to know total count
+    # Store as (pkg_info, repo_url) tuples since we need repo_url for processing
+    all_packages = []
     seen_names: set = set()
+    for repo_url in repos:
+        for pkg_info in fetch_rpm_packages(repo_url):
+            if pkg_info.name not in seen_names:
+                seen_names.add(pkg_info.name)
+                all_packages.append((pkg_info, repo_url))
+
+    total = len(all_packages)
+    if max_packages:
+        all_packages = all_packages[:max_packages]
+        total = len(all_packages)
+
+    logger.info(f"Found {total} unique packages to process")
+
+    packages: Dict[str, Dict[str, Any]] = {}
     count = 0
     skipped = 0
 
-    for repo_url in repos:
-        for pkg_info in fetch_rpm_packages(repo_url):
-            if pkg_info.name in seen_names:
-                continue
+    for idx, (pkg_info, repo_url) in enumerate(all_packages, 1):
+        result = process_rpm_package(pkg_info, distro, distro_version, repo_url)
+        if result:
+            packages[result.purl] = {
+                "name": result.name,
+                "version": result.version,
+                "spdx": result.spdx,
+                "license_raw": result.license_raw,
+                "description": result.description,
+                "supplier": result.supplier,
+                "maintainer_name": result.maintainer_name,
+                "maintainer_email": result.maintainer_email,
+                "homepage": result.homepage,
+                "download_url": result.download_url,
+                "confidence": result.confidence,
+                "source": result.source,
+            }
+            count += 1
+        else:
+            skipped += 1
 
-            seen_names.add(pkg_info.name)
-
-            if max_packages and count >= max_packages:
-                break
-
-            result = process_rpm_package(pkg_info, distro, distro_version, repo_url)
-            if result:
-                packages[result.purl] = {
-                    "name": result.name,
-                    "version": result.version,
-                    "spdx": result.spdx,
-                    "license_raw": result.license_raw,
-                    "description": result.description,
-                    "supplier": result.supplier,
-                    "maintainer_name": result.maintainer_name,
-                    "maintainer_email": result.maintainer_email,
-                    "homepage": result.homepage,
-                    "download_url": result.download_url,
-                    "confidence": result.confidence,
-                    "source": result.source,
-                }
-                count += 1
-                if count % 500 == 0:
-                    logger.info(f"Processed {count} packages with valid licenses...")
-            else:
-                skipped += 1
-
-        if max_packages and count >= max_packages:
-            break
+        if idx % 500 == 0 or idx == total:
+            pct = (idx / total) * 100
+            logger.info(f"Processed {idx}/{total} ({pct:.1f}%) - {count} valid licenses...")
 
     # Get CLE lifecycle data
     lifecycle = DISTRO_LIFECYCLE.get(distro, {}).get(distro_version, {})
@@ -1459,7 +1569,7 @@ def generate_rpm_db(
 
     logger.info(f"Wrote {len(packages)} packages to {output_path}")
     logger.info(f"Skipped: {skipped} (license not validated)")
-    logger.info(f"Total: {len(seen_names)}, Success rate: {len(packages) / max(len(seen_names), 1) * 100:.1f}%")
+    logger.info(f"Total: {total}, Success rate: {len(packages) / max(total, 1) * 100:.1f}%")
 
 
 # =============================================================================
@@ -1476,7 +1586,7 @@ def main() -> None:
     parser.add_argument(
         "--distro",
         required=True,
-        choices=["alpine", "amazonlinux", "centos", "ubuntu", "rocky", "almalinux", "fedora", "wolfi"],
+        choices=["alpine", "amazonlinux", "centos", "debian", "ubuntu", "rocky", "almalinux", "fedora", "wolfi"],
         help="Distribution name",
     )
     parser.add_argument(
@@ -1508,6 +1618,8 @@ def main() -> None:
     elif args.distro == "wolfi":
         # Wolfi is rolling release, version is ignored
         generate_wolfi_db(output_path, args.max_packages)
+    elif args.distro == "debian":
+        generate_debian_db(args.version, output_path, args.max_packages)
     elif args.distro == "ubuntu":
         generate_ubuntu_db(args.version, output_path, args.max_packages)
     else:

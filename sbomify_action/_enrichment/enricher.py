@@ -25,6 +25,7 @@ from .sources import (
     DepsDevSource,
     EcosystemsSource,
     LicenseDBSource,
+    LifecycleSource,
     PubDevSource,
     PURLSource,
     PyPISource,
@@ -42,6 +43,8 @@ def create_default_registry() -> SourceRegistry:
     - LicenseDBSource (1) - pre-computed license DB with validated SPDX licenses
       and full metadata for Alpine, Wolfi, Ubuntu, Rocky, Alma, CentOS, Fedora,
       Amazon Linux packages. Top priority as it provides fast, accurate data.
+    - LifecycleSource (5) - local lifecycle data (CLE) for language runtimes
+      and frameworks (Python, Django, Rails, Laravel, React, Vue)
 
     Tier 1 - Native Sources (10-19):
     - PyPISource (10) - direct from PyPI for Python packages
@@ -67,6 +70,7 @@ def create_default_registry() -> SourceRegistry:
     """
     registry = SourceRegistry()
     registry.register(LicenseDBSource())
+    registry.register(LifecycleSource())
     registry.register(PyPISource())
     registry.register(PubDevSource())
     registry.register(CratesIOSource())
@@ -252,11 +256,13 @@ def clear_all_caches() -> None:
     from .sources.depsdev import clear_cache as clear_depsdev
     from .sources.ecosystems import clear_cache as clear_ecosystems
     from .sources.license_db import clear_cache as clear_license_db
+    from .sources.lifecycle import clear_cache as clear_lifecycle
     from .sources.pubdev import clear_cache as clear_pubdev
     from .sources.pypi import clear_cache as clear_pypi
     from .sources.repology import clear_cache as clear_repology
 
     clear_license_db()
+    clear_lifecycle()
     clear_pypi()
     clear_pubdev()
     clear_cratesio()

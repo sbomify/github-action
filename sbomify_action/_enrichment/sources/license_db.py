@@ -10,9 +10,8 @@ package metadata (APK, RPM).
 
 Strategy:
 1. Check local cache first
-2. Try to download from the latest GitHub release
-3. If not found in release, generate the database locally (fallback)
-4. Cache the result locally for future use
+2. Try to download from recent GitHub releases (checks up to 5 releases)
+3. Cache the result locally for future use
 """
 
 import gzip
@@ -20,6 +19,7 @@ import io
 import json
 import os
 import re
+import threading
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -32,7 +32,10 @@ from ..metadata import NormalizedMetadata
 
 # GitHub repository hosting the license databases
 GITHUB_REPO = "sbomify/github-action"
-GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases"
+
+# Number of recent releases to check when looking for a database
+MAX_RELEASES_TO_CHECK = 5
 
 # Default timeout for downloads
 DEFAULT_TIMEOUT = 30
@@ -41,8 +44,13 @@ DOWNLOAD_TIMEOUT = 120
 # Cache directory (XDG compliant)
 DEFAULT_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "sbomify" / "license-db"
 
-# Flag to disable local generation (useful for testing or CI environments)
-DISABLE_LOCAL_GENERATION = os.environ.get("SBOMIFY_DISABLE_LICENSE_DB_GENERATION", "").lower() in ("1", "true", "yes")
+# Local generation is disabled by default (too slow for Ubuntu/Debian - takes hours)
+# Set SBOMIFY_ENABLE_LICENSE_DB_GENERATION=true to enable local generation fallback
+DISABLE_LOCAL_GENERATION = os.environ.get("SBOMIFY_ENABLE_LICENSE_DB_GENERATION", "").lower() not in (
+    "1",
+    "true",
+    "yes",
+)
 
 # Supported distros and their database file patterns
 SUPPORTED_DISTROS = {
@@ -61,6 +69,11 @@ SUPPORTED_DISTROS = {
     "centos": {
         "type": "rpm",
         "versions": ["stream8", "stream9"],
+    },
+    "debian": {
+        "type": "deb",
+        "versions": ["11", "12", "13"],
+        "codenames": {"11": "bullseye", "12": "bookworm", "13": "trixie"},
     },
     "ubuntu": {
         "type": "deb",
@@ -85,15 +98,19 @@ SUPPORTED_DISTROS = {
 # Key: (distro, version) -> Dict of PURL -> license data
 _db_cache: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
-# Cache for latest release assets
-_latest_release_assets: Optional[Dict[str, str]] = None  # filename -> download_url
+# Cache for release assets across multiple releases
+# Key: filename -> download_url (from the first release that has it)
+_release_assets_cache: Optional[Dict[str, str]] = None
+
+# Lock for database loading/generation to prevent race conditions
+_db_lock = threading.Lock()
 
 
 def clear_cache() -> None:
     """Clear the license database cache."""
     _db_cache.clear()
-    global _latest_release_assets
-    _latest_release_assets = None
+    global _release_assets_cache
+    _release_assets_cache = None
 
 
 def get_cache_dir() -> Path:
@@ -152,7 +169,7 @@ class LicenseDBSource:
             return namespace in ("alpine", "wolfi")
         elif purl.type == "deb":
             namespace = (purl.namespace or "").lower()
-            return namespace == "ubuntu"
+            return namespace in ("debian", "ubuntu")
         elif purl.type == "rpm":
             namespace = (purl.namespace or "").lower()
             return namespace in ("rocky", "almalinux", "amazonlinux", "centos", "fedora")
@@ -231,20 +248,8 @@ class LicenseDBSource:
         if maintainer_email:
             field_sources["maintainer_email"] = self.name
 
-        # CLE (Common Lifecycle Enumeration) data from database metadata
-        # These are distro-level lifecycle dates applied to all packages
-        # See: https://sbomify.com/compliance/cle/
-        db_metadata = db.get("metadata", {})
-        cle_eos = db_metadata.get("end_of_support")
-        cle_eol = db_metadata.get("end_of_life")
-        cle_release_date = db_metadata.get("release_date")
-
-        if cle_eos:
-            field_sources["cle_eos"] = self.name
-        if cle_eol:
-            field_sources["cle_eol"] = self.name
-        if cle_release_date:
-            field_sources["cle_release_date"] = self.name
+        # Note: CLE (lifecycle) data is now provided by the dedicated LifecycleSource
+        # See: sbomify_action/_enrichment/sources/lifecycle.py
 
         return NormalizedMetadata(
             licenses=licenses,
@@ -254,9 +259,6 @@ class LicenseDBSource:
             download_url=download_url,
             maintainer_name=maintainer_name,
             maintainer_email=maintainer_email,
-            cle_eos=cle_eos,
-            cle_eol=cle_eol,
-            cle_release_date=cle_release_date,
             source=self.name,
             field_sources=field_sources,
         )
@@ -345,10 +347,12 @@ class LicenseDBSource:
         Load the license database for a distro/version.
 
         Strategy:
-        1. Check in-memory cache
-        2. Check local file cache
-        3. Try to download from latest GitHub release
-        4. Fallback: generate locally if download fails
+        1. Check in-memory cache (fast path, no lock)
+        2. Acquire lock to prevent race conditions
+        3. Double-check cache after acquiring lock
+        4. Check local file cache
+        5. Try to download from latest GitHub release
+        6. Fallback: generate locally if download fails
 
         Args:
             distro: Distribution name (ubuntu, rocky, etc.)
@@ -360,44 +364,50 @@ class LicenseDBSource:
         """
         cache_key = (distro, version)
 
-        # Check in-memory cache
+        # Fast path: check in-memory cache without lock
         if cache_key in _db_cache:
             return _db_cache[cache_key]
 
-        # Check local file cache
-        cache_file = self._cache_dir / f"{distro}-{version}.json.gz"
-        if cache_file.exists():
-            try:
-                db = self._load_from_file(cache_file)
-                _db_cache[cache_key] = db
-                logger.debug(f"Loaded license database from cache: {cache_file}")
-                return db
-            except Exception as e:
-                logger.warning(f"Failed to load cached database {cache_file}: {e}")
-                cache_file.unlink(missing_ok=True)
+        # Acquire lock to prevent race conditions during download/generation
+        with _db_lock:
+            # Double-check cache after acquiring lock (another thread may have loaded it)
+            if cache_key in _db_cache:
+                return _db_cache[cache_key]
 
-        # Try to download from latest GitHub Release
-        db = self._download_from_release(distro, version, session)
-        if db:
-            _db_cache[cache_key] = db
-            # Save to local cache
-            try:
-                self._save_to_file(cache_file, db)
-                logger.info(f"Cached license database: {cache_file}")
-            except Exception as e:
-                logger.warning(f"Failed to save database to cache: {e}")
-            return db
+            # Check local file cache
+            cache_file = self._cache_dir / f"{distro}-{version}.json.gz"
+            if cache_file.exists():
+                try:
+                    db = self._load_from_file(cache_file)
+                    _db_cache[cache_key] = db
+                    logger.debug(f"Loaded license database from cache: {cache_file}")
+                    return db
+                except Exception as e:
+                    logger.warning(f"Failed to load cached database {cache_file}: {e}")
+                    cache_file.unlink(missing_ok=True)
 
-        # Fallback: generate locally
-        if not DISABLE_LOCAL_GENERATION:
-            logger.info(f"Database not found in release, generating locally for {distro}-{version}...")
-            db = self._generate_locally(distro, version, cache_file)
+            # Try to download from latest GitHub Release
+            db = self._download_from_release(distro, version, session)
             if db:
                 _db_cache[cache_key] = db
+                # Save to local cache
+                try:
+                    self._save_to_file(cache_file, db)
+                    logger.info(f"Cached license database: {cache_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to save database to cache: {e}")
                 return db
 
-        logger.debug(f"No license database available for {distro}-{version}")
-        return None
+            # Fallback: generate locally
+            if not DISABLE_LOCAL_GENERATION:
+                logger.info(f"Database not found in release, generating locally for {distro}-{version}...")
+                db = self._generate_locally(distro, version, cache_file)
+                if db:
+                    _db_cache[cache_key] = db
+                    return db
+
+            logger.debug(f"No license database available for {distro}-{version}")
+            return None
 
     def _load_from_file(self, path: Path) -> Dict[str, Any]:
         """Load a gzipped JSON database from file."""
@@ -412,7 +422,7 @@ class LicenseDBSource:
 
     def _download_from_release(self, distro: str, version: str, session: requests.Session) -> Optional[Dict[str, Any]]:
         """
-        Download database from the latest GitHub Release.
+        Download database from GitHub Releases, checking recent releases.
 
         Args:
             distro: Distribution name
@@ -424,58 +434,82 @@ class LicenseDBSource:
         """
         filename = f"{distro}-{version}.json.gz"
 
-        # Get latest release assets
-        assets = self._get_latest_release_assets(session)
+        # Get assets from recent releases
+        assets = self._get_release_assets(session)
         if not assets:
-            logger.debug("No license database assets found in latest release")
+            logger.debug("No license database assets found in any recent release")
             return None
 
-        # Check if our file exists in the release
+        # Check if our file exists in any release
         download_url = assets.get(filename)
         if not download_url:
-            logger.debug(f"License database not found in latest release: {filename}")
+            logger.debug(f"License database not found in recent releases: {filename}")
             return None
 
         return self._download_asset(download_url, session)
 
-    def _get_latest_release_assets(self, session: requests.Session) -> Dict[str, str]:
+    def _get_release_assets(self, session: requests.Session) -> Dict[str, str]:
         """
-        Get assets from the latest GitHub release.
+        Get assets from recent GitHub releases.
+
+        Checks up to MAX_RELEASES_TO_CHECK releases, collecting all unique
+        database files. If a file exists in multiple releases, the most
+        recent version is used.
 
         Returns:
             Dict mapping filename -> download_url
         """
-        global _latest_release_assets
-        if _latest_release_assets is not None:
-            return _latest_release_assets
+        global _release_assets_cache
+        if _release_assets_cache is not None:
+            return _release_assets_cache
 
         try:
-            response = session.get(GITHUB_RELEASES_API, timeout=DEFAULT_TIMEOUT)
+            # Fetch recent releases (GitHub returns them newest first)
+            response = session.get(
+                GITHUB_RELEASES_API,
+                params={"per_page": MAX_RELEASES_TO_CHECK},
+                timeout=DEFAULT_TIMEOUT,
+            )
             response.raise_for_status()
 
-            release = response.json()
-            assets = {}
-            for asset in release.get("assets", []):
-                name = asset.get("name", "")
-                url = asset.get("browser_download_url", "")
-                if name and url and name.endswith(".json.gz"):
-                    assets[name] = url
+            releases = response.json()
+            if not releases:
+                logger.debug("No releases found yet")
+                _release_assets_cache = {}
+                return {}
 
-            _latest_release_assets = assets
-            logger.debug(f"Found {len(assets)} license database(s) in latest release")
+            assets: Dict[str, str] = {}
+            releases_checked = 0
+
+            for release in releases:
+                tag = release.get("tag_name", "unknown")
+                release_assets = release.get("assets", [])
+
+                for asset in release_assets:
+                    name = asset.get("name", "")
+                    url = asset.get("browser_download_url", "")
+                    # Only add if not already found in a newer release
+                    if name and url and name.endswith(".json.gz") and name not in assets:
+                        assets[name] = url
+                        logger.debug(f"Found {name} in release {tag}")
+
+                releases_checked += 1
+
+            _release_assets_cache = assets
+            logger.debug(f"Found {len(assets)} license database(s) across {releases_checked} release(s)")
             return assets
 
         except requests.exceptions.HTTPError as e:
             if e.response is not None and e.response.status_code == 404:
                 logger.debug("No releases found yet")
             else:
-                logger.warning(f"Failed to fetch latest release: {e}")
-            _latest_release_assets = {}
+                logger.warning(f"Failed to fetch releases: {e}")
+            _release_assets_cache = {}
             return {}
 
         except Exception as e:
-            logger.warning(f"Failed to fetch latest release: {e}")
-            _latest_release_assets = {}
+            logger.warning(f"Failed to fetch releases: {e}")
+            _release_assets_cache = {}
             return {}
 
     def _download_asset(self, url: str, session: requests.Session) -> Optional[Dict[str, Any]]:
@@ -511,6 +545,7 @@ class LicenseDBSource:
             # Import generator functions
             from ..license_db_generator import (
                 generate_alpine_db,
+                generate_debian_db,
                 generate_rpm_db,
                 generate_ubuntu_db,
                 generate_wolfi_db,
@@ -527,6 +562,8 @@ class LicenseDBSource:
                 generate_wolfi_db(output_path)
             elif distro == "ubuntu":
                 generate_ubuntu_db(version, output_path)
+            elif distro == "debian":
+                generate_debian_db(version, output_path)
             elif distro in ("rocky", "almalinux", "fedora", "amazonlinux", "centos"):
                 generate_rpm_db(distro, version, output_path)
             else:

@@ -470,39 +470,39 @@ env:
 
 ### Enrichment Data Sources
 
-| Source         | Package Types                                                    | Data                                                      |
-| -------------- | ---------------------------------------------------------------- | --------------------------------------------------------- |
-| License DB     | Alpine, Wolfi, Ubuntu, Rocky, Alma, CentOS, Fedora, Amazon Linux | License, description, supplier, homepage, maintainer, CLE |
-| PyPI           | Python                                                           | License, author, homepage                                 |
-| pub.dev        | Dart                                                             | License, author, homepage, repo                           |
-| crates.io      | Rust/Cargo                                                       | License, author, homepage, repo, description              |
-| Debian Sources | Debian packages                                                  | Maintainer, description, homepage                         |
-| deps.dev       | Python, npm, Maven, Go, Ruby, NuGet (+ Rust fallback)            | License, homepage, repo                                   |
-| ecosyste.ms    | All major ecosystems                                             | License, description, maintainer                          |
-| Repology       | Linux distros                                                    | License, homepage                                         |
+| Source         | Package Types                                                    | Data                                            |
+| -------------- | ---------------------------------------------------------------- | ----------------------------------------------- |
+| License DB     | Alpine, Wolfi, Ubuntu, Rocky, Alma, CentOS, Fedora, Amazon Linux | License, description, supplier, homepage        |
+| Lifecycle      | Python, PHP, Go, Rust, Django, Rails, Laravel, React, Vue        | CLE (release date, end-of-support, end-of-life) |
+| PyPI           | Python                                                           | License, author, homepage                       |
+| pub.dev        | Dart                                                             | License, author, homepage, repo                 |
+| crates.io      | Rust/Cargo                                                       | License, author, homepage, repo, description    |
+| Debian Sources | Debian packages                                                  | Maintainer, description, homepage               |
+| deps.dev       | Python, npm, Maven, Go, Ruby, NuGet (+ Rust fallback)            | License, homepage, repo                         |
+| ecosyste.ms    | All major ecosystems                                             | License, description, maintainer                |
+| Repology       | Linux distros                                                    | License, homepage                               |
 
 ### License Database
 
 For Linux distro packages, sbomify uses pre-computed databases that provide comprehensive package metadata. The databases are built by pulling data directly from official distro sources (Alpine APKINDEX, Ubuntu/Debian apt repositories, RPM repos) and normalizing it into a consistent format with validated SPDX license expressions.
 
 - **Generated automatically** on each release from official distro repositories
-- **Downloaded on-demand** from GitHub Releases during enrichment
+- **Downloaded on-demand** from GitHub Releases during enrichment (checks up to 5 recent releases)
 - **Cached locally** (~/.cache/sbomify/license-db/) for faster subsequent runs
 - **Normalized** — vendor-specific license strings converted to valid SPDX expressions
 
 **Data provided:**
 
-| Field           | Description                                    |
-| --------------- | ---------------------------------------------- |
-| License         | SPDX-validated license expression              |
-| Description     | Package summary                                |
-| Supplier        | Package maintainer/vendor                      |
-| Homepage        | Project website URL                            |
-| Download URL    | Package download location                      |
-| Maintainer      | Name and email                                 |
-| CLE (lifecycle) | End-of-support, end-of-life, and release dates |
+| Field        | Description                       |
+| ------------ | --------------------------------- |
+| License      | SPDX-validated license expression |
+| Description  | Package summary                   |
+| Supplier     | Package maintainer/vendor         |
+| Homepage     | Project website URL               |
+| Download URL | Package download location         |
+| Maintainer   | Name and email                    |
 
-[CLE (Common Lifecycle Enumeration)](https://sbomify.com/compliance/cle/) provides distro-level lifecycle dates, enabling automated end-of-life tracking for OS packages.
+> **Note**: CLE (lifecycle) data is now provided by the dedicated Lifecycle enrichment source. See [Lifecycle Enrichment](#lifecycle-enrichment) below.
 
 **Supported distros:**
 
@@ -510,6 +510,7 @@ For Linux distro packages, sbomify uses pre-computed databases that provide comp
 | ------------ | ------------------- |
 | Alpine       | 3.13–3.21           |
 | Wolfi        | rolling             |
+| Debian       | 11, 12, 13          |
 | Ubuntu       | 20.04, 22.04, 24.04 |
 | Rocky Linux  | 8, 9                |
 | AlmaLinux    | 8, 9                |
@@ -525,7 +526,66 @@ The license database is the **primary source** for Linux distro packages, taking
 sbomify-license-db --distro alpine --version 3.20 --output alpine-3.20.json.gz
 ```
 
-Set `SBOMIFY_DISABLE_LICENSE_DB_GENERATION=true` to disable automatic local generation fallback.
+> **Note**: Local generation fallback is disabled by default (Ubuntu/Debian can take hours to generate). Set `SBOMIFY_ENABLE_LICENSE_DB_GENERATION=true` to enable it.
+
+### Lifecycle Enrichment
+
+sbomify provides [CLE (Common Lifecycle Enumeration)](https://sbomify.com/compliance/cle/) data including release dates, end-of-support, and end-of-life dates. This enables automated tracking of outdated or unsupported components.
+
+**Supported operating systems:**
+
+| OS           | Tracked Versions    |
+| ------------ | ------------------- |
+| Debian       | 10, 11, 12          |
+| Ubuntu       | 20.04, 22.04, 24.04 |
+| Alpine       | 3.13–3.21           |
+| Rocky Linux  | 8, 9                |
+| AlmaLinux    | 8, 9                |
+| CentOS       | Stream 8, Stream 9  |
+| Fedora       | 39–42               |
+| Amazon Linux | 2, 2023             |
+
+Operating system components (CycloneDX `type: operating-system`) are enriched with lifecycle data based on their name and version.
+
+**Supported runtimes and frameworks:**
+
+| Package | Tracked Versions               | PURL Matching                       |
+| ------- | ------------------------------ | ----------------------------------- |
+| Python  | 2.7, 3.10–3.14                 | All types (pypi, deb, rpm, apk)     |
+| PHP     | 7.4, 8.0–8.5                   | All types (composer, deb, rpm, apk) |
+| Go      | 1.22–1.25                      | All types (golang, deb, rpm, apk)   |
+| Rust    | 1.90–1.92                      | All types (cargo, deb, rpm, apk)    |
+| Django  | 4.2, 5.2, 6.0                  | PyPI only                           |
+| Rails   | 7.0–8.1 (+ all component gems) | RubyGems only                       |
+| Laravel | 10–13                          | Composer only                       |
+| React   | 17–19                          | npm only                            |
+| Vue     | 2, 3                           | npm only                            |
+
+**How it works:**
+
+- **OS components**: Detected by CycloneDX `type: operating-system`, matched by name/version
+- **Runtimes/frameworks**: Matched by name pattern across all package managers
+- Version cycle extracted from full version (e.g., `3.12.7` → `3.12`, `12.12` → `12`)
+- CLE properties added: `cle:releaseDate`, `cle:eos`, `cle:eol`
+
+> **Note**: Arbitrary OS packages (curl, nginx, openssl, etc.) do not receive lifecycle data. Only the operating system itself and explicitly tracked runtimes/frameworks get CLE data.
+
+**Example enriched OS component:**
+
+```json
+{
+  "type": "operating-system",
+  "name": "debian",
+  "version": "12.12",
+  "properties": [
+    {"name": "cle:releaseDate", "value": "2023-06-10"},
+    {"name": "cle:eos", "value": "2026-06-10"},
+    {"name": "cle:eol", "value": "2028-06-30"}
+  ]
+}
+```
+
+This allows downstream tools to identify components running on unsupported operating systems or runtimes.
 
 ## SBOM Quality Improvement
 
