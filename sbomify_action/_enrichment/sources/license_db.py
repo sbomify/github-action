@@ -612,9 +612,8 @@ class LicenseDBSource:
                 p = PackageURL.from_string(purl_str)
                 key = (p.type, p.namespace or "", p.name, p.version or "")
 
-                # Store qualifiers without arch for matching
-                qualifiers = dict(p.qualifiers) if p.qualifiers else {}
-                qualifiers.pop("arch", None)
+                # Store qualifiers without arch for matching (using comprehension for clarity)
+                qualifiers = {k: v for k, v in (p.qualifiers or {}).items() if k != "arch"}
 
                 if key not in index:
                     index[key] = []
@@ -645,13 +644,13 @@ class LicenseDBSource:
         Returns:
             Package data dict or None
         """
-        # Create a normalized version of the input PURL without arch
-        input_qualifiers = dict(purl.qualifiers) if purl.qualifiers else {}
-        input_arch = input_qualifiers.pop("arch", None)
-
-        # If no arch qualifier, nothing to do - exact match already tried
+        # Get arch qualifier - if not present, nothing to do (exact match already tried)
+        input_arch = (purl.qualifiers or {}).get("arch")
         if not input_arch:
             return None
+
+        # Create qualifiers dict without arch for comparison
+        input_qualifiers = {k: v for k, v in (purl.qualifiers or {}).items() if k != "arch"}
 
         # Build/get the index for fast lookups
         index = self._build_arch_agnostic_index(db)
