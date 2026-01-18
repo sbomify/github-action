@@ -4,11 +4,20 @@ name: Publish Python distribution to PyPI and TestPyPI
 on:
   release:
     types: [published]
+  push:
+    branches:
+      - master
 
 jobs:
-  build:
-    name: Build distribution
+  build-and-publish-testpypi:
+    name: Build and publish to TestPyPI
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/sbomify-action
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
 
     steps:
       - uses: actions/checkout@v4
@@ -23,9 +32,12 @@ jobs:
       - name: Determine version
         id: version
         run: |
-          # Get tag name and strip 'v' prefix if present
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
+          # Get base version from pyproject.toml and append dev suffix with short SHA
+          BASE_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          # Use .devN format where N is derived from SHA (convert hex to decimal, truncate)
+          DEV_NUM=$(printf "%d" 0x${SHORT_SHA} 2>/dev/null | cut -c1-9)
+          VERSION="${BASE_VERSION}.dev${DEV_NUM}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Building version: ${VERSION}"
 
@@ -46,17 +58,15 @@ jobs:
           rm -rf dist/
           uv build
 
-      - name: Store the distribution packages
-        uses: actions/upload-artifact@v4
+      - name: Publish distribution to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          name: python-package-distributions
-          path: dist/
+          repository-url: https://test.pypi.org/legacy/
 
-  publish-to-pypi:
-    name: Publish Python distribution to PyPI
-    needs:
-      - build
+  build-and-publish-pypi:
+    name: Build and publish to PyPI
     runs-on: ubuntu-latest
+    if: github.event_name == 'release'
     environment:
       name: pypi
       url: https://pypi.org/p/sbomify-action
@@ -64,34 +74,25 @@ jobs:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
 
     steps:
-      - name: Download all the dists
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          name: python-package-distributions
-          path: dist/
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build a binary wheel and a source tarball
+        run: |
+          uv sync --frozen
+          rm -rf dist/
+          uv build
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-
-  publish-to-testpypi:
-    name: Publish Python distribution to TestPyPI
-    needs:
-      - build
-    runs-on: ubuntu-latest
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/p/sbomify-action
-    permissions:
-      id-token: write  # IMPORTANT: mandatory for trusted publishing
-
-    steps:
-      - name: Download all the dists
-        uses: actions/download-artifact@v4
-        with:
-          name: python-package-distributions
-          path: dist/
-
-      - name: Publish distribution to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
