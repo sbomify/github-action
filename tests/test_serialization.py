@@ -10,8 +10,8 @@ from sbomify_action.serialization import (
     _UNKNOWN_VERSION,
     SPDX_PACKAGE_PURPOSE_FIXES,
     _extract_component_info_from_purl,
+    _fix_purl_encoding_bugs_in_json,
     _is_invalid_purl,
-    _normalize_purls_in_json,
     link_root_dependencies,
     normalize_purl,
     sanitize_dependency_graph,
@@ -1552,41 +1552,65 @@ class TestSanitizeSpdxJsonFile:
         # that known values like OPERATING_SYSTEM are mapped correctly.
 
 
-class TestNormalizePurlsInJson:
-    """Tests for JSON PURL normalization function."""
+class TestFixPurlEncodingBugsInJson:
+    """Tests for JSON PURL encoding bug fix function."""
 
     def test_preserves_valid_encoded_purl(self):
         """Test that valid %40-encoded PURLs are preserved (canonical form)."""
         json_str = '{"metadata":{"tools":{"components":[{"purl":"pkg:npm/%40cyclonedx/cdxgen@12.0.0"}]}}}'
-        result = _normalize_purls_in_json(json_str)
+        result = _fix_purl_encoding_bugs_in_json(json_str)
+        # Verify JSON structure is valid
+        import json
+
+        data = json.loads(result)
+        purl = data["metadata"]["tools"]["components"][0]["purl"]
         # Canonical %40 encoding should be preserved
-        assert "pkg:npm/%40cyclonedx/cdxgen@12.0.0" in result
+        assert purl == "pkg:npm/%40cyclonedx/cdxgen@12.0.0"
 
     def test_fixes_double_encoded_at(self):
         """Test that double-encoded %40%40 is fixed to single %40."""
         json_str = '{"components":[{"purl":"pkg:npm/%40%40scope/package@1.0.0"}]}'
-        result = _normalize_purls_in_json(json_str)
-        assert "pkg:npm/%40scope/package@1.0.0" in result
-        assert "%40%40" not in result
+        result = _fix_purl_encoding_bugs_in_json(json_str)
+        # Verify JSON structure is valid
+        import json
+
+        data = json.loads(result)
+        purl = data["components"][0]["purl"]
+        assert purl == "pkg:npm/%40scope/package@1.0.0"
+        assert "%40%40" not in purl
 
     def test_fixes_double_at_symbol(self):
         """Test that double @@ is fixed to single @."""
         json_str = '{"components":[{"purl":"pkg:npm/@scope/pkg@@1.0.0"}]}'
-        result = _normalize_purls_in_json(json_str)
-        assert "@@" not in result
-        assert "@1.0.0" in result
+        result = _fix_purl_encoding_bugs_in_json(json_str)
+        # Verify JSON structure is valid
+        import json
+
+        data = json.loads(result)
+        purl = data["components"][0]["purl"]
+        assert "@@" not in purl
+        assert purl == "pkg:npm/@scope/pkg@1.0.0"
 
     def test_leaves_non_scoped_purls_unchanged(self):
         """Test that PURLs without scoped namespace are unchanged."""
         json_str = '{"components":[{"purl":"pkg:pypi/requests@2.28.0"}]}'
-        result = _normalize_purls_in_json(json_str)
-        assert "pkg:pypi/requests@2.28.0" in result
+        result = _fix_purl_encoding_bugs_in_json(json_str)
+        # Verify JSON structure is valid
+        import json
+
+        data = json.loads(result)
+        purl = data["components"][0]["purl"]
+        assert purl == "pkg:pypi/requests@2.28.0"
 
     def test_preserves_non_purl_content(self):
         """Test that non-PURL content is preserved."""
         json_str = '{"name":"test","version":"1.0","purl":"pkg:npm/%40scope/pkg@1.0.0"}'
-        result = _normalize_purls_in_json(json_str)
-        assert '"name":"test"' in result
-        assert '"version":"1.0"' in result
+        result = _fix_purl_encoding_bugs_in_json(json_str)
+        # Verify JSON structure is valid
+        import json
+
+        data = json.loads(result)
+        assert data["name"] == "test"
+        assert data["version"] == "1.0"
         # Canonical encoding preserved
-        assert "pkg:npm/%40scope/pkg@1.0.0" in result
+        assert data["purl"] == "pkg:npm/%40scope/pkg@1.0.0"

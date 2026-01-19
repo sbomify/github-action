@@ -135,6 +135,11 @@ def _extract_component_info_from_purl(
         return None, None, None, None
 
 
+# Regex patterns for PURL encoding bug fixes
+# These fix common encoding issues from various SBOM generators
+_DOUBLE_ENCODED_AT_PATTERN = re.compile(r"(%40){2,}")  # %40%40... → %40
+_DOUBLE_AT_PATTERN = re.compile(r"@@+")  # @@... → @
+
 # Package types that require a version in the PURL
 # These ecosystems always have versioned packages in standard usage
 PURL_TYPES_REQUIRING_VERSION = frozenset(
@@ -177,11 +182,11 @@ def normalize_purl(purl_str: str | None) -> tuple[str | None, bool]:
 
     # Fix double-encoded @ symbols: %40%40 → %40
     # This happens when a generator encodes an already-encoded PURL
-    normalized = re.sub(r"(%40)+", "%40", normalized)
+    normalized = _DOUBLE_ENCODED_AT_PATTERN.sub("%40", normalized)
 
     # Fix double @@ symbols (e.g., pkg:npm/@scope/pkg@@1.0.0)
     # This is a common encoding bug where @@ appears before the version
-    normalized = re.sub(r"@@+", "@", normalized)
+    normalized = _DOUBLE_AT_PATTERN.sub("@", normalized)
 
     was_modified = normalized != original
 
@@ -672,12 +677,12 @@ def serialize_cyclonedx_bom(bom: Bom, spec_version: Optional[str] = None) -> str
 
     # Post-process JSON to fix PURL encoding bugs (double %40%40 or double @@)
     # Note: We preserve the canonical %40 encoding per PURL spec
-    result = _normalize_purls_in_json(result)
+    result = _fix_purl_encoding_bugs_in_json(result)
 
     return result
 
 
-def _normalize_purls_in_json(json_str: str) -> str:
+def _fix_purl_encoding_bugs_in_json(json_str: str) -> str:
     """
     Fix PURL encoding bugs in a serialized JSON string.
 
@@ -695,14 +700,13 @@ def _normalize_purls_in_json(json_str: str) -> str:
         JSON string with fixed PURLs
     """
     # Fix double-encoded %40 sequences in PURLs
-    # Match: %40%40 (or longer sequences) and collapse to single %40
-    result = re.sub(r"(%40){2,}", "%40", json_str)
+    result = _DOUBLE_ENCODED_AT_PATTERN.sub("%40", json_str)
 
     # Fix double @@ in PURLs (e.g., before version separator)
     # This regex targets @@ within PURL strings to avoid affecting other JSON content
     def fix_double_at(match: re.Match) -> str:
         purl = match.group(0)
-        return re.sub(r"@@+", "@", purl)
+        return _DOUBLE_AT_PATTERN.sub("@", purl)
 
     result = re.sub(r'"pkg:[^"]*"', fix_double_at, result)
 

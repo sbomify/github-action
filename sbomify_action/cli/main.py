@@ -42,7 +42,7 @@ from ..generation import (
     process_lock_file,
 )
 from ..logging_config import logger
-from ..serialization import _normalize_purls_in_json, serialize_cyclonedx_bom
+from ..serialization import _fix_purl_encoding_bugs_in_json, serialize_cyclonedx_bom
 from ..upload import upload_sbom
 
 
@@ -1119,9 +1119,9 @@ def run_pipeline(config: Config) -> None:
         with open(final_sbom_file, "r") as f:
             content = f.read()
 
-        # Detect format and normalize CycloneDX PURLs
+        # Detect format and fix any PURL encoding bugs in CycloneDX
         if '"bomFormat"' in content and '"CycloneDX"' in content:
-            content = _normalize_purls_in_json(content)
+            content = _fix_purl_encoding_bugs_in_json(content)
 
         with open(config.output_file, "w") as f:
             f.write(content)

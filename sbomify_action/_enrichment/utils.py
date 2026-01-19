@@ -10,10 +10,16 @@ def purl_to_string(purl: PackageURL) -> str:
     """
     Convert a PackageURL to a string with @ instead of %40 in the namespace.
 
-    The standard PackageURL.to_string() method URL-encodes @ as %40, which causes
-    double-encoding issues when the PURL is used as a query parameter in API calls.
+    The standard PackageURL.to_string() method URL-encodes @ as %40, which is
+    the canonical form per PURL spec. However, this causes double-encoding issues
+    when the PURL is used as a query parameter in API calls (%40 → %2540).
+
     This function outputs the PURL with literal @ characters, which will be
-    correctly single-encoded when used in API calls.
+    correctly single-encoded by HTTP clients when used in API calls.
+
+    When to use each:
+        - str(purl) or purl.to_string(): For SBOM output (canonical %40 form)
+        - purl_to_string(purl): For API query parameters (literal @ form)
 
     Args:
         purl: Parsed PackageURL object
