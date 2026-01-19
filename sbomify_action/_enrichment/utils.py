@@ -1,8 +1,47 @@
 """Shared utilities for enrichment sources."""
 
 from typing import Optional, Tuple
+from urllib.parse import urlencode
 
 from packageurl import PackageURL
+
+
+def purl_to_string(purl: PackageURL) -> str:
+    """
+    Convert a PackageURL to a string with @ instead of %40 in the namespace.
+
+    The standard PackageURL.to_string() method URL-encodes @ as %40, which is
+    the canonical form per PURL spec. However, this causes double-encoding issues
+    when the PURL is used as a query parameter in API calls (%40 → %2540).
+
+    This function outputs the PURL with literal @ characters, which will be
+    correctly single-encoded by HTTP clients when used in API calls.
+
+    When to use each:
+        - str(purl) or purl.to_string(): For SBOM output (canonical %40 form)
+        - purl_to_string(purl): For API query parameters (literal @ form)
+
+    Args:
+        purl: Parsed PackageURL object
+
+    Returns:
+        PURL string with @ instead of %40
+    """
+    # Build the PURL string manually with @ instead of %40
+    # Format: pkg:type/namespace/name@version?qualifiers#subpath
+    parts = [f"pkg:{purl.type}"]
+    if purl.namespace:
+        parts.append(f"/{purl.namespace}")
+    parts.append(f"/{purl.name}")
+    if purl.version:
+        parts.append(f"@{purl.version}")
+    if purl.qualifiers:
+        # Qualifiers need proper encoding; doseq=True handles list/tuple values correctly
+        qual_str = urlencode(purl.qualifiers, doseq=True)
+        parts.append(f"?{qual_str}")
+    if purl.subpath:
+        parts.append(f"#{purl.subpath}")
+    return "".join(parts)
 
 
 def get_qualified_name(purl: PackageURL, separator: str = ":") -> str:

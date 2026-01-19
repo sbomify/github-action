@@ -1,5 +1,7 @@
 """Tests for the serialization module, including dependency graph sanitization."""
 
+import json
+
 import pytest
 from cyclonedx.model import BomRef
 from cyclonedx.model.bom import Bom
@@ -10,6 +12,7 @@ from sbomify_action.serialization import (
     _UNKNOWN_VERSION,
     SPDX_PACKAGE_PURPOSE_FIXES,
     _extract_component_info_from_purl,
+    _fix_purl_encoding_bugs_in_json,
     _is_invalid_purl,
     link_root_dependencies,
     normalize_purl,
@@ -802,9 +805,23 @@ class TestIsInvalidPurl:
 class TestNormalizePurl:
     """Tests for PURL normalization function."""
 
-    def test_no_change_for_valid_purl(self):
-        """Test that valid PURLs are not modified."""
+    def test_no_change_for_valid_encoded_purl(self):
+        """Test that valid %40-encoded PURLs are preserved (canonical form per PURL spec)."""
         purl = "pkg:npm/%40scope/package@1.0.0"
+        normalized, was_modified = normalize_purl(purl)
+        assert not was_modified
+        assert normalized == purl
+
+    def test_no_change_for_literal_at_purl(self):
+        """Test that PURLs with literal @ are also preserved."""
+        purl = "pkg:npm/@scope/package@1.0.0"
+        normalized, was_modified = normalize_purl(purl)
+        assert not was_modified
+        assert normalized == purl
+
+    def test_no_change_for_purl_without_namespace(self):
+        """Test that PURLs without namespace are not modified."""
+        purl = "pkg:pypi/requests@2.28.0"
         normalized, was_modified = normalize_purl(purl)
         assert not was_modified
         assert normalized == purl
@@ -1027,11 +1044,11 @@ class TestSanitizePurls:
         assert len(dep.dependencies) == 1
 
     def test_valid_scoped_purl_not_modified(self):
-        """Test that valid scoped PURLs are not modified by sanitization."""
+        """Test that valid scoped PURLs with %40 encoding are preserved (canonical form)."""
         from packageurl import PackageURL
 
         bom = Bom()
-        # Valid scoped npm package - should not be touched
+        # Scoped npm package with %40 encoding (canonical form per PURL spec)
         comp = Component(
             name="pkg",
             type=ComponentType.LIBRARY,
@@ -1041,7 +1058,7 @@ class TestSanitizePurls:
         )
         bom.components.add(comp)
 
-        # Valid PURL should not be modified or cleared
+        # Valid canonical PURL should not be modified
         normalized, cleared = sanitize_purls(bom)
         assert normalized == 0
         assert cleared == 0
@@ -1220,7 +1237,7 @@ class TestSpdxPurlSanitization:
         assert "%40%40" not in purl_ref.locator
 
     def test_valid_spdx_purl_unchanged(self):
-        """Test that valid SPDX PURLs are not modified."""
+        """Test that valid SPDX PURLs with %40 encoding are preserved (canonical form)."""
         from datetime import datetime
 
         from spdx_tools.spdx.model import (
@@ -1250,7 +1267,7 @@ class TestSpdxPurlSanitization:
             version="7.28.0",
             download_location=SpdxNoAssertion(),
         )
-        # Add valid PURL (single %40 is correct)
+        # Add valid PURL with %40 encoding (canonical form per PURL spec)
         original_locator = "pkg:npm/%40babel/parser@7.28.0"
         package.external_references.append(
             ExternalPackageRef(
@@ -1263,8 +1280,8 @@ class TestSpdxPurlSanitization:
 
         normalized_count = sanitize_spdx_purls(document)
 
+        # Valid canonical PURL should not be modified
         assert normalized_count == 0
-        # Check the locator was not modified
         purl_ref = package.external_references[0]
         assert purl_ref.locator == original_locator
 
@@ -1535,3 +1552,57 @@ class TestSanitizeSpdxJsonFile:
         assert SPDX_PACKAGE_PURPOSE_FIXES["OPERATING_SYSTEM"] == "OPERATING-SYSTEM"
         # Additional SPDX enum fixes may be added in the future; we only require
         # that known values like OPERATING_SYSTEM are mapped correctly.
+
+
+class TestFixPurlEncodingBugsInJson:
+    """Tests for JSON PURL encoding bug fix function."""
+
+    def test_preserves_valid_encoded_purl(self):
+        """Test that valid %40-encoded PURLs are preserved (canonical form)."""
+        json_str = '{"metadata":{"tools":{"components":[{"purl":"pkg:npm/%40cyclonedx/cdxgen@12.0.0"}]}}}'
+        result = _fix_purl_encoding_bugs_in_json(json_str)
+        # Verify JSON structure is valid
+        data = json.loads(result)
+        purl = data["metadata"]["tools"]["components"][0]["purl"]
+        # Canonical %40 encoding should be preserved
+        assert purl == "pkg:npm/%40cyclonedx/cdxgen@12.0.0"
+
+    def test_fixes_double_encoded_at(self):
+        """Test that double-encoded %40%40 is fixed to single %40."""
+        json_str = '{"components":[{"purl":"pkg:npm/%40%40scope/package@1.0.0"}]}'
+        result = _fix_purl_encoding_bugs_in_json(json_str)
+        # Verify JSON structure is valid
+        data = json.loads(result)
+        purl = data["components"][0]["purl"]
+        assert purl == "pkg:npm/%40scope/package@1.0.0"
+        assert "%40%40" not in purl
+
+    def test_fixes_double_at_symbol(self):
+        """Test that double @@ is fixed to single @."""
+        json_str = '{"components":[{"purl":"pkg:npm/@scope/pkg@@1.0.0"}]}'
+        result = _fix_purl_encoding_bugs_in_json(json_str)
+        # Verify JSON structure is valid
+        data = json.loads(result)
+        purl = data["components"][0]["purl"]
+        assert "@@" not in purl
+        assert purl == "pkg:npm/@scope/pkg@1.0.0"
+
+    def test_leaves_non_scoped_purls_unchanged(self):
+        """Test that PURLs without scoped namespace are unchanged."""
+        json_str = '{"components":[{"purl":"pkg:pypi/requests@2.28.0"}]}'
+        result = _fix_purl_encoding_bugs_in_json(json_str)
+        # Verify JSON structure is valid
+        data = json.loads(result)
+        purl = data["components"][0]["purl"]
+        assert purl == "pkg:pypi/requests@2.28.0"
+
+    def test_preserves_non_purl_content(self):
+        """Test that non-PURL content is preserved."""
+        json_str = '{"name":"test","version":"1.0","purl":"pkg:npm/%40scope/pkg@1.0.0"}'
+        result = _fix_purl_encoding_bugs_in_json(json_str)
+        # Verify JSON structure is valid
+        data = json.loads(result)
+        assert data["name"] == "test"
+        assert data["version"] == "1.0"
+        # Canonical encoding preserved
+        assert data["purl"] == "pkg:npm/%40scope/pkg@1.0.0"
