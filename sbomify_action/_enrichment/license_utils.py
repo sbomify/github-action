@@ -69,6 +69,18 @@ LICENSE_EXACT_ALIASES = {
 # Threshold for considering a string as full license text (not an identifier)
 LICENSE_TEXT_LENGTH_THRESHOLD = 100
 
+# Licenses that the license-expression library accepts but are NOT in the official
+# SPDX license list. The library includes ScanCode-detected licenses which are not
+# valid for CycloneDX/SPDX schema validation.
+# See: https://spdx.org/licenses/ for the official list
+NON_SPDX_LICENSES = frozenset(
+    {
+        # ScanCode-specific licenses mistakenly included
+        "Artistic-dist",  # Should be Artistic-1.0-Perl
+        "ClArtistic",  # Clarified Artistic - use Artistic-1.0-cl8
+    }
+)
+
 
 def validate_spdx_expression(license_str: str) -> bool:
     """
@@ -76,6 +88,9 @@ def validate_spdx_expression(license_str: str) -> bool:
 
     This validates against ALL SPDX license IDs from the official list,
     ensuring compliance with CycloneDX 1.4-1.7 and SPDX 2.2-2.3 schemas.
+
+    Note: The license-expression library includes some non-SPDX licenses
+    (e.g., ScanCode-detected licenses). We explicitly reject those here.
 
     Args:
         license_str: License string to validate (ID or expression)
@@ -89,6 +104,10 @@ def validate_spdx_expression(license_str: str) -> bool:
     # Check special values first
     if license_str in SPDX_SPECIAL_VALUES:
         return True
+
+    # Explicitly reject known non-SPDX licenses that license-expression accepts
+    if license_str in NON_SPDX_LICENSES:
+        return False
 
     # LicenseRef-* is always valid (custom license references)
     if license_str.startswith("LicenseRef-"):
