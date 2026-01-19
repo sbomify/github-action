@@ -708,7 +708,8 @@ def _fix_purl_encoding_bugs_in_json(json_str: str) -> str:
         purl = match.group(0)
         return _DOUBLE_AT_PATTERN.sub("@", purl)
 
-    result = re.sub(r'"pkg:[^"]*"', fix_double_at, result)
+    # Use a more specific pattern to match valid PURLs and avoid unintended replacements
+    result = re.sub(r'"pkg:[a-z0-9+.-]+[:/][^"]*"', fix_double_at, result)
 
     return result
 

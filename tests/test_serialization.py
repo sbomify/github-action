@@ -1,5 +1,7 @@
 """Tests for the serialization module, including dependency graph sanitization."""
 
+import json
+
 import pytest
 from cyclonedx.model import BomRef
 from cyclonedx.model.bom import Bom
@@ -1560,8 +1562,6 @@ class TestFixPurlEncodingBugsInJson:
         json_str = '{"metadata":{"tools":{"components":[{"purl":"pkg:npm/%40cyclonedx/cdxgen@12.0.0"}]}}}'
         result = _fix_purl_encoding_bugs_in_json(json_str)
         # Verify JSON structure is valid
-        import json
-
         data = json.loads(result)
         purl = data["metadata"]["tools"]["components"][0]["purl"]
         # Canonical %40 encoding should be preserved
@@ -1572,8 +1572,6 @@ class TestFixPurlEncodingBugsInJson:
         json_str = '{"components":[{"purl":"pkg:npm/%40%40scope/package@1.0.0"}]}'
         result = _fix_purl_encoding_bugs_in_json(json_str)
         # Verify JSON structure is valid
-        import json
-
         data = json.loads(result)
         purl = data["components"][0]["purl"]
         assert purl == "pkg:npm/%40scope/package@1.0.0"
@@ -1584,8 +1582,6 @@ class TestFixPurlEncodingBugsInJson:
         json_str = '{"components":[{"purl":"pkg:npm/@scope/pkg@@1.0.0"}]}'
         result = _fix_purl_encoding_bugs_in_json(json_str)
         # Verify JSON structure is valid
-        import json
-
         data = json.loads(result)
         purl = data["components"][0]["purl"]
         assert "@@" not in purl
@@ -1596,8 +1592,6 @@ class TestFixPurlEncodingBugsInJson:
         json_str = '{"components":[{"purl":"pkg:pypi/requests@2.28.0"}]}'
         result = _fix_purl_encoding_bugs_in_json(json_str)
         # Verify JSON structure is valid
-        import json
-
         data = json.loads(result)
         purl = data["components"][0]["purl"]
         assert purl == "pkg:pypi/requests@2.28.0"
@@ -1607,8 +1601,6 @@ class TestFixPurlEncodingBugsInJson:
         json_str = '{"name":"test","version":"1.0","purl":"pkg:npm/%40scope/pkg@1.0.0"}'
         result = _fix_purl_encoding_bugs_in_json(json_str)
         # Verify JSON structure is valid
-        import json
-
         data = json.loads(result)
         assert data["name"] == "test"
         assert data["version"] == "1.0"

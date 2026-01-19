@@ -36,8 +36,8 @@ def purl_to_string(purl: PackageURL) -> str:
     if purl.version:
         parts.append(f"@{purl.version}")
     if purl.qualifiers:
-        # Qualifiers need proper encoding
-        qual_str = urlencode(purl.qualifiers)
+        # Qualifiers need proper encoding; doseq=True handles list/tuple values correctly
+        qual_str = urlencode(purl.qualifiers, doseq=True)
         parts.append(f"?{qual_str}")
     if purl.subpath:
         parts.append(f"#{purl.subpath}")
