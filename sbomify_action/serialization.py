@@ -152,11 +152,15 @@ PURL_TYPES_REQUIRING_VERSION = frozenset(
 
 def normalize_purl(purl_str: str | None) -> tuple[str | None, bool]:
     """
-    Normalize a PURL string, fixing common encoding issues.
+    Normalize a PURL string, fixing common encoding bugs.
 
     Fixes:
-    - Double @@ symbols (encoding bugs)
+    - Double @@ symbols (encoding bugs from some generators)
     - Double-encoded @ symbols (%40%40 → %40)
+
+    Note: This function preserves %40 encoding in namespaces, which is the
+    canonical form per the PURL spec. For API calls where %40 would be
+    double-encoded, use purl_to_string() from _enrichment.utils instead.
 
     Args:
         purl_str: The PURL string to normalize
@@ -165,37 +169,19 @@ def normalize_purl(purl_str: str | None) -> tuple[str | None, bool]:
         Tuple of (normalized_purl, was_modified) where was_modified indicates
         if any changes were made
     """
-    from urllib.parse import unquote
-
     if not purl_str:
         return purl_str, False
 
     original = purl_str
     normalized = purl_str
 
-    # Collapse any sequence of consecutive %40 into a single %40
+    # Fix double-encoded @ symbols: %40%40 → %40
+    # This happens when a generator encodes an already-encoded PURL
     normalized = re.sub(r"(%40)+", "%40", normalized)
 
-    # Decode to check for @@ issues
-    decoded = unquote(normalized)
-
-    # Fix double @@ in decoded form, but be careful:
-    # - Valid: @scope (namespace) + @ (version separator) = exactly 2 @ for scoped packages
-    # - Invalid: @@ appearing together
-    if "@@" in decoded:
-        # Replace @@ with single @
-        decoded = decoded.replace("@@", "@")
-
-        # Re-encode the namespace @ symbol (first @ after pkg:type/)
-        # Split on first / to get type, then handle namespace
-        try:
-            # Try to parse the fixed decoded PURL
-            # The namespace @ needs to be encoded as %40
-            purl = PackageURL.from_string(decoded)
-            normalized = str(purl)
-        except ValueError:
-            # If we can't parse, just do simple fix
-            normalized = decoded
+    # Fix double @@ symbols (e.g., pkg:npm/@scope/pkg@@1.0.0)
+    # This is a common encoding bug where @@ appears before the version
+    normalized = re.sub(r"@@+", "@", normalized)
 
     was_modified = normalized != original
 
@@ -683,6 +669,42 @@ def serialize_cyclonedx_bom(bom: Bom, spec_version: Optional[str] = None) -> str
         else:
             # Re-emit other warnings as-is using our logger
             logger.warning(f"CycloneDX serialization warning: {warning_msg}")
+
+    # Post-process JSON to fix PURL encoding bugs (double %40%40 or double @@)
+    # Note: We preserve the canonical %40 encoding per PURL spec
+    result = _normalize_purls_in_json(result)
+
+    return result
+
+
+def _normalize_purls_in_json(json_str: str) -> str:
+    """
+    Fix PURL encoding bugs in a serialized JSON string.
+
+    This function fixes common encoding bugs in PURLs:
+    - Double-encoded @ symbols: %40%40 → %40
+    - Double @@ symbols: @@ → @
+
+    Note: This preserves the canonical %40 encoding for @ in namespaces,
+    which is correct per the PURL spec.
+
+    Args:
+        json_str: Serialized JSON string
+
+    Returns:
+        JSON string with fixed PURLs
+    """
+    # Fix double-encoded %40 sequences in PURLs
+    # Match: %40%40 (or longer sequences) and collapse to single %40
+    result = re.sub(r"(%40){2,}", "%40", json_str)
+
+    # Fix double @@ in PURLs (e.g., before version separator)
+    # This regex targets @@ within PURL strings to avoid affecting other JSON content
+    def fix_double_at(match: re.Match) -> str:
+        purl = match.group(0)
+        return re.sub(r"@@+", "@", purl)
+
+    result = re.sub(r'"pkg:[^"]*"', fix_double_at, result)
 
     return result
 

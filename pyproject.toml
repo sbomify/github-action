@@ -31,6 +31,7 @@ dependencies = [
     "spdx-tools>=0.8.3",
     "rich>=14.2.0",
     "zstandard>=0.25.0",
+    "packageurl-python>=0.17.6",
 ]
 
 [project.urls]

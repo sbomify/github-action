@@ -10,6 +10,7 @@ from sbomify_action.logging_config import logger
 
 from ..metadata import NormalizedMetadata
 from ..sanitization import normalize_vcs_url
+from ..utils import purl_to_string
 
 ECOSYSTEMS_API_BASE = "https://packages.ecosyste.ms/api/v1"
 DEFAULT_TIMEOUT = 15  # seconds - ecosyste.ms can be slower
@@ -64,7 +65,9 @@ class EcosystemsSource:
         Returns:
             NormalizedMetadata if successful, None otherwise
         """
-        purl_str = str(purl)
+        # Use purl_to_string to get @ instead of %40 in namespace
+        # This prevents double-encoding when the PURL is used as a query parameter
+        purl_str = purl_to_string(purl)
         cache_key = f"ecosystems:{purl_str}"
 
         # Check cache

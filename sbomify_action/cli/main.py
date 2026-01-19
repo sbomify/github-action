@@ -42,7 +42,7 @@ from ..generation import (
     process_lock_file,
 )
 from ..logging_config import logger
-from ..serialization import serialize_cyclonedx_bom
+from ..serialization import _normalize_purls_in_json, serialize_cyclonedx_bom
 from ..upload import upload_sbom
 
 
@@ -1113,8 +1113,18 @@ def run_pipeline(config: Config) -> None:
         if parent_dir != Path(".") and not parent_dir.exists():
             parent_dir.mkdir(parents=True, exist_ok=True)
 
-        # Clean up and write final SBOM
-        shutil.copy(final_sbom_file, config.output_file)
+        # Read, fix any PURL encoding bugs, and write final SBOM
+        # This fixes double-encoded %40%40 or double @@ issues
+        # Note: We preserve canonical %40 encoding per PURL spec
+        with open(final_sbom_file, "r") as f:
+            content = f.read()
+
+        # Detect format and normalize CycloneDX PURLs
+        if '"bomFormat"' in content and '"CycloneDX"' in content:
+            content = _normalize_purls_in_json(content)
+
+        with open(config.output_file, "w") as f:
+            f.write(content)
 
         # Clean up temporary files
         while get_last_sbom_from_last_step():
