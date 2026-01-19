@@ -19,14 +19,14 @@ from .._upload import VALID_DESTINATIONS
 from ..additional_packages import inject_additional_packages
 from ..augmentation import augment_sbom_from_file
 from ..console import (
-    print_banner as console_print_banner,
-)
-from ..console import (
+    get_audit_trail,
     print_final_success,
     print_step_end,
     print_step_header,
-    print_transformation_summary,
-    reset_transformation_tracker,
+    reset_audit_trail,
+)
+from ..console import (
+    print_banner as console_print_banner,
 )
 from ..exceptions import (
     APIError,
@@ -912,6 +912,15 @@ def run_pipeline(config: Config) -> None:
     Args:
         config: Validated configuration object
     """
+    # Initialize audit trail with input file info
+    audit_trail = get_audit_trail()
+    if config.sbom_file:
+        audit_trail.input_file = config.sbom_file
+    elif config.lock_file:
+        audit_trail.input_file = config.lock_file
+    elif config.docker_image:
+        audit_trail.input_file = f"docker:{config.docker_image}"
+
     # Log the API base URL being used for transparency
     if config.api_base_url != SBOMIFY_PRODUCTION_API:
         logger.info(f"Using custom API base URL: {config.api_base_url}")
@@ -1217,8 +1226,21 @@ def run_pipeline(config: Config) -> None:
         logger.warning("Product releases specified but no SBOM ID available (upload may have been disabled or failed)")
         _log_step_end(6, success=False)
 
-    # Print transformation summary for attestation (shows all SBOM modifications)
-    print_transformation_summary()
+    # Finalize audit trail
+    audit_trail = get_audit_trail()
+    audit_trail.output_file = config.output_file
+
+    # Write audit trail file
+    audit_trail_path = Path(config.output_file).parent / "audit_trail.txt"
+    try:
+        audit_trail.write_audit_file(str(audit_trail_path))
+        logger.info(f"Audit trail written to: {audit_trail_path}")
+    except Exception as e:
+        logger.warning(f"Failed to write audit trail file: {e}")
+
+    # Print summary and full audit trail for attestation
+    audit_trail.print_summary()
+    audit_trail.print_to_stdout_for_attestation()
 
     # Final success message
     print_final_success()
@@ -1314,9 +1336,12 @@ def _apply_sbom_version_override(sbom_file: str, config: "Config") -> None:
     if not config.component_version:
         return  # No version override specified
 
+    audit_trail = get_audit_trail()
+
     try:
         # Load SBOM from file
         sbom_format, original_json, parsed_object = load_sbom_from_file(sbom_file)
+        old_version = None
 
         if sbom_format == "cyclonedx":
             from cyclonedx.model.bom import Bom
@@ -1327,6 +1352,7 @@ def _apply_sbom_version_override(sbom_file: str, config: "Config") -> None:
             if isinstance(parsed_object, Bom):
                 # Apply version override to CycloneDX BOM object
                 if hasattr(parsed_object.metadata, "component") and parsed_object.metadata.component:
+                    old_version = parsed_object.metadata.component.version
                     parsed_object.metadata.component.version = config.component_version
                     # Also update the PURL version to maintain consistency
                     _update_component_purl_version(parsed_object.metadata.component, config.component_version)
@@ -1337,7 +1363,8 @@ def _apply_sbom_version_override(sbom_file: str, config: "Config") -> None:
                         name=component_name, type=ComponentType.APPLICATION, version=config.component_version
                     )
 
-                logger.info(f"Set component version from configuration: {config.component_version}")
+                # Record to audit trail
+                audit_trail.record_component_version_override(config.component_version, old_version)
 
                 # Serialize the BOM back to JSON using version-aware serializer
                 spec_version = original_json.get("specVersion")
@@ -1352,10 +1379,13 @@ def _apply_sbom_version_override(sbom_file: str, config: "Config") -> None:
             # Note: SPDX stores the root package in packages array, not metadata.component
             if "packages" in original_json and original_json["packages"]:
                 main_package = original_json["packages"][0]
+                old_version = main_package.get("versionInfo")
                 main_package["versionInfo"] = config.component_version
                 # Also update PURL in externalRefs if present
                 _update_spdx_json_purl_version(main_package, config.component_version)
-                logger.info(f"Set SPDX package version from configuration: {config.component_version}")
+
+                # Record to audit trail
+                audit_trail.record_component_version_override(config.component_version, old_version)
             else:
                 logger.warning("SPDX SBOM has no packages - cannot set version override")
 
@@ -1383,6 +1413,8 @@ def _apply_sbom_name_override(sbom_file: str, config: "Config") -> None:
     if not config.component_name:
         return  # No name override specified
 
+    audit_trail = get_audit_trail()
+
     try:
         # Load SBOM from file
         sbom_format, original_json, parsed_object = load_sbom_from_file(sbom_file)
@@ -1394,11 +1426,11 @@ def _apply_sbom_name_override(sbom_file: str, config: "Config") -> None:
             if isinstance(parsed_object, Bom):
                 # Apply name override to CycloneDX BOM object
                 needs_update = False
+                old_name = None
                 if hasattr(parsed_object.metadata, "component") and parsed_object.metadata.component:
-                    existing_name = parsed_object.metadata.component.name or "unknown"
-                    if existing_name != config.component_name:
+                    old_name = parsed_object.metadata.component.name or "unknown"
+                    if old_name != config.component_name:
                         parsed_object.metadata.component.name = config.component_name
-                        logger.info(f"Overriding component name: '{existing_name}' -> '{config.component_name}'")
                         needs_update = True
                 else:
                     # Create component if it doesn't exist
@@ -1406,12 +1438,12 @@ def _apply_sbom_name_override(sbom_file: str, config: "Config") -> None:
                     parsed_object.metadata.component = Component(
                         name=config.component_name, type=ComponentType.APPLICATION, version=component_version
                     )
-                    logger.info(
-                        f"Overriding component name: 'none (creating new component)' -> '{config.component_name}'"
-                    )
                     needs_update = True
 
                 if needs_update:
+                    # Record to audit trail
+                    audit_trail.record_component_name_override(config.component_name, old_name)
+
                     # Serialize the BOM back to JSON using version-aware serializer
                     spec_version = original_json.get("specVersion")
                     if spec_version is None:
@@ -1422,10 +1454,12 @@ def _apply_sbom_name_override(sbom_file: str, config: "Config") -> None:
 
         elif sbom_format == "spdx":
             # For SPDX, apply name override to the top-level "name" field
-            existing_name = original_json.get("name", "unknown")
-            if existing_name != config.component_name:
+            old_name = original_json.get("name", "unknown")
+            if old_name != config.component_name:
                 original_json["name"] = config.component_name
-                logger.info(f"Overriding SPDX component name: '{existing_name}' -> '{config.component_name}'")
+
+                # Record to audit trail
+                audit_trail.record_component_name_override(config.component_name, old_name)
 
                 with Path(sbom_file).open("w") as f:
                     json.dump(original_json, f, indent=2)
@@ -1462,6 +1496,8 @@ def _apply_sbom_purl_override(sbom_file: str, config: "Config") -> None:
         )
         return  # Skip invalid PURLs
 
+    audit_trail = get_audit_trail()
+
     try:
         # Load SBOM from file
         sbom_format, original_json, parsed_object = load_sbom_from_file(sbom_file)
@@ -1473,15 +1509,13 @@ def _apply_sbom_purl_override(sbom_file: str, config: "Config") -> None:
             if isinstance(parsed_object, Bom):
                 # Apply PURL override to CycloneDX BOM object
                 needs_update = False
+                old_purl = None
                 if hasattr(parsed_object.metadata, "component") and parsed_object.metadata.component:
-                    existing_purl = (
+                    old_purl = (
                         str(parsed_object.metadata.component.purl) if parsed_object.metadata.component.purl else None
                     )
-                    if existing_purl != config.component_purl:
+                    if old_purl != config.component_purl:
                         parsed_object.metadata.component.purl = purl_obj
-                        logger.info(
-                            f"Overriding component PURL: '{existing_purl or 'none'}' -> '{config.component_purl}'"
-                        )
                         needs_update = True
                 else:
                     # Create component if it doesn't exist
@@ -1491,12 +1525,12 @@ def _apply_sbom_purl_override(sbom_file: str, config: "Config") -> None:
                     parsed_object.metadata.component = Component(
                         name=component_name, type=ComponentType.APPLICATION, version=component_version, purl=purl_obj
                     )
-                    logger.info(
-                        f"Overriding component PURL: 'none (creating new component)' -> '{config.component_purl}'"
-                    )
                     needs_update = True
 
                 if needs_update:
+                    # Record to audit trail
+                    audit_trail.record_component_purl_override(config.component_purl, old_purl)
+
                     # Serialize the BOM back to JSON using version-aware serializer
                     spec_version = original_json.get("specVersion")
                     if spec_version is None:
@@ -1521,11 +1555,11 @@ def _apply_sbom_purl_override(sbom_file: str, config: "Config") -> None:
                         existing_purl_idx = idx
                         break
 
+                old_purl = None
                 if existing_purl_ref:
-                    existing_purl = existing_purl_ref.get("referenceLocator", "unknown")
-                    if existing_purl != config.component_purl:
+                    old_purl = existing_purl_ref.get("referenceLocator", "unknown")
+                    if old_purl != config.component_purl:
                         external_refs[existing_purl_idx]["referenceLocator"] = config.component_purl
-                        logger.info(f"Overriding SPDX component PURL: '{existing_purl}' -> '{config.component_purl}'")
                 else:
                     # Add new PURL reference
                     # Determine category based on PURL type - containers aren't package-manager packages
@@ -1539,7 +1573,9 @@ def _apply_sbom_purl_override(sbom_file: str, config: "Config") -> None:
                     }
                     external_refs.append(new_purl_ref)
                     main_package["externalRefs"] = external_refs
-                    logger.info(f"Adding SPDX component PURL: '{config.component_purl}'")
+
+                # Record to audit trail
+                audit_trail.record_component_purl_override(config.component_purl, old_purl)
 
                 with Path(sbom_file).open("w") as f:
                     json.dump(original_json, f, indent=2)
@@ -1799,8 +1835,8 @@ def cli(
     elif quiet:
         logger.setLevel(logging.WARNING)
 
-    # Reset transformation tracker for this run
-    reset_transformation_tracker()
+    # Reset audit trail for this run
+    reset_audit_trail()
 
     print_banner()
 

@@ -1,6 +1,7 @@
 """Tests for the console module."""
 
 import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -10,8 +11,11 @@ from sbomify_action.console import (
     BRAND_COLORS_HEX,
     IS_CI,
     IS_GITHUB_ACTIONS,
+    AuditEntry,
+    AuditTrail,
     TransformationTracker,
     console,
+    get_audit_trail,
     get_transformation_tracker,
     gha_error,
     gha_group,
@@ -27,6 +31,7 @@ from sbomify_action.console import (
     print_summary_table,
     print_transformation_summary,
     print_upload_summary,
+    reset_audit_trail,
     reset_transformation_tracker,
 )
 
@@ -435,6 +440,318 @@ class TestTransformationTracker(unittest.TestCase):
         tracker.record_stub_added("ref", "name", "1.0")
         # Should not raise
         print_transformation_summary()
+
+
+class TestAuditEntry(unittest.TestCase):
+    """Tests for the AuditEntry class."""
+
+    def test_format_for_file_basic(self):
+        """Test basic file formatting."""
+        entry = AuditEntry(
+            timestamp="2026-01-18T12:00:00Z",
+            category="AUGMENTATION",
+            operation="added",
+            field="supplier.name",
+            new_value="Example Corp",
+            source="sbomify-api",
+        )
+        formatted = entry.format_for_file()
+        self.assertIn("[2026-01-18T12:00:00Z]", formatted)
+        self.assertIn("AUGMENTATION", formatted)
+        self.assertIn("supplier.name", formatted)
+        self.assertIn("ADDED", formatted)
+        self.assertIn("Example Corp", formatted)
+        self.assertIn("sbomify-api", formatted)
+
+    def test_format_for_file_with_component(self):
+        """Test file formatting with component."""
+        entry = AuditEntry(
+            timestamp="2026-01-18T12:00:00Z",
+            category="ENRICHMENT",
+            operation="added",
+            field="description",
+            component="pkg:pypi/requests@2.31.0",
+            new_value="HTTP library",
+            source="pypi",
+        )
+        formatted = entry.format_for_file()
+        self.assertIn("pkg:pypi/requests@2.31.0", formatted)
+        self.assertIn("description", formatted)
+
+    def test_format_for_file_with_old_value(self):
+        """Test file formatting with old value (modification)."""
+        entry = AuditEntry(
+            timestamp="2026-01-18T12:00:00Z",
+            category="OVERRIDE",
+            operation="modified",
+            field="component.version",
+            old_value="1.0.0",
+            new_value="2.0.0",
+        )
+        formatted = entry.format_for_file()
+        self.assertIn("1.0.0", formatted)
+        self.assertIn("2.0.0", formatted)
+        self.assertIn("->", formatted)
+
+    def test_format_for_file_truncates_long_values(self):
+        """Test that very long values are truncated."""
+        long_value = "x" * 300
+        entry = AuditEntry(
+            timestamp="2026-01-18T12:00:00Z",
+            category="ENRICHMENT",
+            operation="added",
+            field="description",
+            new_value=long_value,
+        )
+        formatted = entry.format_for_file()
+        self.assertIn("...", formatted)
+        self.assertLess(len(formatted), 400)
+
+    def test_format_for_summary(self):
+        """Test summary formatting."""
+        entry = AuditEntry(
+            timestamp="2026-01-18T12:00:00Z",
+            category="AUGMENTATION",
+            operation="added",
+            field="supplier.name",
+            new_value="Example Corp",
+        )
+        summary = entry.format_for_summary()
+        self.assertIn("supplier.name", summary)
+
+
+class TestAuditTrail(unittest.TestCase):
+    """Tests for the AuditTrail class."""
+
+    def setUp(self):
+        """Reset the global audit trail before each test."""
+        reset_audit_trail()
+
+    def test_audit_trail_initially_empty(self):
+        """Test that a new audit trail has no changes."""
+        trail = AuditTrail()
+        self.assertFalse(trail.has_changes())
+        self.assertEqual(len(trail.entries), 0)
+
+    def test_record_augmentation(self):
+        """Test recording augmentation changes."""
+        trail = AuditTrail()
+        trail.record_augmentation("supplier.name", "Example Corp")
+        self.assertTrue(trail.has_changes())
+        self.assertEqual(trail._augmentation_count, 1)
+        self.assertEqual(len(trail.entries), 1)
+        self.assertEqual(trail.entries[0].category, "AUGMENTATION")
+
+    def test_record_supplier_added(self):
+        """Test recording supplier addition."""
+        trail = AuditTrail()
+        trail.record_supplier_added("ACME Inc")
+        self.assertEqual(trail._augmentation_count, 1)
+        self.assertIn("supplier.name", trail.entries[0].field)
+
+    def test_record_author_added(self):
+        """Test recording author addition."""
+        trail = AuditTrail()
+        trail.record_author_added("John Doe", "john@example.com")
+        self.assertEqual(trail._augmentation_count, 1)
+        self.assertIn("John Doe", trail.entries[0].new_value)
+        self.assertIn("john@example.com", trail.entries[0].new_value)
+
+    def test_record_enrichment(self):
+        """Test recording enrichment changes."""
+        trail = AuditTrail()
+        trail.record_enrichment("pkg:pypi/requests@2.31.0", "description", "HTTP library", "pypi")
+        self.assertTrue(trail.has_changes())
+        self.assertEqual(trail._enrichment_count, 1)
+        self.assertEqual(trail.entries[0].category, "ENRICHMENT")
+        self.assertEqual(trail.entries[0].component, "pkg:pypi/requests@2.31.0")
+
+    def test_record_component_enriched(self):
+        """Test recording multiple fields enriched."""
+        trail = AuditTrail()
+        trail.record_component_enriched("pkg:pypi/requests@2.31.0", ["description", "license", "publisher"], "pypi")
+        self.assertEqual(trail._enrichment_count, 3)
+        self.assertEqual(len(trail.entries), 3)
+
+    def test_record_override(self):
+        """Test recording CLI/env overrides."""
+        trail = AuditTrail()
+        trail.record_component_version_override("2.0.0", "1.0.0")
+        self.assertTrue(trail.has_changes())
+        self.assertEqual(trail._override_count, 1)
+        self.assertEqual(trail.entries[0].category, "OVERRIDE")
+        self.assertEqual(trail.entries[0].old_value, "1.0.0")
+        self.assertEqual(trail.entries[0].new_value, "2.0.0")
+
+    def test_record_component_name_override(self):
+        """Test recording component name override."""
+        trail = AuditTrail()
+        trail.record_component_name_override("my-app", "old-name")
+        self.assertEqual(trail._override_count, 1)
+        self.assertIn("component.name", trail.entries[0].field)
+
+    def test_record_component_purl_override(self):
+        """Test recording component PURL override."""
+        trail = AuditTrail()
+        trail.record_component_purl_override("pkg:npm/my-app@1.0.0")
+        self.assertEqual(trail._override_count, 1)
+        self.assertIn("component.purl", trail.entries[0].field)
+
+    def test_legacy_compatibility_vcs_normalization(self):
+        """Test legacy TransformationTracker compatibility for VCS normalization."""
+        trail = AuditTrail()
+        trail.record_vcs_normalization("git@github.com:foo/bar", "git+https://github.com/foo/bar")
+        # Legacy list should be populated
+        self.assertEqual(len(trail.vcs_normalizations), 1)
+        # Audit entries should also be created
+        self.assertEqual(trail._sanitization_count, 1)
+        self.assertEqual(trail.entries[0].category, "SANITIZATION")
+
+    def test_legacy_compatibility_purl_normalization(self):
+        """Test legacy TransformationTracker compatibility for PURL normalization."""
+        trail = AuditTrail()
+        trail.record_purl_normalization("my-pkg", "pkg:npm/my-pkg@@1.0", "pkg:npm/my-pkg@1.0")
+        self.assertEqual(len(trail.purl_normalizations), 1)
+        self.assertEqual(trail._sanitization_count, 1)
+
+    def test_legacy_compatibility_purl_cleared(self):
+        """Test legacy TransformationTracker compatibility for cleared PURLs."""
+        trail = AuditTrail()
+        trail.record_purl_cleared("my-pkg", "pkg:file:/local/path", "file: scheme not allowed")
+        self.assertEqual(len(trail.purls_cleared), 1)
+        self.assertEqual(trail._sanitization_count, 1)
+
+    def test_legacy_compatibility_url_rejected(self):
+        """Test legacy TransformationTracker compatibility for rejected URLs."""
+        trail = AuditTrail()
+        trail.record_url_rejected("homepage", "javascript:alert(1)", "disallowed scheme")
+        self.assertEqual(len(trail.urls_rejected), 1)
+        self.assertEqual(trail._sanitization_count, 1)
+
+    def test_legacy_compatibility_stub_added(self):
+        """Test legacy TransformationTracker compatibility for stub components."""
+        trail = AuditTrail()
+        trail.record_stub_added("pkg:npm/orphan@1.0", "orphan", "1.0")
+        self.assertEqual(len(trail.stubs_added), 1)
+        self.assertEqual(trail._sanitization_count, 1)
+
+    def test_get_summary_counts(self):
+        """Test getting summary counts by category."""
+        trail = AuditTrail()
+        trail.record_supplier_added("Corp")
+        trail.record_author_added("John")
+        trail.record_enrichment("pkg:npm/foo@1.0", "desc", "Desc", "npm")
+        trail.record_vcs_normalization("a", "b")
+        trail.record_component_version_override("2.0")
+
+        counts = trail.get_summary_counts()
+        self.assertEqual(counts["augmentation"], 2)
+        self.assertEqual(counts["enrichment"], 1)
+        self.assertEqual(counts["sanitization"], 1)
+        self.assertEqual(counts["override"], 1)
+        self.assertEqual(counts["total"], 5)
+
+    def test_get_entries_by_category(self):
+        """Test filtering entries by category."""
+        trail = AuditTrail()
+        trail.record_supplier_added("Corp")
+        trail.record_enrichment("pkg:npm/foo@1.0", "desc", "Desc", "npm")
+        trail.record_vcs_normalization("a", "b")
+
+        aug_entries = trail.get_entries_by_category("AUGMENTATION")
+        self.assertEqual(len(aug_entries), 1)
+
+        enrich_entries = trail.get_entries_by_category("ENRICHMENT")
+        self.assertEqual(len(enrich_entries), 1)
+
+        san_entries = trail.get_entries_by_category("SANITIZATION")
+        self.assertEqual(len(san_entries), 1)
+
+    def test_write_audit_file(self):
+        """Test writing audit trail to file."""
+        trail = AuditTrail()
+        trail.input_file = "requirements.txt"
+        trail.output_file = "sbom_output.json"
+        trail.record_supplier_added("ACME Corp")
+        trail.record_enrichment("pkg:pypi/requests@2.31.0", "license", "Apache-2.0", "pypi")
+        trail.record_vcs_normalization("git@github.com:foo/bar", "git+https://github.com/foo/bar")
+        trail.record_component_version_override("2.0.0", "1.0.0")
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            trail.write_audit_file(f.name)
+            audit_path = f.name
+
+        with open(audit_path, "r") as f:
+            content = f.read()
+
+        # Check file structure
+        self.assertIn("# SBOM Audit Trail", content)
+        self.assertIn("# Input: requirements.txt", content)
+        self.assertIn("# Output: sbom_output.json", content)
+        self.assertIn("## Override", content)
+        self.assertIn("## Augmentation", content)
+        self.assertIn("## Enrichment", content)
+        self.assertIn("## Sanitization", content)
+
+        # Check content
+        self.assertIn("ACME Corp", content)
+        self.assertIn("pkg:pypi/requests@2.31.0", content)
+        self.assertIn("Apache-2.0", content)
+        self.assertIn("git+https://github.com/foo/bar", content)
+        self.assertIn("2.0.0", content)
+
+        # Cleanup
+        os.unlink(audit_path)
+
+    def test_print_summary_no_changes(self):
+        """Test that print_summary works with no changes."""
+        trail = AuditTrail()
+        # Should not raise
+        trail.print_summary()
+
+    def test_print_summary_with_changes(self):
+        """Test that print_summary works with changes."""
+        trail = AuditTrail()
+        trail.record_supplier_added("Corp")
+        trail.record_vcs_normalization("a", "b")
+        # Should not raise
+        trail.print_summary()
+
+    def test_print_to_stdout_for_attestation(self):
+        """Test printing full audit trail to stdout."""
+        trail = AuditTrail()
+        trail.record_supplier_added("Corp")
+        # Should not raise
+        trail.print_to_stdout_for_attestation()
+
+    def test_global_audit_trail_functions(self):
+        """Test get_audit_trail and reset_audit_trail."""
+        # Get trail
+        trail1 = get_audit_trail()
+        trail1.record_supplier_added("Corp")
+
+        # Get again should return same instance
+        trail2 = get_audit_trail()
+        self.assertEqual(len(trail2.entries), 1)
+
+        # Reset should clear
+        trail3 = reset_audit_trail()
+        self.assertFalse(trail3.has_changes())
+
+    def test_transformation_tracker_alias(self):
+        """Test that TransformationTracker is aliased to AuditTrail."""
+        # TransformationTracker should be the same as AuditTrail
+        trail = TransformationTracker()
+        trail.record_vcs_normalization("a", "b")
+        self.assertTrue(trail.has_transformations())
+        self.assertTrue(trail.has_changes())
+
+    def test_has_transformations_legacy(self):
+        """Test legacy has_transformations method."""
+        trail = AuditTrail()
+        self.assertFalse(trail.has_transformations())
+        trail.record_supplier_added("Corp")
+        self.assertTrue(trail.has_transformations())
 
 
 if __name__ == "__main__":

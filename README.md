@@ -32,6 +32,7 @@ That's it! This generates a CycloneDX SBOM from your lockfile and enriches it wi
 - **Augment** with business metadata (supplier, authors, licenses, lifecycle phase) from config file or sbomify
 - **VCS Auto-Detection** — Automatically adds repository URL, commit SHA, and branch info from CI environment
 - **Enrich** with package metadata from PyPI, pub.dev, npm, Maven, deps.dev, and more
+- **Audit Trail** — Every SBOM modification logged with timestamps for attestation and compliance
 - **Upload** to sbomify for collaboration and vulnerability management
 - **Tag** SBOMs with product releases
 - **Attest** with GitHub's build provenance
@@ -131,6 +132,52 @@ Generate SPDX instead of CycloneDX:
   with:
     subject-path: sbom.cdx.json
 ```
+
+## Audit Trail
+
+Every modification made to your SBOM is tracked and recorded for attestation and compliance purposes. The audit trail captures:
+
+- **Overrides**: Component name, version, and PURL changes from CLI/environment
+- **Augmentation**: Supplier, manufacturer, authors, licenses, VCS info, lifecycle phase
+- **Enrichment**: Per-component metadata additions (description, license, publisher, URLs)
+- **Sanitization**: PURL normalizations, URL validations, stub components added
+
+### Output
+
+1. **Summary table** (always visible) — Shows counts by category
+2. **`audit_trail.txt` file** — Detailed log written alongside your SBOM output
+3. **Attestation output** — Full audit trail printed in collapsible GitHub Actions group
+
+### Example Output
+
+**Summary:**
+```
+┌─────────────────────┬───────┐
+│ Metric              │ Value │
+├─────────────────────┼───────┤
+│ Overrides applied   │     3 │
+│ Components enriched │    42 │
+│ Sanitization fixes  │     5 │
+└─────────────────────┴───────┘
+```
+
+**audit_trail.txt:**
+```
+# SBOM Audit Trail
+# Generated: 2026-01-18T12:34:56Z
+# Input: requirements.txt
+# Output: sbom.cdx.json
+
+## Override
+[2026-01-18T12:34:56Z] OVERRIDE component.version SET "2.0.0" (source: cli/env)
+[2026-01-18T12:34:56Z] OVERRIDE component.name MODIFIED "old-name" -> "my-app" (source: cli/env)
+
+## Enrichment
+[2026-01-18T12:34:57Z] ENRICHMENT pkg:pypi/requests@2.31.0 license ADDED (source: pypi)
+[2026-01-18T12:34:57Z] ENRICHMENT pkg:pypi/requests@2.31.0 description ADDED (source: pypi)
+```
+
+All timestamps are in UTC (ISO 8601 format with Z suffix).
 
 ## Configuration
 

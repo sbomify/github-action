@@ -376,118 +376,399 @@ def print_final_failure(message: str) -> None:
 
 
 @dataclass
-class TransformationTracker:
+class AuditEntry:
+    """A single audit trail entry recording an SBOM modification."""
+
+    timestamp: str
+    category: str  # AUGMENTATION, ENRICHMENT, SANITIZATION, OVERRIDE
+    operation: str  # added, modified, normalized, cleared, rejected
+    field: str  # e.g., supplier.name, license, description
+    new_value: Optional[str] = None
+    old_value: Optional[str] = None
+    component: Optional[str] = None  # PURL or component name for component-level changes
+    source: Optional[str] = None  # e.g., sbomify-api, pypi, depsdev
+
+    def format_for_file(self) -> str:
+        """Format entry for audit_trail.txt file."""
+        parts = [f"[{self.timestamp}]", self.category, self.field, self.operation.upper()]
+
+        if self.component:
+            parts.insert(2, self.component)
+
+        if self.old_value and self.new_value:
+            parts.append(f'"{self.old_value}" -> "{self.new_value}"')
+        elif self.new_value:
+            # Truncate very long values for readability
+            display_value = self.new_value[:200] + "..." if len(self.new_value) > 200 else self.new_value
+            parts.append(f'"{display_value}"')
+
+        if self.source:
+            parts.append(f"(source: {self.source})")
+
+        return " ".join(parts)
+
+    def format_for_summary(self) -> str:
+        """Format entry for stdout summary (shorter)."""
+        if self.component:
+            return f"{self.field}: {self.component}"
+        elif self.new_value:
+            display_value = self.new_value[:50] + "..." if len(self.new_value) > 50 else self.new_value
+            return f"{self.field}: {display_value}"
+        return self.field
+
+
+@dataclass
+class AuditTrail:
     """
-    Tracks all SBOM transformations for attestation purposes.
+    Comprehensive audit trail for all SBOM modifications.
 
-    This class collects all modifications made to an SBOM during processing,
-    then outputs them in an organized way:
-    - Summary table visible by default
-    - Details in collapsible groups (GitHub Actions) or verbose output
+    Tracks every change made to an SBOM during processing for attestation purposes.
+    Outputs:
+    - Clean summary to stdout (always visible)
+    - Detailed audit_trail.txt file
+    - Full details in collapsible GitHub Actions group
 
-    All transformations are logged for the audit trail, ensuring attestation
-    requirements are met.
+    Categories of changes tracked:
+    - AUGMENTATION: supplier, manufacturer, authors, licenses, VCS info, lifecycle, tool metadata
+    - ENRICHMENT: descriptions, licenses, publishers, external refs per component
+    - SANITIZATION: VCS URLs, PURLs, URLs normalized/cleared/rejected
+    - OVERRIDE: component name, version, PURL overrides from CLI/env
     """
 
-    # VCS URL normalizations: (original, normalized)
+    entries: List[AuditEntry] = field(default_factory=list)
+    input_file: Optional[str] = None
+    output_file: Optional[str] = None
+    start_time: Optional[str] = None
+
+    # Counters for summary
+    _augmentation_count: int = 0
+    _enrichment_count: int = 0
+    _sanitization_count: int = 0
+    _override_count: int = 0
+
+    # Legacy compatibility fields (for TransformationTracker interface)
     vcs_normalizations: List[Tuple[str, str]] = field(default_factory=list)
-
-    # PURL normalizations: (component_name, original_purl, normalized_purl)
     purl_normalizations: List[Tuple[str, str, str]] = field(default_factory=list)
-
-    # PURLs cleared: (component_name, purl, reason)
     purls_cleared: List[Tuple[str, str, str]] = field(default_factory=list)
-
-    # URLs rejected: (field_name, url, reason)
     urls_rejected: List[Tuple[str, str, str]] = field(default_factory=list)
-
-    # Stub components added: (ref_value, component_name, version)
     stubs_added: List[Tuple[str, str, str]] = field(default_factory=list)
-
-    # Root dependencies linked: (root_name, count)
     root_dependencies_linked: List[Tuple[str, int]] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        """Initialize start time."""
+        from datetime import datetime, timezone
+
+        self.start_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def _get_timestamp(self) -> str:
+        """Get current UTC timestamp."""
+        from datetime import datetime, timezone
+
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def _add_entry(
+        self,
+        category: str,
+        operation: str,
+        field: str,
+        new_value: Optional[str] = None,
+        old_value: Optional[str] = None,
+        component: Optional[str] = None,
+        source: Optional[str] = None,
+    ) -> None:
+        """Add an entry to the audit trail."""
+        entry = AuditEntry(
+            timestamp=self._get_timestamp(),
+            category=category,
+            operation=operation,
+            field=field,
+            new_value=new_value,
+            old_value=old_value,
+            component=component,
+            source=source,
+        )
+        self.entries.append(entry)
+
+    # ==========================================================================
+    # Augmentation Recording
+    # ==========================================================================
+
+    def record_augmentation(
+        self,
+        field: str,
+        value: str,
+        old_value: Optional[str] = None,
+        source: str = "sbomify-api",
+    ) -> None:
+        """Record an augmentation change (supplier, manufacturer, etc.)."""
+        operation = "modified" if old_value else "added"
+        self._add_entry("AUGMENTATION", operation, field, value, old_value, source=source)
+        self._augmentation_count += 1
+
+    def record_supplier_added(self, name: str, source: str = "sbomify-api") -> None:
+        """Record supplier information added."""
+        self.record_augmentation("supplier.name", name, source=source)
+
+    def record_manufacturer_added(self, name: str, source: str = "sbomify-api") -> None:
+        """Record manufacturer information added."""
+        self.record_augmentation("manufacturer.name", name, source=source)
+
+    def record_author_added(self, name: str, email: Optional[str] = None, source: str = "sbomify-api") -> None:
+        """Record author added."""
+        value = f"{name} ({email})" if email else name
+        self.record_augmentation("author", value, source=source)
+
+    def record_license_added(self, license_expr: str, source: str = "sbomify-api") -> None:
+        """Record license added to metadata."""
+        self.record_augmentation("metadata.license", license_expr, source=source)
+
+    def record_vcs_info_added(self, url: str, commit: Optional[str] = None, source: str = "ci-provider") -> None:
+        """Record VCS information added."""
+        value = f"{url}@{commit[:7]}" if commit else url
+        self.record_augmentation("vcs.url", value, source=source)
+
+    def record_lifecycle_added(self, phase: str, source: str = "sbomify-api") -> None:
+        """Record lifecycle phase added."""
+        self.record_augmentation("lifecycle.phase", phase, source=source)
+
+    def record_tool_added(self, tool_name: str, version: str) -> None:
+        """Record tool added to SBOM metadata."""
+        self.record_augmentation("tools", f"{tool_name}@{version}", source="sbomify-action")
+
+    # ==========================================================================
+    # Enrichment Recording
+    # ==========================================================================
+
+    def record_enrichment(
+        self,
+        component: str,
+        field: str,
+        value: str,
+        source: str,
+    ) -> None:
+        """Record a component enrichment."""
+        self._add_entry("ENRICHMENT", "added", field, value, component=component, source=source)
+        self._enrichment_count += 1
+
+    def record_component_enriched(
+        self,
+        purl: str,
+        fields_added: List[str],
+        source: str,
+    ) -> None:
+        """Record multiple fields enriched on a component."""
+        for field_name in fields_added:
+            self._add_entry("ENRICHMENT", "added", field_name, component=purl, source=source)
+        self._enrichment_count += len(fields_added)
+
+    # ==========================================================================
+    # Sanitization Recording (Legacy compatibility + new interface)
+    # ==========================================================================
 
     def record_vcs_normalization(self, original: str, normalized: str) -> None:
         """Record a VCS URL normalization."""
         self.vcs_normalizations.append((original, normalized))
+        self._add_entry("SANITIZATION", "normalized", "vcs.url", normalized, original)
+        self._sanitization_count += 1
 
     def record_purl_normalization(self, component_name: str, original: str, normalized: str) -> None:
         """Record a PURL normalization."""
         self.purl_normalizations.append((component_name, original, normalized))
+        self._add_entry("SANITIZATION", "normalized", "purl", normalized, original, component=component_name)
+        self._sanitization_count += 1
 
     def record_purl_cleared(self, component_name: str, purl: str, reason: str) -> None:
         """Record a PURL that was cleared due to being invalid."""
         self.purls_cleared.append((component_name, purl, reason))
+        self._add_entry("SANITIZATION", "cleared", "purl", reason, purl, component=component_name)
+        self._sanitization_count += 1
 
     def record_url_rejected(self, field_name: str, url: str, reason: str) -> None:
         """Record a URL that was rejected during sanitization."""
         self.urls_rejected.append((field_name, url, reason))
+        self._add_entry("SANITIZATION", "rejected", field_name, reason, url)
+        self._sanitization_count += 1
 
     def record_stub_added(self, ref_value: str, component_name: str, version: str) -> None:
         """Record a stub component added for orphaned dependency reference."""
         self.stubs_added.append((ref_value, component_name, version))
+        self._add_entry("SANITIZATION", "stub_added", "component", f"{component_name}@{version}", component=ref_value)
+        self._sanitization_count += 1
 
     def record_root_dependencies_linked(self, root_name: str, count: int) -> None:
         """Record root dependencies linking (components linked to root component)."""
         self.root_dependencies_linked.append((root_name, count))
+        self._add_entry("SANITIZATION", "linked", "dependencies", f"{count} components linked to root '{root_name}'")
+        self._sanitization_count += 1
 
+    def record_license_sanitized(self, original: str, sanitized: str, component: Optional[str] = None) -> None:
+        """Record a license expression sanitized."""
+        self._add_entry("SANITIZATION", "sanitized", "license", sanitized, original, component=component)
+        self._sanitization_count += 1
+
+    # ==========================================================================
+    # Override Recording
+    # ==========================================================================
+
+    def record_override(self, field: str, new_value: str, old_value: Optional[str] = None) -> None:
+        """Record a CLI/env override applied."""
+        operation = "modified" if old_value else "set"
+        self._add_entry("OVERRIDE", operation, field, new_value, old_value, source="cli/env")
+        self._override_count += 1
+
+    def record_component_name_override(self, new_name: str, old_name: Optional[str] = None) -> None:
+        """Record component name override."""
+        self.record_override("component.name", new_name, old_name)
+
+    def record_component_version_override(self, new_version: str, old_version: Optional[str] = None) -> None:
+        """Record component version override."""
+        self.record_override("component.version", new_version, old_version)
+
+    def record_component_purl_override(self, new_purl: str, old_purl: Optional[str] = None) -> None:
+        """Record component PURL override."""
+        self.record_override("component.purl", new_purl, old_purl)
+
+    # ==========================================================================
+    # Query Methods
+    # ==========================================================================
+
+    def has_changes(self) -> bool:
+        """Check if any changes were recorded."""
+        return len(self.entries) > 0
+
+    # Legacy compatibility
     def has_transformations(self) -> bool:
-        """Check if any transformations were recorded."""
-        return bool(
-            self.vcs_normalizations
-            or self.purl_normalizations
-            or self.purls_cleared
-            or self.urls_rejected
-            or self.stubs_added
-            or self.root_dependencies_linked
-        )
+        """Check if any transformations were recorded (legacy compatibility)."""
+        return self.has_changes()
 
-    def print_summary(self, title: str = "SBOM Transformations") -> None:
+    def get_summary_counts(self) -> Dict[str, int]:
+        """Get counts by category."""
+        return {
+            "augmentation": self._augmentation_count,
+            "enrichment": self._enrichment_count,
+            "sanitization": self._sanitization_count,
+            "override": self._override_count,
+            "total": len(self.entries),
+        }
+
+    def get_entries_by_category(self, category: str) -> List[AuditEntry]:
+        """Get all entries for a specific category."""
+        return [e for e in self.entries if e.category == category]
+
+    # ==========================================================================
+    # Output Methods
+    # ==========================================================================
+
+    def write_audit_file(self, path: str) -> None:
         """
-        Print transformation summary and details.
+        Write detailed audit trail to file.
 
-        Outputs:
-        1. Summary table with counts (always visible)
-        2. Details in collapsible group (GitHub Actions) or under verbose flag
-
-        All information is logged for attestation purposes.
+        Args:
+            path: Path to write audit_trail.txt
         """
-        if not self.has_transformations():
+        from datetime import datetime, timezone
+
+        lines = [
+            "# SBOM Audit Trail",
+            f"# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}",
+        ]
+
+        if self.input_file:
+            lines.append(f"# Input: {self.input_file}")
+        if self.output_file:
+            lines.append(f"# Output: {self.output_file}")
+
+        lines.append("")
+
+        # Group entries by category
+        categories = ["OVERRIDE", "AUGMENTATION", "ENRICHMENT", "SANITIZATION"]
+
+        for category in categories:
+            category_entries = self.get_entries_by_category(category)
+            if category_entries:
+                lines.append(f"## {category.title()}")
+                lines.append("")
+                for entry in category_entries:
+                    lines.append(entry.format_for_file())
+                lines.append("")
+
+        # Write file
+        with open(path, "w") as f:
+            f.write("\n".join(lines))
+
+    def print_summary(self, title: str = "SBOM Modifications") -> None:
+        """
+        Print a clean summary to stdout.
+
+        Shows counts by category and key changes.
+        """
+        if not self.has_changes():
+            console.print("[dim]No SBOM modifications recorded.[/dim]")
             return
 
-        # Print summary table
-        data = [
-            ("VCS URLs normalized", len(self.vcs_normalizations)),
-            ("PURLs normalized", len(self.purl_normalizations)),
-            ("PURLs cleared (invalid)", len(self.purls_cleared)),
-            ("URLs rejected", len(self.urls_rejected)),
-            ("Stub components added", len(self.stubs_added)),
-            ("Components linked to root", sum(count for _, count in self.root_dependencies_linked)),
-        ]
-        print_summary_table(title, data)
+        console.print()
+        console.rule(f"[bold]{title}[/bold]", style="blue")
 
-        # Print details in collapsible group for attestation
-        details = self._format_details()
-        if details:
-            with gha_group(f"{title} - Details (for attestation)"):
-                for detail in details:
-                    console.print(f"  {detail}")
+        counts = self.get_summary_counts()
 
+        # Build summary data
+        data = []
+        if counts["override"]:
+            data.append(("Overrides applied", counts["override"]))
+        if counts["augmentation"]:
+            data.append(("Augmentation changes", counts["augmentation"]))
+        if counts["enrichment"]:
+            data.append(("Components enriched", counts["enrichment"]))
+        if counts["sanitization"]:
+            data.append(("Sanitization fixes", counts["sanitization"]))
+
+        if data:
+            print_summary_table("Summary", data)
+
+    def print_to_stdout_for_attestation(self) -> None:
+        """
+        Print the full audit trail to stdout for attestation.
+
+        Uses GitHub Actions collapsible group to keep output tidy.
+        """
+        if not self.has_changes():
+            return
+
+        with gha_group("Audit Trail (for attestation)"):
+            print("# SBOM Audit Trail")
+            print(f"# Generated: {self._get_timestamp()}")
+            if self.input_file:
+                print(f"# Input: {self.input_file}")
+            if self.output_file:
+                print(f"# Output: {self.output_file}")
+            print()
+
+            # Group and print by category
+            categories = ["OVERRIDE", "AUGMENTATION", "ENRICHMENT", "SANITIZATION"]
+
+            for category in categories:
+                category_entries = self.get_entries_by_category(category)
+                if category_entries:
+                    print(f"## {category.title()}")
+                    for entry in category_entries:
+                        print(entry.format_for_file())
+                    print()
+
+    # Legacy compatibility method
     def _format_details(self) -> List[str]:
-        """Format all transformations as detail strings."""
+        """Format all transformations as detail strings (legacy compatibility)."""
         details = []
 
         for original, normalized in self.vcs_normalizations:
-            details.append(f"VCS: {original} → {normalized}")
+            details.append(f"VCS: {original} -> {normalized}")
 
         for comp_name, original, normalized in self.purl_normalizations:
-            details.append(f"PURL normalized ({comp_name}): {original} → {normalized}")
+            details.append(f"PURL normalized ({comp_name}): {original} -> {normalized}")
 
         for comp_name, purl, reason in self.purls_cleared:
             details.append(f"PURL cleared ({comp_name}): {purl} ({reason})")
 
         for field_name, url, reason in self.urls_rejected:
-            # Truncate long URLs for readability
             url_display = url[:100] + "..." if len(url) > 100 else url
             details.append(f"URL rejected ({field_name}): {url_display} ({reason})")
 
@@ -500,44 +781,72 @@ class TransformationTracker:
         return details
 
 
-# Thread-safe transformation tracker using contextvars
+# Alias for backward compatibility
+TransformationTracker = AuditTrail
+
+
+# Thread-safe audit trail using contextvars
 # This ensures each thread/async context has its own tracker instance
-_current_tracker: contextvars.ContextVar[Optional[TransformationTracker]] = contextvars.ContextVar(
-    "transformation_tracker", default=None
-)
+_current_tracker: contextvars.ContextVar[Optional[AuditTrail]] = contextvars.ContextVar("audit_trail", default=None)
 
 
-def get_transformation_tracker() -> TransformationTracker:
+def get_audit_trail() -> AuditTrail:
     """
-    Get the current transformation tracker, creating one if needed.
+    Get the current audit trail, creating one if needed.
 
-    Thread-safe: Each thread/async context gets its own tracker.
+    Thread-safe: Each thread/async context gets its own instance.
 
     Returns:
-        The current TransformationTracker instance
+        The current AuditTrail instance
     """
     tracker = _current_tracker.get()
     if tracker is None:
-        tracker = TransformationTracker()
+        tracker = AuditTrail()
         _current_tracker.set(tracker)
     return tracker
 
 
-def reset_transformation_tracker() -> TransformationTracker:
+# Alias for backward compatibility
+def get_transformation_tracker() -> AuditTrail:
     """
-    Reset the transformation tracker for a new SBOM processing run.
+    Get the current transformation tracker (alias for get_audit_trail).
+
+    Thread-safe: Each thread/async context gets its own tracker.
+
+    Returns:
+        The current AuditTrail instance
+    """
+    return get_audit_trail()
+
+
+def reset_audit_trail() -> AuditTrail:
+    """
+    Reset the audit trail for a new SBOM processing run.
 
     Thread-safe: Only affects the current thread/async context.
 
     Returns:
-        A fresh TransformationTracker instance
+        A fresh AuditTrail instance
     """
-    tracker = TransformationTracker()
+    tracker = AuditTrail()
     _current_tracker.set(tracker)
     return tracker
 
 
+# Alias for backward compatibility
+def reset_transformation_tracker() -> AuditTrail:
+    """
+    Reset the transformation tracker (alias for reset_audit_trail).
+
+    Thread-safe: Only affects the current thread/async context.
+
+    Returns:
+        A fresh AuditTrail instance
+    """
+    return reset_audit_trail()
+
+
 def print_transformation_summary() -> None:
-    """Print the current transformation tracker's summary."""
-    tracker = get_transformation_tracker()
+    """Print the current audit trail summary (legacy compatibility)."""
+    tracker = get_audit_trail()
     tracker.print_summary()

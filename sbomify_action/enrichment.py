@@ -86,6 +86,7 @@ from ._enrichment.sanitization import (
     sanitize_url,
 )
 from ._enrichment.sources.purl import NAMESPACE_TO_SUPPLIER
+from .console import get_audit_trail
 from .exceptions import SBOMValidationError
 from .generation import (
     CPP_LOCK_FILES,
@@ -366,7 +367,9 @@ def _extract_packages_from_spdx(document: Document) -> List[Tuple[Package, str]]
     return packages
 
 
-def _apply_metadata_to_cyclonedx_component(component: Component, metadata: NormalizedMetadata) -> List[str]:
+def _apply_metadata_to_cyclonedx_component(
+    component: Component, metadata: NormalizedMetadata, source: str = "unknown"
+) -> List[str]:
     """
     Apply NormalizedMetadata to a CycloneDX component.
 
@@ -375,11 +378,14 @@ def _apply_metadata_to_cyclonedx_component(component: Component, metadata: Norma
     Args:
         component: Component to enrich
         metadata: Normalized metadata to apply
+        source: Data source name for audit trail
 
     Returns:
         List of added field names for logging
     """
     added_fields = []
+    audit_trail = get_audit_trail()
+    purl_str = str(component.purl) if component.purl else component.name
 
     # Description (sanitized)
     if not component.description and metadata.description:
@@ -399,14 +405,14 @@ def _apply_metadata_to_cyclonedx_component(component: Component, metadata: Norma
                 license_expression = " OR ".join(sanitized_licenses)
             license_expr = LicenseExpression(value=license_expression)
             component.licenses.add(license_expr)
-            added_fields.append(f"licenses ({license_expression})")
+            added_fields.append("license")
 
     # Publisher (sanitized)
     if not component.publisher and metadata.supplier:
         sanitized_supplier = sanitize_supplier(metadata.supplier)
         if sanitized_supplier:
             component.publisher = sanitized_supplier
-            added_fields.append(f"publisher ({sanitized_supplier})")
+            added_fields.append("publisher")
 
     # External references helper (with URL sanitization)
     def _add_external_ref(ref_type: ExternalReferenceType, url: str, field_name: str = "url") -> bool:
@@ -422,26 +428,24 @@ def _apply_metadata_to_cyclonedx_component(component: Component, metadata: Norma
     # Homepage (sanitized)
     if metadata.homepage:
         if _add_external_ref(ExternalReferenceType.WEBSITE, metadata.homepage, "homepage"):
-            added_fields.append("homepage URL")
+            added_fields.append("homepage")
 
     # Repository (sanitized)
     if metadata.repository_url:
         if _add_external_ref(ExternalReferenceType.VCS, metadata.repository_url, "repository_url"):
-            added_fields.append("repository URL")
+            added_fields.append("repository")
 
     # Registry/Distribution (sanitized)
     if metadata.registry_url:
         if _add_external_ref(ExternalReferenceType.DISTRIBUTION, metadata.registry_url, "registry_url"):
-            added_fields.append("distribution URL")
+            added_fields.append("distribution")
 
     # Issue tracker (sanitized)
     if metadata.issue_tracker_url:
         if _add_external_ref(ExternalReferenceType.ISSUE_TRACKER, metadata.issue_tracker_url, "issue_tracker_url"):
-            added_fields.append("issue-tracker URL")
+            added_fields.append("issue-tracker")
 
     # CLE (Common Lifecycle Enumeration) properties - ECMA-428
-    # Applied as component properties with cle: namespace
-    # See: https://sbomify.com/compliance/cle/
     def _add_cle_property(name: str, value: str) -> bool:
         """Add a CLE property if not already present."""
         for prop in component.properties:
@@ -452,15 +456,19 @@ def _apply_metadata_to_cyclonedx_component(component: Component, metadata: Norma
 
     if metadata.cle_eos:
         if _add_cle_property("cle:eos", metadata.cle_eos):
-            added_fields.append(f"cle:eos ({metadata.cle_eos})")
+            added_fields.append("cle:eos")
 
     if metadata.cle_eol:
         if _add_cle_property("cle:eol", metadata.cle_eol):
-            added_fields.append(f"cle:eol ({metadata.cle_eol})")
+            added_fields.append("cle:eol")
 
     if metadata.cle_release_date:
         if _add_cle_property("cle:releaseDate", metadata.cle_release_date):
-            added_fields.append(f"cle:releaseDate ({metadata.cle_release_date})")
+            added_fields.append("cle:releaseDate")
+
+    # Record to audit trail if any fields were added
+    if added_fields:
+        audit_trail.record_component_enriched(purl_str, added_fields, source)
 
     return added_fields
 
@@ -918,11 +926,11 @@ def _enrich_cyclonedx_bom_with_plugin_architecture(bom: Bom, enricher: Enricher)
         if purl_str:
             metadata = enricher.fetch_metadata(purl_str, merge_results=True)
             if metadata and metadata.has_data():
-                added_fields = _apply_metadata_to_cyclonedx_component(component, metadata)
+                primary_source = metadata.source.split(", ")[0] if metadata.source else "unknown"
+                added_fields = _apply_metadata_to_cyclonedx_component(component, metadata, source=primary_source)
                 if added_fields:
                     enrichment_source = metadata.source
                     # Track by primary source
-                    primary_source = metadata.source.split(", ")[0] if metadata.source else "unknown"
                     stats["sources"][primary_source] = stats["sources"].get(primary_source, 0) + 1
 
         if added_fields:
