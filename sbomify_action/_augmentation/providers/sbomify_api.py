@@ -2,7 +2,9 @@
 
 This provider fetches organizational metadata from the sbomify backend API,
 including supplier, authors, licenses, lifecycle phase, security contact,
-and support period end date.
+and lifecycle dates (release_date, end_of_support, end_of_life).
+
+Note: The API uses 'end_of_support' which maps to 'support_period_end' internally.
 """
 
 from typing import Any, Dict, Optional
