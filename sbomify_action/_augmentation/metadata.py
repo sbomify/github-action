@@ -26,6 +26,14 @@ class AugmentationMetadata:
         vcs_commit_sha: Full commit SHA
         vcs_ref: Branch or tag name (e.g., main, refs/heads/main, v1.0.0)
         vcs_commit_url: URL to the specific commit
+
+        Security and support fields (CRA compliance):
+        security_contact: URL/email for security vulnerability reporting
+        support_period_end: ISO-8601 date when security support ends (YYYY-MM-DD)
+
+        Lifecycle date fields (from sbomify API):
+        release_date: ISO-8601 date when the component was released (YYYY-MM-DD)
+        end_of_life: ISO-8601 date when all support ends (YYYY-MM-DD)
     """
 
     supplier: Optional[Dict[str, Any]] = None
@@ -40,6 +48,14 @@ class AugmentationMetadata:
     vcs_commit_sha: Optional[str] = None
     vcs_ref: Optional[str] = None
     vcs_commit_url: Optional[str] = None
+
+    # Security and support fields (CRA compliance)
+    security_contact: Optional[str] = None  # URL/email for security vulnerability reporting
+    support_period_end: Optional[str] = None  # ISO-8601 date when support ends (YYYY-MM-DD)
+
+    # Lifecycle date fields (from sbomify API)
+    release_date: Optional[str] = None  # ISO-8601 date when released (YYYY-MM-DD)
+    end_of_life: Optional[str] = None  # ISO-8601 date when all support ends (YYYY-MM-DD)
 
     # Additional fields that may be added in the future
     _extra: Dict[str, Any] = field(default_factory=dict)
@@ -57,6 +73,10 @@ class AugmentationMetadata:
                 self.vcs_commit_sha,
                 self.vcs_ref,
                 self.vcs_commit_url,
+                self.security_contact,
+                self.support_period_end,
+                self.release_date,
+                self.end_of_life,
             ]
         )
 
@@ -93,6 +113,12 @@ class AugmentationMetadata:
             vcs_commit_sha=self.vcs_commit_sha if self.vcs_commit_sha else other.vcs_commit_sha,
             vcs_ref=self.vcs_ref if self.vcs_ref else other.vcs_ref,
             vcs_commit_url=self.vcs_commit_url if self.vcs_commit_url else other.vcs_commit_url,
+            # Security and support fields
+            security_contact=self.security_contact if self.security_contact else other.security_contact,
+            support_period_end=self.support_period_end if self.support_period_end else other.support_period_end,
+            # Lifecycle date fields
+            release_date=self.release_date if self.release_date else other.release_date,
+            end_of_life=self.end_of_life if self.end_of_life else other.end_of_life,
             _extra={**other._extra, **self._extra},  # self takes precedence
         )
 
@@ -126,6 +152,18 @@ class AugmentationMetadata:
         if self.vcs_commit_url:
             result["vcs_commit_url"] = self.vcs_commit_url
 
+        # Security and support fields
+        if self.security_contact:
+            result["security_contact"] = self.security_contact
+        if self.support_period_end:
+            result["support_period_end"] = self.support_period_end
+
+        # Lifecycle date fields
+        if self.release_date:
+            result["release_date"] = self.release_date
+        if self.end_of_life:
+            result["end_of_life"] = self.end_of_life
+
         # Include any extra fields
         result.update(self._extra)
 
@@ -135,6 +173,9 @@ class AugmentationMetadata:
     def from_dict(cls, data: Dict[str, Any], source: Optional[str] = None) -> "AugmentationMetadata":
         """
         Create AugmentationMetadata from a dictionary.
+
+        Handles both config file field names and sbomify API field names:
+        - API uses 'end_of_support' -> maps to 'support_period_end'
 
         Args:
             data: Dictionary with augmentation data
@@ -153,8 +194,19 @@ class AugmentationMetadata:
             "vcs_commit_sha",
             "vcs_ref",
             "vcs_commit_url",
+            "security_contact",
+            "support_period_end",
+            "release_date",
+            "end_of_life",
+            # API field names (mapped to internal names)
+            "end_of_support",  # -> support_period_end
         }
         extra = {k: v for k, v in data.items() if k not in known_keys}
+
+        # Map API field names to internal names
+        # API uses 'end_of_support', we use 'support_period_end'
+        # Prefer explicit support_period_end, fall back to API's end_of_support
+        support_period_end = data.get("support_period_end") or data.get("end_of_support")
 
         return cls(
             supplier=data.get("supplier"),
@@ -167,5 +219,9 @@ class AugmentationMetadata:
             vcs_commit_sha=data.get("vcs_commit_sha"),
             vcs_ref=data.get("vcs_ref"),
             vcs_commit_url=data.get("vcs_commit_url"),
+            security_contact=data.get("security_contact"),
+            support_period_end=support_period_end,
+            release_date=data.get("release_date"),
+            end_of_life=data.get("end_of_life"),
             _extra=extra,
         )

@@ -471,23 +471,45 @@ Create `sbomify.json` in your project root to provide augmentation metadata:
   "authors": [
     {"name": "John Doe", "email": "john@example.com"}
   ],
-  "licenses": ["MIT"]
+  "licenses": ["MIT"],
+  "security_contact": "https://example.com/.well-known/security.txt",
+  "release_date": "2024-06-15",
+  "support_period_end": "2026-12-31",
+  "end_of_life": "2028-12-31"
 }
 ```
 
 **Supported fields:**
 
-| Field             | Description                                  | SBOM Mapping                                                                       |
-| ----------------- | -------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `lifecycle_phase` | Generation context (CISA 2025)               | CycloneDX 1.5+: `metadata.lifecycles[].phase`; SPDX: `creationInfo.creatorComment` |
-| `supplier`        | Organization that supplies the component     | CycloneDX: `metadata.supplier`; SPDX: `packages[].supplier`                        |
-| `authors`         | List of component authors                    | CycloneDX: `metadata.authors[]`; SPDX: `creationInfo.creators[]`                   |
-| `licenses`        | SPDX license identifiers                     | CycloneDX: `metadata.licenses[]`; SPDX: Document-level licenses                    |
-| `vcs_url`         | Repository URL (overrides CI auto-detection) | CycloneDX: `externalReferences[type=vcs]`; SPDX: `downloadLocation`                |
-| `vcs_commit_sha`  | Full commit SHA                              | Appended to VCS URL as `@sha`                                                      |
-| `vcs_ref`         | Branch or tag name                           | Added as comment/context                                                           |
+| Field                | Description                                  | SBOM Mapping                                                                                         |
+| -------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `lifecycle_phase`    | Generation context (CISA 2025)               | CycloneDX 1.5+: `metadata.lifecycles[].phase`; SPDX: `creationInfo.creatorComment`                   |
+| `supplier`           | Organization that supplies the component     | CycloneDX: `metadata.supplier`; SPDX: `packages[].supplier`                                          |
+| `authors`            | List of component authors                    | CycloneDX: `metadata.authors[]`; SPDX: `creationInfo.creators[]`                                     |
+| `licenses`           | SPDX license identifiers                     | CycloneDX: `metadata.licenses[]`; SPDX: Document-level licenses                                      |
+| `security_contact`   | URL/email for vulnerability reporting (CRA)  | CycloneDX 1.5+: `externalReferences[type=security-contact]`; SPDX: `externalRefs[category=SECURITY]` |
+| `release_date`       | ISO-8601 date when component was released    | CycloneDX 1.5+: `metadata.lifecycles[]` + property; SPDX: external ref                               |
+| `support_period_end` | ISO-8601 date when security support ends     | CycloneDX 1.5+: `metadata.lifecycles[]` + property; SPDX: `validUntilDate` + external ref            |
+| `end_of_life`        | ISO-8601 date when all support ends          | CycloneDX 1.5+: `metadata.lifecycles[]` + property; SPDX: external ref                               |
+| `vcs_url`            | Repository URL (overrides CI auto-detection) | CycloneDX: `externalReferences[type=vcs]`; SPDX: `downloadLocation`                                  |
+| `vcs_commit_sha`     | Full commit SHA                              | Appended to VCS URL as `@sha`                                                                        |
+| `vcs_ref`            | Branch or tag name                           | Added as comment/context                                                                             |
 
 **Valid `lifecycle_phase` values:** `design`, `pre-build`, `build`, `post-build`, `operations`, `discovery`, `decommission`
+
+**Valid `security_contact` formats:**
+
+- `https://example.com/.well-known/security.txt` — security.txt URL (recommended)
+- `mailto:security@example.com` — email address
+- `https://example.com/security/report` — disclosure procedure URL
+
+**Valid date formats for `release_date`, `support_period_end`, `end_of_life`:** ISO-8601 date string (e.g., `2028-12-31`)
+
+**Lifecycle date fields explained:**
+
+- `release_date` — When the component was publicly released
+- `support_period_end` — When security-only support ends (bugfixes stop, only security patches after this)
+- `end_of_life` — When all support ends (no more updates of any kind)
 
 **Priority:** Local config values override sbomify API values when both are available.
 
