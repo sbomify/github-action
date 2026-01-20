@@ -1798,7 +1798,9 @@ def _parse_upload_destinations_callback(
     help="Suppress non-essential output.",
 )
 @click.version_option(version=SBOMIFY_VERSION, prog_name="sbomify Action")
+@click.pass_context
 def cli(
+    ctx: click.Context,
     token: Optional[str],
     component_id: Optional[str],
     sbom_file: Optional[str],
@@ -1835,6 +1837,12 @@ def cli(
       # Generate from Docker image with SPDX format
       sbomify-action --docker-image nginx:latest -f spdx -o sbom.spdx.json
     """
+    # Show help with banner if no input source is provided
+    if not any([sbom_file, docker_image, lock_file]):
+        print_banner()
+        click.echo(ctx.get_help())
+        ctx.exit(0)
+
     # Configure logging level
     if verbose and quiet:
         raise click.UsageError("Cannot use both --verbose and --quiet")

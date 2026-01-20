@@ -61,6 +61,25 @@ class TestCLIHelp(unittest.TestCase):
         self.assertIn("sbomify Action", result.output)
         self.assertIn(SBOMIFY_VERSION, result.output)
 
+    def test_no_args_shows_help_with_banner(self):
+        """Test that running without arguments shows banner and help."""
+        result = self.runner.invoke(cli, [])
+        self.assertEqual(result.exit_code, 0)
+        # Check banner is shown (ASCII art contains "sbomify")
+        self.assertIn("sbomify", result.output.lower())
+        # Check help content is shown
+        self.assertIn("--help", result.output)
+        self.assertIn("--lock-file", result.output)
+        self.assertIn("--sbom-file", result.output)
+
+    def test_env_var_input_does_not_show_help(self):
+        """Test that env vars for input sources bypass the help screen (CI behavior)."""
+        # When LOCK_FILE env var is set, should NOT show help, should attempt to run
+        result = self.runner.invoke(cli, [], env={"LOCK_FILE": "requirements.txt"})
+        # Will fail with file not found or config error, but NOT show help
+        self.assertNotEqual(result.exit_code, 0)  # Fails due to file not existing
+        self.assertNotIn("Usage:", result.output)  # Help not shown
+
 
 class TestCLIArgumentParsing(unittest.TestCase):
     """Test CLI argument parsing."""

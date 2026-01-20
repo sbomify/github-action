@@ -421,7 +421,19 @@ For local development or environments where Docker isn't available, install via 
 pip install sbomify-action
 ```
 
-Then run with environment variables:
+Run without arguments to see available options:
+
+```bash
+sbomify-action
+```
+
+Or use CLI arguments directly:
+
+```bash
+sbomify-action --lock-file requirements.txt --enrich --no-upload -o sbom.cdx.json
+```
+
+Environment variables also work (useful for scripts):
 
 ```bash
 export LOCK_FILE=requirements.txt
