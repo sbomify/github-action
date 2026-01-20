@@ -64,9 +64,12 @@ class TestIntegration(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, f"CLI failed with: {result.output}")
 
-        # Verify setup functions were called
+        # Verify setup_dependencies was called
         mock_setup.assert_called_once()
-        mock_sentry.assert_called_once()
+
+        # Note: initialize_sentry is NOT called because TELEMETRY=false is set
+        # globally by conftest.py to prevent Sentry events during tests
+        mock_sentry.assert_not_called()
 
         # Verify output file was created
         self.assertTrue(os.path.exists("sbom_output.json"))

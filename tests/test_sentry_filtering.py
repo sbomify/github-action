@@ -44,8 +44,15 @@ def clear_sentry_state():
 class TestSentryFiltering(unittest.TestCase):
     def setUp(self):
         """Set up each test with a bogus Sentry DSN to prevent real events from being sent."""
-        # Patch the environment to use a fake DSN
-        self.env_patcher = patch.dict(os.environ, {"SENTRY_DSN": MOCK_SENTRY_DSN})
+        # Patch the environment to use a fake DSN and enable telemetry
+        # (overriding the global TELEMETRY=false from conftest.py)
+        self.env_patcher = patch.dict(
+            os.environ,
+            {
+                "SENTRY_DSN": MOCK_SENTRY_DSN,
+                "TELEMETRY": "true",  # Override global disable for Sentry tests
+            },
+        )
         self.env_patcher.start()
 
     def tearDown(self):
@@ -131,6 +138,8 @@ class TestSentryFiltering(unittest.TestCase):
     @patch.dict(
         os.environ,
         {
+            "TELEMETRY": "true",  # Enable Sentry for this test
+            "SENTRY_DSN": MOCK_SENTRY_DSN,
             "GITHUB_ACTIONS": "true",
             "GITHUB_REPOSITORY": "owner/test-repo",
             "GITHUB_WORKFLOW": "Test Workflow",
@@ -203,6 +212,8 @@ class TestSentryFiltering(unittest.TestCase):
     @patch.dict(
         os.environ,
         {
+            "TELEMETRY": "true",  # Enable Sentry for this test
+            "SENTRY_DSN": MOCK_SENTRY_DSN,
             "GITHUB_ACTIONS": "true",
             "GITHUB_REPOSITORY": "owner/private-repo",
             "GITHUB_WORKFLOW": "Secret Workflow",
@@ -276,7 +287,8 @@ class TestSentryFiltering(unittest.TestCase):
         clear_sentry_state()
 
         # Initialize without any GitHub environment variables
-        with patch.dict(os.environ, {}, clear=True):
+        # but with telemetry enabled for this test
+        with patch.dict(os.environ, {"TELEMETRY": "true", "SENTRY_DSN": MOCK_SENTRY_DSN}, clear=True):
             initialize_sentry()
 
             client = sentry_sdk.get_client()
@@ -329,6 +341,8 @@ class TestSentryFiltering(unittest.TestCase):
     @patch.dict(
         os.environ,
         {
+            "TELEMETRY": "true",  # Enable Sentry for this test
+            "SENTRY_DSN": MOCK_SENTRY_DSN,
             "GITLAB_CI": "true",
             "CI_PROJECT_PATH": "group/test-project",
             "CI_PROJECT_VISIBILITY": "public",
@@ -394,6 +408,8 @@ class TestSentryFiltering(unittest.TestCase):
     @patch.dict(
         os.environ,
         {
+            "TELEMETRY": "true",  # Enable Sentry for this test
+            "SENTRY_DSN": MOCK_SENTRY_DSN,
             "GITLAB_CI": "true",
             "CI_PROJECT_PATH": "group/private-project",
             "CI_PROJECT_VISIBILITY": "private",
@@ -443,6 +459,8 @@ class TestSentryFiltering(unittest.TestCase):
     @patch.dict(
         os.environ,
         {
+            "TELEMETRY": "true",  # Enable Sentry for this test
+            "SENTRY_DSN": MOCK_SENTRY_DSN,
             "BITBUCKET_PIPELINE_UUID": "{12345678-1234-1234-1234-123456789012}",
             "BITBUCKET_REPO_FULL_NAME": "owner/repo",
             "BITBUCKET_BRANCH": "main",
