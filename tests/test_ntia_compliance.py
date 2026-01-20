@@ -738,6 +738,269 @@ class TestNTIAAugmentation:
         print("\nLifecycle Phase Augmentation Results (SPDX):")
         print(f"  Creator comment: {creator_comment}")
 
+    def test_augmentation_adds_security_contact_cyclonedx(self, sample_backend_metadata):
+        """Test that augmentation adds security_contact to CycloneDX 1.5+ SBOM.
+
+        CRA requires a vulnerability contact for security disclosure.
+        In CycloneDX 1.5+, this is added as security-contact external reference.
+        """
+        from cyclonedx.model import ExternalReferenceType
+
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+
+        # Add security_contact to backend metadata
+        metadata_with_security = dict(sample_backend_metadata)
+        metadata_with_security["security_contact"] = "https://example.com/.well-known/security.txt"
+
+        # Create a CycloneDX 1.6 BOM with a component
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:77777777-7777-7777-7777-777777777777",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "component": {
+                    "type": "application",
+                    "name": "test-app",
+                    "version": "1.0.0",
+                },
+                "tools": {"components": [{"type": "application", "name": "test-tool", "version": "1.0"}]},
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augment with security contact
+        augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_security, spec_version="1.6")
+
+        # Check security-contact external reference was added
+        external_refs = list(augmented_bom.metadata.component.external_references)
+        security_refs = [ref for ref in external_refs if ref.type == ExternalReferenceType.SECURITY_CONTACT]
+        assert len(security_refs) == 1, "Should have one security-contact external reference"
+        assert str(security_refs[0].url) == "https://example.com/.well-known/security.txt"
+
+        print("\nSecurity Contact Augmentation Results (CycloneDX 1.6):")
+        print(f"  Security contact: {security_refs[0].url}")
+
+    def test_augmentation_adds_security_contact_cyclonedx_14_fallback(self, sample_backend_metadata):
+        """Test that security_contact fallback works for CycloneDX 1.4."""
+        from cyclonedx.model import ExternalReferenceType
+
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+
+        # Add security_contact URL (not email) to backend metadata
+        metadata_with_security = dict(sample_backend_metadata)
+        metadata_with_security["security_contact"] = "https://example.com/security"
+
+        # Create a CycloneDX 1.4 BOM with a component
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.4",
+            "serialNumber": "urn:uuid:88888888-8888-8888-8888-888888888888",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "component": {
+                    "type": "application",
+                    "name": "test-app",
+                    "version": "1.0.0",
+                },
+                "tools": [{"vendor": "test", "name": "test-tool", "version": "1.0"}],
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augment with security contact
+        augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_security, spec_version="1.4")
+
+        # Check support external reference was added as fallback (security-contact not available in 1.4)
+        external_refs = list(augmented_bom.metadata.component.external_references)
+        support_refs = [ref for ref in external_refs if ref.type == ExternalReferenceType.SUPPORT]
+        assert len(support_refs) == 1, "Should have one support external reference as fallback"
+        assert str(support_refs[0].url) == "https://example.com/security"
+
+        print("\nSecurity Contact Fallback Results (CycloneDX 1.4):")
+        print(f"  Support URL (fallback): {support_refs[0].url}")
+
+    def test_augmentation_adds_security_contact_spdx(self, sample_backend_metadata):
+        """Test that augmentation adds security_contact to SPDX."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import CreationInfo, Document, ExternalPackageRefCategory, Package
+
+        from sbomify_action.augmentation import augment_spdx_sbom
+
+        # Add security_contact to backend metadata
+        metadata_with_security = dict(sample_backend_metadata)
+        metadata_with_security["security_contact"] = "https://example.com/security"
+
+        # Create a minimal SPDX document
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-sbom",
+            document_namespace="https://example.com/test-security",
+            creators=[],
+            created=datetime.now(),
+        )
+        document = Document(
+            creation_info=creation_info,
+            packages=[
+                Package(
+                    spdx_id="SPDXRef-main",
+                    name="my-app",
+                    download_location="https://example.com/download",
+                    version="1.0.0",
+                ),
+            ],
+            relationships=[],
+        )
+
+        # Augment with security contact
+        augmented_doc = augment_spdx_sbom(document, metadata_with_security)
+
+        # Check security contact was added as external reference
+        main_package = augmented_doc.packages[0]
+        security_refs = [ref for ref in main_package.external_references if ref.reference_type == "security-contact"]
+        assert len(security_refs) == 1, "Should have one security-contact external reference"
+        assert security_refs[0].category == ExternalPackageRefCategory.SECURITY
+        assert security_refs[0].locator == "https://example.com/security"
+
+        print("\nSecurity Contact Augmentation Results (SPDX):")
+        print(f"  Security contact: {security_refs[0].locator}")
+
+    def test_augmentation_adds_support_period_end_cyclonedx(self, sample_backend_metadata):
+        """Test that augmentation adds support_period_end to CycloneDX 1.5+ SBOM.
+
+        CRA requires support period information.
+        In CycloneDX 1.5+, this is added as both a named lifecycle and property.
+        """
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+
+        # Add support_period_end to backend metadata
+        metadata_with_support = dict(sample_backend_metadata)
+        metadata_with_support["support_period_end"] = "2028-12-31"
+
+        # Create a CycloneDX 1.6 BOM
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:99999999-9999-9999-9999-999999999999",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "tools": {"components": [{"type": "application", "name": "test-tool", "version": "1.0"}]},
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augment with support period
+        augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_support, spec_version="1.6")
+
+        # Check named lifecycle was added
+        lifecycles = list(augmented_bom.metadata.lifecycles)
+        support_lifecycles = [lc for lc in lifecycles if hasattr(lc, "name") and lc.name == "support-end"]
+        assert len(support_lifecycles) == 1, "Should have one support-end lifecycle"
+        assert "2028-12-31" in support_lifecycles[0].description
+
+        # Check property was also added
+        props = list(augmented_bom.metadata.properties)
+        support_props = [p for p in props if p.name == "cdx:support:enddate"]
+        assert len(support_props) == 1, "Should have one cdx:support:enddate property"
+        assert support_props[0].value == "2028-12-31"
+
+        print("\nSupport Period End Augmentation Results (CycloneDX 1.6):")
+        print(f"  Lifecycle: {support_lifecycles[0].name} - {support_lifecycles[0].description}")
+        print(f"  Property: {support_props[0].name}={support_props[0].value}")
+
+    def test_augmentation_adds_support_period_end_cyclonedx_14(self, sample_backend_metadata):
+        """Test that support_period_end works for CycloneDX 1.4 (property only)."""
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+
+        # Add support_period_end to backend metadata
+        metadata_with_support = dict(sample_backend_metadata)
+        metadata_with_support["support_period_end"] = "2028-12-31"
+
+        # Create a CycloneDX 1.4 BOM
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.4",
+            "serialNumber": "urn:uuid:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "tools": [{"vendor": "test", "name": "test-tool", "version": "1.0"}],
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augment with support period
+        augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_support, spec_version="1.4")
+
+        # Check named lifecycle was NOT added (1.5+ only)
+        lifecycles = list(augmented_bom.metadata.lifecycles)
+        support_lifecycles = [lc for lc in lifecycles if hasattr(lc, "name") and lc.name == "support-end"]
+        assert len(support_lifecycles) == 0, "Named lifecycle should not be added for CycloneDX 1.4"
+
+        # Check property WAS added (works in all versions)
+        props = list(augmented_bom.metadata.properties)
+        support_props = [p for p in props if p.name == "cdx:support:enddate"]
+        assert len(support_props) == 1, "Should have one cdx:support:enddate property"
+        assert support_props[0].value == "2028-12-31"
+
+        print("\nSupport Period End Results (CycloneDX 1.4):")
+        print(f"  Property: {support_props[0].name}={support_props[0].value}")
+
+    def test_augmentation_adds_support_period_end_spdx(self, sample_backend_metadata):
+        """Test that augmentation adds support_period_end to SPDX."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import CreationInfo, Document, Package
+
+        from sbomify_action.augmentation import augment_spdx_sbom
+
+        # Add support_period_end to backend metadata
+        metadata_with_support = dict(sample_backend_metadata)
+        metadata_with_support["support_period_end"] = "2028-12-31"
+
+        # Create a minimal SPDX document
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-sbom",
+            document_namespace="https://example.com/test-support",
+            creators=[],
+            created=datetime.now(),
+        )
+        document = Document(
+            creation_info=creation_info,
+            packages=[
+                Package(
+                    spdx_id="SPDXRef-main",
+                    name="my-app",
+                    download_location="https://example.com/download",
+                    version="1.0.0",
+                ),
+            ],
+            relationships=[],
+        )
+
+        # Augment with support period
+        augmented_doc = augment_spdx_sbom(document, metadata_with_support)
+
+        # Check external reference was added
+        main_package = augmented_doc.packages[0]
+        support_refs = [ref for ref in main_package.external_references if ref.reference_type == "support-end-date"]
+        assert len(support_refs) == 1, "Should have one support-end-date external reference"
+        assert support_refs[0].locator == "2028-12-31"
+
+        print("\nSupport Period End Augmentation Results (SPDX):")
+        print(f"  Support end date: {support_refs[0].locator}")
+
 
 class TestEnrichmentAndAugmentationProduceNTIACompliance:
     """Test that enrichment + augmentation produces NTIA-compliant output.

@@ -33,11 +33,11 @@ Version support:
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
-from cyclonedx.model import AttachedText, BomRef, ExternalReference, ExternalReferenceType, XsUri
+from cyclonedx.model import AttachedText, BomRef, ExternalReference, ExternalReferenceType, Property, XsUri
 from cyclonedx.model.bom import Bom, OrganizationalContact, OrganizationalEntity, Tool
 from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.license import DisjunctiveLicense, LicenseExpression
-from cyclonedx.model.lifecycle import LifecyclePhase, PredefinedLifecycle
+from cyclonedx.model.lifecycle import LifecyclePhase, NamedLifecycle, PredefinedLifecycle
 from cyclonedx.model.service import Service
 from packageurl import PackageURL
 from spdx_tools.spdx.model import (
@@ -785,6 +785,72 @@ def augment_cyclonedx_sbom(
     # This adds repository URL and commit info to the root component
     _add_vcs_info_to_cyclonedx(bom, augmentation_data)
 
+    # Add security contact (uses native CycloneDX structures)
+    # This satisfies CRA vulnerability contact requirements
+    if "security_contact" in augmentation_data and augmentation_data["security_contact"]:
+        contact_url = augmentation_data["security_contact"]
+
+        # Primary: Add as security-contact external reference (CDX 1.5+)
+        # This is the dedicated, semantic field for security contacts
+        if _is_cdx_version_at_least(spec_version, 1, 5):
+            if bom.metadata.component:
+                # Check if security-contact already exists
+                existing = [
+                    ref
+                    for ref in bom.metadata.component.external_references
+                    if ref.type == ExternalReferenceType.SECURITY_CONTACT
+                ]
+                if not existing:
+                    security_ref = ExternalReference(
+                        type=ExternalReferenceType.SECURITY_CONTACT,
+                        url=XsUri(contact_url),
+                    )
+                    bom.metadata.component.external_references.add(security_ref)
+                    audit_trail.record_augmentation("security_contact", contact_url, source="config")
+                    logger.info(f"Added security contact to CycloneDX: {contact_url}")
+
+        # Fallback for CDX 1.3/1.4: Add to supplier contact if it's an email,
+        # or add as support external reference if it's a URL
+        else:
+            if "@" in contact_url and not contact_url.startswith("mailto:"):
+                # It's an email address - add to supplier contacts if supplier exists
+                if bom.metadata.supplier:
+                    contact = OrganizationalContact(email=contact_url)
+                    bom.metadata.supplier.contacts.add(contact)
+                    audit_trail.record_augmentation("security_contact", contact_url, source="config")
+                    logger.info(f"Added security contact email to supplier: {contact_url}")
+            else:
+                # It's a URL - add as support external reference
+                if bom.metadata.component:
+                    support_ref = ExternalReference(
+                        type=ExternalReferenceType.SUPPORT,
+                        url=XsUri(contact_url),
+                    )
+                    bom.metadata.component.external_references.add(support_ref)
+                    audit_trail.record_augmentation("security_contact", contact_url, source="config")
+                    logger.info(f"Added security contact as support URL: {contact_url}")
+
+    # Add support period end date
+    # This satisfies CRA support period requirements
+    if "support_period_end" in augmentation_data and augmentation_data["support_period_end"]:
+        end_date = augmentation_data["support_period_end"]
+
+        # Primary: Use metadata.lifecycles for CDX 1.5+ (native lifecycle support)
+        if _is_cdx_version_at_least(spec_version, 1, 5):
+            # Create custom lifecycle to indicate support end
+            support_lifecycle = NamedLifecycle(
+                name="support-end",
+                description=f"Security support ends: {end_date}",
+            )
+            bom.metadata.lifecycles.add(support_lifecycle)
+            logger.info(f"Added support-end lifecycle to CycloneDX: {end_date}")
+
+        # For all versions: Add as property with standardized name
+        # Using cdx: namespace which is conventional for CycloneDX extensions
+        support_prop = Property(name="cdx:support:enddate", value=end_date)
+        bom.metadata.properties.add(support_prop)
+        audit_trail.record_augmentation("support_period_end", end_date, source="config")
+
     return bom
 
 
@@ -1188,6 +1254,68 @@ def augment_spdx_sbom(
 
     # Add VCS information if present (from CI providers or sbomify.json config)
     _add_vcs_info_to_spdx(document, augmentation_data)
+
+    # Add security contact (uses native SPDX structures)
+    # This satisfies CRA vulnerability contact requirements
+    if "security_contact" in augmentation_data and augmentation_data["security_contact"]:
+        contact_url = augmentation_data["security_contact"]
+
+        if document.packages:
+            main_package = document.packages[0]
+
+            # Check if security contact already exists
+            existing = [ref for ref in main_package.external_references if ref.reference_type == "security-contact"]
+            if not existing:
+                # Add as external reference with SECURITY category
+                ext_ref = ExternalPackageRef(
+                    category=ExternalPackageRefCategory.SECURITY,
+                    reference_type="security-contact",
+                    locator=contact_url,
+                    comment="Security vulnerability reporting contact",
+                )
+                main_package.external_references.append(ext_ref)
+                logger.info(f"Added security contact to SPDX: {contact_url}")
+
+                # Record to audit trail
+                spdx_audit_trail = get_audit_trail()
+                spdx_audit_trail.record_augmentation("security_contact", contact_url, source="config")
+
+    # Add support period end date
+    # This satisfies CRA support period requirements
+    if "support_period_end" in augmentation_data and augmentation_data["support_period_end"]:
+        end_date = augmentation_data["support_period_end"]
+
+        if document.packages:
+            main_package = document.packages[0]
+
+            # Primary: Use validUntilDate (native SPDX 2.3 field)
+            # Note: SPDX requires datetime object, not string
+            if hasattr(main_package, "valid_until_date") and not main_package.valid_until_date:
+                try:
+                    from datetime import datetime
+
+                    # Parse ISO-8601 date string to datetime
+                    valid_until = datetime.fromisoformat(end_date)
+                    main_package.valid_until_date = valid_until
+                    logger.info(f"Set SPDX validUntilDate: {end_date}")
+                except ValueError as e:
+                    logger.warning(f"Could not parse support_period_end date '{end_date}': {e}")
+
+            # Also add as external reference for broader compatibility
+            existing = [ref for ref in main_package.external_references if ref.reference_type == "support-end-date"]
+            if not existing:
+                ext_ref = ExternalPackageRef(
+                    category=ExternalPackageRefCategory.OTHER,
+                    reference_type="support-end-date",
+                    locator=end_date,
+                    comment="Date when security support ends",
+                )
+                main_package.external_references.append(ext_ref)
+                logger.info(f"Added support-end-date to SPDX: {end_date}")
+
+                # Record to audit trail
+                spdx_audit_trail = get_audit_trail()
+                spdx_audit_trail.record_augmentation("support_period_end", end_date, source="config")
 
     return document
 

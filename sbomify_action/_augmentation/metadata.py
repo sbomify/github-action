@@ -26,6 +26,10 @@ class AugmentationMetadata:
         vcs_commit_sha: Full commit SHA
         vcs_ref: Branch or tag name (e.g., main, refs/heads/main, v1.0.0)
         vcs_commit_url: URL to the specific commit
+
+        Security and support fields (CRA compliance):
+        security_contact: URL/email for security vulnerability reporting
+        support_period_end: ISO-8601 date when security support ends (YYYY-MM-DD)
     """
 
     supplier: Optional[Dict[str, Any]] = None
@@ -40,6 +44,10 @@ class AugmentationMetadata:
     vcs_commit_sha: Optional[str] = None
     vcs_ref: Optional[str] = None
     vcs_commit_url: Optional[str] = None
+
+    # Security and support fields (CRA compliance)
+    security_contact: Optional[str] = None  # URL/email for security vulnerability reporting
+    support_period_end: Optional[str] = None  # ISO-8601 date when support ends (YYYY-MM-DD)
 
     # Additional fields that may be added in the future
     _extra: Dict[str, Any] = field(default_factory=dict)
@@ -57,6 +65,8 @@ class AugmentationMetadata:
                 self.vcs_commit_sha,
                 self.vcs_ref,
                 self.vcs_commit_url,
+                self.security_contact,
+                self.support_period_end,
             ]
         )
 
@@ -93,6 +103,9 @@ class AugmentationMetadata:
             vcs_commit_sha=self.vcs_commit_sha if self.vcs_commit_sha else other.vcs_commit_sha,
             vcs_ref=self.vcs_ref if self.vcs_ref else other.vcs_ref,
             vcs_commit_url=self.vcs_commit_url if self.vcs_commit_url else other.vcs_commit_url,
+            # Security and support fields
+            security_contact=self.security_contact if self.security_contact else other.security_contact,
+            support_period_end=self.support_period_end if self.support_period_end else other.support_period_end,
             _extra={**other._extra, **self._extra},  # self takes precedence
         )
 
@@ -126,6 +139,12 @@ class AugmentationMetadata:
         if self.vcs_commit_url:
             result["vcs_commit_url"] = self.vcs_commit_url
 
+        # Security and support fields
+        if self.security_contact:
+            result["security_contact"] = self.security_contact
+        if self.support_period_end:
+            result["support_period_end"] = self.support_period_end
+
         # Include any extra fields
         result.update(self._extra)
 
@@ -153,6 +172,8 @@ class AugmentationMetadata:
             "vcs_commit_sha",
             "vcs_ref",
             "vcs_commit_url",
+            "security_contact",
+            "support_period_end",
         }
         extra = {k: v for k, v in data.items() if k not in known_keys}
 
@@ -167,5 +188,7 @@ class AugmentationMetadata:
             vcs_commit_sha=data.get("vcs_commit_sha"),
             vcs_ref=data.get("vcs_ref"),
             vcs_commit_url=data.get("vcs_commit_url"),
+            security_contact=data.get("security_contact"),
+            support_period_end=data.get("support_period_end"),
             _extra=extra,
         )

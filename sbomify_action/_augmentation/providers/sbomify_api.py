@@ -1,7 +1,8 @@
 """sbomify API provider for augmentation metadata.
 
 This provider fetches organizational metadata from the sbomify backend API,
-including supplier, authors, licenses, and lifecycle phase.
+including supplier, authors, licenses, lifecycle phase, security contact,
+and support period end date.
 """
 
 from typing import Any, Dict, Optional

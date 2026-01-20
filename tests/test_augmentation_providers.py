@@ -36,6 +36,16 @@ class TestAugmentationMetadata:
         metadata = AugmentationMetadata()
         assert metadata.has_data() is False
 
+    def test_has_data_with_security_contact(self):
+        """Test has_data returns True when security_contact is present."""
+        metadata = AugmentationMetadata(security_contact="https://example.com/security")
+        assert metadata.has_data() is True
+
+    def test_has_data_with_support_period_end(self):
+        """Test has_data returns True when support_period_end is present."""
+        metadata = AugmentationMetadata(support_period_end="2028-12-31")
+        assert metadata.has_data() is True
+
     def test_merge_prefers_existing(self):
         """Test merge keeps existing values over new ones."""
         existing = AugmentationMetadata(
@@ -157,6 +167,54 @@ class TestAugmentationMetadata:
         assert len(metadata.manufacturer["contacts"]) == 1
         assert metadata.lifecycle_phase == "build"
         assert metadata.source == "test"
+
+    def test_to_dict_with_security_fields(self):
+        """Test conversion to dictionary includes security_contact and support_period_end."""
+        metadata = AugmentationMetadata(
+            supplier={"name": "Test Supplier"},
+            security_contact="https://example.com/.well-known/security.txt",
+            support_period_end="2028-12-31",
+        )
+
+        result = metadata.to_dict()
+
+        assert result["supplier"]["name"] == "Test Supplier"
+        assert result["security_contact"] == "https://example.com/.well-known/security.txt"
+        assert result["support_period_end"] == "2028-12-31"
+
+    def test_from_dict_with_security_fields(self):
+        """Test creation from dictionary with security_contact and support_period_end."""
+        data = {
+            "supplier": {"name": "Test Supplier"},
+            "security_contact": "mailto:security@example.com",
+            "support_period_end": "2028-12-31",
+        }
+
+        metadata = AugmentationMetadata.from_dict(data, source="test")
+
+        assert metadata.supplier["name"] == "Test Supplier"
+        assert metadata.security_contact == "mailto:security@example.com"
+        assert metadata.support_period_end == "2028-12-31"
+        assert metadata.source == "test"
+
+    def test_merge_security_fields(self):
+        """Test merge handles security_contact and support_period_end correctly."""
+        existing = AugmentationMetadata(
+            security_contact="https://existing.com/security",
+            source="existing-source",
+        )
+        new = AugmentationMetadata(
+            security_contact="https://new.com/security",
+            support_period_end="2028-12-31",
+            source="new-source",
+        )
+
+        merged = existing.merge(new)
+
+        # Existing security_contact should be preserved
+        assert merged.security_contact == "https://existing.com/security"
+        # New support_period_end should be filled in
+        assert merged.support_period_end == "2028-12-31"
 
 
 class TestJsonConfigProvider:

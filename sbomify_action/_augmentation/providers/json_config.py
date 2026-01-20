@@ -21,12 +21,19 @@ Example config file:
     ],
     "licenses": ["MIT"],
     "vcs_url": "https://github.mycompany.com/org/repo",
-    "vcs_ref": "main"
+    "vcs_ref": "main",
+    "security_contact": "https://example.com/.well-known/security.txt",
+    "support_period_end": "2028-12-31"
 }
 
 VCS fields can be used to override auto-detected CI values or configure
 VCS info for self-hosted instances. Set DISABLE_VCS_AUGMENTATION=true
 to disable all VCS enrichment.
+
+Security and support fields:
+- security_contact: URL/email for security vulnerability reporting
+  Accepts: https://, mailto:, tel: URIs (e.g., security.txt URL recommended)
+- support_period_end: ISO-8601 date when security support ends (YYYY-MM-DD)
 """
 
 import json
