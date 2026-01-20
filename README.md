@@ -151,7 +151,6 @@ Every modification made to your SBOM is tracked and recorded for attestation and
 ### Example Output
 
 **Summary:**
-
 ```
 ┌─────────────────────┬───────┐
 │ Metric              │ Value │
@@ -163,7 +162,6 @@ Every modification made to your SBOM is tracked and recorded for attestation and
 ```
 
 **audit_trail.txt:**
-
 ```
 # SBOM Audit Trail
 # Generated: 2026-01-18T12:34:56Z

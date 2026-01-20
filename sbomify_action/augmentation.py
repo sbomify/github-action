@@ -801,13 +801,19 @@ def augment_cyclonedx_sbom(
                     if ref.type == ExternalReferenceType.SECURITY_CONTACT
                 ]
                 if not existing:
-                    security_ref = ExternalReference(
-                        type=ExternalReferenceType.SECURITY_CONTACT,
-                        url=XsUri(contact_url),
-                    )
-                    bom.metadata.component.external_references.add(security_ref)
-                    audit_trail.record_augmentation("security_contact", contact_url, source="config")
-                    logger.info(f"Added security contact to CycloneDX: {contact_url}")
+                    try:
+                        security_ref = ExternalReference(
+                            type=ExternalReferenceType.SECURITY_CONTACT,
+                            url=XsUri(contact_url),
+                        )
+                        bom.metadata.component.external_references.add(security_ref)
+                        audit_trail.record_augmentation("security_contact", contact_url, source="config")
+                        logger.info(f"Added security contact to CycloneDX: {contact_url}")
+                    except ValueError:
+                        logger.warning(
+                            f"Invalid security_contact URL '{contact_url}'. "
+                            "Expected a valid URI (https://, mailto:, or tel: scheme)."
+                        )
 
         # Fallback for CDX 1.3/1.4: Add to supplier contact if it's an email,
         # or add as support external reference if it's a URL
@@ -822,13 +828,19 @@ def augment_cyclonedx_sbom(
             else:
                 # It's a URL - add as support external reference
                 if bom.metadata.component:
-                    support_ref = ExternalReference(
-                        type=ExternalReferenceType.SUPPORT,
-                        url=XsUri(contact_url),
-                    )
-                    bom.metadata.component.external_references.add(support_ref)
-                    audit_trail.record_augmentation("security_contact", contact_url, source="config")
-                    logger.info(f"Added security contact as support URL: {contact_url}")
+                    try:
+                        support_ref = ExternalReference(
+                            type=ExternalReferenceType.SUPPORT,
+                            url=XsUri(contact_url),
+                        )
+                        bom.metadata.component.external_references.add(support_ref)
+                        audit_trail.record_augmentation("security_contact", contact_url, source="config")
+                        logger.info(f"Added security contact as support URL: {contact_url}")
+                    except ValueError:
+                        logger.warning(
+                            f"Invalid security_contact URL '{contact_url}'. "
+                            "Expected a valid URI (https://, mailto:, or tel: scheme)."
+                        )
 
     # Add support period end date
     # This satisfies CRA support period requirements
@@ -1336,8 +1348,11 @@ def augment_spdx_sbom(
                     valid_until = datetime.fromisoformat(end_date)
                     main_package.valid_until_date = valid_until
                     logger.info(f"Set SPDX validUntilDate: {end_date}")
-                except ValueError as e:
-                    logger.warning(f"Could not parse support_period_end date '{end_date}': {e}")
+                except ValueError:
+                    logger.warning(
+                        f"Could not parse support_period_end date '{end_date}'. "
+                        "Expected format: YYYY-MM-DD (for example, 2025-12-31)."
+                    )
 
             # Also add as external reference for broader compatibility
             existing = [ref for ref in main_package.external_references if ref.reference_type == "support-end-date"]

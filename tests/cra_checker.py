@@ -31,6 +31,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 # ISO-8601 date regex (YYYY-MM-DD format)
+# Reserved for future date validation of lifecycle fields
 ISO8601_DATE_REGEX = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 

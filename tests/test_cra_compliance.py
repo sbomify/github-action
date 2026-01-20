@@ -68,6 +68,50 @@ class TestCRAComplianceCycloneDX:
         print(f"  Present: {present}")
         print(f"  Missing: {missing}")
 
+    def test_partial_cra_compliance_not_sufficient(self):
+        """Test that having only one required CRA field is NOT compliant.
+
+        CRA requires BOTH security_contact AND support_period_end.
+        Having only one should result in non-compliance.
+        """
+        # SBOM with only security contact (missing support_period_end)
+        data_security_only = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "metadata": {
+                "component": {
+                    "name": "test-app",
+                    "externalReferences": [{"type": "security-contact", "url": "https://example.com/security"}],
+                },
+            },
+        }
+
+        is_compliant, present, missing, _ = CRAComplianceChecker.check_cyclonedx(data_security_only)
+        assert not is_compliant, "Should NOT be compliant with only security_contact"
+        assert "Security Contact" in present, "Should have Security Contact"
+        assert "Support Period End" in missing, "Should be missing Support Period End"
+
+        # SBOM with only support_period_end (missing security_contact)
+        data_support_only = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "metadata": {
+                "component": {"name": "test-app"},
+                "properties": [
+                    {"name": "cdx:support:enddate", "value": "2026-12-31"},
+                ],
+            },
+        }
+
+        is_compliant, present, missing, _ = CRAComplianceChecker.check_cyclonedx(data_support_only)
+        assert not is_compliant, "Should NOT be compliant with only support_period_end"
+        assert "Support Period End" in present, "Should have Support Period End"
+        assert "Security Contact" in missing, "Should be missing Security Contact"
+
+        print("\nPartial CRA Compliance Test:")
+        print("  Security-only: NOT compliant (correct)")
+        print("  Support-only: NOT compliant (correct)")
+
     def test_augmented_sbom_is_cra_compliant(self, cra_metadata):
         """Test that augmented SBOM with CRA fields IS compliant."""
         # Create a CycloneDX 1.6 BOM with a root component

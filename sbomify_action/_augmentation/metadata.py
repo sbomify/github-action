@@ -205,6 +205,7 @@ class AugmentationMetadata:
 
         # Map API field names to internal names
         # API uses 'end_of_support', we use 'support_period_end'
+        # Prefer explicit support_period_end, fall back to API's end_of_support
         support_period_end = data.get("support_period_end") or data.get("end_of_support")
 
         return cls(
