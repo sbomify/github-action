@@ -1001,6 +1001,270 @@ class TestNTIAAugmentation:
         print("\nSupport Period End Augmentation Results (SPDX):")
         print(f"  Support end date: {support_refs[0].locator}")
 
+    def test_augmentation_adds_release_date_cyclonedx(self, sample_backend_metadata):
+        """Test that augmentation adds release_date to CycloneDX 1.5+ SBOM.
+
+        Release date is added as both a named lifecycle and property.
+        """
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+
+        # Add release_date to backend metadata
+        metadata_with_release = dict(sample_backend_metadata)
+        metadata_with_release["release_date"] = "2024-06-15"
+
+        # Create a CycloneDX 1.6 BOM
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "tools": {"components": [{"type": "application", "name": "test-tool", "version": "1.0"}]},
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augment with release date
+        augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_release, spec_version="1.6")
+
+        # Check named lifecycle was added
+        lifecycles = list(augmented_bom.metadata.lifecycles)
+        release_lifecycles = [lc for lc in lifecycles if hasattr(lc, "name") and lc.name == "release"]
+        assert len(release_lifecycles) == 1, "Should have one release lifecycle"
+        assert "2024-06-15" in release_lifecycles[0].description
+
+        # Check property was also added
+        props = list(augmented_bom.metadata.properties)
+        release_props = [p for p in props if p.name == "cdx:release:date"]
+        assert len(release_props) == 1, "Should have one cdx:release:date property"
+        assert release_props[0].value == "2024-06-15"
+
+        print("\nRelease Date Augmentation Results (CycloneDX 1.6):")
+        print(f"  Lifecycle: {release_lifecycles[0].name} - {release_lifecycles[0].description}")
+        print(f"  Property: {release_props[0].name}={release_props[0].value}")
+
+    def test_augmentation_adds_end_of_life_cyclonedx(self, sample_backend_metadata):
+        """Test that augmentation adds end_of_life to CycloneDX 1.5+ SBOM.
+
+        End of life date is added as both a named lifecycle and property.
+        """
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+
+        # Add end_of_life to backend metadata
+        metadata_with_eol = dict(sample_backend_metadata)
+        metadata_with_eol["end_of_life"] = "2028-12-31"
+
+        # Create a CycloneDX 1.6 BOM
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:cccccccc-cccc-cccc-cccc-cccccccccccc",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "tools": {"components": [{"type": "application", "name": "test-tool", "version": "1.0"}]},
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augment with end of life
+        augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_eol, spec_version="1.6")
+
+        # Check named lifecycle was added
+        lifecycles = list(augmented_bom.metadata.lifecycles)
+        eol_lifecycles = [lc for lc in lifecycles if hasattr(lc, "name") and lc.name == "end-of-life"]
+        assert len(eol_lifecycles) == 1, "Should have one end-of-life lifecycle"
+        assert "2028-12-31" in eol_lifecycles[0].description
+
+        # Check property was also added
+        props = list(augmented_bom.metadata.properties)
+        eol_props = [p for p in props if p.name == "cdx:eol:date"]
+        assert len(eol_props) == 1, "Should have one cdx:eol:date property"
+        assert eol_props[0].value == "2028-12-31"
+
+        print("\nEnd of Life Augmentation Results (CycloneDX 1.6):")
+        print(f"  Lifecycle: {eol_lifecycles[0].name} - {eol_lifecycles[0].description}")
+        print(f"  Property: {eol_props[0].name}={eol_props[0].value}")
+
+    def test_augmentation_adds_release_date_cyclonedx_14(self, sample_backend_metadata):
+        """Test that release_date works for CycloneDX 1.4 (property only)."""
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+
+        # Add release_date to backend metadata
+        metadata_with_release = dict(sample_backend_metadata)
+        metadata_with_release["release_date"] = "2024-06-15"
+
+        # Create a CycloneDX 1.4 BOM
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.4",
+            "serialNumber": "urn:uuid:dddddddd-dddd-dddd-dddd-dddddddddddd",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "tools": [{"vendor": "test", "name": "test-tool", "version": "1.0"}],
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augment with release date
+        augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_release, spec_version="1.4")
+
+        # Check named lifecycle was NOT added (1.5+ only)
+        lifecycles = list(augmented_bom.metadata.lifecycles)
+        release_lifecycles = [lc for lc in lifecycles if hasattr(lc, "name") and lc.name == "release"]
+        assert len(release_lifecycles) == 0, "Named lifecycle should not be added for CycloneDX 1.4"
+
+        # Check property WAS added (works in all versions)
+        props = list(augmented_bom.metadata.properties)
+        release_props = [p for p in props if p.name == "cdx:release:date"]
+        assert len(release_props) == 1, "Should have one cdx:release:date property"
+        assert release_props[0].value == "2024-06-15"
+
+        print("\nRelease Date Results (CycloneDX 1.4):")
+        print(f"  Property: {release_props[0].name}={release_props[0].value}")
+
+    def test_augmentation_adds_release_date_spdx(self, sample_backend_metadata):
+        """Test that augmentation adds release_date to SPDX."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import CreationInfo, Document, Package
+
+        from sbomify_action.augmentation import augment_spdx_sbom
+
+        # Add release_date to backend metadata
+        metadata_with_release = dict(sample_backend_metadata)
+        metadata_with_release["release_date"] = "2024-06-15"
+
+        # Create a minimal SPDX document
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-sbom",
+            document_namespace="https://example.com/test-release",
+            creators=[],
+            created=datetime.now(),
+        )
+        document = Document(
+            creation_info=creation_info,
+            packages=[
+                Package(
+                    spdx_id="SPDXRef-main",
+                    name="my-app",
+                    download_location="https://example.com/download",
+                    version="1.0.0",
+                ),
+            ],
+            relationships=[],
+        )
+
+        # Augment with release date
+        augmented_doc = augment_spdx_sbom(document, metadata_with_release)
+
+        # Check external reference was added
+        main_package = augmented_doc.packages[0]
+        release_refs = [ref for ref in main_package.external_references if ref.reference_type == "release-date"]
+        assert len(release_refs) == 1, "Should have one release-date external reference"
+        assert release_refs[0].locator == "2024-06-15"
+
+        print("\nRelease Date Augmentation Results (SPDX):")
+        print(f"  Release date: {release_refs[0].locator}")
+
+    def test_augmentation_adds_end_of_life_spdx(self, sample_backend_metadata):
+        """Test that augmentation adds end_of_life to SPDX."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import CreationInfo, Document, Package
+
+        from sbomify_action.augmentation import augment_spdx_sbom
+
+        # Add end_of_life to backend metadata
+        metadata_with_eol = dict(sample_backend_metadata)
+        metadata_with_eol["end_of_life"] = "2028-12-31"
+
+        # Create a minimal SPDX document
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="test-sbom",
+            document_namespace="https://example.com/test-eol",
+            creators=[],
+            created=datetime.now(),
+        )
+        document = Document(
+            creation_info=creation_info,
+            packages=[
+                Package(
+                    spdx_id="SPDXRef-main",
+                    name="my-app",
+                    download_location="https://example.com/download",
+                    version="1.0.0",
+                ),
+            ],
+            relationships=[],
+        )
+
+        # Augment with end of life
+        augmented_doc = augment_spdx_sbom(document, metadata_with_eol)
+
+        # Check external reference was added
+        main_package = augmented_doc.packages[0]
+        eol_refs = [ref for ref in main_package.external_references if ref.reference_type == "end-of-life-date"]
+        assert len(eol_refs) == 1, "Should have one end-of-life-date external reference"
+        assert eol_refs[0].locator == "2028-12-31"
+
+        print("\nEnd of Life Augmentation Results (SPDX):")
+        print(f"  End of life date: {eol_refs[0].locator}")
+
+    def test_augmentation_adds_all_lifecycle_dates_cyclonedx(self, sample_backend_metadata):
+        """Test that augmentation adds all lifecycle dates together to CycloneDX 1.6."""
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+
+        # Add all lifecycle dates to backend metadata
+        metadata_with_all = dict(sample_backend_metadata)
+        metadata_with_all["release_date"] = "2024-06-15"
+        metadata_with_all["support_period_end"] = "2026-12-31"
+        metadata_with_all["end_of_life"] = "2028-12-31"
+
+        # Create a CycloneDX 1.6 BOM
+        bom_json = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": "urn:uuid:eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+            "version": 1,
+            "metadata": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "tools": {"components": [{"type": "application", "name": "test-tool", "version": "1.0"}]},
+            },
+            "components": [],
+        }
+        bom = Bom.from_json(bom_json)
+
+        # Augment with all lifecycle dates
+        augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_all, spec_version="1.6")
+
+        # Check all named lifecycles were added
+        lifecycles = list(augmented_bom.metadata.lifecycles)
+        lifecycle_names = [lc.name for lc in lifecycles if hasattr(lc, "name")]
+        assert "release" in lifecycle_names, "Should have release lifecycle"
+        assert "support-end" in lifecycle_names, "Should have support-end lifecycle"
+        assert "end-of-life" in lifecycle_names, "Should have end-of-life lifecycle"
+
+        # Check all properties were added
+        props = list(augmented_bom.metadata.properties)
+        prop_names = [p.name for p in props]
+        assert "cdx:release:date" in prop_names, "Should have cdx:release:date property"
+        assert "cdx:support:enddate" in prop_names, "Should have cdx:support:enddate property"
+        assert "cdx:eol:date" in prop_names, "Should have cdx:eol:date property"
+
+        print("\nAll Lifecycle Dates Augmentation Results (CycloneDX 1.6):")
+        print(f"  Lifecycles: {lifecycle_names}")
+        print(f"  Properties: {prop_names}")
+
 
 class TestEnrichmentAndAugmentationProduceNTIACompliance:
     """Test that enrichment + augmentation produces NTIA-compliant output.

@@ -46,6 +46,16 @@ class TestAugmentationMetadata:
         metadata = AugmentationMetadata(support_period_end="2028-12-31")
         assert metadata.has_data() is True
 
+    def test_has_data_with_release_date(self):
+        """Test has_data returns True when release_date is present."""
+        metadata = AugmentationMetadata(release_date="2024-06-15")
+        assert metadata.has_data() is True
+
+    def test_has_data_with_end_of_life(self):
+        """Test has_data returns True when end_of_life is present."""
+        metadata = AugmentationMetadata(end_of_life="2028-12-31")
+        assert metadata.has_data() is True
+
     def test_merge_prefers_existing(self):
         """Test merge keeps existing values over new ones."""
         existing = AugmentationMetadata(
@@ -215,6 +225,96 @@ class TestAugmentationMetadata:
         assert merged.security_contact == "https://existing.com/security"
         # New support_period_end should be filled in
         assert merged.support_period_end == "2028-12-31"
+
+    def test_merge_lifecycle_date_fields(self):
+        """Test merge handles release_date and end_of_life correctly."""
+        existing = AugmentationMetadata(
+            release_date="2024-06-15",
+            source="existing-source",
+        )
+        new = AugmentationMetadata(
+            release_date="2024-01-01",  # Different release date
+            end_of_life="2028-12-31",
+            support_period_end="2026-12-31",
+            source="new-source",
+        )
+
+        merged = existing.merge(new)
+
+        # Existing release_date should be preserved
+        assert merged.release_date == "2024-06-15"
+        # New end_of_life should be filled in
+        assert merged.end_of_life == "2028-12-31"
+        # New support_period_end should be filled in
+        assert merged.support_period_end == "2026-12-31"
+
+    def test_to_dict_with_lifecycle_date_fields(self):
+        """Test conversion to dictionary includes release_date and end_of_life."""
+        metadata = AugmentationMetadata(
+            supplier={"name": "Test Supplier"},
+            release_date="2024-06-15",
+            support_period_end="2026-12-31",
+            end_of_life="2028-12-31",
+        )
+
+        result = metadata.to_dict()
+
+        assert result["supplier"]["name"] == "Test Supplier"
+        assert result["release_date"] == "2024-06-15"
+        assert result["support_period_end"] == "2026-12-31"
+        assert result["end_of_life"] == "2028-12-31"
+
+    def test_from_dict_with_lifecycle_date_fields(self):
+        """Test creation from dictionary with release_date and end_of_life."""
+        data = {
+            "supplier": {"name": "Test Supplier"},
+            "release_date": "2024-06-15",
+            "support_period_end": "2026-12-31",
+            "end_of_life": "2028-12-31",
+        }
+
+        metadata = AugmentationMetadata.from_dict(data, source="test")
+
+        assert metadata.supplier["name"] == "Test Supplier"
+        assert metadata.release_date == "2024-06-15"
+        assert metadata.support_period_end == "2026-12-31"
+        assert metadata.end_of_life == "2028-12-31"
+        assert metadata.source == "test"
+
+    def test_from_dict_maps_api_field_names(self):
+        """Test from_dict maps sbomify API field names to internal names.
+
+        The sbomify API uses 'end_of_support' while we use 'support_period_end'.
+        """
+        data = {
+            "supplier": {"name": "API Supplier"},
+            "end_of_support": "2026-12-31",  # API field name
+            "release_date": "2024-06-15",
+            "end_of_life": "2028-12-31",
+        }
+
+        metadata = AugmentationMetadata.from_dict(data, source="sbomify-api")
+
+        # API field 'end_of_support' should map to 'support_period_end'
+        assert metadata.support_period_end == "2026-12-31"
+        assert metadata.release_date == "2024-06-15"
+        assert metadata.end_of_life == "2028-12-31"
+
+    def test_from_dict_prefers_internal_field_name(self):
+        """Test that internal field name takes precedence over API field name.
+
+        If both 'support_period_end' and 'end_of_support' are present,
+        'support_period_end' should take precedence.
+        """
+        data = {
+            "support_period_end": "2027-06-30",  # Internal field name
+            "end_of_support": "2026-12-31",  # API field name
+        }
+
+        metadata = AugmentationMetadata.from_dict(data, source="test")
+
+        # Internal field name should take precedence
+        assert metadata.support_period_end == "2027-06-30"
 
 
 class TestJsonConfigProvider:

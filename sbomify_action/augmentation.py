@@ -851,6 +851,44 @@ def augment_cyclonedx_sbom(
         bom.metadata.properties.add(support_prop)
         audit_trail.record_augmentation("support_period_end", end_date, source="config")
 
+    # Add release date
+    # Records when the component was released
+    if "release_date" in augmentation_data and augmentation_data["release_date"]:
+        release_date = augmentation_data["release_date"]
+
+        # Primary: Use metadata.lifecycles for CDX 1.5+ (native lifecycle support)
+        if _is_cdx_version_at_least(spec_version, 1, 5):
+            release_lifecycle = NamedLifecycle(
+                name="release",
+                description=f"Released: {release_date}",
+            )
+            bom.metadata.lifecycles.add(release_lifecycle)
+            logger.info(f"Added release lifecycle to CycloneDX: {release_date}")
+
+        # For all versions: Add as property with standardized name
+        release_prop = Property(name="cdx:release:date", value=release_date)
+        bom.metadata.properties.add(release_prop)
+        audit_trail.record_augmentation("release_date", release_date, source="config")
+
+    # Add end of life date
+    # Records when all support ends (beyond security-only support)
+    if "end_of_life" in augmentation_data and augmentation_data["end_of_life"]:
+        eol_date = augmentation_data["end_of_life"]
+
+        # Primary: Use metadata.lifecycles for CDX 1.5+ (native lifecycle support)
+        if _is_cdx_version_at_least(spec_version, 1, 5):
+            eol_lifecycle = NamedLifecycle(
+                name="end-of-life",
+                description=f"End of life: {eol_date}",
+            )
+            bom.metadata.lifecycles.add(eol_lifecycle)
+            logger.info(f"Added end-of-life lifecycle to CycloneDX: {eol_date}")
+
+        # For all versions: Add as property with standardized name
+        eol_prop = Property(name="cdx:eol:date", value=eol_date)
+        bom.metadata.properties.add(eol_prop)
+        audit_trail.record_augmentation("end_of_life", eol_date, source="config")
+
     return bom
 
 
@@ -1316,6 +1354,54 @@ def augment_spdx_sbom(
                 # Record to audit trail
                 spdx_audit_trail = get_audit_trail()
                 spdx_audit_trail.record_augmentation("support_period_end", end_date, source="config")
+
+    # Add release date
+    # Records when the component was released
+    if "release_date" in augmentation_data and augmentation_data["release_date"]:
+        release_date = augmentation_data["release_date"]
+
+        if document.packages:
+            main_package = document.packages[0]
+
+            # Check if release-date already exists
+            existing = [ref for ref in main_package.external_references if ref.reference_type == "release-date"]
+            if not existing:
+                ext_ref = ExternalPackageRef(
+                    category=ExternalPackageRefCategory.OTHER,
+                    reference_type="release-date",
+                    locator=release_date,
+                    comment="Release date of the component",
+                )
+                main_package.external_references.append(ext_ref)
+                logger.info(f"Added release-date to SPDX: {release_date}")
+
+                # Record to audit trail
+                spdx_audit_trail = get_audit_trail()
+                spdx_audit_trail.record_augmentation("release_date", release_date, source="config")
+
+    # Add end of life date
+    # Records when all support ends (beyond security-only support)
+    if "end_of_life" in augmentation_data and augmentation_data["end_of_life"]:
+        eol_date = augmentation_data["end_of_life"]
+
+        if document.packages:
+            main_package = document.packages[0]
+
+            # Check if end-of-life-date already exists
+            existing = [ref for ref in main_package.external_references if ref.reference_type == "end-of-life-date"]
+            if not existing:
+                ext_ref = ExternalPackageRef(
+                    category=ExternalPackageRefCategory.OTHER,
+                    reference_type="end-of-life-date",
+                    locator=eol_date,
+                    comment="Date when all support ends",
+                )
+                main_package.external_references.append(ext_ref)
+                logger.info(f"Added end-of-life-date to SPDX: {eol_date}")
+
+                # Record to audit trail
+                spdx_audit_trail = get_audit_trail()
+                spdx_audit_trail.record_augmentation("end_of_life", eol_date, source="config")
 
     return document
 
