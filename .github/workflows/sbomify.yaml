@@ -1133,9 +1133,7 @@ jobs:
 
       - name: Determine version
         id: version
-        run: |
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          echo "version=${SHORT_SHA}" >> $GITHUB_OUTPUT
+        uses: ./.github/actions/determine-version
 
       - name: Generate and Upload SBOM
         uses: sbomify/github-action@master
@@ -1211,8 +1209,7 @@ jobs:
 
       - name: Determine version
         id: version
-        run: |
-          echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+        uses: ./.github/actions/determine-version
 
       - name: Generate and Upload SBOM
         uses: sbomify/github-action@master
@@ -1271,10 +1268,7 @@ jobs:
 
       - name: Determine version
         id: version
-        run: |
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          echo "version=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "docker_tag=latest" >> $GITHUB_OUTPUT
+        uses: ./.github/actions/determine-version
 
       - name: Generate and Upload SBOM
         uses: sbomify/github-action@master
@@ -1335,9 +1329,7 @@ jobs:
 
       - name: Determine version
         id: version
-        run: |
-          echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          echo "docker_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+        uses: ./.github/actions/determine-version
 
       - name: Generate and Upload SBOM
         uses: sbomify/github-action@master
