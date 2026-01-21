@@ -224,6 +224,153 @@ class TestValidateSBOMFileAuto(unittest.TestCase):
             Path(temp_path).unlink()
 
 
+class TestValidationWithSPDXLicenses(unittest.TestCase):
+    """Tests for CycloneDX validation with SPDX license IDs.
+
+    These tests verify that the schema registry correctly resolves
+    the spdx.schema.json reference without fetching remote schemas.
+    This was the root cause of the 'Unresolvable: spdx.schema.json' bug.
+    """
+
+    def test_cyclonedx_with_spdx_license_id(self):
+        """Test validating CycloneDX with SPDX license ID (MIT)."""
+        data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "components": [
+                {
+                    "type": "library",
+                    "name": "test-package",
+                    "version": "1.0.0",
+                    "licenses": [{"license": {"id": "MIT"}}],
+                }
+            ],
+        }
+        result = validate_sbom_data(data, "cyclonedx", "1.6")
+        self.assertTrue(result.valid, f"Validation failed: {result.error_message}")
+
+    def test_cyclonedx_with_multiple_spdx_licenses(self):
+        """Test validating CycloneDX with multiple SPDX license IDs."""
+        data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "components": [
+                {
+                    "type": "library",
+                    "name": "test-package",
+                    "version": "1.0.0",
+                    "licenses": [
+                        {"license": {"id": "Apache-2.0"}},
+                        {"license": {"id": "GPL-3.0-only"}},
+                    ],
+                }
+            ],
+        }
+        result = validate_sbom_data(data, "cyclonedx", "1.6")
+        self.assertTrue(result.valid, f"Validation failed: {result.error_message}")
+
+    def test_cyclonedx_with_named_license(self):
+        """Test validating CycloneDX with named license (non-SPDX)."""
+        data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "components": [
+                {
+                    "type": "library",
+                    "name": "test-package",
+                    "version": "1.0.0",
+                    "licenses": [{"license": {"name": "Custom License"}}],
+                }
+            ],
+        }
+        result = validate_sbom_data(data, "cyclonedx", "1.6")
+        self.assertTrue(result.valid, f"Validation failed: {result.error_message}")
+
+    def test_cyclonedx_1_5_with_spdx_license(self):
+        """Test validating CycloneDX 1.5 with SPDX license ID."""
+        data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.5",
+            "version": 1,
+            "components": [
+                {
+                    "type": "library",
+                    "name": "test-package",
+                    "version": "1.0.0",
+                    "licenses": [{"license": {"id": "BSD-3-Clause"}}],
+                }
+            ],
+        }
+        result = validate_sbom_data(data, "cyclonedx", "1.5")
+        self.assertTrue(result.valid, f"Validation failed: {result.error_message}")
+
+    def test_cyclonedx_1_4_with_spdx_license(self):
+        """Test validating CycloneDX 1.4 with SPDX license ID."""
+        data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.4",
+            "version": 1,
+            "components": [
+                {
+                    "type": "library",
+                    "name": "test-package",
+                    "version": "1.0.0",
+                    "licenses": [{"license": {"id": "ISC"}}],
+                }
+            ],
+        }
+        result = validate_sbom_data(data, "cyclonedx", "1.4")
+        self.assertTrue(result.valid, f"Validation failed: {result.error_message}")
+
+    def test_cyclonedx_with_invalid_spdx_license(self):
+        """Test validating CycloneDX with invalid SPDX license ID."""
+        data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "components": [
+                {
+                    "type": "library",
+                    "name": "test-package",
+                    "version": "1.0.0",
+                    "licenses": [{"license": {"id": "NOT-A-VALID-SPDX-ID"}}],
+                }
+            ],
+        }
+        result = validate_sbom_data(data, "cyclonedx", "1.6")
+        # Should fail validation because the license ID is not in the SPDX list
+        self.assertFalse(result.valid)
+        self.assertIsNotNone(result.error_message)
+
+
+class TestSchemaRegistry(unittest.TestCase):
+    """Tests for the schema registry functionality."""
+
+    def test_registry_caching(self):
+        """Test that the schema registry is cached."""
+        from sbomify_action.validation import _get_schema_registry
+
+        registry1 = _get_schema_registry()
+        registry2 = _get_schema_registry()
+        # Should return the same cached instance
+        self.assertIs(registry1, registry2)
+
+    def test_registry_contains_spdx_schema(self):
+        """Test that the registry contains the SPDX license schema."""
+        from sbomify_action.validation import _get_schema_registry
+
+        registry = _get_schema_registry()
+        # The registry should be able to resolve the SPDX schema URI
+        # This is the URI referenced by CycloneDX schemas
+        uri = "http://cyclonedx.org/schema/spdx.schema.json"
+        # Try to get the resource - should not raise
+        retrieved = registry.get_or_retrieve(uri)
+        self.assertIsNotNone(retrieved)
+
+
 class TestValidationWithRealSchemas(unittest.TestCase):
     """Tests using real schema files from the project."""
 
