@@ -1111,7 +1111,8 @@ jobs:
             component_name: 'sbomify Action'
             lock_file: 'uv.lock'
             output_file: 'github-action.spdx.json'
-            has_product_release: false
+            product_release_id: 'Engh9j4XTTwD'
+            has_product_release: true
           - component: javascript
             format: cyclonedx
             component_id: 'PGyKXNbQd5eq'
@@ -1126,7 +1127,8 @@ jobs:
             component_name: 'JavaScript Dependencies'
             lock_file: 'bun.lock'
             output_file: 'github-action-frontend.spdx.json'
-            has_product_release: false
+            product_release_id: 'Engh9j4XTTwD'
+            has_product_release: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1187,7 +1189,8 @@ jobs:
             component_name: 'sbomify Action'
             lock_file: 'uv.lock'
             output_file: 'github-action.spdx.json'
-            has_product_release: false
+            product_release_id: 'IeIn1dGJXULh'
+            has_product_release: true
           - component: javascript
             format: cyclonedx
             component_id: 'IxwrYSb9rGql'
@@ -1202,7 +1205,8 @@ jobs:
             component_name: 'JavaScript Dependencies'
             lock_file: 'bun.lock'
             output_file: 'github-action-frontend.spdx.json'
-            has_product_release: false
+            product_release_id: 'IeIn1dGJXULh'
+            has_product_release: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1258,7 +1262,8 @@ jobs:
             component_id: 'gco2pG10whmy'
             component_name: 'sbomify Action Container'
             output_file: 'github-action-container.spdx.json'
-            has_product_release: false
+            product_release_id: 'Engh9j4XTTwD'
+            has_product_release: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1319,7 +1324,8 @@ jobs:
             component_id: 'ryD0Hcu4vq6y'
             component_name: 'sbomify Action Container'
             output_file: 'github-action-container.spdx.json'
-            has_product_release: false
+            product_release_id: 'IeIn1dGJXULh'
+            has_product_release: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
