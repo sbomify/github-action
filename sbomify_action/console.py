@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
@@ -352,6 +353,34 @@ def print_upload_summary(
         console.print(f"[error]✗ Upload to {destination} failed[/error]")
         if error_message:
             console.print(f"  Error: {error_message}")
+
+
+def print_duplicate_sbom_error(component_id: str, sbom_format: str) -> None:
+    """
+    Print a styled error panel for duplicate SBOM upload.
+
+    This provides a clear, user-friendly error message when an SBOM
+    already exists for the component, with suggested solutions.
+
+    Args:
+        component_id: The component ID that has the duplicate
+        sbom_format: SBOM format (cyclonedx/spdx)
+    """
+    content = Text()
+    content.append("An SBOM already exists for this component.\n\n", style="bold")
+    content.append("Details:\n", style="cyan")
+    content.append(f"  Component ID: {component_id}\n")
+    content.append(f"  Format: {sbom_format.upper()}\n\n")
+    content.append("Possible solutions:\n", style="cyan")
+    content.append("  1. Increment your component version\n")
+    content.append("  2. Delete the existing SBOM in the sbomify dashboard\n")
+    content.append("  3. Use a different component ID\n")
+
+    panel = Panel(content, title="[bold red]Duplicate SBOM[/bold red]", border_style="red")
+    console.print(panel)
+
+    # Also emit GHA error annotation
+    gha_error("SBOM already exists for this component version", title="Duplicate SBOM")
 
 
 def print_final_success() -> None:

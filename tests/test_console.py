@@ -22,6 +22,7 @@ from sbomify_action.console import (
     gha_notice,
     gha_warning,
     print_banner,
+    print_duplicate_sbom_error,
     print_enrichment_summary,
     print_final_failure,
     print_final_success,
@@ -333,6 +334,35 @@ class TestUploadSummary(unittest.TestCase):
             success=False,
             sbom_format="cyclonedx",
             error_message="Connection timeout",
+        )
+
+
+class TestDuplicateSbomError(unittest.TestCase):
+    """Tests for duplicate SBOM error function."""
+
+    def test_print_duplicate_sbom_error_cyclonedx(self):
+        """Test duplicate SBOM error for CycloneDX format."""
+        # Should not raise an exception
+        print_duplicate_sbom_error(
+            component_id="my-component",
+            sbom_format="cyclonedx",
+        )
+
+    def test_print_duplicate_sbom_error_spdx(self):
+        """Test duplicate SBOM error for SPDX format."""
+        # Should not raise an exception
+        print_duplicate_sbom_error(
+            component_id="another-component",
+            sbom_format="spdx",
+        )
+
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": "true"})
+    def test_print_duplicate_sbom_error_gha(self):
+        """Test duplicate SBOM error emits GHA annotation."""
+        # Should not raise an exception and emit GHA error
+        print_duplicate_sbom_error(
+            component_id="test-component",
+            sbom_format="cyclonedx",
         )
 
 

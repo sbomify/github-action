@@ -14,6 +14,7 @@ class UploadResult:
         destination_name: Name of the destination that handled the upload
         sbom_id: ID of the uploaded SBOM (if destination returns one)
         error_message: Error message if upload failed
+        error_code: API-specific error code (e.g., DUPLICATE_ARTIFACT)
         validated: Whether the SBOM was validated before upload
         validation_error: Validation error message if validation failed
         metadata: Additional destination-specific metadata from the response
@@ -23,6 +24,7 @@ class UploadResult:
     destination_name: str
     sbom_id: Optional[str] = None
     error_message: Optional[str] = None
+    error_code: Optional[str] = None
     validated: bool = False
     validation_error: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -64,6 +66,7 @@ class UploadResult:
         cls,
         destination_name: str,
         error_message: str,
+        error_code: Optional[str] = None,
         validated: bool = False,
         validation_error: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -74,6 +77,7 @@ class UploadResult:
             destination_name=destination_name,
             sbom_id=None,
             error_message=error_message,
+            error_code=error_code,
             validated=validated,
             validation_error=validation_error,
             metadata=metadata or {},
