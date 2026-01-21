@@ -1,11 +1,12 @@
 """Shared utilities for SBOM generation."""
 
+import re
 import shutil
 import subprocess
 import threading
 from typing import Optional
 
-from sbomify_action.exceptions import SBOMGenerationError
+from sbomify_action.exceptions import DockerImageNotFoundError, SBOMGenerationError
 from sbomify_action.logging_config import logger
 
 # Track whether Java/Maven has been installed on-demand
@@ -154,16 +155,67 @@ DEFAULT_TIMEOUT = 1800  # 30 minutes (large Maven projects can take a while)
 PROGRESS_INTERVAL = 60  # Log progress every minute
 
 
-def log_command_error(command_name: str, stderr: str) -> None:
+def log_command_error(command_name: str, stderr: str, level: str = "error") -> None:
     """
     Log command errors with a standardized format.
 
     Args:
         command_name: The name of the command that failed
         stderr: The stderr output from the command
+        level: Log level to use ("error" or "warning"). Default is "error".
     """
     if stderr:
-        logger.error(f"[{command_name}] error: {stderr.strip()}")
+        message = f"[{command_name}] error: {stderr.strip()}"
+        if level == "warning":
+            logger.warning(message)
+        else:
+            logger.error(message)
+
+
+# Patterns that indicate a Docker image was not found in the registry
+# These are common error messages from trivy, syft, cdxgen, and Docker itself
+DOCKER_IMAGE_NOT_FOUND_PATTERNS = [
+    r"MANIFEST_UNKNOWN",
+    r"manifest unknown",
+    r"manifest for .* not found",
+    r"unable to find the specified image",
+    r"No such image:",
+    r"not found: manifest unknown",
+    r"pull access denied",
+    r"repository does not exist",
+    r"name unknown: repository .* not found",
+]
+
+
+def detect_docker_image_not_found(stderr: str) -> bool:
+    """
+    Detect if an error message indicates a Docker image was not found.
+
+    This function checks stderr output from SBOM generation tools (trivy, syft, cdxgen)
+    for patterns that indicate the specified Docker image doesn't exist in any registry.
+
+    Args:
+        stderr: The stderr output from a failed command
+
+    Returns:
+        True if the error indicates the Docker image was not found, False otherwise
+
+    Examples:
+        >>> detect_docker_image_not_found("MANIFEST_UNKNOWN: manifest unknown")
+        True
+        >>> detect_docker_image_not_found("manifest for alpine:nonexistent not found")
+        True
+        >>> detect_docker_image_not_found("some other error")
+        False
+    """
+    if not stderr:
+        return False
+
+    for pattern in DOCKER_IMAGE_NOT_FOUND_PATTERNS:
+        if re.search(pattern, stderr, re.IGNORECASE):
+            return True
+
+    return False
 
 
 def run_command(
@@ -172,6 +224,7 @@ def run_command(
     timeout: int = DEFAULT_TIMEOUT,
     capture_output: bool = True,
     cwd: str | None = None,
+    docker_image: str | None = None,
 ) -> subprocess.CompletedProcess:
     """
     Run a command and handle common error cases.
@@ -184,12 +237,14 @@ def run_command(
         timeout: Command timeout in seconds
         capture_output: Whether to capture stdout/stderr
         cwd: Working directory for the command (optional)
+        docker_image: Docker image being scanned (optional, for better error messages)
 
     Returns:
         CompletedProcess result
 
     Raises:
-        SBOMGenerationError: If command fails or times out
+        DockerImageNotFoundError: If the Docker image doesn't exist in the registry
+        SBOMGenerationError: If command fails or times out for other reasons
     """
     import threading
     import time
@@ -226,8 +281,24 @@ def run_command(
         )
         return result
     except subprocess.CalledProcessError as e:
+        stderr = e.stderr or ""
+
+        # Check if this is a Docker image not found error (user configuration issue)
+        # Log at WARNING level since this isn't a bug - user specified a non-existent image
+        if docker_image and detect_docker_image_not_found(stderr):
+            logger.warning(f"Docker image '{docker_image}' not found")
+            log_command_error(command_name, stderr, level="warning")
+            raise DockerImageNotFoundError(
+                image=docker_image,
+                message=(
+                    f"Docker image '{docker_image}' not found. "
+                    "Verify the image exists in the registry and the tag is correct."
+                ),
+            )
+
+        # Other errors are logged at ERROR level (potential bugs or system issues)
         logger.error(f"{command_name} command failed with error: {e}")
-        log_command_error(command_name, e.stderr if e.stderr else "")
+        log_command_error(command_name, stderr)
         raise SBOMGenerationError(f"{command_name} command failed with return code {e.returncode}")
     except subprocess.TimeoutExpired:
         elapsed = int(time.time() - start_time)

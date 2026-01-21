@@ -32,6 +32,7 @@ from ..console import (
 from ..exceptions import (
     APIError,
     ConfigurationError,
+    DockerImageNotFoundError,
     FileProcessingError,
     SBOMGenerationError,
     SBOMValidationError,
@@ -588,7 +589,8 @@ def initialize_sentry() -> None:
             exc_type, exc_value, tb = hint["exc_info"]
             # Don't send validation or configuration errors - these are user errors
             # SBOMGenerationError and APIError should still be sent (tool/system bugs)
-            if isinstance(exc_value, (SBOMValidationError, ConfigurationError)):
+            # DockerImageNotFoundError is a user configuration error (image doesn't exist)
+            if isinstance(exc_value, (SBOMValidationError, ConfigurationError, DockerImageNotFoundError)):
                 return None
         return event
 

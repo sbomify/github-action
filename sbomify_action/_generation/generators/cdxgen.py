@@ -13,7 +13,7 @@ Verified capabilities (cdxgen 12.0.0):
 
 from pathlib import Path
 
-from sbomify_action.exceptions import SBOMGenerationError
+from sbomify_action.exceptions import DockerImageNotFoundError, SBOMGenerationError
 from sbomify_action.logging_config import logger
 from sbomify_action.tool_checks import check_tool_available
 
@@ -297,7 +297,7 @@ class CdxgenImageGenerator:
         logger.info(f"Running cdxgen for {input.docker_image} (CycloneDX {version})")
 
         try:
-            result = run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT)
+            result = run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT, docker_image=input.docker_image)
 
             if result.returncode == 0:
                 # Verify output file was created
@@ -322,6 +322,14 @@ class CdxgenImageGenerator:
                     spec_version=version,
                     generator_name=self.name,
                 )
+        except DockerImageNotFoundError as e:
+            # Provide a clear error message for missing Docker images
+            return GenerationResult.failure_result(
+                error_message=str(e),
+                sbom_format="cyclonedx",
+                spec_version=version,
+                generator_name=self.name,
+            )
         except SBOMGenerationError as e:
             return GenerationResult.failure_result(
                 error_message=str(e),
