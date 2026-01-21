@@ -299,7 +299,7 @@ def update_dockerfile(dockerfile_path: Path, tools: list[ToolInfo]) -> int:
     updated_count = 0
 
     for tool in tools:
-        if tool.is_outdated and tool.env_var != "package.json":
+        if tool.is_outdated:
             old_pattern = f"{tool.env_var}={tool.current_version}"
             new_pattern = f"{tool.env_var}={tool.latest_version}"
             if old_pattern in content:
@@ -392,8 +392,6 @@ def main() -> int:
         updated = update_dockerfile(dockerfile_path, tools)
         if updated > 0:
             print(f"\nUpdated {updated} tool(s) in Dockerfile.")
-        else:
-            print("No updates needed (cdxgen is managed via package.json).")
 
     if has_errors:
         return 2
