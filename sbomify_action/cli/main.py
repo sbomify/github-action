@@ -20,6 +20,7 @@ from ..additional_packages import inject_additional_packages
 from ..augmentation import augment_sbom_from_file
 from ..console import (
     get_audit_trail,
+    print_duplicate_sbom_error,
     print_final_success,
     print_step_end,
     print_step_header,
@@ -1164,7 +1165,15 @@ def run_pipeline(config: Config) -> None:
                 )
 
                 if not result.success:
-                    logger.error(f"Upload to {destination} failed: {result.error_message}")
+                    if result.error_code == "DUPLICATE_ARTIFACT":
+                        logger.error(
+                            f"Upload to {destination} failed with duplicate SBOM: "
+                            f"component_id={config.component_id}, format={FORMAT}, "
+                            f"version={config.component_version}"
+                        )
+                        print_duplicate_sbom_error(config.component_id, FORMAT, config.component_version)
+                    else:
+                        logger.error(f"Upload to {destination} failed: {result.error_message}")
                     failed_destinations.append(destination)
                 else:
                     logger.info(f"Upload to {destination} succeeded")

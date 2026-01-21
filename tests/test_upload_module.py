@@ -104,6 +104,19 @@ class TestUploadResult(unittest.TestCase):
         self.assertEqual(result.destination_name, "sbomify")
         self.assertEqual(result.error_message, "Connection failed")
         self.assertIsNone(result.sbom_id)
+        self.assertIsNone(result.error_code)
+
+    def test_failure_result_with_error_code(self):
+        """Test creating a failed result with error code."""
+        result = UploadResult.failure_result(
+            destination_name="sbomify",
+            error_message="SBOM already exists",
+            error_code="DUPLICATE_ARTIFACT",
+        )
+        self.assertFalse(result.success)
+        self.assertEqual(result.destination_name, "sbomify")
+        self.assertEqual(result.error_message, "SBOM already exists")
+        self.assertEqual(result.error_code, "DUPLICATE_ARTIFACT")
 
     def test_has_sbom_id(self):
         """Test has_sbom_id property."""
@@ -355,6 +368,64 @@ class TestSbomifyDestination(unittest.TestCase):
 
         self.assertFalse(result.success)
         self.assertIn("not found", result.error_message.lower())
+
+    @patch("sbomify_action._upload.destinations.sbomify.requests.post")
+    def test_upload_duplicate_sbom_error(self, mock_post):
+        """Test upload with 409 DUPLICATE_ARTIFACT error returns specific error code and message."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"bomFormat": "CycloneDX", "specVersion": "1.6"}, f)
+            sbom_file = f.name
+
+        try:
+            mock_response = Mock()
+            mock_response.ok = False
+            mock_response.status_code = 409
+            mock_response.json.return_value = {
+                "detail": "Artifact already exists",
+                "error_code": "DUPLICATE_ARTIFACT",
+            }
+            mock_post.return_value = mock_response
+
+            dest = SbomifyDestination(token="test-token", component_id="my-component")
+            input = UploadInput(sbom_file=sbom_file, sbom_format="cyclonedx")
+
+            result = dest.upload(input)
+
+            self.assertFalse(result.success)
+            self.assertEqual(result.error_code, "DUPLICATE_ARTIFACT")
+            self.assertIn("already exists", result.error_message)
+            self.assertIn("different version", result.error_message)
+        finally:
+            Path(sbom_file).unlink()
+
+    @patch("sbomify_action._upload.destinations.sbomify.requests.post")
+    def test_upload_other_409_error(self, mock_post):
+        """Test upload with 409 error without DUPLICATE_ARTIFACT still returns generic error."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"bomFormat": "CycloneDX", "specVersion": "1.6"}, f)
+            sbom_file = f.name
+
+        try:
+            mock_response = Mock()
+            mock_response.ok = False
+            mock_response.status_code = 409
+            mock_response.json.return_value = {
+                "detail": "Some other conflict",
+                "error_code": "OTHER_CONFLICT",
+            }
+            mock_post.return_value = mock_response
+
+            dest = SbomifyDestination(token="test-token", component_id="my-component")
+            input = UploadInput(sbom_file=sbom_file, sbom_format="cyclonedx")
+
+            result = dest.upload(input)
+
+            self.assertFalse(result.success)
+            self.assertEqual(result.error_code, "OTHER_CONFLICT")
+            self.assertIn("409", result.error_message)
+            self.assertIn("Some other conflict", result.error_message)
+        finally:
+            Path(sbom_file).unlink()
 
 
 class TestDependencyTrackConfig(unittest.TestCase):

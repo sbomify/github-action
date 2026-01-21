@@ -136,17 +136,30 @@ class SbomifyDestination:
 
         # Handle response
         if not response.ok:
+            error_code = None
             err_msg = f"Failed to upload SBOM file. [{response.status_code}]"
             try:
                 response_json = response.json()
+                error_code = response_json.get("error_code")
                 if "detail" in response_json:
                     err_msg += f" - {response_json['detail']}"
+
+                # Handle duplicate SBOM error with specific message
+                if response.status_code == 409 and error_code == "DUPLICATE_ARTIFACT":
+                    return UploadResult.failure_result(
+                        destination_name=self.name,
+                        error_message="An SBOM already exists for this component version. Use a different version or delete the existing SBOM.",
+                        error_code=error_code,
+                        validated=validated,
+                        validation_error=validation_error,
+                    )
             except (ValueError, json.JSONDecodeError):
                 pass
 
             return UploadResult.failure_result(
                 destination_name=self.name,
                 error_message=err_msg,
+                error_code=error_code,
                 validated=validated,
                 validation_error=validation_error,
             )
