@@ -7,8 +7,8 @@ WORKDIR /tmp
 
 # Define tool versions
 ENV BOMCTL_VERSION=0.4.3 \
-    TRIVY_VERSION=0.67.2 \
-    SYFT_VERSION=1.39.0 \
+    TRIVY_VERSION=0.68.2 \
+    SYFT_VERSION=1.40.1 \
     CARGO_CYCLONEDX_VERSION=0.5.7
 
 RUN apt-get update && \
