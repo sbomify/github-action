@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 from sbomify_action import format_display_name
-from sbomify_action.exceptions import SBOMGenerationError
+from sbomify_action.exceptions import DockerImageNotFoundError, SBOMGenerationError
 from sbomify_action.logging_config import logger
 from sbomify_action.tool_checks import check_tool_available
 
@@ -274,7 +274,7 @@ class TrivyImageGenerator:
         logger.info(f"Running trivy image for {input.docker_image} ({format_display_name(input.output_format)})")
 
         try:
-            result = run_command(cmd, "trivy", timeout=DEFAULT_TIMEOUT)
+            result = run_command(cmd, "trivy", timeout=DEFAULT_TIMEOUT, docker_image=input.docker_image)
 
             # Trivy outputs to stdout, save to file
             if result.returncode == 0:
@@ -303,6 +303,14 @@ class TrivyImageGenerator:
                     spec_version=spec_version,
                     generator_name=self.name,
                 )
+        except DockerImageNotFoundError as e:
+            # Provide a clear error message for missing Docker images
+            return GenerationResult.failure_result(
+                error_message=str(e),
+                sbom_format=input.output_format,
+                spec_version=spec_version,
+                generator_name=self.name,
+            )
         except SBOMGenerationError as e:
             return GenerationResult.failure_result(
                 error_message=str(e),

@@ -14,7 +14,7 @@ Verified capabilities (Syft 1.38.2):
 from pathlib import Path
 
 from sbomify_action import format_display_name
-from sbomify_action.exceptions import SBOMGenerationError
+from sbomify_action.exceptions import DockerImageNotFoundError, SBOMGenerationError
 from sbomify_action.logging_config import logger
 from sbomify_action.tool_checks import check_tool_available
 
@@ -272,7 +272,7 @@ class SyftImageGenerator:
         )
 
         try:
-            result = run_command(cmd, "syft", timeout=DEFAULT_TIMEOUT)
+            result = run_command(cmd, "syft", timeout=DEFAULT_TIMEOUT, docker_image=input.docker_image)
 
             if result.returncode == 0:
                 # Verify output file was created
@@ -297,6 +297,14 @@ class SyftImageGenerator:
                     spec_version=version,
                     generator_name=self.name,
                 )
+        except DockerImageNotFoundError as e:
+            # Provide a clear error message for missing Docker images
+            return GenerationResult.failure_result(
+                error_message=str(e),
+                sbom_format=input.output_format,
+                spec_version=version,
+                generator_name=self.name,
+            )
         except SBOMGenerationError as e:
             return GenerationResult.failure_result(
                 error_message=str(e),

@@ -1104,5 +1104,287 @@ class TestRegistryGenerateValidation(unittest.TestCase):
             self.assertIn("Schema validation failed", result.validation_error)
 
 
+class TestDockerImageNotFoundDetection(unittest.TestCase):
+    """Tests for Docker image not found error detection."""
+
+    def test_detect_manifest_unknown(self):
+        """Test detection of MANIFEST_UNKNOWN error."""
+        from sbomify_action._generation.utils import detect_docker_image_not_found
+
+        stderr = "MANIFEST_UNKNOWN: manifest unknown; unknown tag=v0.11"
+        self.assertTrue(detect_docker_image_not_found(stderr))
+
+    def test_detect_manifest_unknown_lowercase(self):
+        """Test detection of manifest unknown error (lowercase)."""
+        from sbomify_action._generation.utils import detect_docker_image_not_found
+
+        stderr = "manifest unknown; unknown tag=v0.11"
+        self.assertTrue(detect_docker_image_not_found(stderr))
+
+    def test_detect_manifest_not_found(self):
+        """Test detection of 'manifest for X not found' error."""
+        from sbomify_action._generation.utils import detect_docker_image_not_found
+
+        stderr = "manifest for sbomifyhub/sbomify-action:v0.11 not found: manifest unknown"
+        self.assertTrue(detect_docker_image_not_found(stderr))
+
+    def test_detect_unable_to_find_image(self):
+        """Test detection of 'unable to find the specified image' error."""
+        from sbomify_action._generation.utils import detect_docker_image_not_found
+
+        stderr = 'unable to find the specified image "sbomifyhub/sbomify-action:v0.11"'
+        self.assertTrue(detect_docker_image_not_found(stderr))
+
+    def test_detect_no_such_image(self):
+        """Test detection of 'No such image' error."""
+        from sbomify_action._generation.utils import detect_docker_image_not_found
+
+        stderr = "Error response from daemon: No such image: alpine:nonexistent"
+        self.assertTrue(detect_docker_image_not_found(stderr))
+
+    def test_detect_pull_access_denied(self):
+        """Test detection of 'pull access denied' error."""
+        from sbomify_action._generation.utils import detect_docker_image_not_found
+
+        stderr = "pull access denied for private/image, repository does not exist"
+        self.assertTrue(detect_docker_image_not_found(stderr))
+
+    def test_detect_repository_does_not_exist(self):
+        """Test detection of 'repository does not exist' error."""
+        from sbomify_action._generation.utils import detect_docker_image_not_found
+
+        stderr = "repository does not exist or may require 'docker login'"
+        self.assertTrue(detect_docker_image_not_found(stderr))
+
+    def test_no_detection_for_other_errors(self):
+        """Test that other errors are not detected as image not found."""
+        from sbomify_action._generation.utils import detect_docker_image_not_found
+
+        stderr = "some random error message"
+        self.assertFalse(detect_docker_image_not_found(stderr))
+
+    def test_no_detection_for_empty_stderr(self):
+        """Test that empty stderr returns False."""
+        from sbomify_action._generation.utils import detect_docker_image_not_found
+
+        self.assertFalse(detect_docker_image_not_found(""))
+        self.assertFalse(detect_docker_image_not_found(None))
+
+    def test_detect_trivy_full_error(self):
+        """Test detection of full Trivy error message."""
+        from sbomify_action._generation.utils import detect_docker_image_not_found
+
+        stderr = """2026-01-20T05:50:49Z	FATAL	Fatal error	run error: image scan error: unable to find the specified image "sbomifyhub/sbomify-action:v0.11" in ["docker" "containerd" "podman" "remote"]: 4 errors occurred:
+        * docker error: unable to inspect the image (sbomifyhub/sbomify-action:v0.11): Error response from daemon: No such image: sbomifyhub/sbomify-action:v0.11
+        * remote error: GET https://index.docker.io/v2/sbomifyhub/sbomify-action/manifests/v0.11: MANIFEST_UNKNOWN: manifest unknown; unknown tag=v0.11"""
+        self.assertTrue(detect_docker_image_not_found(stderr))
+
+    def test_detect_syft_full_error(self):
+        """Test detection of full Syft error message."""
+        from sbomify_action._generation.utils import detect_docker_image_not_found
+
+        stderr = """[0001] ERROR could not determine source: errors occurred attempting to resolve 'sbomifyhub/sbomify-action:v0.11':
+  - docker: pull failed: Error response from daemon: manifest for sbomifyhub/sbomify-action:v0.11 not found: manifest unknown
+  - oci-registry: failed to get image descriptor from registry: GET https://index.docker.io/v2/sbomifyhub/sbomify-action/manifests/v0.11: MANIFEST_UNKNOWN: manifest unknown; unknown tag=v0.11"""
+        self.assertTrue(detect_docker_image_not_found(stderr))
+
+
+class TestDockerImageNotFoundError(unittest.TestCase):
+    """Tests for DockerImageNotFoundError exception."""
+
+    def test_exception_with_default_message(self):
+        """Test creating exception with default message."""
+        from sbomify_action.exceptions import DockerImageNotFoundError
+
+        exc = DockerImageNotFoundError(image="alpine:nonexistent")
+        self.assertEqual(exc.image, "alpine:nonexistent")
+        self.assertIn("alpine:nonexistent", str(exc))
+        self.assertIn("not found", str(exc))
+
+    def test_exception_with_custom_message(self):
+        """Test creating exception with custom message."""
+        from sbomify_action.exceptions import DockerImageNotFoundError
+
+        exc = DockerImageNotFoundError(
+            image="alpine:nonexistent",
+            message="Custom error message for alpine:nonexistent",
+        )
+        self.assertEqual(exc.image, "alpine:nonexistent")
+        self.assertEqual(str(exc), "Custom error message for alpine:nonexistent")
+
+    def test_exception_inherits_from_sbom_generation_error(self):
+        """Test that DockerImageNotFoundError inherits from SBOMGenerationError."""
+        from sbomify_action.exceptions import DockerImageNotFoundError, SBOMGenerationError
+
+        exc = DockerImageNotFoundError(image="test:latest")
+        self.assertIsInstance(exc, SBOMGenerationError)
+
+
+class TestRunCommandDockerImageNotFound(unittest.TestCase):
+    """Tests for run_command with Docker image not found errors."""
+
+    @patch("subprocess.run")
+    def test_raises_docker_image_not_found_error(self, mock_run):
+        """Test that run_command raises DockerImageNotFoundError for image not found."""
+        import subprocess
+
+        from sbomify_action._generation.utils import run_command
+        from sbomify_action.exceptions import DockerImageNotFoundError
+
+        # Simulate a command failure with MANIFEST_UNKNOWN error
+        mock_run.side_effect = subprocess.CalledProcessError(
+            returncode=1,
+            cmd=["trivy", "image", "alpine:nonexistent"],
+            stderr="MANIFEST_UNKNOWN: manifest unknown; unknown tag=nonexistent",
+        )
+
+        with self.assertRaises(DockerImageNotFoundError) as cm:
+            run_command(
+                ["trivy", "image", "alpine:nonexistent"],
+                "trivy",
+                docker_image="alpine:nonexistent",
+            )
+
+        self.assertEqual(cm.exception.image, "alpine:nonexistent")
+        self.assertIn("not found", str(cm.exception))
+
+    @patch("subprocess.run")
+    def test_raises_sbom_generation_error_for_other_failures(self, mock_run):
+        """Test that run_command raises SBOMGenerationError for non-image errors."""
+        import subprocess
+
+        from sbomify_action._generation.utils import run_command
+        from sbomify_action.exceptions import DockerImageNotFoundError, SBOMGenerationError
+
+        # Simulate a command failure with a different error
+        mock_run.side_effect = subprocess.CalledProcessError(
+            returncode=1,
+            cmd=["trivy", "image", "alpine:3.18"],
+            stderr="Some other error",
+        )
+
+        with self.assertRaises(SBOMGenerationError) as cm:
+            run_command(
+                ["trivy", "image", "alpine:3.18"],
+                "trivy",
+                docker_image="alpine:3.18",
+            )
+
+        # Should NOT be DockerImageNotFoundError
+        self.assertNotIsInstance(cm.exception, DockerImageNotFoundError)
+
+    @patch("subprocess.run")
+    def test_no_docker_image_not_found_without_image_param(self, mock_run):
+        """Test that without docker_image param, SBOM error is raised even for manifest errors."""
+        import subprocess
+
+        from sbomify_action._generation.utils import run_command
+        from sbomify_action.exceptions import DockerImageNotFoundError, SBOMGenerationError
+
+        # Simulate a command failure with MANIFEST_UNKNOWN error
+        mock_run.side_effect = subprocess.CalledProcessError(
+            returncode=1,
+            cmd=["trivy", "image", "alpine:nonexistent"],
+            stderr="MANIFEST_UNKNOWN: manifest unknown",
+        )
+
+        with self.assertRaises(SBOMGenerationError) as cm:
+            # Note: docker_image parameter not provided
+            run_command(["trivy", "image", "alpine:nonexistent"], "trivy")
+
+        # Should NOT be DockerImageNotFoundError since docker_image wasn't provided
+        self.assertNotIsInstance(cm.exception, DockerImageNotFoundError)
+
+
+@patch("sbomify_action._generation.generators.trivy._TRIVY_AVAILABLE", True)
+class TestTrivyImageGeneratorDockerNotFound(unittest.TestCase):
+    """Tests for TrivyImageGenerator handling Docker image not found."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.generator = TrivyImageGenerator()
+
+    @patch("sbomify_action._generation.generators.trivy.run_command")
+    def test_returns_clear_error_for_image_not_found(self, mock_run):
+        """Test that clear error is returned when image is not found."""
+        from sbomify_action.exceptions import DockerImageNotFoundError
+
+        mock_run.side_effect = DockerImageNotFoundError(
+            image="sbomifyhub/sbomify-action:v0.11",
+            message="Docker image 'sbomifyhub/sbomify-action:v0.11' not found. Verify the image exists.",
+        )
+
+        gen_input = GenerationInput(
+            docker_image="sbomifyhub/sbomify-action:v0.11",
+            output_file="/tmp/sbom.json",
+            output_format="spdx",
+        )
+        result = self.generator.generate(gen_input)
+
+        self.assertFalse(result.success)
+        self.assertIn("not found", result.error_message)
+        self.assertIn("sbomifyhub/sbomify-action:v0.11", result.error_message)
+
+
+@patch("sbomify_action._generation.generators.syft._SYFT_AVAILABLE", True)
+class TestSyftImageGeneratorDockerNotFound(unittest.TestCase):
+    """Tests for SyftImageGenerator handling Docker image not found."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.generator = SyftImageGenerator()
+
+    @patch("sbomify_action._generation.generators.syft.run_command")
+    def test_returns_clear_error_for_image_not_found(self, mock_run):
+        """Test that clear error is returned when image is not found."""
+        from sbomify_action.exceptions import DockerImageNotFoundError
+
+        mock_run.side_effect = DockerImageNotFoundError(
+            image="sbomifyhub/sbomify-action:v0.11",
+            message="Docker image 'sbomifyhub/sbomify-action:v0.11' not found. Verify the image exists.",
+        )
+
+        gen_input = GenerationInput(
+            docker_image="sbomifyhub/sbomify-action:v0.11",
+            output_file="/tmp/sbom.json",
+            output_format="cyclonedx",
+        )
+        result = self.generator.generate(gen_input)
+
+        self.assertFalse(result.success)
+        self.assertIn("not found", result.error_message)
+        self.assertIn("sbomifyhub/sbomify-action:v0.11", result.error_message)
+
+
+@patch("sbomify_action._generation.generators.cdxgen._CDXGEN_AVAILABLE", True)
+class TestCdxgenImageGeneratorDockerNotFound(unittest.TestCase):
+    """Tests for CdxgenImageGenerator handling Docker image not found."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.generator = CdxgenImageGenerator()
+
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    def test_returns_clear_error_for_image_not_found(self, mock_run):
+        """Test that clear error is returned when image is not found."""
+        from sbomify_action.exceptions import DockerImageNotFoundError
+
+        mock_run.side_effect = DockerImageNotFoundError(
+            image="sbomifyhub/sbomify-action:v0.11",
+            message="Docker image 'sbomifyhub/sbomify-action:v0.11' not found. Verify the image exists.",
+        )
+
+        gen_input = GenerationInput(
+            docker_image="sbomifyhub/sbomify-action:v0.11",
+            output_file="/tmp/sbom.json",
+            output_format="cyclonedx",
+        )
+        result = self.generator.generate(gen_input)
+
+        self.assertFalse(result.success)
+        self.assertIn("not found", result.error_message)
+        self.assertIn("sbomifyhub/sbomify-action:v0.11", result.error_message)
+
+
 if __name__ == "__main__":
     unittest.main()
