@@ -16,6 +16,8 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
+from sbomify_action import format_display_name
+
 # Detect CI environments
 IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 IS_GITLAB_CI = os.getenv("GITLAB_CI") == "true"
@@ -355,7 +357,7 @@ def print_upload_summary(
             console.print(f"  Error: {error_message}")
 
 
-def print_duplicate_sbom_error(component_id: str, sbom_format: str) -> None:
+def print_duplicate_sbom_error(component_id: str, sbom_format: str, component_version: Optional[str] = None) -> None:
     """
     Print a styled error panel for duplicate SBOM upload.
 
@@ -365,14 +367,17 @@ def print_duplicate_sbom_error(component_id: str, sbom_format: str) -> None:
     Args:
         component_id: The component ID that has the duplicate
         sbom_format: SBOM format (cyclonedx/spdx)
+        component_version: The component version that has the duplicate
     """
     content = Text()
     content.append("An SBOM already exists for this component.\n\n", style="bold")
     content.append("Details:\n", style="cyan")
     content.append(f"  Component ID: {component_id}\n")
-    content.append(f"  Format: {sbom_format.upper()}\n\n")
+    if component_version:
+        content.append(f"  Version: {component_version}\n")
+    content.append(f"  Format: {format_display_name(sbom_format)}\n\n")
     content.append("Possible solutions:\n", style="cyan")
-    content.append("  1. Increment your component version\n")
+    content.append("  1. Set a unique version via COMPONENT_VERSION or --component-version\n")
     content.append("  2. Delete the existing SBOM in the sbomify dashboard\n")
     content.append("  3. Use a different component ID\n")
 
