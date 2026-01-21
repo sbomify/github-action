@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import Literal, Optional, Tuple
 
 import jsonschema
+from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT7
 
 from sbomify_action import format_display_name
 from sbomify_action.logging_config import logger
@@ -51,6 +53,42 @@ SPDX_SCHEMAS = {
 
 # Cache for loaded schemas
 _schema_cache: dict[str, dict] = {}
+
+# Cache for the schema registry (built lazily)
+_registry_cache: Optional[Registry] = None
+
+
+def _get_schema_registry() -> Registry:
+    """
+    Get or create a schema registry with bundled schemas.
+
+    This registry includes the SPDX license enumeration schema from cyclonedx-python-lib,
+    which is required for validating CycloneDX SBOMs with SPDX license IDs.
+    The registry prevents jsonschema from trying to fetch remote schemas.
+
+    Returns:
+        A Registry with pre-registered schemas for local resolution
+    """
+    global _registry_cache
+    if _registry_cache is not None:
+        return _registry_cache
+
+    # Import here to avoid circular imports and make the dependency explicit
+    from cyclonedx.schema._res import SPDX_JSON
+
+    # Load the SPDX license schema from cyclonedx-python-lib
+    with open(SPDX_JSON) as f:
+        spdx_schema = json.load(f)
+
+    # Create registry with the SPDX schema pre-registered
+    # The schema's $id is "http://cyclonedx.org/schema/spdx.schema.json"
+    # which matches the $ref in CycloneDX schemas
+    _registry_cache = Registry().with_resource(
+        uri="http://cyclonedx.org/schema/spdx.schema.json",
+        resource=Resource.from_contents(spdx_schema, default_specification=DRAFT7),
+    )
+
+    return _registry_cache
 
 
 @dataclass
@@ -167,20 +205,31 @@ def validate_sbom_data(
         return ValidationResult.skipped(sbom_format, spec_version, reason)
 
     try:
-        jsonschema.validate(instance=sbom_data, schema=schema)
+        # Use a registry with bundled schemas to avoid fetching remote references
+        # This is especially important for CycloneDX schemas that reference spdx.schema.json
+        registry = _get_schema_registry()
+
+        # Create a validator with the registry for local schema resolution
+        validator = jsonschema.Draft7Validator(schema, registry=registry)
+
+        # Validate and collect errors
+        errors = list(validator.iter_errors(sbom_data))
+        if errors:
+            # Return the first error (most relevant)
+            e = errors[0]
+            error_path = ".".join(str(p) for p in e.absolute_path) if e.absolute_path else None
+            logger.error(f"SBOM validation failed: {e.message}")
+            if error_path:
+                logger.error(f"Error at path: {error_path}")
+            return ValidationResult.failure(
+                sbom_format=sbom_format,
+                spec_version=spec_version,
+                error_message=e.message,
+                error_path=error_path,
+            )
+
         logger.info(f"SBOM validated successfully against {format_display_name(sbom_format)} {spec_version} schema")
         return ValidationResult.success(sbom_format, spec_version)
-    except jsonschema.ValidationError as e:
-        error_path = ".".join(str(p) for p in e.absolute_path) if e.absolute_path else None
-        logger.error(f"SBOM validation failed: {e.message}")
-        if error_path:
-            logger.error(f"Error at path: {error_path}")
-        return ValidationResult.failure(
-            sbom_format=sbom_format,
-            spec_version=spec_version,
-            error_message=e.message,
-            error_path=error_path,
-        )
     except jsonschema.SchemaError as e:
         logger.error(f"Invalid schema: {e.message}")
         return ValidationResult.failure(
