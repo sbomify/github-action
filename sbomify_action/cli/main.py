@@ -1166,6 +1166,11 @@ def run_pipeline(config: Config) -> None:
 
                 if not result.success:
                     if result.error_code == "DUPLICATE_ARTIFACT":
+                        logger.error(
+                            f"Upload to {destination} failed with duplicate SBOM: "
+                            f"component_id={config.component_id}, format={FORMAT}, "
+                            f"version={config.component_version}"
+                        )
                         print_duplicate_sbom_error(config.component_id, FORMAT, config.component_version)
                     else:
                         logger.error(f"Upload to {destination} failed: {result.error_message}")
