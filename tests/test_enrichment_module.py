@@ -1724,6 +1724,54 @@ class TestLockfileFilteringExtended:
 
         assert _is_lockfile_package(package) is False
 
+    def test_is_lockfile_package_spdx_with_full_path(self):
+        """Test that lockfile packages with full paths are detected.
+
+        Trivy generates SPDX with full paths like /github/workspace/uv.lock.
+        The detection should extract the basename to match against known lockfiles.
+        """
+        # Full path should be detected as lockfile
+        package = Package(
+            spdx_id="SPDXRef-uv-lock",
+            name="/github/workspace/uv.lock",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is True
+
+        # Various path formats
+        package = Package(
+            spdx_id="SPDXRef-requirements",
+            name="/app/requirements.txt",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is True
+
+        # Deep nested path
+        package = Package(
+            spdx_id="SPDXRef-poetry",
+            name="/home/runner/work/project/src/poetry.lock",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is True
+
+    def test_is_lockfile_package_spdx_full_path_not_lockfile(self):
+        """Test that full paths to non-lockfile files are not detected."""
+        # Full path to a regular file
+        package = Package(
+            spdx_id="SPDXRef-app",
+            name="/github/workspace/app.py",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is False
+
+        # Path that contains lockfile name but isn't a lockfile
+        package = Package(
+            spdx_id="SPDXRef-backup",
+            name="/backup/old/requirements.txt.bak",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is False
+
     def test_enrich_lockfile_spdx_end_to_end(self, tmp_path):
         """Test enriching lockfile packages in SPDX document end-to-end."""
         sbom_data = {
@@ -1766,6 +1814,71 @@ class TestLockfileFilteringExtended:
 
         uv_pkg = next(p for p in result["packages"] if p["name"] == "uv.lock")
         assert "uv lockfile" in uv_pkg["description"].lower()
+
+    def test_enrich_lockfile_spdx_with_full_path(self, tmp_path):
+        """Test enriching lockfile packages with full paths (Trivy-generated SPDX).
+
+        Trivy generates SPDX with full paths like /github/workspace/uv.lock.
+        This test verifies that:
+        1. The lockfile is detected despite the full path
+        2. The description is looked up correctly using the basename
+        """
+        sbom_data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test",
+            "dataLicense": "CC0-1.0",
+            "documentNamespace": "https://example.com/test-fullpath-lockfile",
+            "creationInfo": {
+                "created": "2024-01-01T00:00:00Z",
+                "creators": ["Tool: trivy-0.67.2"],
+                "licenseListVersion": "3.21",
+            },
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-main",
+                    "name": "Python Stack",
+                    "versionInfo": "1.0.0",
+                    "downloadLocation": "NOASSERTION",
+                    "filesAnalyzed": False,
+                    "supplier": "Organization: Acme Corp",
+                },
+                {
+                    "SPDXID": "SPDXRef-uv-lock",
+                    "name": "/github/workspace/uv.lock",  # Full path like Trivy generates
+                    "downloadLocation": "NONE",
+                    "filesAnalyzed": False,
+                },
+                {
+                    "SPDXID": "SPDXRef-django",
+                    "name": "django",
+                    "downloadLocation": "NOASSERTION",
+                    "filesAnalyzed": False,
+                },
+            ],
+        }
+
+        input_file = tmp_path / "input.json"
+        output_file = tmp_path / "output.json"
+        input_file.write_text(json.dumps(sbom_data))
+
+        with patch("requests.Session.get") as mock_get:
+            mock_get.return_value = Mock(status_code=404)
+            enrich_sbom(str(input_file), str(output_file), validate=False)
+
+        with open(output_file) as f:
+            result = json.load(f)
+
+        # Find the lockfile package (still has full path name)
+        uv_pkg = next(p for p in result["packages"] if "uv.lock" in p["name"])
+
+        # Verify the lockfile was enriched despite the full path
+        assert uv_pkg["description"] is not None, "Lockfile should have description"
+        assert "uv" in uv_pkg["description"].lower(), "Description should mention uv"
+        assert "lockfile" in uv_pkg["description"].lower(), "Description should mention lockfile"
+
+        # Verify version was inherited (lockfiles get version from root)
+        assert uv_pkg.get("versionInfo") is not None, "Lockfile should have version"
 
     def test_enrich_lockfile_with_description(self):
         """Test that lockfiles get descriptive descriptions."""

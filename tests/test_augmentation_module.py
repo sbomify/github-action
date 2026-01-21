@@ -1127,6 +1127,88 @@ class TestLockfileComponentDetection:
         assert _is_lockfile_component(component) is False
 
 
+class TestLockfilePackageDetection:
+    """Test lockfile package detection for SPDX (augmentation module)."""
+
+    def test_lockfile_package_detected_by_name(self):
+        """Test that lockfile packages are detected by their filename."""
+        from spdx_tools.spdx.model import Package
+
+        from sbomify_action.augmentation import _is_lockfile_package
+
+        # requirements.txt is a known lockfile
+        package = Package(
+            spdx_id="SPDXRef-requirements",
+            name="requirements.txt",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is True
+
+        # uv.lock is a known lockfile
+        package = Package(
+            spdx_id="SPDXRef-uv-lock",
+            name="uv.lock",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is True
+
+    def test_lockfile_package_detected_by_full_path(self):
+        """Test that lockfile packages with full paths are detected.
+
+        Trivy generates SPDX with full paths like /github/workspace/uv.lock.
+        The detection should extract the basename to match against known lockfiles.
+        """
+        from spdx_tools.spdx.model import Package
+
+        from sbomify_action.augmentation import _is_lockfile_package
+
+        # Full path should be detected as lockfile
+        package = Package(
+            spdx_id="SPDXRef-uv-lock",
+            name="/github/workspace/uv.lock",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is True
+
+        # Various path formats
+        package = Package(
+            spdx_id="SPDXRef-requirements",
+            name="/app/requirements.txt",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is True
+
+        # Deep nested path
+        package = Package(
+            spdx_id="SPDXRef-poetry",
+            name="/home/runner/work/project/src/poetry.lock",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is True
+
+    def test_non_lockfile_package_not_detected(self):
+        """Test that regular packages are not detected as lockfiles."""
+        from spdx_tools.spdx.model import Package
+
+        from sbomify_action.augmentation import _is_lockfile_package
+
+        # Regular package
+        package = Package(
+            spdx_id="SPDXRef-django",
+            name="django",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is False
+
+        # Full path that is not a lockfile
+        package = Package(
+            spdx_id="SPDXRef-app",
+            name="/github/workspace/app.py",
+            download_location="NOASSERTION",
+        )
+        assert _is_lockfile_package(package) is False
+
+
 class TestErrorHandling:
     """Test error handling in augmentation."""
 

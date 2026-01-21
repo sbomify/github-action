@@ -30,6 +30,7 @@ Version support:
     - SPDX: 2.2, 2.3
 """
 
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
@@ -111,8 +112,15 @@ def _propagate_supplier_to_lockfile_components(bom: Bom) -> None:
 
 
 def _is_lockfile_package(package: Package) -> bool:
-    """Check if an SPDX package represents a lockfile artifact."""
-    if package.name and package.name in LOCKFILE_NAMES:
+    """Check if an SPDX package represents a lockfile artifact.
+
+    Handles full paths like /github/workspace/uv.lock by extracting the basename.
+    """
+    if not package.name:
+        return False
+    # Extract basename to handle full paths (e.g., /github/workspace/uv.lock -> uv.lock)
+    basename = os.path.basename(package.name)
+    if basename in LOCKFILE_NAMES:
         # Check if it has a PURL - lockfiles typically don't have PURLs
         has_purl = any(ref.reference_type == "purl" for ref in package.external_references)
         if not has_purl:
