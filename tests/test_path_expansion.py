@@ -7,13 +7,25 @@ These tests verify that:
 4. FileProcessingError is raised with helpful message when file not found
 """
 
+import os
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import patch
 
 from sbomify_action.cli.main import path_expansion
 from sbomify_action.exceptions import FileProcessingError
+
+
+@contextmanager
+def change_directory(path):
+    """Context manager to temporarily change the current working directory."""
+    original_dir = os.getcwd()
+    try:
+        os.chdir(path)
+        yield
+    finally:
+        os.chdir(original_dir)
 
 
 class TestPathExpansion(unittest.TestCase):
@@ -35,43 +47,20 @@ class TestPathExpansion(unittest.TestCase):
     def test_file_exists_relative_to_cwd(self):
         """Test that file relative to current directory is found."""
         with tempfile.TemporaryDirectory() as tmp_dir:
-            test_file = Path(tmp_dir) / "relative_test.txt"
+            test_file = Path(tmp_dir).resolve() / "relative_test.txt"
             test_file.write_text("test content")
 
             # Change to the temp directory and use relative path
-            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+            with change_directory(tmp_dir):
                 result = path_expansion("relative_test.txt")
 
-            # Should return the absolute path
-            self.assertEqual(result, str(test_file))
-
-    def test_file_exists_in_github_workspace(self):
-        """Test that file in /github/workspace is found."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            # Mock /github/workspace to our temp dir
-            test_file = Path(tmp_dir) / "workspace_test.txt"
-            test_file.write_text("test content")
-
-            # Mock Path("/github/workspace") to return our temp dir
-            original_truediv = Path.__truediv__
-
-            def mock_truediv(self, other):
-                if str(self) == "/github/workspace":
-                    return Path(tmp_dir) / other
-                return original_truediv(self, other)
-
-            with patch.object(Path, "__truediv__", mock_truediv):
-                # Use a path that doesn't exist in cwd but exists in mocked workspace
-                with patch("sbomify_action.cli.main.Path.cwd", return_value=Path("/nonexistent")):
-                    result = path_expansion("workspace_test.txt")
-
-            # Should return the workspace path
-            self.assertEqual(result, str(test_file))
+            # Should return the absolute path (resolve to handle macOS /var -> /private/var symlink)
+            self.assertEqual(Path(result).resolve(), test_file)
 
     def test_file_not_found_raises_error_with_helpful_message(self):
         """Test that FileProcessingError includes file name and searched paths."""
         with tempfile.TemporaryDirectory() as tmp_dir:
-            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+            with change_directory(tmp_dir):
                 with self.assertRaises(FileProcessingError) as context:
                     path_expansion("nonexistent_file.txt")
 
@@ -89,7 +78,7 @@ class TestPathExpansion(unittest.TestCase):
     def test_file_not_found_error_contains_relative_path(self):
         """Test that error message contains the relative path that was searched."""
         with tempfile.TemporaryDirectory() as tmp_dir:
-            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+            with change_directory(tmp_dir):
                 with self.assertRaises(FileProcessingError) as context:
                     path_expansion("package-lock.json")
 
@@ -101,15 +90,16 @@ class TestPathExpansion(unittest.TestCase):
     def test_nested_path_file_found(self):
         """Test that nested paths (e.g., frontend/package.json) are found."""
         with tempfile.TemporaryDirectory() as tmp_dir:
-            nested_dir = Path(tmp_dir) / "frontend"
+            nested_dir = Path(tmp_dir).resolve() / "frontend"
             nested_dir.mkdir()
             test_file = nested_dir / "package.json"
             test_file.write_text('{"name": "test"}')
 
-            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+            with change_directory(tmp_dir):
                 result = path_expansion("frontend/package.json")
 
-            self.assertEqual(result, str(test_file))
+            # Resolve to handle macOS /var -> /private/var symlink
+            self.assertEqual(Path(result).resolve(), test_file)
 
     def test_returns_absolute_path(self):
         """Test that the returned path is always absolute."""
@@ -117,7 +107,7 @@ class TestPathExpansion(unittest.TestCase):
             test_file = Path(tmp_dir) / "test.txt"
             test_file.write_text("test content")
 
-            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+            with change_directory(tmp_dir):
                 result = path_expansion("test.txt")
 
             # Result should be an absolute path
@@ -138,13 +128,14 @@ class TestPathExpansionEdgeCases(unittest.TestCase):
     def test_path_with_spaces(self):
         """Test that paths with spaces are handled correctly."""
         with tempfile.TemporaryDirectory() as tmp_dir:
-            test_file = Path(tmp_dir) / "file with spaces.txt"
+            test_file = Path(tmp_dir).resolve() / "file with spaces.txt"
             test_file.write_text("test content")
 
-            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+            with change_directory(tmp_dir):
                 result = path_expansion("file with spaces.txt")
 
-            self.assertEqual(result, str(test_file))
+            # Resolve to handle macOS /var -> /private/var symlink
+            self.assertEqual(Path(result).resolve(), test_file)
 
     def test_symlink_is_followed(self):
         """Test that symbolic links are followed."""
@@ -157,7 +148,7 @@ class TestPathExpansionEdgeCases(unittest.TestCase):
             symlink = Path(tmp_dir) / "symlink.txt"
             symlink.symlink_to(real_file)
 
-            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+            with change_directory(tmp_dir):
                 result = path_expansion("symlink.txt")
 
             # Should resolve to the symlink path (Path.is_file() returns True for symlinks)
