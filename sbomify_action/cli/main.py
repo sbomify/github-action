@@ -20,6 +20,7 @@ from ..additional_packages import inject_additional_packages
 from ..augmentation import augment_sbom_from_file
 from ..console import (
     get_audit_trail,
+    gha_notice,
     print_duplicate_sbom_error,
     print_final_success,
     print_step_end,
@@ -220,18 +221,16 @@ class Config:
         """
         # Check if sbomify API access is required:
         # - Uploading to sbomify destination
-        # - Augmenting (uses sbomify API)
         # - Managing releases (uses sbomify API)
+        # Note: Augmentation does NOT require API - it can use sbomify.json and VCS metadata
         uploads_to_sbomify = self.upload and "sbomify" in self.upload_destinations
-        requires_sbomify_api = uploads_to_sbomify or self.augment or self.product_releases
+        requires_sbomify_api = uploads_to_sbomify or self.product_releases
 
         if requires_sbomify_api:
             if not self.token:
                 operations = []
                 if uploads_to_sbomify:
                     operations.append("uploading to sbomify")
-                if self.augment:
-                    operations.append("AUGMENT=true")
                 if self.product_releases:
                     operations.append("PRODUCT_RELEASE is set")
                 reason = " or ".join(operations)
@@ -240,8 +239,6 @@ class Config:
                 operations = []
                 if uploads_to_sbomify:
                     operations.append("uploading to sbomify")
-                if self.augment:
-                    operations.append("AUGMENT=true")
                 if self.product_releases:
                     operations.append("PRODUCT_RELEASE is set")
                 reason = " or ".join(operations)
@@ -1057,6 +1054,16 @@ def run_pipeline(config: Config) -> None:
     # Step 2: Augmentation
     if config.augment:
         _log_step_header(2, "SBOM Augmentation with Backend Metadata")
+
+        # Inform user if API augmentation is unavailable
+        if not config.token or not config.component_id:
+            gha_notice(
+                "sbomify API augmentation skipped (TOKEN or COMPONENT_ID not set). "
+                "To add metadata, create a sbomify.json file in your project root "
+                "or configure sbomify API credentials.",
+                title="API Augmentation Skipped",
+            )
+
         try:
             sbom_input_file = get_last_sbom_from_last_step()
             if not sbom_input_file:
