@@ -22,7 +22,7 @@ from ..protocol import (
     GenerationInput,
 )
 from ..result import GenerationResult
-from ..utils import log_command_error, run_command
+from ..utils import run_command
 
 
 class CycloneDXCargoGenerator:
@@ -133,29 +133,22 @@ class CycloneDXCargoGenerator:
         ]
 
         logger.info(f"Running cargo-cyclonedx for {input.lock_file_name} (CycloneDX {spec_version})")
-        result = run_command(cmd, "cargo-cyclonedx", timeout=300, cwd=str(project_dir))
 
-        if result.returncode == 0:
-            # Verify output file was created
-            if not Path(output_file_abs).exists():
-                return GenerationResult.failure_result(
-                    error_message="cargo-cyclonedx completed but output file not created",
-                    sbom_format="cyclonedx",
-                    spec_version=spec_version,
-                    generator_name=self.name,
-                )
+        # run_command raises SBOMGenerationError on failure (uses check=True)
+        run_command(cmd, "cargo-cyclonedx", timeout=300, cwd=str(project_dir))
 
-            return GenerationResult.success_result(
-                output_file=output_file_abs,
-                sbom_format="cyclonedx",
-                spec_version=spec_version,
-                generator_name=self.name,
-            )
-        else:
-            log_command_error("cargo-cyclonedx", result.stderr, result.stdout)
+        # Verify output file was created
+        if not Path(output_file_abs).exists():
             return GenerationResult.failure_result(
-                error_message=f"cargo-cyclonedx failed with return code {result.returncode}",
+                error_message="cargo-cyclonedx completed but output file not created",
                 sbom_format="cyclonedx",
                 spec_version=spec_version,
                 generator_name=self.name,
             )
+
+        return GenerationResult.success_result(
+            output_file=output_file_abs,
+            sbom_format="cyclonedx",
+            spec_version=spec_version,
+            generator_name=self.name,
+        )

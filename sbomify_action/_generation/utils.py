@@ -221,6 +221,70 @@ def detect_docker_image_not_found(stderr: str) -> bool:
     return False
 
 
+# Patterns to identify key error lines in command output
+ERROR_LINE_PATTERNS = [
+    r"^\s*FATAL\b",
+    r"^\s*ERROR\b",
+    r"^\s*error:",
+    r"^\s*Error:",
+    r"failed:",
+    r"unable to",
+    r"could not",
+    r"cannot ",
+]
+
+
+def extract_error_summary(output: str | None, max_chars: int = 500) -> str:
+    """
+    Extract a concise error summary from command output.
+
+    This function looks for lines containing error keywords (FATAL, ERROR, error:, etc.)
+    and returns them as a summary. If no error lines are found, it returns a truncated
+    version of the full output.
+
+    Args:
+        output: The stderr or stdout from a failed command
+        max_chars: Maximum characters to include in the summary
+
+    Returns:
+        A string containing the most relevant error information, truncated to max_chars
+
+    Examples:
+        >>> extract_error_summary("INFO: Starting\\nFATAL: Something went wrong\\nINFO: Done")
+        'FATAL: Something went wrong'
+        >>> extract_error_summary("Some long output...", max_chars=10)
+        'Some lo...'
+    """
+    if not output:
+        return ""
+
+    output = output.strip()
+
+    # Try to find error-specific lines
+    error_lines = []
+    for line in output.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        for pattern in ERROR_LINE_PATTERNS:
+            if re.search(pattern, line, re.IGNORECASE):
+                error_lines.append(line)
+                break
+
+    if error_lines:
+        # Join error lines and truncate if needed
+        summary = " | ".join(error_lines)
+    else:
+        # No specific error lines found, use the full output
+        summary = output.replace("\n", " | ")
+
+    # Truncate to max_chars
+    if len(summary) > max_chars:
+        summary = summary[: max_chars - 3] + "..."
+
+    return summary
+
+
 def run_command(
     cmd: list[str],
     command_name: str,
@@ -298,12 +362,27 @@ def run_command(
                     f"Docker image '{docker_image}' not found. "
                     "Verify the image exists in the registry and the tag is correct."
                 ),
+                stderr=stderr,
+                stdout=stdout,
+                returncode=e.returncode,
             )
 
         # Other errors are logged at ERROR level (potential bugs or system issues)
         logger.error(f"{command_name} command failed with error: {e}")
         log_command_error(command_name, stderr, stdout)
-        raise SBOMGenerationError(f"{command_name} command failed with return code {e.returncode}")
+
+        # Include error summary in the exception message for better diagnostics
+        error_summary = extract_error_summary(stderr or stdout)
+        message = f"{command_name} command failed with return code {e.returncode}"
+        if error_summary:
+            message += f": {error_summary}"
+
+        raise SBOMGenerationError(
+            message,
+            stderr=stderr,
+            stdout=stdout,
+            returncode=e.returncode,
+        )
     except subprocess.TimeoutExpired:
         elapsed = int(time.time() - start_time)
         logger.error(f"{command_name} command timed out after {elapsed}s (limit: {timeout}s)")

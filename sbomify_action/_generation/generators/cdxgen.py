@@ -181,31 +181,24 @@ class CdxgenFsGenerator:
         logger.info(f"Running cdxgen for {input.lock_file_name} (CycloneDX {version}, type={cdxgen_type or 'auto'})")
 
         try:
-            result = run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT, cwd=str(lock_file_directory))
+            # run_command raises SBOMGenerationError on failure (uses check=True)
+            run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT, cwd=str(lock_file_directory))
 
-            if result.returncode == 0:
-                # Verify output file was created
-                if not Path(output_file_abs).exists():
-                    return GenerationResult.failure_result(
-                        error_message="cdxgen completed but output file not created",
-                        sbom_format="cyclonedx",
-                        spec_version=version,
-                        generator_name=self.name,
-                    )
-
-                return GenerationResult.success_result(
-                    output_file=output_file_abs,
-                    sbom_format="cyclonedx",
-                    spec_version=version,
-                    generator_name=self.name,
-                )
-            else:
+            # Verify output file was created
+            if not Path(output_file_abs).exists():
                 return GenerationResult.failure_result(
-                    error_message=f"cdxgen failed with return code {result.returncode}",
+                    error_message="cdxgen completed but output file not created",
                     sbom_format="cyclonedx",
                     spec_version=version,
                     generator_name=self.name,
                 )
+
+            return GenerationResult.success_result(
+                output_file=output_file_abs,
+                sbom_format="cyclonedx",
+                spec_version=version,
+                generator_name=self.name,
+            )
         except SBOMGenerationError as e:
             return GenerationResult.failure_result(
                 error_message=str(e),
@@ -297,31 +290,24 @@ class CdxgenImageGenerator:
         logger.info(f"Running cdxgen for {input.docker_image} (CycloneDX {version})")
 
         try:
-            result = run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT, docker_image=input.docker_image)
+            # run_command raises SBOMGenerationError on failure (uses check=True)
+            run_command(cmd, "cdxgen", timeout=DEFAULT_TIMEOUT, docker_image=input.docker_image)
 
-            if result.returncode == 0:
-                # Verify output file was created
-                if not Path(input.output_file).exists():
-                    return GenerationResult.failure_result(
-                        error_message="cdxgen completed but output file not created",
-                        sbom_format="cyclonedx",
-                        spec_version=version,
-                        generator_name=self.name,
-                    )
-
-                return GenerationResult.success_result(
-                    output_file=input.output_file,
-                    sbom_format="cyclonedx",
-                    spec_version=version,
-                    generator_name=self.name,
-                )
-            else:
+            # Verify output file was created
+            if not Path(input.output_file).exists():
                 return GenerationResult.failure_result(
-                    error_message=f"cdxgen failed with return code {result.returncode}",
+                    error_message="cdxgen completed but output file not created",
                     sbom_format="cyclonedx",
                     spec_version=version,
                     generator_name=self.name,
                 )
+
+            return GenerationResult.success_result(
+                output_file=input.output_file,
+                sbom_format="cyclonedx",
+                spec_version=version,
+                generator_name=self.name,
+            )
         except DockerImageNotFoundError as e:
             # Provide a clear error message for missing Docker images
             return GenerationResult.failure_result(

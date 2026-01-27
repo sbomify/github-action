@@ -25,7 +25,7 @@ from ..protocol import (
     GenerationInput,
 )
 from ..result import GenerationResult
-from ..utils import log_command_error, run_command
+from ..utils import run_command
 
 # Check tool availability once at module load
 _CYCLONEDX_PY_AVAILABLE, _CYCLONEDX_PY_PATH = check_tool_available("cyclonedx-py")
@@ -164,19 +164,20 @@ class CycloneDXPyGenerator:
         ]
 
         logger.info(f"Running cyclonedx-py {subcommand} for {input.lock_file_name}")
-        result = run_command(cmd, "cyclonedx-py", timeout=300)
 
-        if result.returncode == 0:
+        try:
+            # run_command raises SBOMGenerationError on failure (uses check=True)
+            run_command(cmd, "cyclonedx-py", timeout=300)
+
             return GenerationResult.success_result(
                 output_file=input.output_file,
                 sbom_format="cyclonedx",
                 spec_version=spec_version,
                 generator_name=self.name,
             )
-        else:
-            log_command_error("cyclonedx-py", result.stderr, result.stdout)
+        except SBOMGenerationError as e:
             return GenerationResult.failure_result(
-                error_message=f"cyclonedx-py failed with return code {result.returncode}",
+                error_message=str(e),
                 sbom_format="cyclonedx",
                 spec_version=spec_version,
                 generator_name=self.name,
@@ -206,19 +207,20 @@ class CycloneDXPyGenerator:
         ]
 
         logger.info(f"Running cyclonedx-py poetry for {input.lock_file_name}")
-        result = run_command(cmd, "cyclonedx-py", timeout=300)
 
-        if result.returncode == 0:
+        try:
+            # run_command raises SBOMGenerationError on failure (uses check=True)
+            run_command(cmd, "cyclonedx-py", timeout=300)
+
             return GenerationResult.success_result(
                 output_file=input.output_file,
                 sbom_format="cyclonedx",
                 spec_version=spec_version,
                 generator_name=self.name,
             )
-        else:
-            log_command_error("cyclonedx-py", result.stderr, result.stdout)
+        except SBOMGenerationError as e:
             return GenerationResult.failure_result(
-                error_message=f"cyclonedx-py failed with return code {result.returncode}",
+                error_message=str(e),
                 sbom_format="cyclonedx",
                 spec_version=spec_version,
                 generator_name=self.name,

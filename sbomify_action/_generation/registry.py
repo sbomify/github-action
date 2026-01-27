@@ -144,8 +144,8 @@ class GeneratorRegistry:
                     f"Available formats: {available_formats}"
                 )
 
-        # Try generators in priority order
-        last_error: Optional[str] = None
+        # Try generators in priority order, collecting errors for better diagnostics
+        errors: List[str] = []
         for generator in generators:
             logger.info(f"Trying generator: {generator.name}")
             try:
@@ -159,10 +159,10 @@ class GeneratorRegistry:
 
                     return result
                 else:
-                    last_error = result.error_message
+                    errors.append(f"{generator.name}: {result.error_message}")
                     logger.warning(f"Generator {generator.name} failed: {result.error_message}")
             except Exception as e:
-                last_error = str(e)
+                errors.append(f"{generator.name}: {e}")
                 logger.warning(f"Generator {generator.name} raised exception: {e}")
 
         # All generators failed - check if it's a tool availability issue
@@ -171,16 +171,19 @@ class GeneratorRegistry:
         lock_file = input.lock_file if input.is_lock_file else None
         available_tools, missing_tools = check_tool_for_input(input_type, lock_file)
 
+        # Build error message with details from all failed generators (last 3)
+        error_details = "; ".join(errors[-3:]) if errors else "unknown error"
+
         if missing_tools:
             # Some tools are missing - suggest installation
             missing_names = ", ".join(missing_tools)
             error_message = (
-                f"All available generators failed. Last error: {last_error}\n"
+                f"All available generators failed. Errors: {error_details}\n"
                 f"Additional tools that could help: {missing_names}\n"
                 f"Install them for more generation options."
             )
         else:
-            error_message = f"All generators failed. Last error: {last_error}"
+            error_message = f"All generators failed. Errors: {error_details}"
 
         return GenerationResult.failure_result(
             error_message=error_message,
