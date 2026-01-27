@@ -131,21 +131,17 @@ class TestConfig(unittest.TestCase):
         self.assertIn("sbomify API token is not defined", str(cm.exception))
         self.assertIn("uploading to sbomify", str(cm.exception))
 
-    def test_config_validation_augment_requires_token(self):
-        """Test that TOKEN is required when AUGMENT=true even if UPLOAD=false."""
+    def test_config_validation_augment_does_not_require_token(self):
+        """Test that AUGMENT=true works without TOKEN when not uploading to sbomify."""
         config = Config(
             token="",
-            component_id="test-component",
+            component_id="",
             sbom_file="/path/to/sbom.json",
             upload=False,
             augment=True,
         )
-
-        with self.assertRaises(ConfigurationError) as cm:
-            config.validate()
-
-        self.assertIn("sbomify API token is not defined", str(cm.exception))
-        self.assertIn("AUGMENT=true", str(cm.exception))
+        # Should not raise - augmentation can use sbomify.json without API credentials
+        config.validate()
 
     def test_config_validation_product_release_requires_token(self):
         """Test that TOKEN is required when PRODUCT_RELEASE is set even if UPLOAD=false."""
@@ -179,22 +175,6 @@ class TestConfig(unittest.TestCase):
 
         self.assertIn("Component ID is not defined", str(cm.exception))
         self.assertIn("uploading to sbomify", str(cm.exception))
-
-    def test_config_validation_augment_requires_component_id(self):
-        """Test that COMPONENT_ID is required when AUGMENT=true even if UPLOAD=false."""
-        config = Config(
-            token="test-token",
-            component_id="",
-            sbom_file="/path/to/sbom.json",
-            upload=False,
-            augment=True,
-        )
-
-        with self.assertRaises(ConfigurationError) as cm:
-            config.validate()
-
-        self.assertIn("Component ID is not defined", str(cm.exception))
-        self.assertIn("AUGMENT=true", str(cm.exception))
 
     def test_config_url_validation_invalid_scheme(self):
         """Test that Config raises ConfigurationError for invalid URL schemes."""
