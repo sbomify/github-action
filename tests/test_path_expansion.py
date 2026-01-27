@@ -1,0 +1,168 @@
+"""Tests for the path_expansion function.
+
+These tests verify that:
+1. Files are found when they exist as direct paths
+2. Files are found when they exist relative to current directory
+3. Files are found when they exist in /github/workspace
+4. FileProcessingError is raised with helpful message when file not found
+"""
+
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from sbomify_action.cli.main import path_expansion
+from sbomify_action.exceptions import FileProcessingError
+
+
+class TestPathExpansion(unittest.TestCase):
+    """Test path_expansion function."""
+
+    def test_file_exists_as_direct_path(self):
+        """Test that absolute path to existing file is returned."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_file = Path(tmp_dir) / "test.txt"
+            test_file.write_text("test content")
+
+            # Use the absolute path
+            result = path_expansion(str(test_file))
+
+            # Should return the absolute path
+            self.assertTrue(result.endswith("test.txt"))
+            self.assertTrue(Path(result).is_file())
+
+    def test_file_exists_relative_to_cwd(self):
+        """Test that file relative to current directory is found."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_file = Path(tmp_dir) / "relative_test.txt"
+            test_file.write_text("test content")
+
+            # Change to the temp directory and use relative path
+            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+                result = path_expansion("relative_test.txt")
+
+            # Should return the absolute path
+            self.assertEqual(result, str(test_file))
+
+    def test_file_exists_in_github_workspace(self):
+        """Test that file in /github/workspace is found."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Mock /github/workspace to our temp dir
+            test_file = Path(tmp_dir) / "workspace_test.txt"
+            test_file.write_text("test content")
+
+            # Mock Path("/github/workspace") to return our temp dir
+            original_truediv = Path.__truediv__
+
+            def mock_truediv(self, other):
+                if str(self) == "/github/workspace":
+                    return Path(tmp_dir) / other
+                return original_truediv(self, other)
+
+            with patch.object(Path, "__truediv__", mock_truediv):
+                # Use a path that doesn't exist in cwd but exists in mocked workspace
+                with patch("sbomify_action.cli.main.Path.cwd", return_value=Path("/nonexistent")):
+                    result = path_expansion("workspace_test.txt")
+
+            # Should return the workspace path
+            self.assertEqual(result, str(test_file))
+
+    def test_file_not_found_raises_error_with_helpful_message(self):
+        """Test that FileProcessingError includes file name and searched paths."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+                with self.assertRaises(FileProcessingError) as context:
+                    path_expansion("nonexistent_file.txt")
+
+                error_message = str(context.exception)
+
+                # Verify error message includes the file name
+                self.assertIn("nonexistent_file.txt", error_message)
+
+                # Verify error message mentions searched paths
+                self.assertIn("Searched in:", error_message)
+
+                # Verify it mentions the workspace path
+                self.assertIn("/github/workspace", error_message)
+
+    def test_file_not_found_error_contains_relative_path(self):
+        """Test that error message contains the relative path that was searched."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+                with self.assertRaises(FileProcessingError) as context:
+                    path_expansion("package-lock.json")
+
+                error_message = str(context.exception)
+
+                # Should contain the cwd-relative path
+                self.assertIn(f"{tmp_dir}/package-lock.json", error_message)
+
+    def test_nested_path_file_found(self):
+        """Test that nested paths (e.g., frontend/package.json) are found."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            nested_dir = Path(tmp_dir) / "frontend"
+            nested_dir.mkdir()
+            test_file = nested_dir / "package.json"
+            test_file.write_text('{"name": "test"}')
+
+            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+                result = path_expansion("frontend/package.json")
+
+            self.assertEqual(result, str(test_file))
+
+    def test_returns_absolute_path(self):
+        """Test that the returned path is always absolute."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_file = Path(tmp_dir) / "test.txt"
+            test_file.write_text("test content")
+
+            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+                result = path_expansion("test.txt")
+
+            # Result should be an absolute path
+            self.assertTrue(Path(result).is_absolute())
+
+
+class TestPathExpansionEdgeCases(unittest.TestCase):
+    """Test edge cases for path_expansion function."""
+
+    def test_empty_string_raises_error(self):
+        """Test that empty string raises FileProcessingError."""
+        with self.assertRaises(FileProcessingError) as context:
+            path_expansion("")
+
+        error_message = str(context.exception)
+        self.assertIn("not found", error_message.lower())
+
+    def test_path_with_spaces(self):
+        """Test that paths with spaces are handled correctly."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_file = Path(tmp_dir) / "file with spaces.txt"
+            test_file.write_text("test content")
+
+            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+                result = path_expansion("file with spaces.txt")
+
+            self.assertEqual(result, str(test_file))
+
+    def test_symlink_is_followed(self):
+        """Test that symbolic links are followed."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create a real file
+            real_file = Path(tmp_dir) / "real_file.txt"
+            real_file.write_text("test content")
+
+            # Create a symlink
+            symlink = Path(tmp_dir) / "symlink.txt"
+            symlink.symlink_to(real_file)
+
+            with patch("sbomify_action.cli.main.Path.cwd", return_value=Path(tmp_dir)):
+                result = path_expansion("symlink.txt")
+
+            # Should resolve to the symlink path (Path.is_file() returns True for symlinks)
+            self.assertTrue(Path(result).is_file())
+
+
+if __name__ == "__main__":
+    unittest.main()
