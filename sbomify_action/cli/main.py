@@ -711,6 +711,12 @@ def path_expansion(path: str) -> str:
     relative_path = current_dir / path
     workspace_relative_path = Path("/github/workspace") / path
 
+    # Log which paths we're checking for debugging
+    logger.debug(f"Searching for file '{path}'...")
+    logger.debug(f"  Checking direct path: {Path(path)}")
+    logger.debug(f"  Checking relative to cwd: {relative_path}")
+    logger.debug(f"  Checking workspace path: {workspace_relative_path}")
+
     if Path(path).is_file():
         logger.info(f"Using input file '{path}'.")
         return str(current_dir / path)
@@ -721,7 +727,9 @@ def path_expansion(path: str) -> str:
         logger.info(f"Using input file '{workspace_relative_path}'.")
         return str(workspace_relative_path)
     else:
-        raise FileProcessingError("Specified input file not found")
+        raise FileProcessingError(
+            f"Specified input file '{path}' not found. Searched in: '{relative_path}', '{workspace_relative_path}'"
+        )
 
 
 def get_last_sbom_from_last_step() -> Optional[str]:
