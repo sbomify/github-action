@@ -155,17 +155,20 @@ DEFAULT_TIMEOUT = 1800  # 30 minutes (large Maven projects can take a while)
 PROGRESS_INTERVAL = 60  # Log progress every minute
 
 
-def log_command_error(command_name: str, stderr: str, level: str = "error") -> None:
+def log_command_error(command_name: str, stderr: str, stdout: str, level: str = "error") -> None:
     """
     Log command errors with a standardized format.
 
     Args:
         command_name: The name of the command that failed
         stderr: The stderr output from the command
+        stdout: The stdout output from the command (some tools output errors here)
         level: Log level to use ("error" or "warning"). Default is "error".
     """
-    if stderr:
-        message = f"[{command_name}] error: {stderr.strip()}"
+    # Prefer stderr, fall back to stdout (some tools like cdxgen output errors to stdout)
+    output = stderr or stdout
+    if output:
+        message = f"[{command_name}] error: {output.strip()}"
         if level == "warning":
             logger.warning(message)
         else:
@@ -282,12 +285,13 @@ def run_command(
         return result
     except subprocess.CalledProcessError as e:
         stderr = e.stderr or ""
+        stdout = e.stdout or ""
 
         # Check if this is a Docker image not found error (user configuration issue)
         # Log at WARNING level since this isn't a bug - user specified a non-existent image
         if docker_image and detect_docker_image_not_found(stderr):
             logger.warning(f"Docker image '{docker_image}' not found")
-            log_command_error(command_name, stderr, level="warning")
+            log_command_error(command_name, stderr, stdout, level="warning")
             raise DockerImageNotFoundError(
                 image=docker_image,
                 message=(
@@ -298,7 +302,7 @@ def run_command(
 
         # Other errors are logged at ERROR level (potential bugs or system issues)
         logger.error(f"{command_name} command failed with error: {e}")
-        log_command_error(command_name, stderr)
+        log_command_error(command_name, stderr, stdout)
         raise SBOMGenerationError(f"{command_name} command failed with return code {e.returncode}")
     except subprocess.TimeoutExpired:
         elapsed = int(time.time() - start_time)
