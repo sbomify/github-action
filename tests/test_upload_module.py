@@ -427,6 +427,59 @@ class TestSbomifyDestination(unittest.TestCase):
         finally:
             Path(sbom_file).unlink()
 
+    @patch("sbomify_action._upload.destinations.sbomify.requests.post")
+    def test_upload_component_not_found_error(self, mock_post):
+        """Test upload with 404 error returns COMPONENT_NOT_FOUND error code and actionable message."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"bomFormat": "CycloneDX", "specVersion": "1.6"}, f)
+            sbom_file = f.name
+
+        try:
+            mock_response = Mock()
+            mock_response.ok = False
+            mock_response.status_code = 404
+            mock_response.json.return_value = {
+                "detail": "Component not found",
+            }
+            mock_post.return_value = mock_response
+
+            dest = SbomifyDestination(token="test-token", component_id="nonexistent-component")
+            input = UploadInput(sbom_file=sbom_file, sbom_format="cyclonedx")
+
+            result = dest.upload(input)
+
+            self.assertFalse(result.success)
+            self.assertEqual(result.error_code, "COMPONENT_NOT_FOUND")
+            self.assertIn("does not exist", result.error_message)
+            self.assertIn("COMPONENT_ID", result.error_message)
+        finally:
+            Path(sbom_file).unlink()
+
+    @patch("sbomify_action._upload.destinations.sbomify.requests.post")
+    def test_upload_component_not_found_no_json_body(self, mock_post):
+        """Test upload with 404 error and no JSON body still returns COMPONENT_NOT_FOUND."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"bomFormat": "CycloneDX", "specVersion": "1.6"}, f)
+            sbom_file = f.name
+
+        try:
+            mock_response = Mock()
+            mock_response.ok = False
+            mock_response.status_code = 404
+            mock_response.json.side_effect = ValueError("No JSON")
+            mock_post.return_value = mock_response
+
+            dest = SbomifyDestination(token="test-token", component_id="nonexistent-component")
+            input = UploadInput(sbom_file=sbom_file, sbom_format="cyclonedx")
+
+            result = dest.upload(input)
+
+            self.assertFalse(result.success)
+            self.assertEqual(result.error_code, "COMPONENT_NOT_FOUND")
+            self.assertIn("does not exist", result.error_message)
+        finally:
+            Path(sbom_file).unlink()
+
 
 class TestDependencyTrackConfig(unittest.TestCase):
     """Tests for DependencyTrackConfig."""

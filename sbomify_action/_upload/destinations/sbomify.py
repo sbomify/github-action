@@ -136,6 +136,16 @@ class SbomifyDestination:
 
         # Handle response
         if not response.ok:
+            # Handle component not found error (check before JSON parsing)
+            if response.status_code == 404:
+                return UploadResult.failure_result(
+                    destination_name=self.name,
+                    error_message="The specified component does not exist. Verify your COMPONENT_ID is correct and the component exists in your sbomify dashboard.",
+                    error_code="COMPONENT_NOT_FOUND",
+                    validated=validated,
+                    validation_error=validation_error,
+                )
+
             error_code = None
             err_msg = f"Failed to upload SBOM file. [{response.status_code}]"
             try:
