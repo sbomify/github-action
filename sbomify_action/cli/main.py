@@ -21,6 +21,7 @@ from ..augmentation import augment_sbom_from_file
 from ..console import (
     get_audit_trail,
     gha_notice,
+    print_component_not_found_error,
     print_duplicate_sbom_error,
     print_final_success,
     print_step_end,
@@ -1189,6 +1190,11 @@ def run_pipeline(config: Config) -> None:
                             f"version={config.component_version}"
                         )
                         print_duplicate_sbom_error(config.component_id, FORMAT, config.component_version)
+                    elif result.error_code == "COMPONENT_NOT_FOUND":
+                        logger.error(
+                            f"Upload to {destination} failed: component not found (component_id={config.component_id})"
+                        )
+                        print_component_not_found_error(config.component_id)
                     else:
                         logger.error(f"Upload to {destination} failed: {result.error_message}")
                     failed_destinations.append(destination)

@@ -388,6 +388,36 @@ def print_duplicate_sbom_error(component_id: str, sbom_format: str, component_ve
     gha_error("SBOM already exists for this component version", title="Duplicate SBOM")
 
 
+def print_component_not_found_error(component_id: str) -> None:
+    """
+    Print a styled error panel for component not found error.
+
+    This provides a clear, user-friendly error message when the specified
+    component does not exist in sbomify, with suggested solutions.
+
+    Args:
+        component_id: The component ID that was not found
+    """
+    content = Text()
+    content.append("The specified component does not exist.\n\n", style="bold")
+    content.append("Details:\n", style="cyan")
+    content.append(f"  Component ID: {component_id}\n\n")
+    content.append("Possible solutions:\n", style="cyan")
+    content.append("  1. Verify your COMPONENT_ID matches the one in your sbomify dashboard\n")
+    content.append("  2. Check that the component exists in your sbomify account\n")
+    content.append("  3. Create the component in the sbomify dashboard if it doesn't exist\n")
+    content.append("  4. Ensure your API token has access to this component\n")
+
+    panel = Panel(content, title="[bold red]Component Not Found[/bold red]", border_style="red")
+    console.print(panel)
+
+    # Also emit GHA error annotation
+    gha_error(
+        f"Component '{component_id}' not found. Verify the COMPONENT_ID is correct.",
+        title="Component Not Found",
+    )
+
+
 def print_final_success() -> None:
     """Print final success message."""
     console.print()
