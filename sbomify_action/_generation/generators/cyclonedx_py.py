@@ -174,7 +174,7 @@ class CycloneDXPyGenerator:
                 generator_name=self.name,
             )
         else:
-            log_command_error("cyclonedx-py", result.stderr)
+            log_command_error("cyclonedx-py", result.stderr, result.stdout)
             return GenerationResult.failure_result(
                 error_message=f"cyclonedx-py failed with return code {result.returncode}",
                 sbom_format="cyclonedx",
@@ -216,7 +216,7 @@ class CycloneDXPyGenerator:
                 generator_name=self.name,
             )
         else:
-            log_command_error("cyclonedx-py", result.stderr)
+            log_command_error("cyclonedx-py", result.stderr, result.stdout)
             return GenerationResult.failure_result(
                 error_message=f"cyclonedx-py failed with return code {result.returncode}",
                 sbom_format="cyclonedx",

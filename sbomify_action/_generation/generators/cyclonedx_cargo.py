@@ -152,7 +152,7 @@ class CycloneDXCargoGenerator:
                 generator_name=self.name,
             )
         else:
-            log_command_error("cargo-cyclonedx", result.stderr)
+            log_command_error("cargo-cyclonedx", result.stderr, result.stdout)
             return GenerationResult.failure_result(
                 error_message=f"cargo-cyclonedx failed with return code {result.returncode}",
                 sbom_format="cyclonedx",
