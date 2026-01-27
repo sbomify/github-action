@@ -168,6 +168,11 @@ ENV PATH="/app/node_modules/.bin:/opt/venv/bin:$PATH"
 # Make 'node' and 'npm' invoke 'bun' so tools that expect them actually run bun (compatibility shim)
 RUN ln -s /usr/local/bin/bun /usr/local/bin/node && \
     ln -s /usr/local/bin/bun /usr/local/bin/npm
+
+# Initialize Conan profile for C/C++ package metadata lookups
+# This creates a default profile based on the container's compiler/OS settings
+RUN conan profile detect --force
+
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 

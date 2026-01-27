@@ -20,6 +20,7 @@ from .metadata import NormalizedMetadata
 from .registry import SourceRegistry
 from .sources import (
     ClearlyDefinedSource,
+    ConanSource,
     CratesIOSource,
     DebianSource,
     DepsDevSource,
@@ -50,6 +51,7 @@ def create_default_registry() -> SourceRegistry:
     - PyPISource (10) - direct from PyPI for Python packages
     - PubDevSource (10) - direct from pub.dev for Dart packages
     - CratesIOSource (10) - direct from crates.io for Rust packages
+    - ConanSource (10) - direct from Conan Center for C/C++ packages
     - DebianSource (10) - direct from sources.debian.org
 
     Tier 2 - Primary Aggregators (40-49):
@@ -74,6 +76,7 @@ def create_default_registry() -> SourceRegistry:
     registry.register(PyPISource())
     registry.register(PubDevSource())
     registry.register(CratesIOSource())
+    registry.register(ConanSource())
     registry.register(DebianSource())
     registry.register(DepsDevSource())
     registry.register(EcosystemsSource())
@@ -251,6 +254,7 @@ class Enricher:
 def clear_all_caches() -> None:
     """Clear all data source caches."""
     from .sources.clearlydefined import clear_cache as clear_clearlydefined
+    from .sources.conan import clear_cache as clear_conan
     from .sources.cratesio import clear_cache as clear_cratesio
     from .sources.debian import clear_cache as clear_debian
     from .sources.depsdev import clear_cache as clear_depsdev
@@ -266,6 +270,7 @@ def clear_all_caches() -> None:
     clear_pypi()
     clear_pubdev()
     clear_cratesio()
+    clear_conan()
     clear_debian()
     clear_depsdev()
     clear_ecosystems()

@@ -31,7 +31,7 @@ That's it! This generates a CycloneDX SBOM from your lockfile and enriches it wi
 - **Inject** additional packages not in lockfiles (vendored code, runtime deps, system libraries)
 - **Augment** with business metadata (supplier, authors, licenses, lifecycle phase) from config file or sbomify
 - **VCS Auto-Detection** — Automatically adds repository URL, commit SHA, and branch info from CI environment
-- **Enrich** with package metadata from PyPI, pub.dev, npm, Maven, deps.dev, and more
+- **Enrich** with package metadata from PyPI, pub.dev, crates.io, Conan Center, deps.dev, and more
 - **Audit Trail** — Every SBOM modification logged with timestamps for attestation and compliance
 - **Upload** to sbomify for collaboration and vulnerability management
 - **Tag** SBOMs with product releases
@@ -151,6 +151,7 @@ Every modification made to your SBOM is tracked and recorded for attestation and
 ### Example Output
 
 **Summary:**
+
 ```
 ┌─────────────────────┬───────┐
 │ Metric              │ Value │
@@ -162,6 +163,7 @@ Every modification made to your SBOM is tracked and recorded for attestation and
 ```
 
 **audit_trail.txt:**
+
 ```
 # SBOM Audit Trail
 # Generated: 2026-01-18T12:34:56Z
@@ -558,9 +560,11 @@ env:
 | PyPI           | Python                                                           | License, author, homepage                       |
 | pub.dev        | Dart                                                             | License, author, homepage, repo                 |
 | crates.io      | Rust/Cargo                                                       | License, author, homepage, repo, description    |
+| Conan Center   | C/C++ (Conan)                                                    | License, author, homepage, repo, description    |
 | Debian Sources | Debian packages                                                  | Maintainer, description, homepage               |
 | deps.dev       | Python, npm, Maven, Go, Ruby, NuGet (+ Rust fallback)            | License, homepage, repo                         |
 | ecosyste.ms    | All major ecosystems                                             | License, description, maintainer                |
+| ClearlyDefined | Python, npm, Cargo, Maven, Ruby, NuGet, Go                       | License, attribution                            |
 | Repology       | Linux distros                                                    | License, homepage                               |
 
 ### License Database
@@ -724,22 +728,24 @@ sbomify attempts to populate these fields for each component:
 
 sbomify queries sources in priority order, stopping when data is found:
 
-| Ecosystem         | Primary Source | Fallback Sources       |
-| ----------------- | -------------- | ---------------------- |
-| Python            | PyPI API       | deps.dev → ecosyste.ms |
-| JavaScript        | deps.dev       | ecosyste.ms            |
-| Rust              | crates.io API  | deps.dev → ecosyste.ms |
-| Go                | deps.dev       | ecosyste.ms            |
-| Ruby              | deps.dev       | ecosyste.ms            |
-| Java/Maven        | deps.dev       | ecosyste.ms            |
-| Dart              | pub.dev API    | ecosyste.ms            |
-| Debian            | Debian Sources | Repology → ecosyste.ms |
-| Ubuntu            | License DB     | Repology → ecosyste.ms |
-| Alpine            | License DB     | Repology → ecosyste.ms |
-| Wolfi             | License DB     | Repology → ecosyste.ms |
-| Rocky/Alma/CentOS | License DB     | Repology → ecosyste.ms |
-| Fedora            | License DB     | Repology → ecosyste.ms |
-| Amazon Linux      | License DB     | Repology → ecosyste.ms |
+| Ecosystem         | Primary Source   | Fallback Sources                        |
+| ----------------- | ---------------- | --------------------------------------- |
+| Python            | PyPI API         | deps.dev → ecosyste.ms → ClearlyDefined |
+| JavaScript        | deps.dev         | ecosyste.ms → ClearlyDefined            |
+| Rust              | crates.io API    | deps.dev → ecosyste.ms → ClearlyDefined |
+| Go                | deps.dev         | ecosyste.ms → ClearlyDefined            |
+| Ruby              | deps.dev         | ecosyste.ms → ClearlyDefined            |
+| Java/Maven        | deps.dev         | ecosyste.ms → ClearlyDefined            |
+| NuGet             | deps.dev         | ecosyste.ms → ClearlyDefined            |
+| Dart              | pub.dev API      | ecosyste.ms                             |
+| C++ (Conan)       | Conan Center API | ecosyste.ms                             |
+| Debian            | Debian Sources   | Repology → ecosyste.ms                  |
+| Ubuntu            | License DB       | Repology → ecosyste.ms                  |
+| Alpine            | License DB       | Repology → ecosyste.ms                  |
+| Wolfi             | License DB       | Repology → ecosyste.ms                  |
+| Rocky/Alma/CentOS | License DB       | Repology → ecosyste.ms                  |
+| Fedora            | License DB       | Repology → ecosyste.ms                  |
+| Amazon Linux      | License DB       | Repology → ecosyste.ms                  |
 
 ### Limitations
 
