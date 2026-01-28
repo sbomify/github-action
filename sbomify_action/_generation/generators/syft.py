@@ -136,31 +136,24 @@ class SyftFsGenerator:
         )
 
         try:
-            result = run_command(cmd, "syft", timeout=DEFAULT_TIMEOUT)
+            # run_command raises SBOMGenerationError on failure (uses check=True)
+            run_command(cmd, "syft", timeout=DEFAULT_TIMEOUT)
 
-            if result.returncode == 0:
-                # Verify output file was created
-                if not Path(input.output_file).exists():
-                    return GenerationResult.failure_result(
-                        error_message="Syft completed but output file not created",
-                        sbom_format=input.output_format,
-                        spec_version=version,
-                        generator_name=self.name,
-                    )
-
-                return GenerationResult.success_result(
-                    output_file=input.output_file,
-                    sbom_format=input.output_format,
-                    spec_version=version,
-                    generator_name=self.name,
-                )
-            else:
+            # Verify output file was created
+            if not Path(input.output_file).exists():
                 return GenerationResult.failure_result(
-                    error_message=f"syft failed with return code {result.returncode}",
+                    error_message="Syft completed but output file not created",
                     sbom_format=input.output_format,
                     spec_version=version,
                     generator_name=self.name,
                 )
+
+            return GenerationResult.success_result(
+                output_file=input.output_file,
+                sbom_format=input.output_format,
+                spec_version=version,
+                generator_name=self.name,
+            )
         except SBOMGenerationError as e:
             return GenerationResult.failure_result(
                 error_message=str(e),
@@ -272,31 +265,24 @@ class SyftImageGenerator:
         )
 
         try:
-            result = run_command(cmd, "syft", timeout=DEFAULT_TIMEOUT, docker_image=input.docker_image)
+            # run_command raises SBOMGenerationError on failure (uses check=True)
+            run_command(cmd, "syft", timeout=DEFAULT_TIMEOUT, docker_image=input.docker_image)
 
-            if result.returncode == 0:
-                # Verify output file was created
-                if not Path(input.output_file).exists():
-                    return GenerationResult.failure_result(
-                        error_message="Syft completed but output file not created",
-                        sbom_format=input.output_format,
-                        spec_version=version,
-                        generator_name=self.name,
-                    )
-
-                return GenerationResult.success_result(
-                    output_file=input.output_file,
-                    sbom_format=input.output_format,
-                    spec_version=version,
-                    generator_name=self.name,
-                )
-            else:
+            # Verify output file was created
+            if not Path(input.output_file).exists():
                 return GenerationResult.failure_result(
-                    error_message=f"syft failed with return code {result.returncode}",
+                    error_message="Syft completed but output file not created",
                     sbom_format=input.output_format,
                     spec_version=version,
                     generator_name=self.name,
                 )
+
+            return GenerationResult.success_result(
+                output_file=input.output_file,
+                sbom_format=input.output_format,
+                spec_version=version,
+                generator_name=self.name,
+            )
         except DockerImageNotFoundError as e:
             # Provide a clear error message for missing Docker images
             return GenerationResult.failure_result(

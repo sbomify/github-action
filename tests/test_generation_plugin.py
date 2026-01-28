@@ -1526,5 +1526,236 @@ class TestToolNotAvailableError(unittest.TestCase):
         self.assertIsInstance(exc, SBOMGenerationError)
 
 
+class TestSBOMGenerationErrorEnhanced(unittest.TestCase):
+    """Tests for enhanced SBOMGenerationError with stderr/stdout/returncode."""
+
+    def test_exception_with_all_fields(self):
+        """Test creating exception with all diagnostic fields."""
+        from sbomify_action.exceptions import SBOMGenerationError
+
+        exc = SBOMGenerationError(
+            message="Command failed",
+            stderr="FATAL: something went wrong",
+            stdout="some output",
+            returncode=1,
+        )
+        self.assertEqual(str(exc), "Command failed")
+        self.assertEqual(exc.stderr, "FATAL: something went wrong")
+        self.assertEqual(exc.stdout, "some output")
+        self.assertEqual(exc.returncode, 1)
+
+    def test_exception_with_defaults(self):
+        """Test creating exception with default values."""
+        from sbomify_action.exceptions import SBOMGenerationError
+
+        exc = SBOMGenerationError("Command failed")
+        self.assertEqual(str(exc), "Command failed")
+        self.assertEqual(exc.stderr, "")
+        self.assertEqual(exc.stdout, "")
+        self.assertIsNone(exc.returncode)
+
+    def test_docker_image_not_found_with_diagnostics(self):
+        """Test DockerImageNotFoundError with diagnostic info."""
+        from sbomify_action.exceptions import DockerImageNotFoundError
+
+        exc = DockerImageNotFoundError(
+            image="alpine:nonexistent",
+            message="Image not found",
+            stderr="MANIFEST_UNKNOWN",
+            returncode=1,
+        )
+        self.assertEqual(exc.image, "alpine:nonexistent")
+        self.assertEqual(exc.stderr, "MANIFEST_UNKNOWN")
+        self.assertEqual(exc.returncode, 1)
+
+
+class TestExtractErrorSummary(unittest.TestCase):
+    """Tests for extract_error_summary helper function."""
+
+    def test_extract_fatal_line(self):
+        """Test extracting FATAL error lines."""
+        from sbomify_action._generation.utils import extract_error_summary
+
+        output = "INFO: Starting scan\nFATAL: Image not found\nINFO: Cleanup"
+        result = extract_error_summary(output)
+        self.assertIn("FATAL: Image not found", result)
+        self.assertNotIn("INFO: Starting scan", result)
+
+    def test_extract_error_line(self):
+        """Test extracting ERROR lines."""
+        from sbomify_action._generation.utils import extract_error_summary
+
+        output = "DEBUG: checking\nERROR: connection refused\nDEBUG: done"
+        result = extract_error_summary(output)
+        self.assertIn("ERROR: connection refused", result)
+        self.assertNotIn("DEBUG", result)
+
+    def test_extract_lowercase_error(self):
+        """Test extracting 'error:' lines (lowercase)."""
+        from sbomify_action._generation.utils import extract_error_summary
+
+        output = "info: starting\nerror: file not found\ninfo: done"
+        result = extract_error_summary(output)
+        self.assertIn("error: file not found", result)
+
+    def test_extract_failed_pattern(self):
+        """Test extracting lines with 'failed:' pattern."""
+        from sbomify_action._generation.utils import extract_error_summary
+
+        output = "step 1 ok\nstep 2 failed: timeout\nstep 3 skipped"
+        result = extract_error_summary(output)
+        self.assertIn("failed: timeout", result)
+
+    def test_truncate_long_output(self):
+        """Test that long output is truncated."""
+        from sbomify_action._generation.utils import extract_error_summary
+
+        output = "A" * 1000
+        result = extract_error_summary(output, max_chars=100)
+        self.assertLessEqual(len(result), 100)
+        self.assertTrue(result.endswith("..."))
+
+    def test_empty_output(self):
+        """Test empty output returns empty string."""
+        from sbomify_action._generation.utils import extract_error_summary
+
+        self.assertEqual(extract_error_summary(""), "")
+        self.assertEqual(extract_error_summary(None), "")
+
+    def test_multiple_error_lines_joined(self):
+        """Test multiple error lines are joined with pipe separator."""
+        from sbomify_action._generation.utils import extract_error_summary
+
+        output = "FATAL: first error\nERROR: second error"
+        result = extract_error_summary(output)
+        self.assertIn("FATAL: first error", result)
+        self.assertIn("ERROR: second error", result)
+        self.assertIn(" | ", result)
+
+    def test_fallback_to_full_output(self):
+        """Test fallback to full output when no error patterns found."""
+        from sbomify_action._generation.utils import extract_error_summary
+
+        output = "some random output\nwith multiple lines"
+        result = extract_error_summary(output)
+        # Should contain content from original, joined
+        self.assertIn("some random output", result)
+
+    def test_extract_prefixed_errors(self):
+        """Test extracting errors with timestamp or tool prefixes."""
+        from sbomify_action._generation.utils import extract_error_summary
+
+        # Timestamp prefix
+        output = "2024-01-28 10:00:00 ERROR: connection timeout\ninfo: retrying"
+        result = extract_error_summary(output)
+        self.assertIn("ERROR: connection timeout", result)
+        self.assertNotIn("retrying", result)
+
+        # Tool prefix
+        output = "[trivy] FATAL: scan failed\n[trivy] info: cleanup"
+        result = extract_error_summary(output)
+        self.assertIn("FATAL: scan failed", result)
+        self.assertNotIn("cleanup", result)
+
+
+class TestRunCommandErrorMessages(unittest.TestCase):
+    """Tests for run_command error message enhancement."""
+
+    @patch("subprocess.run")
+    def test_error_includes_stderr_summary(self, mock_run):
+        """Test that SBOMGenerationError includes stderr summary."""
+        import subprocess
+
+        from sbomify_action._generation.utils import run_command
+        from sbomify_action.exceptions import SBOMGenerationError
+
+        mock_run.side_effect = subprocess.CalledProcessError(
+            returncode=1,
+            cmd=["trivy", "fs", "."],
+            stderr="FATAL: unable to scan directory: permission denied",
+        )
+
+        with self.assertRaises(SBOMGenerationError) as cm:
+            run_command(["trivy", "fs", "."], "trivy")
+
+        # Error message should include the summary
+        self.assertIn("FATAL", str(cm.exception))
+        self.assertIn("permission denied", str(cm.exception))
+        # Should also have the diagnostic fields
+        self.assertEqual(cm.exception.returncode, 1)
+        self.assertIn("permission denied", cm.exception.stderr)
+
+    @patch("subprocess.run")
+    def test_docker_image_error_includes_diagnostics(self, mock_run):
+        """Test DockerImageNotFoundError includes full diagnostic info."""
+        import subprocess
+
+        from sbomify_action._generation.utils import run_command
+        from sbomify_action.exceptions import DockerImageNotFoundError
+
+        mock_run.side_effect = subprocess.CalledProcessError(
+            returncode=1,
+            cmd=["trivy", "image", "test:latest"],
+            stderr="MANIFEST_UNKNOWN: manifest unknown; tag=latest",
+        )
+
+        with self.assertRaises(DockerImageNotFoundError) as cm:
+            run_command(
+                ["trivy", "image", "test:latest"],
+                "trivy",
+                docker_image="test:latest",
+            )
+
+        # Should have diagnostic info attached
+        self.assertEqual(cm.exception.returncode, 1)
+        self.assertIn("MANIFEST_UNKNOWN", cm.exception.stderr)
+
+
+class TestRegistryErrorAggregation(unittest.TestCase):
+    """Tests for registry error aggregation when all generators fail."""
+
+    def test_aggregates_multiple_errors(self):
+        """Test that registry aggregates errors from multiple generators."""
+        registry = GeneratorRegistry()
+
+        # Create mock generators that all fail
+        mock_gen1 = MagicMock()
+        mock_gen1.name = "gen1"
+        mock_gen1.priority = 10
+        mock_gen1.supported_formats = [FormatVersion("cyclonedx", ("1.6",), "1.6")]
+        mock_gen1.supports.return_value = True
+        mock_gen1.generate.return_value = GenerationResult.failure_result(
+            error_message="gen1 failed: first error",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="gen1",
+        )
+
+        mock_gen2 = MagicMock()
+        mock_gen2.name = "gen2"
+        mock_gen2.priority = 20
+        mock_gen2.supported_formats = [FormatVersion("cyclonedx", ("1.6",), "1.6")]
+        mock_gen2.supports.return_value = True
+        mock_gen2.generate.return_value = GenerationResult.failure_result(
+            error_message="gen2 failed: second error",
+            sbom_format="cyclonedx",
+            spec_version="1.6",
+            generator_name="gen2",
+        )
+
+        registry.register(mock_gen1)
+        registry.register(mock_gen2)
+
+        gen_input = GenerationInput(lock_file="/path/requirements.txt", output_format="cyclonedx")
+        result = registry.generate(gen_input)
+
+        # Should include errors from both generators
+        self.assertFalse(result.success)
+        self.assertIn("gen1", result.error_message)
+        self.assertIn("gen2", result.error_message)
+        self.assertIn("first error", result.error_message)
+        self.assertIn("second error", result.error_message)
+
+
 if __name__ == "__main__":
     unittest.main()

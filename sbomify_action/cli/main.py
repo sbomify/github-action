@@ -584,6 +584,7 @@ def initialize_sentry() -> None:
         Filter events before sending to Sentry.
         Don't send user input validation errors - these are expected user errors.
         """
+        # Filter exceptions
         if "exc_info" in hint:
             exc_type, exc_value, tb = hint["exc_info"]
             # Don't send validation or configuration errors - these are user errors
@@ -593,6 +594,13 @@ def initialize_sentry() -> None:
                 exc_value, (SBOMValidationError, ConfigurationError, DockerImageNotFoundError, ToolNotAvailableError)
             ):
                 return None
+
+        # Filter log messages for user configuration errors
+        # These come through the logging integration, not as exceptions
+        message = event.get("message") or event.get("logentry", {}).get("formatted", "")
+        if message.startswith("Configuration error:"):
+            return None
+
         return event
 
     sentry_sdk.init(

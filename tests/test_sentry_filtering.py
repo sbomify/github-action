@@ -110,6 +110,37 @@ class TestSentryFiltering(unittest.TestCase):
             result = before_send(event, hint)
             self.assertIsNone(result, "ConfigurationError should be filtered from Sentry")
 
+    def test_sentry_filters_configuration_error_log_messages(self):
+        """
+        Test that log messages starting with 'Configuration error:' are filtered.
+        These come through the logging integration, not as exceptions.
+        """
+        initialize_sentry()
+
+        client = sentry_sdk.get_client()
+
+        if client and client.options.get("before_send"):
+            before_send = client.options["before_send"]
+
+            # Test with 'message' field (common format)
+            event_message = {"message": "Configuration error: sbomify API token is not defined"}
+            hint = {}
+
+            result = before_send(event_message, hint)
+            self.assertIsNone(result, "Configuration error log message should be filtered from Sentry")
+
+            # Test with 'logentry.formatted' field (alternative format)
+            event_logentry = {"logentry": {"formatted": "Configuration error: missing required field"}}
+
+            result = before_send(event_logentry, hint)
+            self.assertIsNone(result, "Configuration error logentry should be filtered from Sentry")
+
+            # Test that non-configuration error messages are NOT filtered
+            event_other = {"message": "Some other error occurred"}
+
+            result = before_send(event_other, hint)
+            self.assertIsNotNone(result, "Non-configuration error messages should be sent to Sentry")
+
     def test_sentry_allows_generation_errors(self):
         """
         Test that SBOMGenerationError is NOT filtered from Sentry.

@@ -134,31 +134,24 @@ class TrivyFsGenerator:
         logger.info(f"Running trivy fs for {input.lock_file_name} ({format_display_name(input.output_format)})")
 
         try:
+            # run_command raises SBOMGenerationError on failure (uses check=True)
             result = run_command(cmd, "trivy", timeout=DEFAULT_TIMEOUT)
 
             # Trivy outputs to stdout, save to file
-            if result.returncode == 0:
-                try:
-                    json_data = json.loads(result.stdout)
-                    with Path(input.output_file).open("w") as f:
-                        json.dump(json_data, f, indent=4)
+            try:
+                json_data = json.loads(result.stdout)
+                with Path(input.output_file).open("w") as f:
+                    json.dump(json_data, f, indent=4)
 
-                    return GenerationResult.success_result(
-                        output_file=input.output_file,
-                        sbom_format=input.output_format,
-                        spec_version=spec_version,
-                        generator_name=self.name,
-                    )
-                except json.JSONDecodeError as e:
-                    return GenerationResult.failure_result(
-                        error_message=f"Invalid JSON output from trivy: {e}",
-                        sbom_format=input.output_format,
-                        spec_version=spec_version,
-                        generator_name=self.name,
-                    )
-            else:
+                return GenerationResult.success_result(
+                    output_file=input.output_file,
+                    sbom_format=input.output_format,
+                    spec_version=spec_version,
+                    generator_name=self.name,
+                )
+            except json.JSONDecodeError as e:
                 return GenerationResult.failure_result(
-                    error_message=f"trivy failed with return code {result.returncode}",
+                    error_message=f"Invalid JSON output from trivy: {e}",
                     sbom_format=input.output_format,
                     spec_version=spec_version,
                     generator_name=self.name,
@@ -274,31 +267,24 @@ class TrivyImageGenerator:
         logger.info(f"Running trivy image for {input.docker_image} ({format_display_name(input.output_format)})")
 
         try:
+            # run_command raises SBOMGenerationError on failure (uses check=True)
             result = run_command(cmd, "trivy", timeout=DEFAULT_TIMEOUT, docker_image=input.docker_image)
 
             # Trivy outputs to stdout, save to file
-            if result.returncode == 0:
-                try:
-                    json_data = json.loads(result.stdout)
-                    with Path(input.output_file).open("w") as f:
-                        json.dump(json_data, f, indent=4)
+            try:
+                json_data = json.loads(result.stdout)
+                with Path(input.output_file).open("w") as f:
+                    json.dump(json_data, f, indent=4)
 
-                    return GenerationResult.success_result(
-                        output_file=input.output_file,
-                        sbom_format=input.output_format,
-                        spec_version=spec_version,
-                        generator_name=self.name,
-                    )
-                except json.JSONDecodeError as e:
-                    return GenerationResult.failure_result(
-                        error_message=f"Invalid JSON output from trivy: {e}",
-                        sbom_format=input.output_format,
-                        spec_version=spec_version,
-                        generator_name=self.name,
-                    )
-            else:
+                return GenerationResult.success_result(
+                    output_file=input.output_file,
+                    sbom_format=input.output_format,
+                    spec_version=spec_version,
+                    generator_name=self.name,
+                )
+            except json.JSONDecodeError as e:
                 return GenerationResult.failure_result(
-                    error_message=f"trivy failed with return code {result.returncode}",
+                    error_message=f"Invalid JSON output from trivy: {e}",
                     sbom_format=input.output_format,
                     spec_version=spec_version,
                     generator_name=self.name,
