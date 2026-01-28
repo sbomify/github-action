@@ -14,6 +14,7 @@ pipe.yml
 
 # Development files
 .cursorrules
+CLAUDE.md
 .env
 .pre-commit-config.yaml
 
