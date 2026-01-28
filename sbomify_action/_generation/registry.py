@@ -1,9 +1,10 @@
 """Generator registry for managing SBOM generator plugins."""
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sbomify_action import format_display_name
+from sbomify_action.exceptions import ToolNotAvailableError
 from sbomify_action.logging_config import logger
 from sbomify_action.serialization import (
     sanitize_cyclonedx_licenses,
@@ -40,7 +41,7 @@ class GeneratorRegistry:
 
     def __init__(self) -> None:
         """Initialize an empty registry."""
-        self._generators: List[Generator] = []
+        self._generators: list[Generator] = []
 
     def register(self, generator: Generator) -> None:
         """
@@ -54,7 +55,7 @@ class GeneratorRegistry:
         self._generators.append(generator)
         logger.debug(f"Registered generator: {generator.name} (priority={generator.priority})")
 
-    def get_generators_for(self, input: GenerationInput) -> List[Generator]:
+    def get_generators_for(self, input: GenerationInput) -> list[Generator]:
         """
         Get all applicable generators for an input, sorted by priority.
 
@@ -134,7 +135,7 @@ class GeneratorRegistry:
             if missing_tools and not available_tools:
                 # No tools available - provide installation instructions
                 error_msg = format_no_tools_error(input_type, lock_file)
-                raise ValueError(error_msg)
+                raise ToolNotAvailableError(input_type, lock_file, error_msg)
             else:
                 # Tools available but don't support this format/version
                 available_formats = self._get_available_formats()
@@ -145,9 +146,14 @@ class GeneratorRegistry:
                 )
 
         # Try generators in priority order, collecting errors for better diagnostics
-        errors: List[str] = []
+        generator_names = [g.name for g in generators]
+        logger.info(f"Found {len(generators)} applicable generator(s): {', '.join(generator_names)}")
+
+        errors: list[str] = []
+        attempted_generators: list[str] = []
         for generator in generators:
             logger.info(f"Trying generator: {generator.name}")
+            attempted_generators.append(generator.name)
             try:
                 result = generator.generate(input)
                 if result.success:
@@ -160,12 +166,15 @@ class GeneratorRegistry:
                     return result
                 else:
                     errors.append(f"{generator.name}: {result.error_message}")
-                    logger.warning(f"Generator {generator.name} failed: {result.error_message}")
+                    # Log at INFO level to ensure it appears in Sentry breadcrumbs
+                    logger.info(f"Generator {generator.name} failed, will try next: {result.error_message}")
             except Exception as e:
                 errors.append(f"{generator.name}: {e}")
-                logger.warning(f"Generator {generator.name} raised exception: {e}")
+                # Log at INFO level to ensure it appears in Sentry breadcrumbs
+                logger.info(f"Generator {generator.name} raised exception, will try next: {e}")
 
         # All generators failed - check if it's a tool availability issue
+        logger.info(f"All {len(attempted_generators)} generator(s) failed: {', '.join(attempted_generators)}")
         spec_version = input.spec_version or "default"
         input_type = "docker_image" if input.is_docker_image else "lock_file"
         lock_file = input.lock_file if input.is_lock_file else None
@@ -298,16 +307,16 @@ class GeneratorRegistry:
                 return True
         return False
 
-    def _get_format_version(self, generator: Generator, format: str) -> Optional[FormatVersion]:
+    def _get_format_version(self, generator: Generator, format: str) -> FormatVersion | None:
         """Get the FormatVersion for a specific format from a generator."""
         for fv in generator.supported_formats:
             if fv.format == format:
                 return fv
         return None
 
-    def _get_available_formats(self) -> Dict[str, List[str]]:
+    def _get_available_formats(self) -> dict[str, list[str]]:
         """Get all available formats and versions from registered generators."""
-        formats: Dict[str, set] = {}
+        formats: dict[str, set] = {}
         for generator in self._generators:
             for fv in generator.supported_formats:
                 if fv.format not in formats:
@@ -315,7 +324,7 @@ class GeneratorRegistry:
                 formats[fv.format].update(fv.versions)
         return {f: sorted(v) for f, v in formats.items()}
 
-    def list_generators(self) -> List[Dict[str, Any]]:
+    def list_generators(self) -> list[dict[str, Any]]:
         """
         List all registered generators with their capabilities.
 

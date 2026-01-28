@@ -38,6 +38,7 @@ from ..exceptions import (
     FileProcessingError,
     SBOMGenerationError,
     SBOMValidationError,
+    ToolNotAvailableError,
 )
 from ..generation import (
     ALL_LOCK_FILES,
@@ -589,7 +590,9 @@ def initialize_sentry() -> None:
             # Don't send validation or configuration errors - these are user errors
             # SBOMGenerationError and APIError should still be sent (tool/system bugs)
             # DockerImageNotFoundError is a user configuration error (image doesn't exist)
-            if isinstance(exc_value, (SBOMValidationError, ConfigurationError, DockerImageNotFoundError)):
+            if isinstance(
+                exc_value, (SBOMValidationError, ConfigurationError, DockerImageNotFoundError, ToolNotAvailableError)
+            ):
                 return None
 
         # Filter log messages for user configuration errors
