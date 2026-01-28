@@ -907,8 +907,8 @@ class TestRegistryGenerateWithFallback(unittest.TestCase):
         This test verifies the fix for the cdxgen TypeError bug where
         parentComponent is undefined when processing certain Dart files.
         """
-        import tempfile
         import os
+        import tempfile
 
         # Create a temporary output file for Syft
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
@@ -917,9 +917,7 @@ class TestRegistryGenerateWithFallback(unittest.TestCase):
 
         try:
             # cdxgen fails with the TypeError bug
-            mock_cdxgen_run.side_effect = SBOMGenerationError(
-                "cdxgen command failed with return code 1"
-            )
+            mock_cdxgen_run.side_effect = SBOMGenerationError("cdxgen command failed with return code 1")
 
             # Syft succeeds and creates output file
             def syft_side_effect(*args, **kwargs):

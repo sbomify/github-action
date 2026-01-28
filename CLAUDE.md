@@ -82,3 +82,13 @@ Each step maintains an audit trail with timestamps for compliance.
 - Maintain 80%+ test coverage
 - Use `git --no-pager` for git operations
 - Never create summary/documentation files unless explicitly requested
+
+## Python Best Practices
+
+This project targets Python 3.10+. Use modern Python features:
+
+- **Type hints**: Use built-in generics (`list[str]`, `dict[str, int]`) instead of `typing.List`, `typing.Dict`
+- **Union types**: Use `X | Y` syntax instead of `Union[X, Y]` or `Optional[X]` (use `X | None`)
+- **f-strings**: Always prefer f-strings over `.format()` or `%` formatting
+- **Pattern matching**: Use `match`/`case` statements where appropriate for complex conditionals
+- **Walrus operator**: Use `:=` for assignment expressions when it improves readability

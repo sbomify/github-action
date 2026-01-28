@@ -589,7 +589,9 @@ def initialize_sentry() -> None:
             # Don't send validation or configuration errors - these are user errors
             # SBOMGenerationError and APIError should still be sent (tool/system bugs)
             # DockerImageNotFoundError is a user configuration error (image doesn't exist)
-            if isinstance(exc_value, (SBOMValidationError, ConfigurationError, DockerImageNotFoundError, ToolNotAvailableError)):
+            if isinstance(
+                exc_value, (SBOMValidationError, ConfigurationError, DockerImageNotFoundError, ToolNotAvailableError)
+            ):
                 return None
         return event
 
