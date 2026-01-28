@@ -4,6 +4,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from sbomify_action import format_display_name
+from sbomify_action.exceptions import ToolNotAvailableError
 from sbomify_action.logging_config import logger
 from sbomify_action.serialization import (
     sanitize_cyclonedx_licenses,
@@ -134,7 +135,7 @@ class GeneratorRegistry:
             if missing_tools and not available_tools:
                 # No tools available - provide installation instructions
                 error_msg = format_no_tools_error(input_type, lock_file)
-                raise ValueError(error_msg)
+                raise ToolNotAvailableError(input_type, lock_file, error_msg)
             else:
                 # Tools available but don't support this format/version
                 available_formats = self._get_available_formats()
@@ -145,9 +146,14 @@ class GeneratorRegistry:
                 )
 
         # Try generators in priority order
+        generator_names = [g.name for g in generators]
+        logger.info(f"Found {len(generators)} applicable generator(s): {', '.join(generator_names)}")
+
         last_error: Optional[str] = None
+        attempted_generators: List[str] = []
         for generator in generators:
             logger.info(f"Trying generator: {generator.name}")
+            attempted_generators.append(generator.name)
             try:
                 result = generator.generate(input)
                 if result.success:
@@ -160,12 +166,15 @@ class GeneratorRegistry:
                     return result
                 else:
                     last_error = result.error_message
-                    logger.warning(f"Generator {generator.name} failed: {result.error_message}")
+                    # Log at INFO level to ensure it appears in Sentry breadcrumbs
+                    logger.info(f"Generator {generator.name} failed, will try next: {result.error_message}")
             except Exception as e:
                 last_error = str(e)
-                logger.warning(f"Generator {generator.name} raised exception: {e}")
+                # Log at INFO level to ensure it appears in Sentry breadcrumbs
+                logger.info(f"Generator {generator.name} raised exception, will try next: {e}")
 
         # All generators failed - check if it's a tool availability issue
+        logger.info(f"All {len(attempted_generators)} generator(s) failed: {', '.join(attempted_generators)}")
         spec_version = input.spec_version or "default"
         input_type = "docker_image" if input.is_docker_image else "lock_file"
         lock_file = input.lock_file if input.is_lock_file else None

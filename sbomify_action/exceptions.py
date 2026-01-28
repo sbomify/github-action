@@ -34,6 +34,19 @@ class DockerImageNotFoundError(SBOMGenerationError):
             )
 
 
+class ToolNotAvailableError(SBOMGenerationError):
+    """Raised when no SBOM generation tools are available for the input.
+
+    This error occurs when sbomify-action is installed via pip but the user
+    hasn't installed any of the required external tools (trivy, syft, cdxgen).
+    """
+
+    def __init__(self, input_type: str, lock_file: str | None = None, message: str | None = None):
+        self.input_type = input_type
+        self.lock_file = lock_file
+        super().__init__(message or f"No SBOM generation tools available for {input_type}")
+
+
 class SBOMValidationError(SbomifyError):
     """Raised when SBOM validation fails."""
 

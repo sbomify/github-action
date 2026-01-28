@@ -21,7 +21,7 @@ from sbomify_action._generation.generators import (
     TrivyFsGenerator,
     TrivyImageGenerator,
 )
-from sbomify_action.exceptions import SBOMGenerationError
+from sbomify_action.exceptions import SBOMGenerationError, ToolNotAvailableError
 
 
 class TestFormatVersion(unittest.TestCase):
@@ -850,6 +850,23 @@ class TestRegistryGenerateWithFallback(unittest.TestCase):
 
         self.assertIn("No generator found", str(cm.exception))
 
+    @patch("sbomify_action._generation.registry.check_tool_for_input")
+    def test_generate_no_tools_raises_tool_not_available_error(self, mock_check_tool):
+        """Test that generate raises ToolNotAvailableError when no tools are installed."""
+        # Simulate no tools available - all tools missing
+        mock_check_tool.return_value = ([], ["trivy", "syft", "cdxgen"])
+
+        registry = GeneratorRegistry()
+
+        input = GenerationInput(lock_file="/path/requirements.txt", output_format="cyclonedx")
+
+        with self.assertRaises(ToolNotAvailableError) as cm:
+            registry.generate(input)
+
+        # Verify exception attributes
+        self.assertEqual(cm.exception.input_type, "lock_file")
+        self.assertEqual(cm.exception.lock_file, "/path/requirements.txt")
+
     @patch("sbomify_action._generation.generators.cyclonedx_py.run_command")
     def test_generate_falls_back_on_failure(self, mock_run):
         """Test that generate tries next generator on failure."""
@@ -879,6 +896,98 @@ class TestRegistryGenerateWithFallback(unittest.TestCase):
         # Should succeed with mock generator
         self.assertTrue(result.success)
         self.assertEqual(result.generator_name, "mock-generator")
+
+    @patch("sbomify_action._generation.generators.syft._SYFT_AVAILABLE", True)
+    @patch("sbomify_action._generation.generators.cdxgen._CDXGEN_AVAILABLE", True)
+    @patch("sbomify_action._generation.generators.syft.run_command")
+    @patch("sbomify_action._generation.generators.cdxgen.run_command")
+    def test_dart_fallback_cdxgen_to_syft(self, mock_cdxgen_run, mock_syft_run):
+        """Test that Dart pubspec.lock falls back from cdxgen to Syft on failure.
+
+        This test verifies the fix for the cdxgen TypeError bug where
+        parentComponent is undefined when processing certain Dart files.
+        """
+        import tempfile
+        import os
+
+        # Create a temporary output file for Syft
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            f.write('{"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []}')
+            temp_output = f.name
+
+        try:
+            # cdxgen fails with the TypeError bug
+            mock_cdxgen_run.side_effect = SBOMGenerationError(
+                "cdxgen command failed with return code 1"
+            )
+
+            # Syft succeeds and creates output file
+            def syft_side_effect(*args, **kwargs):
+                # Extract output file from command args
+                cmd = args[0]
+                for i, arg in enumerate(cmd):
+                    if arg == "-o" or arg.startswith("cyclonedx-json@"):
+                        if "=" in arg:
+                            output_file = arg.split("=")[-1]
+                            # Create the output file
+                            with open(output_file, "w") as f:
+                                f.write('{"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []}')
+                            break
+                return MagicMock(returncode=0)
+
+            mock_syft_run.side_effect = syft_side_effect
+
+            registry = GeneratorRegistry()
+            registry.register(CdxgenFsGenerator())  # Priority 20
+            registry.register(SyftFsGenerator())  # Priority 35
+
+            input = GenerationInput(
+                lock_file="/path/pubspec.lock",
+                output_file=temp_output,
+                output_format="cyclonedx",
+                spec_version="1.6",
+            )
+            result = registry.generate(input, validate=False)
+
+            # Should fall back to Syft and succeed
+            self.assertTrue(result.success, f"Expected success but got: {result.error_message}")
+            self.assertEqual(result.generator_name, "syft-fs")
+
+            # Verify cdxgen was tried first
+            mock_cdxgen_run.assert_called_once()
+
+            # Verify Syft was tried as fallback
+            mock_syft_run.assert_called_once()
+        finally:
+            # Clean up temp file
+            if os.path.exists(temp_output):
+                os.unlink(temp_output)
+
+    @patch("sbomify_action._generation.generators.syft._SYFT_AVAILABLE", True)
+    @patch("sbomify_action._generation.generators.cdxgen._CDXGEN_AVAILABLE", True)
+    def test_dart_both_generators_available(self):
+        """Test that both cdxgen and Syft support Dart pubspec.lock files."""
+        registry = GeneratorRegistry()
+        registry.register(CdxgenFsGenerator())  # Priority 20
+        registry.register(SyftFsGenerator())  # Priority 35
+
+        input = GenerationInput(
+            lock_file="/path/pubspec.lock",
+            output_file="sbom.json",
+            output_format="cyclonedx",
+            spec_version="1.6",
+        )
+
+        generators = registry.get_generators_for(input)
+        generator_names = [g.name for g in generators]
+
+        # Both should support Dart
+        self.assertIn("cdxgen-fs", generator_names)
+        self.assertIn("syft-fs", generator_names)
+
+        # cdxgen should come first (lower priority number = higher priority)
+        self.assertEqual(generators[0].name, "cdxgen-fs")
+        self.assertEqual(generators[1].name, "syft-fs")
 
 
 class TestUtilsFunctions(unittest.TestCase):
@@ -1384,6 +1493,39 @@ class TestCdxgenImageGeneratorDockerNotFound(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertIn("not found", result.error_message)
         self.assertIn("sbomifyhub/sbomify-action:v0.11", result.error_message)
+
+
+class TestToolNotAvailableError(unittest.TestCase):
+    """Tests for ToolNotAvailableError exception."""
+
+    def test_exception_with_default_message(self):
+        """Test creating exception with default message."""
+        exc = ToolNotAvailableError(input_type="lock_file")
+        self.assertEqual(exc.input_type, "lock_file")
+        self.assertIsNone(exc.lock_file)
+        self.assertIn("No SBOM generation tools available", str(exc))
+        self.assertIn("lock_file", str(exc))
+
+    def test_exception_with_lock_file(self):
+        """Test creating exception with lock file info."""
+        exc = ToolNotAvailableError(input_type="lock_file", lock_file="requirements.txt")
+        self.assertEqual(exc.input_type, "lock_file")
+        self.assertEqual(exc.lock_file, "requirements.txt")
+
+    def test_exception_with_custom_message(self):
+        """Test creating exception with custom message."""
+        custom_msg = "Custom error: install trivy or syft"
+        exc = ToolNotAvailableError(
+            input_type="docker_image",
+            message=custom_msg,
+        )
+        self.assertEqual(exc.input_type, "docker_image")
+        self.assertEqual(str(exc), custom_msg)
+
+    def test_exception_inherits_from_sbom_generation_error(self):
+        """Test that ToolNotAvailableError inherits from SBOMGenerationError."""
+        exc = ToolNotAvailableError(input_type="lock_file")
+        self.assertIsInstance(exc, SBOMGenerationError)
 
 
 if __name__ == "__main__":
