@@ -10,7 +10,25 @@ class ConfigurationError(SbomifyError):
 
 
 class SBOMGenerationError(SbomifyError):
-    """Raised when SBOM generation fails."""
+    """Raised when SBOM generation fails.
+
+    Attributes:
+        stderr: The stderr output from the failed command (if available)
+        stdout: The stdout output from the failed command (if available)
+        returncode: The exit code from the failed command (if available)
+    """
+
+    def __init__(
+        self,
+        message: str,
+        stderr: str = "",
+        stdout: str = "",
+        returncode: int | None = None,
+    ):
+        self.stderr = stderr
+        self.stdout = stdout
+        self.returncode = returncode
+        super().__init__(message)
 
 
 class DockerImageNotFoundError(SBOMGenerationError):
@@ -24,13 +42,23 @@ class DockerImageNotFoundError(SBOMGenerationError):
         message: Detailed error message
     """
 
-    def __init__(self, image: str, message: str | None = None):
+    def __init__(
+        self,
+        image: str,
+        message: str | None = None,
+        stderr: str = "",
+        stdout: str = "",
+        returncode: int | None = None,
+    ):
         self.image = image
         if message:
-            super().__init__(message)
+            super().__init__(message, stderr=stderr, stdout=stdout, returncode=returncode)
         else:
             super().__init__(
-                f"Docker image '{image}' not found. Verify the image exists in the registry and the tag is correct."
+                f"Docker image '{image}' not found. Verify the image exists in the registry and the tag is correct.",
+                stderr=stderr,
+                stdout=stdout,
+                returncode=returncode,
             )
 
 
