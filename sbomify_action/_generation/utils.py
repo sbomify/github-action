@@ -222,15 +222,18 @@ def detect_docker_image_not_found(stderr: str) -> bool:
 
 
 # Patterns to identify key error lines in command output
+# These patterns match anywhere in the line to handle prefixed output like:
+# - "2024-01-28 10:00:00 ERROR: something failed" (timestamp prefix)
+# - "[trivy] FATAL: scan failed" (tool prefix)
 ERROR_LINE_PATTERNS = [
-    r"^\s*FATAL\b",
-    r"^\s*ERROR\b",
-    r"^\s*error:",
-    r"^\s*Error:",
-    r"failed:",
-    r"unable to",
-    r"could not",
-    r"cannot ",
+    r"\bFATAL\b",
+    r"\bERROR\b",
+    r"\berror:",
+    r"\bError:",
+    r"\bfailed:",
+    r"\bunable to\b",
+    r"\bcould not\b",
+    r"\bcannot ",
 ]
 
 

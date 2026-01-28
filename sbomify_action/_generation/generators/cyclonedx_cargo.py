@@ -102,6 +102,8 @@ class CycloneDXCargoGenerator:
                 generator_name=self.name,
             )
 
+        # Exception handling at this level (wrapping _generate) rather than inline
+        # in _generate, since this generator has a single execution path.
         try:
             return self._generate(input, spec_version)
         except SBOMGenerationError as e:

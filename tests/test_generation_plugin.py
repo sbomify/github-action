@@ -1501,6 +1501,22 @@ class TestExtractErrorSummary(unittest.TestCase):
         # Should contain content from original, joined
         self.assertIn("some random output", result)
 
+    def test_extract_prefixed_errors(self):
+        """Test extracting errors with timestamp or tool prefixes."""
+        from sbomify_action._generation.utils import extract_error_summary
+
+        # Timestamp prefix
+        output = "2024-01-28 10:00:00 ERROR: connection timeout\ninfo: retrying"
+        result = extract_error_summary(output)
+        self.assertIn("ERROR: connection timeout", result)
+        self.assertNotIn("retrying", result)
+
+        # Tool prefix
+        output = "[trivy] FATAL: scan failed\n[trivy] info: cleanup"
+        result = extract_error_summary(output)
+        self.assertIn("FATAL: scan failed", result)
+        self.assertNotIn("cleanup", result)
+
 
 class TestRunCommandErrorMessages(unittest.TestCase):
     """Tests for run_command error message enhancement."""

@@ -131,19 +131,11 @@ class CycloneDXPyGenerator:
                 generator_name=self.name,
             )
 
-        try:
-            if subcommand == "poetry":
-                # Poetry needs the directory, not the file
-                return self._generate_poetry(input, spec_version)
-            else:
-                return self._generate_standard(input, subcommand, spec_version)
-        except SBOMGenerationError as e:
-            return GenerationResult.failure_result(
-                error_message=str(e),
-                sbom_format="cyclonedx",
-                spec_version=spec_version,
-                generator_name=self.name,
-            )
+        if subcommand == "poetry":
+            # Poetry needs the directory, not the file
+            return self._generate_poetry(input, spec_version)
+        else:
+            return self._generate_standard(input, subcommand, spec_version)
 
     def _generate_standard(self, input: GenerationInput, subcommand: str, spec_version: str) -> GenerationResult:
         """Generate SBOM for requirements.txt or Pipfile.lock."""
