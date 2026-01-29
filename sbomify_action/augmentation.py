@@ -1596,7 +1596,7 @@ def _ensure_spdx_main_package_purl(document: Document, augmentation_data: dict[s
     This function checks if one exists and constructs one from VCS info if possible.
 
     The PURL is added as an externalRef with:
-    - category: PACKAGE-MANAGER (or OTHER for non-package-manager types like github)
+    - category: OTHER (VCS-based PURLs like github/gitlab/bitbucket)
     - referenceType: purl
     - locator: the PURL string
 
