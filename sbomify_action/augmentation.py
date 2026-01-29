@@ -1529,19 +1529,21 @@ def _add_vcs_info_to_spdx(document: Document, augmentation_data: Dict[str, Any])
     logger.info(log_msg)
 
 
-def _construct_purl_from_vcs(vcs_url: str, vcs_commit_sha: str | None, package_name: str | None) -> str | None:
+def _construct_purl_from_vcs(vcs_url: str, vcs_commit_sha: str | None) -> str | None:
     """
     Construct a PURL from VCS URL information.
 
     Maps common VCS hosts to their PURL types:
     - github.com -> pkg:github/owner/repo
-    - gitlab.com -> pkg:gitlab/owner/repo
+    - gitlab.com -> pkg:gitlab/owner/repo (includes self-hosted with "gitlab" in hostname)
     - bitbucket.org -> pkg:bitbucket/owner/repo
+
+    For GitLab nested groups (e.g., gitlab.com/group/subgroup/project),
+    the last path component is used as the repo name.
 
     Args:
         vcs_url: Repository URL (e.g., https://github.com/owner/repo)
         vcs_commit_sha: Optional commit SHA for versioning
-        package_name: Optional package name (used for fallback)
 
     Returns:
         PURL string or None if construction fails
@@ -1570,11 +1572,12 @@ def _construct_purl_from_vcs(vcs_url: str, vcs_commit_sha: str | None, package_n
         purl_type = "bitbucket"
 
     if purl_type and path:
-        # path should be owner/repo
+        # path should be owner/repo or owner/subgroup/repo (GitLab nested groups)
         parts = path.split("/")
         if len(parts) >= 2:
+            # For nested groups, use first part as namespace and last as name
             namespace = parts[0]
-            name = parts[1]
+            name = parts[-1]  # Last component is always the repo name
             version = truncate_sha(vcs_commit_sha, 7) if vcs_commit_sha else None
 
             if version:
@@ -1621,19 +1624,14 @@ def _ensure_spdx_main_package_purl(document: Document, augmentation_data: dict[s
     # Try to construct PURL from VCS info
     vcs_url = augmentation_data.get("vcs_url")
     vcs_commit_sha = augmentation_data.get("vcs_commit_sha")
-    package_name = main_package.name
 
-    purl = _construct_purl_from_vcs(vcs_url, vcs_commit_sha, package_name)
+    purl = _construct_purl_from_vcs(vcs_url, vcs_commit_sha)
 
     if purl:
-        # Determine category based on PURL type
-        # GitHub/GitLab/Bitbucket are not traditional package managers
-        purl_category = ExternalPackageRefCategory.OTHER
-        if purl.startswith("pkg:pypi/") or purl.startswith("pkg:npm/") or purl.startswith("pkg:maven/"):
-            purl_category = ExternalPackageRefCategory.PACKAGE_MANAGER
-
+        # VCS-based PURLs (github, gitlab, bitbucket) use OTHER category
+        # since they're not traditional package managers
         ext_ref = ExternalPackageRef(
-            category=purl_category,
+            category=ExternalPackageRefCategory.OTHER,
             reference_type="purl",
             locator=purl,
             comment="Package URL for unique identification (NTIA Minimum Elements)",

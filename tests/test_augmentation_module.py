@@ -2556,7 +2556,6 @@ class TestPurlConstructionFromVCS:
         purl = _construct_purl_from_vcs(
             "https://github.com/sbomify/sbomify",
             "356b558abc123",
-            "sbomify",
         )
         assert purl == "pkg:github/sbomify/sbomify@356b558"
 
@@ -2567,7 +2566,6 @@ class TestPurlConstructionFromVCS:
         purl = _construct_purl_from_vcs(
             "https://github.com/owner/repo.git",
             "abc1234567890",
-            "repo",
         )
         assert purl == "pkg:github/owner/repo@abc1234"
 
@@ -2578,9 +2576,19 @@ class TestPurlConstructionFromVCS:
         purl = _construct_purl_from_vcs(
             "https://gitlab.com/mygroup/myproject",
             "deadbeef12345",
-            "myproject",
         )
         assert purl == "pkg:gitlab/mygroup/myproject@deadbee"
+
+    def test_construct_purl_from_gitlab_nested_groups(self):
+        """Test PURL construction handles GitLab nested groups."""
+        from sbomify_action.augmentation import _construct_purl_from_vcs
+
+        purl = _construct_purl_from_vcs(
+            "https://gitlab.com/group/subgroup/project",
+            "abc1234567890",
+        )
+        # Should use first part as namespace, last part as name
+        assert purl == "pkg:gitlab/group/project@abc1234"
 
     def test_construct_purl_from_bitbucket_url(self):
         """Test PURL construction from Bitbucket URL."""
@@ -2589,7 +2597,6 @@ class TestPurlConstructionFromVCS:
         purl = _construct_purl_from_vcs(
             "https://bitbucket.org/team/project",
             "1234567890abc",
-            "project",
         )
         assert purl == "pkg:bitbucket/team/project@1234567"
 
@@ -2600,7 +2607,6 @@ class TestPurlConstructionFromVCS:
         purl = _construct_purl_from_vcs(
             "https://github.com/owner/repo",
             None,
-            "repo",
         )
         assert purl == "pkg:github/owner/repo"
 
@@ -2611,7 +2617,6 @@ class TestPurlConstructionFromVCS:
         purl = _construct_purl_from_vcs(
             "https://unknown-git-host.example.com/owner/repo",
             "abc123",
-            "repo",
         )
         assert purl is None
 
@@ -2619,10 +2624,10 @@ class TestPurlConstructionFromVCS:
         """Test PURL construction returns None for empty URL."""
         from sbomify_action.augmentation import _construct_purl_from_vcs
 
-        purl = _construct_purl_from_vcs("", "abc123", "repo")
+        purl = _construct_purl_from_vcs("", "abc123")
         assert purl is None
 
-        purl = _construct_purl_from_vcs(None, "abc123", "repo")
+        purl = _construct_purl_from_vcs(None, "abc123")
         assert purl is None
 
     def test_spdx_augmentation_adds_purl_from_vcs(self):
