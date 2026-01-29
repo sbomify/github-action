@@ -2544,3 +2544,188 @@ class TestComponentPurlOverride:
         result = json.loads(sbom_file.read_text())
         assert "component" in result["metadata"]
         assert result["metadata"]["component"]["purl"] == "pkg:pypi/new-app@1.0.0"
+
+
+class TestPurlConstructionFromVCS:
+    """Test PURL construction from VCS URL for NTIA compliance."""
+
+    def test_construct_purl_from_github_url(self):
+        """Test PURL construction from GitHub URL."""
+        from sbomify_action.augmentation import _construct_purl_from_vcs
+
+        purl = _construct_purl_from_vcs(
+            "https://github.com/sbomify/sbomify",
+            "356b558abc123",
+            "sbomify",
+        )
+        assert purl == "pkg:github/sbomify/sbomify@356b558"
+
+    def test_construct_purl_from_github_url_with_git_suffix(self):
+        """Test PURL construction handles .git suffix."""
+        from sbomify_action.augmentation import _construct_purl_from_vcs
+
+        purl = _construct_purl_from_vcs(
+            "https://github.com/owner/repo.git",
+            "abc1234567890",
+            "repo",
+        )
+        assert purl == "pkg:github/owner/repo@abc1234"
+
+    def test_construct_purl_from_gitlab_url(self):
+        """Test PURL construction from GitLab URL."""
+        from sbomify_action.augmentation import _construct_purl_from_vcs
+
+        purl = _construct_purl_from_vcs(
+            "https://gitlab.com/mygroup/myproject",
+            "deadbeef12345",
+            "myproject",
+        )
+        assert purl == "pkg:gitlab/mygroup/myproject@deadbee"
+
+    def test_construct_purl_from_bitbucket_url(self):
+        """Test PURL construction from Bitbucket URL."""
+        from sbomify_action.augmentation import _construct_purl_from_vcs
+
+        purl = _construct_purl_from_vcs(
+            "https://bitbucket.org/team/project",
+            "1234567890abc",
+            "project",
+        )
+        assert purl == "pkg:bitbucket/team/project@1234567"
+
+    def test_construct_purl_without_commit_sha(self):
+        """Test PURL construction when no commit SHA is available."""
+        from sbomify_action.augmentation import _construct_purl_from_vcs
+
+        purl = _construct_purl_from_vcs(
+            "https://github.com/owner/repo",
+            None,
+            "repo",
+        )
+        assert purl == "pkg:github/owner/repo"
+
+    def test_construct_purl_unknown_host_returns_none(self):
+        """Test PURL construction returns None for unknown hosts."""
+        from sbomify_action.augmentation import _construct_purl_from_vcs
+
+        purl = _construct_purl_from_vcs(
+            "https://unknown-git-host.example.com/owner/repo",
+            "abc123",
+            "repo",
+        )
+        assert purl is None
+
+    def test_construct_purl_empty_url_returns_none(self):
+        """Test PURL construction returns None for empty URL."""
+        from sbomify_action.augmentation import _construct_purl_from_vcs
+
+        purl = _construct_purl_from_vcs("", "abc123", "repo")
+        assert purl is None
+
+        purl = _construct_purl_from_vcs(None, "abc123", "repo")
+        assert purl is None
+
+    def test_spdx_augmentation_adds_purl_from_vcs(self):
+        """Test that SPDX augmentation adds PURL from VCS info."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import (
+            CreationInfo,
+            Document,
+            Package,
+            SpdxNoAssertion,
+        )
+
+        # Create SPDX document without PURL
+        package = Package(
+            spdx_id="SPDXRef-Package",
+            name="test-app",
+            version="1.0.0",
+            download_location=SpdxNoAssertion(),
+        )
+
+        document = Document(
+            creation_info=CreationInfo(
+                spdx_version="SPDX-2.3",
+                spdx_id="SPDXRef-DOCUMENT",
+                name="test-document",
+                document_namespace="https://example.com/test",
+                creators=[Actor(ActorType.TOOL, "test-tool")],
+                created=datetime.now(),
+            ),
+            packages=[package],
+        )
+
+        # Augment with VCS info
+        augmentation_data = {
+            "vcs_url": "https://github.com/sbomify/sbomify",
+            "vcs_commit_sha": "356b558abc123def",
+        }
+
+        enriched_doc = augment_spdx_sbom(
+            document=document,
+            augmentation_data=augmentation_data,
+        )
+
+        # Verify PURL was added
+        main_package = enriched_doc.packages[0]
+        purl_refs = [ref for ref in main_package.external_references if ref.reference_type == "purl"]
+        assert len(purl_refs) == 1
+        assert purl_refs[0].locator == "pkg:github/sbomify/sbomify@356b558"
+
+    def test_spdx_augmentation_does_not_overwrite_existing_purl(self):
+        """Test that existing PURL is not overwritten."""
+        from datetime import datetime
+
+        from spdx_tools.spdx.model import (
+            CreationInfo,
+            Document,
+            ExternalPackageRef,
+            ExternalPackageRefCategory,
+            Package,
+            SpdxNoAssertion,
+        )
+
+        # Create SPDX document with existing PURL
+        package = Package(
+            spdx_id="SPDXRef-Package",
+            name="test-app",
+            version="1.0.0",
+            download_location=SpdxNoAssertion(),
+        )
+        package.external_references.append(
+            ExternalPackageRef(
+                category=ExternalPackageRefCategory.PACKAGE_MANAGER,
+                reference_type="purl",
+                locator="pkg:pypi/test-app@1.0.0",
+            )
+        )
+
+        document = Document(
+            creation_info=CreationInfo(
+                spdx_version="SPDX-2.3",
+                spdx_id="SPDXRef-DOCUMENT",
+                name="test-document",
+                document_namespace="https://example.com/test",
+                creators=[Actor(ActorType.TOOL, "test-tool")],
+                created=datetime.now(),
+            ),
+            packages=[package],
+        )
+
+        # Augment with VCS info (should not overwrite existing PURL)
+        augmentation_data = {
+            "vcs_url": "https://github.com/sbomify/sbomify",
+            "vcs_commit_sha": "356b558abc123def",
+        }
+
+        enriched_doc = augment_spdx_sbom(
+            document=document,
+            augmentation_data=augmentation_data,
+        )
+
+        # Verify original PURL is preserved
+        main_package = enriched_doc.packages[0]
+        purl_refs = [ref for ref in main_package.external_references if ref.reference_type == "purl"]
+        assert len(purl_refs) == 1
+        assert purl_refs[0].locator == "pkg:pypi/test-app@1.0.0"  # Original preserved

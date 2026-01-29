@@ -1313,6 +1313,10 @@ def augment_spdx_sbom(
     # Add VCS information if present (from CI providers or sbomify.json config)
     _add_vcs_info_to_spdx(document, augmentation_data)
 
+    # Ensure main package has PURL for NTIA compliance
+    # This uses VCS info if available to construct a PURL
+    _ensure_spdx_main_package_purl(document, augmentation_data)
+
     # Add security contact (uses native SPDX structures)
     # This satisfies CRA vulnerability contact requirements
     if "security_contact" in augmentation_data and augmentation_data["security_contact"]:
@@ -1523,6 +1527,123 @@ def _add_vcs_info_to_spdx(document: Document, augmentation_data: Dict[str, Any])
     if vcs_ref:
         log_msg += f" ({vcs_ref})"
     logger.info(log_msg)
+
+
+def _construct_purl_from_vcs(vcs_url: str, vcs_commit_sha: str | None, package_name: str | None) -> str | None:
+    """
+    Construct a PURL from VCS URL information.
+
+    Maps common VCS hosts to their PURL types:
+    - github.com -> pkg:github/owner/repo
+    - gitlab.com -> pkg:gitlab/owner/repo
+    - bitbucket.org -> pkg:bitbucket/owner/repo
+
+    Args:
+        vcs_url: Repository URL (e.g., https://github.com/owner/repo)
+        vcs_commit_sha: Optional commit SHA for versioning
+        package_name: Optional package name (used for fallback)
+
+    Returns:
+        PURL string or None if construction fails
+    """
+    from urllib.parse import urlparse
+
+    if not vcs_url:
+        return None
+
+    # Parse the VCS URL
+    parsed = urlparse(vcs_url)
+    host = parsed.netloc.lower()
+    path = parsed.path.strip("/")
+
+    # Remove .git suffix if present
+    if path.endswith(".git"):
+        path = path[:-4]
+
+    # Map hosts to PURL types
+    purl_type = None
+    if "github.com" in host:
+        purl_type = "github"
+    elif "gitlab.com" in host or "gitlab" in host:
+        purl_type = "gitlab"
+    elif "bitbucket.org" in host:
+        purl_type = "bitbucket"
+
+    if purl_type and path:
+        # path should be owner/repo
+        parts = path.split("/")
+        if len(parts) >= 2:
+            namespace = parts[0]
+            name = parts[1]
+            version = truncate_sha(vcs_commit_sha, 7) if vcs_commit_sha else None
+
+            if version:
+                return f"pkg:{purl_type}/{namespace}/{name}@{version}"
+            else:
+                return f"pkg:{purl_type}/{namespace}/{name}"
+
+    return None
+
+
+def _ensure_spdx_main_package_purl(document: Document, augmentation_data: dict[str, Any]) -> None:
+    """
+    Ensure the SPDX main package has a PURL for NTIA compliance.
+
+    NTIA Minimum Elements require a unique identifier (PURL) for the main component.
+    This function checks if one exists and constructs one from VCS info if possible.
+
+    The PURL is added as an externalRef with:
+    - category: PACKAGE-MANAGER (or OTHER for non-package-manager types like github)
+    - referenceType: purl
+    - locator: the PURL string
+
+    Args:
+        document: The SPDX Document to check/augment
+        augmentation_data: Metadata containing VCS fields and other info
+    """
+    if not document.packages:
+        logger.debug("No packages in SPDX document, cannot add PURL")
+        return
+
+    main_package = document.packages[0]
+
+    # Check if PURL already exists
+    existing_purl = None
+    for ref in main_package.external_references:
+        if ref.reference_type == "purl":
+            existing_purl = ref.locator
+            break
+
+    if existing_purl:
+        logger.debug(f"SPDX main package already has PURL: {existing_purl}")
+        return
+
+    # Try to construct PURL from VCS info
+    vcs_url = augmentation_data.get("vcs_url")
+    vcs_commit_sha = augmentation_data.get("vcs_commit_sha")
+    package_name = main_package.name
+
+    purl = _construct_purl_from_vcs(vcs_url, vcs_commit_sha, package_name)
+
+    if purl:
+        # Determine category based on PURL type
+        # GitHub/GitLab/Bitbucket are not traditional package managers
+        purl_category = ExternalPackageRefCategory.OTHER
+        if purl.startswith("pkg:pypi/") or purl.startswith("pkg:npm/") or purl.startswith("pkg:maven/"):
+            purl_category = ExternalPackageRefCategory.PACKAGE_MANAGER
+
+        ext_ref = ExternalPackageRef(
+            category=purl_category,
+            reference_type="purl",
+            locator=purl,
+            comment="Package URL for unique identification (NTIA Minimum Elements)",
+        )
+        main_package.external_references.append(ext_ref)
+
+        # Record to audit trail
+        audit_trail = get_audit_trail()
+        audit_trail.record_augmentation("purl", purl, source="vcs")
+        logger.info(f"Added PURL to SPDX main package: {purl}")
 
 
 def augment_sbom_from_file(
