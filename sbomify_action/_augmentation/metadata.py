@@ -200,6 +200,12 @@ class AugmentationMetadata:
             "end_of_life",
             # API field names (mapped to internal names)
             "end_of_support",  # -> support_period_end
+            # API fields handled by SbomifyApiProvider (extracted to direct fields)
+            "contact_profile",  # Extracted to supplier/manufacturer/authors/security_contact
+            "contact_profile_id",
+            "uses_custom_contact",
+            "id",  # Component ID from API
+            "name",  # Component name from API
         }
         extra = {k: v for k, v in data.items() if k not in known_keys}
 
