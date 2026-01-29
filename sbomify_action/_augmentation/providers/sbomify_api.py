@@ -175,9 +175,7 @@ class SbomifyApiProvider:
                 data["security_contact"] = security_contact
                 logger.debug(f"Extracted security_contact from contact_profile: {security_contact}")
 
-    def _extract_entity_by_role(
-        self, contact_profile: Dict[str, Any], role_flag: str
-    ) -> Dict[str, Any] | None:
+    def _extract_entity_by_role(self, contact_profile: Dict[str, Any], role_flag: str) -> Dict[str, Any] | None:
         """
         Extract an entity (supplier/manufacturer) from contact_profile by role flag.
 

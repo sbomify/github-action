@@ -478,9 +478,9 @@ class TestSbomifyApiProvider:
                         "name": "Company Inc",
                         "contacts": [
                             {"name": "Security Officer", "email": "cso@company.com", "is_security_contact": True},
-                        ]
+                        ],
                     }
-                ]
+                ],
             }
         }
 
@@ -501,9 +501,9 @@ class TestSbomifyApiProvider:
                         "name": "Entity",
                         "contacts": [
                             {"name": "Entity Security", "email": "entity@example.com", "is_security_contact": True},
-                        ]
+                        ],
                     }
-                ]
+                ],
             }
         }
 
@@ -562,7 +562,7 @@ class TestSbomifyApiProvider:
                 "contacts": [
                     {"name": "Security Team", "email": "security@test.com", "is_security_contact": True},
                 ]
-            }
+            },
         }
         mock_get.return_value = mock_response
 
@@ -588,7 +588,7 @@ class TestSbomifyApiProvider:
                 "contacts": [
                     {"name": "Security Team", "email": "security@test.com", "is_security_contact": True},
                 ]
-            }
+            },
         }
         mock_get.return_value = mock_response
 
@@ -614,9 +614,7 @@ class TestSbomifyApiProvider:
                     "is_manufacturer": False,
                     "website_urls": ["https://acme.com"],
                     "address": "123 Main St",
-                    "contacts": [
-                        {"name": "Support", "email": "support@acme.com", "phone": "555-1234"}
-                    ]
+                    "contacts": [{"name": "Support", "email": "support@acme.com", "phone": "555-1234"}],
                 }
             ]
         }
@@ -641,9 +639,7 @@ class TestSbomifyApiProvider:
                     "is_manufacturer": True,
                     "is_supplier": False,
                     "website_urls": ["https://mfg.com"],
-                    "contacts": [
-                        {"name": "Contact", "email": "contact@mfg.com"}
-                    ]
+                    "contacts": [{"name": "Contact", "email": "contact@mfg.com"}],
                 }
             ]
         }
@@ -658,11 +654,7 @@ class TestSbomifyApiProvider:
     def test_extract_entity_by_role_not_found(self):
         """Test returns None when entity role not found."""
         provider = SbomifyApiProvider()
-        contact_profile = {
-            "entities": [
-                {"name": "Some Entity", "is_supplier": False, "is_manufacturer": False}
-            ]
-        }
+        contact_profile = {"entities": [{"name": "Some Entity", "is_supplier": False, "is_manufacturer": False}]}
 
         result = provider._extract_entity_by_role(contact_profile, "is_supplier")
 
@@ -674,9 +666,9 @@ class TestSbomifyApiProvider:
         contact_profile = {
             "authors": [
                 {"name": "John Doe", "email": "john@example.com"},
-                {"name": "Jane Smith", "email": "jane@example.com", "phone": "555-9876"}
+                {"name": "Jane Smith", "email": "jane@example.com", "phone": "555-9876"},
             ],
-            "entities": []
+            "entities": [],
         }
 
         result = provider._extract_authors(contact_profile)
@@ -697,11 +689,9 @@ class TestSbomifyApiProvider:
                 {
                     "name": "Author Org",
                     "is_author": True,
-                    "contacts": [
-                        {"name": "Bob Author", "email": "bob@author.org"}
-                    ]
+                    "contacts": [{"name": "Bob Author", "email": "bob@author.org"}],
                 }
-            ]
+            ],
         }
 
         result = provider._extract_authors(contact_profile)
@@ -715,18 +705,14 @@ class TestSbomifyApiProvider:
         """Test extraction of authors from both profile-level and entities."""
         provider = SbomifyApiProvider()
         contact_profile = {
-            "authors": [
-                {"name": "Profile Author", "email": "profile@example.com"}
-            ],
+            "authors": [{"name": "Profile Author", "email": "profile@example.com"}],
             "entities": [
                 {
                     "name": "Author Entity",
                     "is_author": True,
-                    "contacts": [
-                        {"name": "Entity Author", "email": "entity@example.com"}
-                    ]
+                    "contacts": [{"name": "Entity Author", "email": "entity@example.com"}],
                 }
-            ]
+            ],
         }
 
         result = provider._extract_authors(contact_profile)
@@ -758,13 +744,11 @@ class TestSbomifyApiProvider:
                         "name": "Contact Profile Supplier",
                         "is_supplier": True,
                         "website_urls": ["https://supplier.com"],
-                        "contacts": [
-                            {"name": "Support", "email": "support@supplier.com"}
-                        ]
+                        "contacts": [{"name": "Support", "email": "support@supplier.com"}],
                     }
                 ],
                 "authors": [],
-                "contacts": []
+                "contacts": [],
             }
         }
         mock_get.return_value = mock_response
@@ -789,12 +773,10 @@ class TestSbomifyApiProvider:
         mock_response.json.return_value = {
             "supplier": {"name": "Direct Supplier"},
             "contact_profile": {
-                "entities": [
-                    {"name": "Contact Profile Supplier", "is_supplier": True}
-                ],
+                "entities": [{"name": "Contact Profile Supplier", "is_supplier": True}],
                 "authors": [],
-                "contacts": []
-            }
+                "contacts": [],
+            },
         }
         mock_get.return_value = mock_response
 
@@ -820,13 +802,11 @@ class TestSbomifyApiProvider:
                     {
                         "name": "Contact Profile Manufacturer",
                         "is_manufacturer": True,
-                        "contacts": [
-                            {"name": "Mfg Contact", "email": "contact@mfg.com"}
-                        ]
+                        "contacts": [{"name": "Mfg Contact", "email": "contact@mfg.com"}],
                     }
                 ],
                 "authors": [],
-                "contacts": []
+                "contacts": [],
             }
         }
         mock_get.return_value = mock_response
@@ -850,10 +830,8 @@ class TestSbomifyApiProvider:
         mock_response.json.return_value = {
             "contact_profile": {
                 "entities": [],
-                "authors": [
-                    {"name": "Jane Developer", "email": "jane@dev.com"}
-                ],
-                "contacts": []
+                "authors": [{"name": "Jane Developer", "email": "jane@dev.com"}],
+                "contacts": [],
             }
         }
         mock_get.return_value = mock_response
