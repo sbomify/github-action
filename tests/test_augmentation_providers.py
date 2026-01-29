@@ -451,6 +451,403 @@ class TestSbomifyApiProvider:
 
         assert result is None
 
+    def test_extract_security_contact_from_profile_contacts(self):
+        """Test extraction of security contact from contact_profile.contacts."""
+        provider = SbomifyApiProvider()
+        data = {
+            "contact_profile": {
+                "contacts": [
+                    {"name": "Regular Contact", "email": "info@example.com", "is_security_contact": False},
+                    {"name": "Security Team", "email": "security@example.com", "is_security_contact": True},
+                ]
+            }
+        }
+
+        result = provider._extract_security_contact(data)
+
+        assert result == "mailto:security@example.com"
+
+    def test_extract_security_contact_from_entity_contacts(self):
+        """Test extraction of security contact from contact_profile.entities[].contacts."""
+        provider = SbomifyApiProvider()
+        data = {
+            "contact_profile": {
+                "contacts": [],  # No profile-level contacts
+                "entities": [
+                    {
+                        "name": "Company Inc",
+                        "contacts": [
+                            {"name": "Security Officer", "email": "cso@company.com", "is_security_contact": True},
+                        ],
+                    }
+                ],
+            }
+        }
+
+        result = provider._extract_security_contact(data)
+
+        assert result == "mailto:cso@company.com"
+
+    def test_extract_security_contact_profile_takes_precedence(self):
+        """Test that profile-level contacts take precedence over entity-level."""
+        provider = SbomifyApiProvider()
+        data = {
+            "contact_profile": {
+                "contacts": [
+                    {"name": "Profile Security", "email": "profile@example.com", "is_security_contact": True},
+                ],
+                "entities": [
+                    {
+                        "name": "Entity",
+                        "contacts": [
+                            {"name": "Entity Security", "email": "entity@example.com", "is_security_contact": True},
+                        ],
+                    }
+                ],
+            }
+        }
+
+        result = provider._extract_security_contact(data)
+
+        # Profile-level contact should be returned (checked first)
+        assert result == "mailto:profile@example.com"
+
+    def test_extract_security_contact_no_contact_profile(self):
+        """Test returns None when no contact_profile exists."""
+        provider = SbomifyApiProvider()
+        data = {"supplier": {"name": "Test"}}
+
+        result = provider._extract_security_contact(data)
+
+        assert result is None
+
+    def test_extract_security_contact_no_security_contact_flag(self):
+        """Test returns None when no contact has is_security_contact=True."""
+        provider = SbomifyApiProvider()
+        data = {
+            "contact_profile": {
+                "contacts": [
+                    {"name": "Regular", "email": "regular@example.com", "is_security_contact": False},
+                ]
+            }
+        }
+
+        result = provider._extract_security_contact(data)
+
+        assert result is None
+
+    def test_extract_security_contact_preserves_existing_mailto(self):
+        """Test that mailto: prefix is not doubled if already present."""
+        provider = SbomifyApiProvider()
+        data = {
+            "contact_profile": {
+                "contacts": [
+                    {"name": "Security", "email": "mailto:security@example.com", "is_security_contact": True},
+                ]
+            }
+        }
+
+        result = provider._extract_security_contact(data)
+
+        assert result == "mailto:security@example.com"
+
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
+    def test_fetch_extracts_security_contact_from_contact_profile(self, mock_get):
+        """Test that fetch() extracts security_contact from contact_profile."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "supplier": {"name": "Test Supplier"},
+            "contact_profile": {
+                "contacts": [
+                    {"name": "Security Team", "email": "security@test.com", "is_security_contact": True},
+                ]
+            },
+        }
+        mock_get.return_value = mock_response
+
+        provider = SbomifyApiProvider()
+        result = provider.fetch(
+            component_id="test-component",
+            api_base_url="https://api.test.com",
+            token="test-token",
+        )
+
+        assert result is not None
+        assert result.security_contact == "mailto:security@test.com"
+
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
+    def test_fetch_preserves_explicit_security_contact(self, mock_get):
+        """Test that explicit security_contact takes precedence over contact_profile."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "supplier": {"name": "Test Supplier"},
+            "security_contact": "https://example.com/security.txt",
+            "contact_profile": {
+                "contacts": [
+                    {"name": "Security Team", "email": "security@test.com", "is_security_contact": True},
+                ]
+            },
+        }
+        mock_get.return_value = mock_response
+
+        provider = SbomifyApiProvider()
+        result = provider.fetch(
+            component_id="test-component",
+            api_base_url="https://api.test.com",
+            token="test-token",
+        )
+
+        assert result is not None
+        # Explicit security_contact should be preserved
+        assert result.security_contact == "https://example.com/security.txt"
+
+    def test_extract_entity_by_role_supplier(self):
+        """Test extraction of supplier entity from contact_profile."""
+        provider = SbomifyApiProvider()
+        contact_profile = {
+            "entities": [
+                {
+                    "name": "Acme Corp",
+                    "is_supplier": True,
+                    "is_manufacturer": False,
+                    "website_urls": ["https://acme.com"],
+                    "address": "123 Main St",
+                    "contacts": [{"name": "Support", "email": "support@acme.com", "phone": "555-1234"}],
+                }
+            ]
+        }
+
+        result = provider._extract_entity_by_role(contact_profile, "is_supplier")
+
+        assert result is not None
+        assert result["name"] == "Acme Corp"
+        assert result["url"] == ["https://acme.com"]
+        assert result["address"] == "123 Main St"
+        assert len(result["contacts"]) == 1
+        assert result["contacts"][0]["name"] == "Support"
+        assert result["contacts"][0]["email"] == "support@acme.com"
+
+    def test_extract_entity_by_role_manufacturer(self):
+        """Test extraction of manufacturer entity from contact_profile."""
+        provider = SbomifyApiProvider()
+        contact_profile = {
+            "entities": [
+                {
+                    "name": "Manufacturer Inc",
+                    "is_manufacturer": True,
+                    "is_supplier": False,
+                    "website_urls": ["https://mfg.com"],
+                    "contacts": [{"name": "Contact", "email": "contact@mfg.com"}],
+                }
+            ]
+        }
+
+        result = provider._extract_entity_by_role(contact_profile, "is_manufacturer")
+
+        assert result is not None
+        assert result["name"] == "Manufacturer Inc"
+        assert result["url"] == ["https://mfg.com"]
+        assert len(result["contacts"]) == 1
+
+    def test_extract_entity_by_role_not_found(self):
+        """Test returns None when entity role not found."""
+        provider = SbomifyApiProvider()
+        contact_profile = {"entities": [{"name": "Some Entity", "is_supplier": False, "is_manufacturer": False}]}
+
+        result = provider._extract_entity_by_role(contact_profile, "is_supplier")
+
+        assert result is None
+
+    def test_extract_authors_from_profile(self):
+        """Test extraction of authors from contact_profile.authors."""
+        provider = SbomifyApiProvider()
+        contact_profile = {
+            "authors": [
+                {"name": "John Doe", "email": "john@example.com"},
+                {"name": "Jane Smith", "email": "jane@example.com", "phone": "555-9876"},
+            ],
+            "entities": [],
+        }
+
+        result = provider._extract_authors(contact_profile)
+
+        assert result is not None
+        assert len(result) == 2
+        assert result[0]["name"] == "John Doe"
+        assert result[0]["email"] == "john@example.com"
+        assert result[1]["name"] == "Jane Smith"
+        assert result[1]["phone"] == "555-9876"
+
+    def test_extract_authors_from_entities(self):
+        """Test extraction of authors from entities with is_author=True."""
+        provider = SbomifyApiProvider()
+        contact_profile = {
+            "authors": [],
+            "entities": [
+                {
+                    "name": "Author Org",
+                    "is_author": True,
+                    "contacts": [{"name": "Bob Author", "email": "bob@author.org"}],
+                }
+            ],
+        }
+
+        result = provider._extract_authors(contact_profile)
+
+        assert result is not None
+        assert len(result) == 1
+        assert result[0]["name"] == "Bob Author"
+        assert result[0]["email"] == "bob@author.org"
+
+    def test_extract_authors_combined(self):
+        """Test extraction of authors from both profile-level and entities."""
+        provider = SbomifyApiProvider()
+        contact_profile = {
+            "authors": [{"name": "Profile Author", "email": "profile@example.com"}],
+            "entities": [
+                {
+                    "name": "Author Entity",
+                    "is_author": True,
+                    "contacts": [{"name": "Entity Author", "email": "entity@example.com"}],
+                }
+            ],
+        }
+
+        result = provider._extract_authors(contact_profile)
+
+        assert result is not None
+        assert len(result) == 2
+        names = [a["name"] for a in result]
+        assert "Profile Author" in names
+        assert "Entity Author" in names
+
+    def test_extract_authors_empty(self):
+        """Test returns None when no authors found."""
+        provider = SbomifyApiProvider()
+        contact_profile = {"authors": [], "entities": []}
+
+        result = provider._extract_authors(contact_profile)
+
+        assert result is None
+
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
+    def test_fetch_extracts_supplier_from_contact_profile(self, mock_get):
+        """Test that fetch() extracts supplier from contact_profile when not directly provided."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "contact_profile": {
+                "entities": [
+                    {
+                        "name": "Contact Profile Supplier",
+                        "is_supplier": True,
+                        "website_urls": ["https://supplier.com"],
+                        "contacts": [{"name": "Support", "email": "support@supplier.com"}],
+                    }
+                ],
+                "authors": [],
+                "contacts": [],
+            }
+        }
+        mock_get.return_value = mock_response
+
+        provider = SbomifyApiProvider()
+        result = provider.fetch(
+            component_id="test-component",
+            api_base_url="https://api.test.com",
+            token="test-token",
+        )
+
+        assert result is not None
+        assert result.supplier is not None
+        assert result.supplier["name"] == "Contact Profile Supplier"
+        assert result.supplier["url"] == ["https://supplier.com"]
+
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
+    def test_fetch_preserves_explicit_supplier(self, mock_get):
+        """Test that explicit supplier takes precedence over contact_profile."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "supplier": {"name": "Direct Supplier"},
+            "contact_profile": {
+                "entities": [{"name": "Contact Profile Supplier", "is_supplier": True}],
+                "authors": [],
+                "contacts": [],
+            },
+        }
+        mock_get.return_value = mock_response
+
+        provider = SbomifyApiProvider()
+        result = provider.fetch(
+            component_id="test-component",
+            api_base_url="https://api.test.com",
+            token="test-token",
+        )
+
+        assert result is not None
+        # Explicit supplier should be preserved
+        assert result.supplier["name"] == "Direct Supplier"
+
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
+    def test_fetch_extracts_manufacturer_from_contact_profile(self, mock_get):
+        """Test that fetch() extracts manufacturer from contact_profile when not directly provided."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "contact_profile": {
+                "entities": [
+                    {
+                        "name": "Contact Profile Manufacturer",
+                        "is_manufacturer": True,
+                        "contacts": [{"name": "Mfg Contact", "email": "contact@mfg.com"}],
+                    }
+                ],
+                "authors": [],
+                "contacts": [],
+            }
+        }
+        mock_get.return_value = mock_response
+
+        provider = SbomifyApiProvider()
+        result = provider.fetch(
+            component_id="test-component",
+            api_base_url="https://api.test.com",
+            token="test-token",
+        )
+
+        assert result is not None
+        assert result.manufacturer is not None
+        assert result.manufacturer["name"] == "Contact Profile Manufacturer"
+
+    @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
+    def test_fetch_extracts_authors_from_contact_profile(self, mock_get):
+        """Test that fetch() extracts authors from contact_profile when not directly provided."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "contact_profile": {
+                "entities": [],
+                "authors": [{"name": "Jane Developer", "email": "jane@dev.com"}],
+                "contacts": [],
+            }
+        }
+        mock_get.return_value = mock_response
+
+        provider = SbomifyApiProvider()
+        result = provider.fetch(
+            component_id="test-component",
+            api_base_url="https://api.test.com",
+            token="test-token",
+        )
+
+        assert result is not None
+        assert result.authors is not None
+        assert len(result.authors) == 1
+        assert result.authors[0]["name"] == "Jane Developer"
+
 
 class TestProviderRegistry:
     """Tests for ProviderRegistry."""
