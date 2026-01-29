@@ -204,6 +204,9 @@ All timestamps are in UTC (ISO 8601 format with Z suffix).
 | `ADDITIONAL_PACKAGES_FILE` | No       | Custom path to additional packages file                                          |
 | `ADDITIONAL_PACKAGES`      | No       | Inline PURLs to inject (comma or newline separated)                              |
 | `DISABLE_VCS_AUGMENTATION` | No       | Set to `true` to disable auto-detection of VCS info from CI environment          |
+| `SBOMIFY_CACHE_DIR`        | No       | Directory for sbomify license database cache                                     |
+| `TRIVY_CACHE_DIR`          | No       | Directory for Trivy cache                                                        |
+| `SYFT_CACHE_DIR`           | No       | Directory for Syft cache                                                         |
 
 † **One** of `LOCK_FILE`, `SBOM_FILE`, or `DOCKER_IMAGE` is required (pick one)
 ‡ Required when uploading to sbomify or using sbomify features (`AUGMENT`, `PRODUCT_RELEASE`)
@@ -261,6 +264,39 @@ When uploading to Dependency Track (`UPLOAD_DESTINATIONS=dependency-track`), con
     DTRACK_AUTO_CREATE: true
     ENRICH: true
 ```
+
+## Caching
+
+The sbomify action caches data internally to speed up runs:
+
+- **License databases** (~20-50MB) - Pre-computed metadata for Linux distro packages
+- **Trivy cache** - SBOM generation metadata and package databases
+- **Syft cache** - Package metadata for SBOM generation
+
+To persist caches across CI runs, configure your CI platform's caching mechanism.
+
+### GitHub Actions
+
+Use `actions/cache` before calling the sbomify action:
+
+```yaml
+- name: Cache sbomify data
+  uses: actions/cache@v4
+  with:
+    path: .sbomify-cache
+    key: sbomify-${{ runner.os }}
+
+- uses: sbomify/github-action@master
+  env:
+    SBOMIFY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache
+    TRIVY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/trivy
+    SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
+    LOCK_FILE: requirements.txt
+    ENRICH: true
+    UPLOAD: false
+```
+
+For caching in other CI environments (GitLab, Bitbucket, Docker), see [Other CI/CD Platforms](#other-cicd-platforms).
 
 ## Product Releases
 
@@ -381,13 +417,20 @@ Append packages across multiple steps:
 ```yaml
 generate-sbom:
   image: sbomifyhub/sbomify-action
+  cache:
+    key: sbomify-cache
+    paths:
+      - .sbomify-cache/
   variables:
+    SBOMIFY_CACHE_DIR: "${CI_PROJECT_DIR}/.sbomify-cache/sbomify"
+    TRIVY_CACHE_DIR: "${CI_PROJECT_DIR}/.sbomify-cache/trivy"
+    SYFT_CACHE_DIR: "${CI_PROJECT_DIR}/.sbomify-cache/syft"
     LOCK_FILE: poetry.lock
     OUTPUT_FILE: sbom.cdx.json
     UPLOAD: "false"
     ENRICH: "true"
   script:
-    - /sbomify.sh
+    - sbomify-action
 ```
 
 ### Bitbucket
@@ -396,22 +439,41 @@ generate-sbom:
 pipelines:
   default:
     - step:
+        caches:
+          - sbomify
         script:
           - pipe: docker://sbomifyhub/sbomify-action:latest
             variables:
+              SBOMIFY_CACHE_DIR: "${BITBUCKET_CLONE_DIR}/.sbomify-cache/sbomify"
+              TRIVY_CACHE_DIR: "${BITBUCKET_CLONE_DIR}/.sbomify-cache/trivy"
+              SYFT_CACHE_DIR: "${BITBUCKET_CLONE_DIR}/.sbomify-cache/syft"
               LOCK_FILE: poetry.lock
               OUTPUT_FILE: sbom.cdx.json
               UPLOAD: "false"
               ENRICH: "true"
+
+definitions:
+  caches:
+    sbomify: .sbomify-cache
 ```
 
 ### Docker
 
 ```bash
-docker run --rm -v $(pwd):/code \
-  -e LOCK_FILE=/code/requirements.txt \
-  -e OUTPUT_FILE=/code/sbom.cdx.json \
+# Create persistent cache volume
+docker volume create sbomify-cache
+
+docker run --rm \
+  -v $(pwd):/github/workspace \
+  -v sbomify-cache:/cache \
+  -w /github/workspace \
+  -e SBOMIFY_CACHE_DIR=/cache/sbomify \
+  -e TRIVY_CACHE_DIR=/cache/trivy \
+  -e SYFT_CACHE_DIR=/cache/syft \
+  -e LOCK_FILE=/github/workspace/requirements.txt \
+  -e OUTPUT_FILE=/github/workspace/sbom.cdx.json \
   -e UPLOAD=false \
+  -e ENRICH=true \
   sbomifyhub/sbomify-action
 ```
 
