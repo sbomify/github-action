@@ -58,6 +58,7 @@ from typing import Any, Dict, List, Tuple
 from cyclonedx.model import ExternalReference, ExternalReferenceType, Property, XsUri
 from cyclonedx.model.bom import Bom
 from cyclonedx.model.component import Component, ComponentType
+from cyclonedx.model.contact import OrganizationalEntity
 from cyclonedx.model.license import LicenseExpression
 from spdx_tools.spdx.model import (
     Actor,
@@ -417,12 +418,19 @@ def _apply_metadata_to_cyclonedx_component(
             component.licenses.add(license_expr)
             added_fields.append("license")
 
-    # Publisher (sanitized)
-    if not component.publisher and metadata.supplier:
+    # Publisher - use maintainer_name (author), not supplier (distribution platform)
+    if not component.publisher and metadata.maintainer_name:
+        sanitized_publisher = sanitize_supplier(metadata.maintainer_name)
+        if sanitized_publisher:
+            component.publisher = sanitized_publisher
+            added_fields.append("publisher")
+
+    # Supplier - use supplier (distribution platform like PyPI, npm, etc.)
+    if not component.supplier and metadata.supplier:
         sanitized_supplier = sanitize_supplier(metadata.supplier)
         if sanitized_supplier:
-            component.publisher = sanitized_supplier
-            added_fields.append("publisher")
+            component.supplier = OrganizationalEntity(name=sanitized_supplier)
+            added_fields.append("supplier")
 
     # External references helper (with URL sanitization)
     def _add_external_ref(ref_type: ExternalReferenceType, url: str, field_name: str = "url") -> bool:

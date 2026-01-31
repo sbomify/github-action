@@ -111,7 +111,7 @@ class TestCratesIOSourceFetch:
         assert len(metadata.licenses) == 1
         assert "MIT" in metadata.licenses[0]
         assert "Apache-2.0" in metadata.licenses[0]
-        assert metadata.supplier == "David Tolnay"
+        assert metadata.supplier == "crates.io"
         assert metadata.maintainer_name == "David Tolnay"
         assert metadata.homepage == "https://serde.rs"
         assert metadata.documentation_url == "https://docs.rs/serde"
@@ -152,8 +152,8 @@ class TestCratesIOSourceFetch:
         assert "github.com/tokio-rs/tokio" in metadata.repository_url
         # No license without version-specific endpoint
         assert metadata.licenses == []
-        # No published_by without version-specific endpoint
-        assert metadata.supplier is None
+        # Supplier is always the distribution platform
+        assert metadata.supplier == "crates.io"
 
         # Verify API was called with crate URL (no version)
         mock_session.get.assert_called_once()
@@ -452,7 +452,8 @@ class TestCratesIOSourceFieldSources:
         assert metadata is not None
         assert metadata.field_sources.get("description") == "crates.io"
         assert "licenses" not in metadata.field_sources
-        assert "supplier" not in metadata.field_sources
+        # Supplier is always present (distribution platform)
+        assert metadata.field_sources.get("supplier") == "crates.io"
         assert "homepage" not in metadata.field_sources
 
 

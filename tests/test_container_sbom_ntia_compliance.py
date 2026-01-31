@@ -269,7 +269,16 @@ class TestAugmentationNTIACompliance:
         mock_api_response.ok = True
         mock_api_response.json.return_value = mock_backend_response
 
-        with patch("sbomify_action._augmentation.providers.sbomify_api.requests.get", return_value=mock_api_response):
+        with (
+            patch(
+                "sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file",
+                return_value=None,
+            ),
+            patch(
+                "sbomify_action._augmentation.providers.sbomify_api.requests.get",
+                return_value=mock_api_response,
+            ),
+        ):
             sbom_format = augment_sbom_from_file(
                 str(sbom_path),
                 str(output_file),
