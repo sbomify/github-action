@@ -465,16 +465,16 @@ def _apply_metadata_to_cyclonedx_component(
         return True
 
     if metadata.cle_eos:
-        if _add_cle_property("cle:eos", metadata.cle_eos):
-            added_fields.append("cle:eos")
+        if _add_cle_property("cdx:lifecycle:milestone:endOfSupport", metadata.cle_eos):
+            added_fields.append("cdx:lifecycle:milestone:endOfSupport")
 
     if metadata.cle_eol:
-        if _add_cle_property("cle:eol", metadata.cle_eol):
-            added_fields.append("cle:eol")
+        if _add_cle_property("cdx:lifecycle:milestone:endOfLife", metadata.cle_eol):
+            added_fields.append("cdx:lifecycle:milestone:endOfLife")
 
     if metadata.cle_release_date:
-        if _add_cle_property("cle:releaseDate", metadata.cle_release_date):
-            added_fields.append("cle:releaseDate")
+        if _add_cle_property("cdx:lifecycle:milestone:generalAvailability", metadata.cle_release_date):
+            added_fields.append("cdx:lifecycle:milestone:generalAvailability")
 
     # Record to audit trail if any fields were added
     if added_fields:
@@ -613,16 +613,16 @@ def _apply_metadata_to_spdx_package(package: Package, metadata: NormalizedMetada
         if _add_external_ref(ExternalPackageRefCategory.OTHER, "vcs", metadata.repository_url):
             added_fields.append("externalRef (vcs)")
 
-    # CLE (Common Lifecycle Enumeration) data - ECMA-428
-    # For SPDX, we add CLE info to the package comment
-    # See: https://sbomify.com/compliance/cle/
+    # CycloneDX lifecycle milestone properties
+    # For SPDX, we add lifecycle info to the package comment
+    # See: https://cyclonedx.github.io/cyclonedx-property-taxonomy/cdx/lifecycle.html
     cle_parts = []
     if metadata.cle_eos:
-        cle_parts.append(f"cle:eos={metadata.cle_eos}")
+        cle_parts.append(f"cdx:lifecycle:milestone:endOfSupport={metadata.cle_eos}")
     if metadata.cle_eol:
-        cle_parts.append(f"cle:eol={metadata.cle_eol}")
+        cle_parts.append(f"cdx:lifecycle:milestone:endOfLife={metadata.cle_eol}")
     if metadata.cle_release_date:
-        cle_parts.append(f"cle:releaseDate={metadata.cle_release_date}")
+        cle_parts.append(f"cdx:lifecycle:milestone:generalAvailability={metadata.cle_release_date}")
 
     if cle_parts:
         cle_comment = f"CLE lifecycle: {', '.join(cle_parts)}"
@@ -671,16 +671,16 @@ def _enrich_os_component(component: Component) -> List[str]:
                 return True
 
             if lifecycle.get("release_date"):
-                if _add_cle_property("cle:releaseDate", lifecycle["release_date"]):
-                    added_fields.append(f"cle:releaseDate ({lifecycle['release_date']})")
+                if _add_cle_property("cdx:lifecycle:milestone:generalAvailability", lifecycle["release_date"]):
+                    added_fields.append(f"cdx:lifecycle:milestone:generalAvailability ({lifecycle['release_date']})")
 
             if lifecycle.get("end_of_support"):
-                if _add_cle_property("cle:eos", lifecycle["end_of_support"]):
-                    added_fields.append(f"cle:eos ({lifecycle['end_of_support']})")
+                if _add_cle_property("cdx:lifecycle:milestone:endOfSupport", lifecycle["end_of_support"]):
+                    added_fields.append(f"cdx:lifecycle:milestone:endOfSupport ({lifecycle['end_of_support']})")
 
             if lifecycle.get("end_of_life"):
-                if _add_cle_property("cle:eol", lifecycle["end_of_life"]):
-                    added_fields.append(f"cle:eol ({lifecycle['end_of_life']})")
+                if _add_cle_property("cdx:lifecycle:milestone:endOfLife", lifecycle["end_of_life"]):
+                    added_fields.append(f"cdx:lifecycle:milestone:endOfLife ({lifecycle['end_of_life']})")
 
     return added_fields
 
@@ -861,11 +861,11 @@ def _enrich_spdx_os_packages(document: Document) -> Dict[str, int]:
     # Build lifecycle comment
     lifecycle_parts = []
     if lifecycle.get("release_date"):
-        lifecycle_parts.append(f"cle:releaseDate={lifecycle['release_date']}")
+        lifecycle_parts.append(f"cdx:lifecycle:milestone:generalAvailability={lifecycle['release_date']}")
     if lifecycle.get("end_of_support"):
-        lifecycle_parts.append(f"cle:eos={lifecycle['end_of_support']}")
+        lifecycle_parts.append(f"cdx:lifecycle:milestone:endOfSupport={lifecycle['end_of_support']}")
     if lifecycle.get("end_of_life"):
-        lifecycle_parts.append(f"cle:eol={lifecycle['end_of_life']}")
+        lifecycle_parts.append(f"cdx:lifecycle:milestone:endOfLife={lifecycle['end_of_life']}")
 
     if lifecycle_parts:
         lifecycle_comment = COMMENT_DELIMITER.join(lifecycle_parts)

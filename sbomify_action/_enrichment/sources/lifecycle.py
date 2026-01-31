@@ -60,7 +60,7 @@ class LifecycleSource:
 
     @property
     def name(self) -> str:
-        return "lifecycle"
+        return "sbomify-lifecycle-db"
 
     @property
     def priority(self) -> int:

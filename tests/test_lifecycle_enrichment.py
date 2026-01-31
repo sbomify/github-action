@@ -562,7 +562,7 @@ class TestLifecycleSource:
     def test_source_properties(self):
         """Test source name and priority."""
         source = LifecycleSource()
-        assert source.name == "lifecycle"
+        assert source.name == "sbomify-lifecycle-db"
         assert source.priority == 5  # High priority for local data
 
     def test_supports_python_pypi(self):
@@ -678,7 +678,7 @@ class TestLifecycleSource:
         assert metadata.cle_release_date == "2023-10-02"
         assert metadata.cle_eos == "2025-04-02"
         assert metadata.cle_eol == "2028-10-31"
-        assert metadata.source == "lifecycle"
+        assert metadata.source == "sbomify-lifecycle-db"
 
     def test_fetch_django_42(self, mock_session):
         """Test fetching Django 4.2 lifecycle."""
@@ -754,8 +754,8 @@ class TestLifecycleSource:
         metadata = source.fetch(purl, mock_session)
 
         assert metadata is not None
-        assert metadata.field_sources.get("cle_eos") == "lifecycle"
-        assert metadata.field_sources.get("cle_eol") == "lifecycle"
+        assert metadata.field_sources.get("cle_eos") == "sbomify-lifecycle-db"
+        assert metadata.field_sources.get("cle_eol") == "sbomify-lifecycle-db"
 
     def test_fetch_python_from_deb(self, mock_session):
         """Test fetching Python lifecycle from deb package."""
@@ -890,7 +890,7 @@ class TestLifecycleSourceRegistration:
         sources = registry.list_sources()
         source_names = [s["name"] for s in sources]
 
-        assert "lifecycle" in source_names
+        assert "sbomify-lifecycle-db" in source_names
 
     def test_lifecycle_source_priority(self):
         """Test LifecycleSource has correct priority."""
@@ -899,7 +899,7 @@ class TestLifecycleSourceRegistration:
         registry = create_default_registry()
         sources = registry.list_sources()
 
-        lifecycle_source = next((s for s in sources if s["name"] == "lifecycle"), None)
+        lifecycle_source = next((s for s in sources if s["name"] == "sbomify-lifecycle-db"), None)
         assert lifecycle_source is not None
         assert lifecycle_source["priority"] == 5
 

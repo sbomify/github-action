@@ -16,9 +16,9 @@ Field Mappings:
 CycloneDX (1.5+ for full support, 1.3-1.4 partial):
 - Security Contact: metadata.component.externalReferences[type=security-contact] (1.5+)
                    OR metadata.supplier.contacts[] (1.3-1.4 fallback)
-- Release Date: metadata.lifecycles[name=release] OR metadata.properties[name=cdx:release:date]
-- Support Period End: metadata.lifecycles[name=support-end] OR metadata.properties[name=cdx:support:enddate]
-- End of Life: metadata.lifecycles[name=end-of-life] OR metadata.properties[name=cdx:eol:date]
+- Release Date: metadata.properties[name=cdx:lifecycle:milestone:generalAvailability]
+- Support Period End: metadata.properties[name=cdx:lifecycle:milestone:endOfSupport]
+- End of Life: metadata.properties[name=cdx:lifecycle:milestone:endOfLife]
 
 SPDX (2.2 and 2.3):
 - Security Contact: packages[].externalRefs[referenceType=security-contact]
@@ -130,16 +130,12 @@ class CRAComplianceChecker:
             missing.append("Security Contact")
 
         # 2. Release Date (Recommended)
-        # Check named lifecycle first
-        release_lifecycle = cls._find_named_lifecycle(lifecycles, "release")
-        release_date = None
-        if release_lifecycle:
-            # Extract date from description or use the lifecycle
-            release_date = release_lifecycle.get("description", "")
-
-        # Check property fallback
+        # Check property first (official CycloneDX taxonomy), then lifecycle for backward compat
+        release_date = cls._find_property(properties, "cdx:lifecycle:milestone:generalAvailability")
         if not release_date:
-            release_date = cls._find_property(properties, "cdx:release:date")
+            release_lifecycle = cls._find_named_lifecycle(lifecycles, "release")
+            if release_lifecycle:
+                release_date = release_lifecycle.get("description", "")
 
         if release_date:
             present.append("Release Date")
@@ -148,15 +144,12 @@ class CRAComplianceChecker:
             missing.append("Release Date")
 
         # 3. Support Period End (Required for CRA)
-        # Check named lifecycle first
-        support_lifecycle = cls._find_named_lifecycle(lifecycles, "support-end")
-        support_end = None
-        if support_lifecycle:
-            support_end = support_lifecycle.get("description", "")
-
-        # Check property fallback
+        # Check property first (official CycloneDX taxonomy), then lifecycle for backward compat
+        support_end = cls._find_property(properties, "cdx:lifecycle:milestone:endOfSupport")
         if not support_end:
-            support_end = cls._find_property(properties, "cdx:support:enddate")
+            support_lifecycle = cls._find_named_lifecycle(lifecycles, "support-end")
+            if support_lifecycle:
+                support_end = support_lifecycle.get("description", "")
 
         if support_end:
             present.append("Support Period End")
@@ -165,15 +158,12 @@ class CRAComplianceChecker:
             missing.append("Support Period End")
 
         # 4. End of Life (Recommended)
-        # Check named lifecycle first
-        eol_lifecycle = cls._find_named_lifecycle(lifecycles, "end-of-life")
-        end_of_life = None
-        if eol_lifecycle:
-            end_of_life = eol_lifecycle.get("description", "")
-
-        # Check property fallback
+        # Check property first (official CycloneDX taxonomy), then lifecycle for backward compat
+        end_of_life = cls._find_property(properties, "cdx:lifecycle:milestone:endOfLife")
         if not end_of_life:
-            end_of_life = cls._find_property(properties, "cdx:eol:date")
+            eol_lifecycle = cls._find_named_lifecycle(lifecycles, "end-of-life")
+            if eol_lifecycle:
+                end_of_life = eol_lifecycle.get("description", "")
 
         if end_of_life:
             present.append("End of Life")

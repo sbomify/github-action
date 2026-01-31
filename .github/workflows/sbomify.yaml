@@ -315,7 +315,7 @@ jobs:
           fi
           
           # Verify specific CLE values for Alpine 3.20
-          CLE_EOL=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:eol") | .value' alpine-enriched.cdx.json)
+          CLE_EOL=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cdx:lifecycle:milestone:endOfLife") | .value' alpine-enriched.cdx.json)
           if [ "$CLE_EOL" = "2026-04-01" ]; then
             echo "✅ Alpine 3.20 EOL date is correct: $CLE_EOL"
           else
@@ -429,9 +429,9 @@ jobs:
             jq '.components[] | select(.type == "operating-system") | {name, version, publisher}' debian-enriched.cdx.json
             
             # Check for CLE properties
-            CLE_EOL=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:eol") | .value' debian-enriched.cdx.json)
-            CLE_EOS=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:eos") | .value' debian-enriched.cdx.json)
-            CLE_RELEASE=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:releaseDate") | .value' debian-enriched.cdx.json)
+            CLE_EOL=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cdx:lifecycle:milestone:endOfLife") | .value' debian-enriched.cdx.json)
+            CLE_EOS=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cdx:lifecycle:milestone:endOfSupport") | .value' debian-enriched.cdx.json)
+            CLE_RELEASE=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cdx:lifecycle:milestone:generalAvailability") | .value' debian-enriched.cdx.json)
             
             echo "CLE Release Date: $CLE_RELEASE"
             echo "CLE End of Support: $CLE_EOS"  
@@ -453,7 +453,7 @@ jobs:
           echo "=== Verifying Debian 12 CLE Values ==="
           
           # Debian 12 EOL should be 2028-06-30 (LTS end)
-          CLE_EOL=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:eol") | .value' debian-enriched.cdx.json)
+          CLE_EOL=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cdx:lifecycle:milestone:endOfLife") | .value' debian-enriched.cdx.json)
           
           if [ "$CLE_EOL" = "2028-06-30" ]; then
             echo "✅ Debian 12 EOL date is correct: $CLE_EOL"
@@ -463,7 +463,7 @@ jobs:
           fi
           
           # Debian 12 EOS should be 2026-06-10 (regular support end)
-          CLE_EOS=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cle:eos") | .value' debian-enriched.cdx.json)
+          CLE_EOS=$(jq -r '.components[] | select(.type == "operating-system") | .properties[]? | select(.name == "cdx:lifecycle:milestone:endOfSupport") | .value' debian-enriched.cdx.json)
           
           if [ "$CLE_EOS" = "2026-06-10" ]; then
             echo "✅ Debian 12 EOS date is correct: $CLE_EOS"
