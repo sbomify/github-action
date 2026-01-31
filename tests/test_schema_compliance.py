@@ -82,12 +82,21 @@ def test_cyclonedx_full_flow_compliance(version, tmp_path):
         "lifecycle_phase": "build",  # CISA 2025 Generation Context
     }
 
-    # Mock the sbomify API provider
+    # Mock the sbomify API provider and disable json-config provider
     mock_api_response = Mock()
     mock_api_response.ok = True
     mock_api_response.json.return_value = augmentation_data
 
-    with patch("sbomify_action._augmentation.providers.sbomify_api.requests.get", return_value=mock_api_response):
+    with (
+        patch(
+            "sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file",
+            return_value=None,
+        ),
+        patch(
+            "sbomify_action._augmentation.providers.sbomify_api.requests.get",
+            return_value=mock_api_response,
+        ),
+    ):
         augment_sbom_from_file(
             input_file=str(input_file),
             output_file=str(augmented_file),
@@ -207,12 +216,21 @@ def test_spdx_full_flow_compliance(version, tmp_path):
         "lifecycle_phase": "build",  # CISA 2025 Generation Context
     }
 
-    # Mock the sbomify API provider
+    # Mock the sbomify API provider and disable json-config provider
     mock_api_response = Mock()
     mock_api_response.ok = True
     mock_api_response.json.return_value = augmentation_data
 
-    with patch("sbomify_action._augmentation.providers.sbomify_api.requests.get", return_value=mock_api_response):
+    with (
+        patch(
+            "sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file",
+            return_value=None,
+        ),
+        patch(
+            "sbomify_action._augmentation.providers.sbomify_api.requests.get",
+            return_value=mock_api_response,
+        ),
+    ):
         augment_sbom_from_file(
             input_file=str(input_file),
             output_file=str(augmented_file),

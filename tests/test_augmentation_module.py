@@ -151,9 +151,15 @@ class TestLicenseHandling:
         assert enriched_bom.metadata.component.name == "overridden-name"
         assert enriched_bom.metadata.component.version == "2.0.0"
 
+    @patch("sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file")
     @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
-    def test_fetch_augmentation_metadata(self, mock_get, sample_backend_metadata_with_mixed_licenses):
+    def test_fetch_augmentation_metadata(
+        self, mock_get, mock_find_config, sample_backend_metadata_with_mixed_licenses
+    ):
         """Test fetching metadata from providers (sbomify API)."""
+        # Disable json-config provider to isolate sbomify API test
+        mock_find_config.return_value = None
+
         # Setup mock
         mock_response = Mock()
         mock_response.ok = True
@@ -172,11 +178,15 @@ class TestLicenseHandling:
         assert result["supplier"] == sample_backend_metadata_with_mixed_licenses["supplier"]
         assert result["authors"] == sample_backend_metadata_with_mixed_licenses["authors"]
 
+    @patch("sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file")
     @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
     def test_augment_sbom_from_file_cyclonedx(
-        self, mock_get, sample_cyclonedx_bom, sample_backend_metadata_with_mixed_licenses
+        self, mock_get, mock_find_config, sample_cyclonedx_bom, sample_backend_metadata_with_mixed_licenses
     ):
         """Test augmenting SBOM from file (CycloneDX)."""
+        # Disable json-config provider to isolate sbomify API test
+        mock_find_config.return_value = None
+
         # Setup mock
         mock_response = Mock()
         mock_response.ok = True
@@ -391,9 +401,13 @@ class TestSPDXAugmentation:
         assert enriched_doc.packages[0].name == "overridden-spdx-name"
         assert enriched_doc.packages[0].version == "2.0.0-spdx"
 
+    @patch("sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file")
     @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
-    def test_augment_sbom_from_file_spdx(self, mock_get, spdx_document):
+    def test_augment_sbom_from_file_spdx(self, mock_get, mock_find_config, spdx_document):
         """Test augmenting SPDX SBOM from file."""
+        # Disable json-config provider to isolate sbomify API test
+        mock_find_config.return_value = None
+
         backend_data = {
             "supplier": {"name": "SPDX Supplier"},
             "authors": [{"name": "SPDX Author"}],
@@ -1259,12 +1273,15 @@ class TestErrorHandling:
 
             assert "Invalid JSON in SBOM file" in str(exc_info.value)
 
+    @patch("sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file")
     @patch.dict(os.environ, {}, clear=True)
     @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
-    def test_api_connection_error(self, mock_get):
+    def test_api_connection_error(self, mock_get, mock_find_config):
         """Test handling of API connection errors (provider returns None, not exception)."""
         import requests
 
+        # Disable json-config provider to isolate API error test
+        mock_find_config.return_value = None
         mock_get.side_effect = requests.exceptions.ConnectionError("Connection failed")
 
         # With the provider architecture, API errors are caught and logged,
@@ -1278,12 +1295,15 @@ class TestErrorHandling:
         # Provider catches the error and returns None, which results in empty dict
         assert result == {}
 
+    @patch("sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file")
     @patch.dict(os.environ, {}, clear=True)
     @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
-    def test_api_timeout_error(self, mock_get):
+    def test_api_timeout_error(self, mock_get, mock_find_config):
         """Test handling of API timeout errors (provider returns None, not exception)."""
         import requests
 
+        # Disable json-config provider to isolate API error test
+        mock_find_config.return_value = None
         mock_get.side_effect = requests.exceptions.Timeout("Timeout")
 
         # With the provider architecture, API errors are caught and logged
@@ -1296,10 +1316,14 @@ class TestErrorHandling:
         # Provider catches the error and returns None, which results in empty dict
         assert result == {}
 
+    @patch("sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file")
     @patch.dict(os.environ, {}, clear=True)
     @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
-    def test_api_404_error(self, mock_get):
+    def test_api_404_error(self, mock_get, mock_find_config):
         """Test handling of API 404 errors (provider returns None, not exception)."""
+        # Disable json-config provider to isolate API error test
+        mock_find_config.return_value = None
+
         mock_response = Mock()
         mock_response.ok = False
         mock_response.status_code = 404
