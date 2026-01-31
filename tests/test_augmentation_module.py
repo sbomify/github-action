@@ -153,9 +153,7 @@ class TestLicenseHandling:
 
     @patch("sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file")
     @patch("sbomify_action._augmentation.providers.sbomify_api.requests.get")
-    def test_fetch_augmentation_metadata(
-        self, mock_get, mock_find_config, sample_backend_metadata_with_mixed_licenses
-    ):
+    def test_fetch_augmentation_metadata(self, mock_get, mock_find_config, sample_backend_metadata_with_mixed_licenses):
         """Test fetching metadata from providers (sbomify API)."""
         # Disable json-config provider to isolate sbomify API test
         mock_find_config.return_value = None
