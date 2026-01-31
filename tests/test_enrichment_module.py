@@ -823,11 +823,11 @@ class TestOSComponentEnrichment:
         assert component.publisher == "Debian Project"
         assert "publisher" in " ".join(added_fields)
 
-        # Check CLE properties
+        # Check lifecycle milestone properties
         props = {p.name: p.value for p in component.properties}
-        assert props.get("cle:releaseDate") == "2023-06-10"
-        assert props.get("cle:eos") == "2026-06-10"
-        assert props.get("cle:eol") == "2028-06-30"
+        assert props.get("cdx:lifecycle:milestone:generalAvailability") == "2023-06-10"
+        assert props.get("cdx:lifecycle:milestone:endOfSupport") == "2026-06-10"
+        assert props.get("cdx:lifecycle:milestone:endOfLife") == "2028-06-30"
 
     def test_enrich_debian_os_with_point_release(self):
         """Test enriching Debian with point release version (12.12 -> 12)."""
@@ -837,7 +837,7 @@ class TestOSComponentEnrichment:
 
         # Should still get Debian 12 lifecycle data
         props = {p.name: p.value for p in component.properties}
-        assert props.get("cle:eol") == "2028-06-30"
+        assert props.get("cdx:lifecycle:milestone:endOfLife") == "2028-06-30"
 
     def test_enrich_ubuntu_os(self):
         """Test enriching an Ubuntu OS component."""
@@ -847,11 +847,11 @@ class TestOSComponentEnrichment:
 
         assert component.publisher == "Canonical Ltd"
 
-        # Check CLE properties
+        # Check lifecycle milestone properties
         props = {p.name: p.value for p in component.properties}
-        assert props.get("cle:releaseDate") == "2022-04"
-        assert props.get("cle:eos") == "2027-06"
-        assert props.get("cle:eol") == "2032-04"
+        assert props.get("cdx:lifecycle:milestone:generalAvailability") == "2022-04"
+        assert props.get("cdx:lifecycle:milestone:endOfSupport") == "2027-06"
+        assert props.get("cdx:lifecycle:milestone:endOfLife") == "2032-04"
 
     def test_enrich_alpine_os(self):
         """Test enriching an Alpine OS component."""
@@ -861,10 +861,10 @@ class TestOSComponentEnrichment:
 
         assert component.publisher == "Alpine Linux"
 
-        # Check CLE properties
+        # Check lifecycle milestone properties
         props = {p.name: p.value for p in component.properties}
-        assert props.get("cle:releaseDate") == "2023-12-07"
-        assert props.get("cle:eol") == "2025-11-01"
+        assert props.get("cdx:lifecycle:milestone:generalAvailability") == "2023-12-07"
+        assert props.get("cdx:lifecycle:milestone:endOfLife") == "2025-11-01"
 
     def test_enrich_unknown_os(self):
         """Test that unknown OS gets no CLE data."""

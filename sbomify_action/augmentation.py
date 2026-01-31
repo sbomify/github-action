@@ -38,7 +38,7 @@ from cyclonedx.model import AttachedText, BomRef, ExternalReference, ExternalRef
 from cyclonedx.model.bom import Bom, OrganizationalContact, OrganizationalEntity, Tool
 from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.license import DisjunctiveLicense, LicenseExpression
-from cyclonedx.model.lifecycle import LifecyclePhase, NamedLifecycle, PredefinedLifecycle
+from cyclonedx.model.lifecycle import LifecyclePhase, PredefinedLifecycle
 from cyclonedx.model.service import Service
 from packageurl import PackageURL
 from spdx_tools.spdx.model import (
@@ -852,61 +852,29 @@ def augment_cyclonedx_sbom(
 
     # Add support period end date
     # This satisfies CRA support period requirements
+    # Add support period end date using official CycloneDX property taxonomy
+    # See: https://cyclonedx.github.io/cyclonedx-property-taxonomy/cdx/lifecycle.html
     if "support_period_end" in augmentation_data and augmentation_data["support_period_end"]:
         end_date = augmentation_data["support_period_end"]
-
-        # Primary: Use metadata.lifecycles for CDX 1.5+ (native lifecycle support)
-        if _is_cdx_version_at_least(spec_version, 1, 5):
-            # Create custom lifecycle to indicate support end
-            support_lifecycle = NamedLifecycle(
-                name="support-end",
-                description=f"Security support ends: {end_date}",
-            )
-            bom.metadata.lifecycles.add(support_lifecycle)
-            logger.info(f"Added support-end lifecycle to CycloneDX: {end_date}")
-
-        # For all versions: Add as property with standardized name
-        # Using cdx: namespace which is conventional for CycloneDX extensions
-        support_prop = Property(name="cdx:support:enddate", value=end_date)
+        support_prop = Property(name="cdx:lifecycle:milestone:endOfSupport", value=end_date)
         bom.metadata.properties.add(support_prop)
+        logger.info(f"Added cdx:lifecycle:milestone:endOfSupport property: {end_date}")
         audit_trail.record_augmentation("support_period_end", end_date, source="config")
 
-    # Add release date
-    # Records when the component was released
+    # Add release date using official CycloneDX property taxonomy
     if "release_date" in augmentation_data and augmentation_data["release_date"]:
         release_date = augmentation_data["release_date"]
-
-        # Primary: Use metadata.lifecycles for CDX 1.5+ (native lifecycle support)
-        if _is_cdx_version_at_least(spec_version, 1, 5):
-            release_lifecycle = NamedLifecycle(
-                name="release",
-                description=f"Released: {release_date}",
-            )
-            bom.metadata.lifecycles.add(release_lifecycle)
-            logger.info(f"Added release lifecycle to CycloneDX: {release_date}")
-
-        # For all versions: Add as property with standardized name
-        release_prop = Property(name="cdx:release:date", value=release_date)
+        release_prop = Property(name="cdx:lifecycle:milestone:generalAvailability", value=release_date)
         bom.metadata.properties.add(release_prop)
+        logger.info(f"Added cdx:lifecycle:milestone:generalAvailability property: {release_date}")
         audit_trail.record_augmentation("release_date", release_date, source="config")
 
-    # Add end of life date
-    # Records when all support ends (beyond security-only support)
+    # Add end of life date using official CycloneDX property taxonomy
     if "end_of_life" in augmentation_data and augmentation_data["end_of_life"]:
         eol_date = augmentation_data["end_of_life"]
-
-        # Primary: Use metadata.lifecycles for CDX 1.5+ (native lifecycle support)
-        if _is_cdx_version_at_least(spec_version, 1, 5):
-            eol_lifecycle = NamedLifecycle(
-                name="end-of-life",
-                description=f"End of life: {eol_date}",
-            )
-            bom.metadata.lifecycles.add(eol_lifecycle)
-            logger.info(f"Added end-of-life lifecycle to CycloneDX: {eol_date}")
-
-        # For all versions: Add as property with standardized name
-        eol_prop = Property(name="cdx:eol:date", value=eol_date)
+        eol_prop = Property(name="cdx:lifecycle:milestone:endOfLife", value=eol_date)
         bom.metadata.properties.add(eol_prop)
+        logger.info(f"Added cdx:lifecycle:milestone:endOfLife property: {eol_date}")
         audit_trail.record_augmentation("end_of_life", eol_date, source="config")
 
     return bom

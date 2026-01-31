@@ -900,20 +900,13 @@ class TestNTIAAugmentation:
         # Augment with support period
         augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_support, spec_version="1.6")
 
-        # Check named lifecycle was added
-        lifecycles = list(augmented_bom.metadata.lifecycles)
-        support_lifecycles = [lc for lc in lifecycles if hasattr(lc, "name") and lc.name == "support-end"]
-        assert len(support_lifecycles) == 1, "Should have one support-end lifecycle"
-        assert "2028-12-31" in support_lifecycles[0].description
-
-        # Check property was also added
+        # Check property was added (using official CycloneDX property taxonomy)
         props = list(augmented_bom.metadata.properties)
-        support_props = [p for p in props if p.name == "cdx:support:enddate"]
-        assert len(support_props) == 1, "Should have one cdx:support:enddate property"
+        support_props = [p for p in props if p.name == "cdx:lifecycle:milestone:endOfSupport"]
+        assert len(support_props) == 1, "Should have one cdx:lifecycle:milestone:endOfSupport property"
         assert support_props[0].value == "2028-12-31"
 
         print("\nSupport Period End Augmentation Results (CycloneDX 1.6):")
-        print(f"  Lifecycle: {support_lifecycles[0].name} - {support_lifecycles[0].description}")
         print(f"  Property: {support_props[0].name}={support_props[0].value}")
 
     def test_augmentation_adds_support_period_end_cyclonedx_14(self, sample_backend_metadata):
@@ -941,15 +934,10 @@ class TestNTIAAugmentation:
         # Augment with support period
         augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_support, spec_version="1.4")
 
-        # Check named lifecycle was NOT added (1.5+ only)
-        lifecycles = list(augmented_bom.metadata.lifecycles)
-        support_lifecycles = [lc for lc in lifecycles if hasattr(lc, "name") and lc.name == "support-end"]
-        assert len(support_lifecycles) == 0, "Named lifecycle should not be added for CycloneDX 1.4"
-
-        # Check property WAS added (works in all versions)
+        # Check property was added (using official CycloneDX property taxonomy)
         props = list(augmented_bom.metadata.properties)
-        support_props = [p for p in props if p.name == "cdx:support:enddate"]
-        assert len(support_props) == 1, "Should have one cdx:support:enddate property"
+        support_props = [p for p in props if p.name == "cdx:lifecycle:milestone:endOfSupport"]
+        assert len(support_props) == 1, "Should have one cdx:lifecycle:milestone:endOfSupport property"
         assert support_props[0].value == "2028-12-31"
 
         print("\nSupport Period End Results (CycloneDX 1.4):")
@@ -1029,20 +1017,13 @@ class TestNTIAAugmentation:
         # Augment with release date
         augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_release, spec_version="1.6")
 
-        # Check named lifecycle was added
-        lifecycles = list(augmented_bom.metadata.lifecycles)
-        release_lifecycles = [lc for lc in lifecycles if hasattr(lc, "name") and lc.name == "release"]
-        assert len(release_lifecycles) == 1, "Should have one release lifecycle"
-        assert "2024-06-15" in release_lifecycles[0].description
-
-        # Check property was also added
+        # Check property was added (using official CycloneDX property taxonomy)
         props = list(augmented_bom.metadata.properties)
-        release_props = [p for p in props if p.name == "cdx:release:date"]
-        assert len(release_props) == 1, "Should have one cdx:release:date property"
+        release_props = [p for p in props if p.name == "cdx:lifecycle:milestone:generalAvailability"]
+        assert len(release_props) == 1, "Should have one cdx:lifecycle:milestone:generalAvailability property"
         assert release_props[0].value == "2024-06-15"
 
         print("\nRelease Date Augmentation Results (CycloneDX 1.6):")
-        print(f"  Lifecycle: {release_lifecycles[0].name} - {release_lifecycles[0].description}")
         print(f"  Property: {release_props[0].name}={release_props[0].value}")
 
     def test_augmentation_adds_end_of_life_cyclonedx(self, sample_backend_metadata):
@@ -1073,20 +1054,13 @@ class TestNTIAAugmentation:
         # Augment with end of life
         augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_eol, spec_version="1.6")
 
-        # Check named lifecycle was added
-        lifecycles = list(augmented_bom.metadata.lifecycles)
-        eol_lifecycles = [lc for lc in lifecycles if hasattr(lc, "name") and lc.name == "end-of-life"]
-        assert len(eol_lifecycles) == 1, "Should have one end-of-life lifecycle"
-        assert "2028-12-31" in eol_lifecycles[0].description
-
-        # Check property was also added
+        # Check property was added (using official CycloneDX property taxonomy)
         props = list(augmented_bom.metadata.properties)
-        eol_props = [p for p in props if p.name == "cdx:eol:date"]
-        assert len(eol_props) == 1, "Should have one cdx:eol:date property"
+        eol_props = [p for p in props if p.name == "cdx:lifecycle:milestone:endOfLife"]
+        assert len(eol_props) == 1, "Should have one cdx:lifecycle:milestone:endOfLife property"
         assert eol_props[0].value == "2028-12-31"
 
         print("\nEnd of Life Augmentation Results (CycloneDX 1.6):")
-        print(f"  Lifecycle: {eol_lifecycles[0].name} - {eol_lifecycles[0].description}")
         print(f"  Property: {eol_props[0].name}={eol_props[0].value}")
 
     def test_augmentation_adds_release_date_cyclonedx_14(self, sample_backend_metadata):
@@ -1114,15 +1088,10 @@ class TestNTIAAugmentation:
         # Augment with release date
         augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_release, spec_version="1.4")
 
-        # Check named lifecycle was NOT added (1.5+ only)
-        lifecycles = list(augmented_bom.metadata.lifecycles)
-        release_lifecycles = [lc for lc in lifecycles if hasattr(lc, "name") and lc.name == "release"]
-        assert len(release_lifecycles) == 0, "Named lifecycle should not be added for CycloneDX 1.4"
-
-        # Check property WAS added (works in all versions)
+        # Check property was added (using official CycloneDX property taxonomy)
         props = list(augmented_bom.metadata.properties)
-        release_props = [p for p in props if p.name == "cdx:release:date"]
-        assert len(release_props) == 1, "Should have one cdx:release:date property"
+        release_props = [p for p in props if p.name == "cdx:lifecycle:milestone:generalAvailability"]
+        assert len(release_props) == 1, "Should have one cdx:lifecycle:milestone:generalAvailability property"
         assert release_props[0].value == "2024-06-15"
 
         print("\nRelease Date Results (CycloneDX 1.4):")
@@ -1247,22 +1216,20 @@ class TestNTIAAugmentation:
         # Augment with all lifecycle dates
         augmented_bom = augment_cyclonedx_sbom(bom, metadata_with_all, spec_version="1.6")
 
-        # Check all named lifecycles were added
-        lifecycles = list(augmented_bom.metadata.lifecycles)
-        lifecycle_names = [lc.name for lc in lifecycles if hasattr(lc, "name")]
-        assert "release" in lifecycle_names, "Should have release lifecycle"
-        assert "support-end" in lifecycle_names, "Should have support-end lifecycle"
-        assert "end-of-life" in lifecycle_names, "Should have end-of-life lifecycle"
-
-        # Check all properties were added
+        # Check all properties were added (using official CycloneDX property taxonomy)
         props = list(augmented_bom.metadata.properties)
         prop_names = [p.name for p in props]
-        assert "cdx:release:date" in prop_names, "Should have cdx:release:date property"
-        assert "cdx:support:enddate" in prop_names, "Should have cdx:support:enddate property"
-        assert "cdx:eol:date" in prop_names, "Should have cdx:eol:date property"
+        assert "cdx:lifecycle:milestone:generalAvailability" in prop_names, (
+            "Should have cdx:lifecycle:milestone:generalAvailability property"
+        )
+        assert "cdx:lifecycle:milestone:endOfSupport" in prop_names, (
+            "Should have cdx:lifecycle:milestone:endOfSupport property"
+        )
+        assert "cdx:lifecycle:milestone:endOfLife" in prop_names, (
+            "Should have cdx:lifecycle:milestone:endOfLife property"
+        )
 
         print("\nAll Lifecycle Dates Augmentation Results (CycloneDX 1.6):")
-        print(f"  Lifecycles: {lifecycle_names}")
         print(f"  Properties: {prop_names}")
 
 

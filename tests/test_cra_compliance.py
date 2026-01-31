@@ -98,7 +98,7 @@ class TestCRAComplianceCycloneDX:
             "metadata": {
                 "component": {"name": "test-app"},
                 "properties": [
-                    {"name": "cdx:support:enddate", "value": "2026-12-31"},
+                    {"name": "cdx:lifecycle:milestone:endOfSupport", "value": "2026-12-31"},
                 ],
             },
         }
@@ -441,9 +441,9 @@ class TestCRACheckerUnit:
             "metadata": {
                 "component": {"name": "test"},
                 "properties": [
-                    {"name": "cdx:release:date", "value": "2024-06-15"},
-                    {"name": "cdx:support:enddate", "value": "2026-12-31"},
-                    {"name": "cdx:eol:date", "value": "2028-12-31"},
+                    {"name": "cdx:lifecycle:milestone:generalAvailability", "value": "2024-06-15"},
+                    {"name": "cdx:lifecycle:milestone:endOfSupport", "value": "2026-12-31"},
+                    {"name": "cdx:lifecycle:milestone:endOfLife", "value": "2028-12-31"},
                 ],
             },
         }

@@ -651,7 +651,7 @@ Operating system components (CycloneDX `type: operating-system`) are enriched wi
 - **OS components**: Detected by CycloneDX `type: operating-system`, matched by name/version
 - **Runtimes/frameworks**: Matched by name pattern across all package managers
 - Version cycle extracted from full version (e.g., `3.12.7` → `3.12`, `12.12` → `12`)
-- CLE properties added: `cle:releaseDate`, `cle:eos`, `cle:eol`
+- Lifecycle properties added: `cdx:lifecycle:milestone:generalAvailability`, `cdx:lifecycle:milestone:endOfSupport`, `cdx:lifecycle:milestone:endOfLife`
 
 > **Note**: Arbitrary OS packages (curl, nginx, openssl, etc.) do not receive lifecycle data. Only the operating system itself and explicitly tracked runtimes/frameworks get CLE data.
 
@@ -663,9 +663,9 @@ Operating system components (CycloneDX `type: operating-system`) are enriched wi
   "name": "debian",
   "version": "12.12",
   "properties": [
-    {"name": "cle:releaseDate", "value": "2023-06-10"},
-    {"name": "cle:eos", "value": "2026-06-10"},
-    {"name": "cle:eol", "value": "2028-06-30"}
+    {"name": "cdx:lifecycle:milestone:generalAvailability", "value": "2023-06-10"},
+    {"name": "cdx:lifecycle:milestone:endOfSupport", "value": "2026-06-10"},
+    {"name": "cdx:lifecycle:milestone:endOfLife", "value": "2028-06-30"}
   ]
 }
 ```
