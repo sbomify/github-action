@@ -492,7 +492,9 @@ def _is_spdx_license_empty(license_value) -> bool:
     return False
 
 
-def _apply_metadata_to_spdx_package(package: Package, metadata: NormalizedMetadata) -> List[str]:
+def _apply_metadata_to_spdx_package(
+    package: Package, metadata: NormalizedMetadata, source: str = "unknown"
+) -> List[str]:
     """
     Apply NormalizedMetadata to an SPDX package.
 
@@ -501,11 +503,14 @@ def _apply_metadata_to_spdx_package(package: Package, metadata: NormalizedMetada
     Args:
         package: Package to enrich
         metadata: Normalized metadata to apply
+        source: Data source name for audit trail
 
     Returns:
         List of added field names for logging
     """
     added_fields = []
+    audit_trail = get_audit_trail()
+    purl_str = package.spdx_id or package.name
 
     # Description (sanitized)
     if not package.description and metadata.description:
@@ -634,6 +639,10 @@ def _apply_metadata_to_spdx_package(package: Package, metadata: NormalizedMetada
         else:
             package.comment = cle_comment
             added_fields.append("comment (CLE)")
+
+    # Record to audit trail if any fields were added
+    if added_fields:
+        audit_trail.record_component_enriched(purl_str, added_fields, source)
 
     return added_fields
 
@@ -1009,10 +1018,10 @@ def _enrich_spdx_document_with_plugin_architecture(document: Document, enricher:
         if purl_str:
             metadata = enricher.fetch_metadata(purl_str, merge_results=True)
             if metadata and metadata.has_data():
-                added_fields = _apply_metadata_to_spdx_package(package, metadata)
+                primary_source = metadata.source.split(", ")[0] if metadata.source else "unknown"
+                added_fields = _apply_metadata_to_spdx_package(package, metadata, source=primary_source)
                 if added_fields:
                     enrichment_source = metadata.source
-                    primary_source = metadata.source.split(", ")[0] if metadata.source else "unknown"
                     stats["sources"][primary_source] = stats["sources"].get(primary_source, 0) + 1
 
         if added_fields:
