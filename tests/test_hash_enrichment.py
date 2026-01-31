@@ -1,14 +1,12 @@
 """Tests for the hash enrichment subsystem."""
 
 import json
-import tempfile
 from pathlib import Path
 
 import pytest
 
 from sbomify_action._hash_enrichment import (
     HashAlgorithm,
-    HashEnricher,
     PackageHash,
     create_default_registry,
     enrich_sbom_with_hashes,
@@ -59,9 +57,7 @@ class TestPackageHash:
 
     def test_from_prefixed_sha256(self):
         """Test parsing sha256:... format."""
-        pkg_hash = PackageHash.from_prefixed(
-            "django", "5.1.1", "sha256:abc123def456"
-        )
+        pkg_hash = PackageHash.from_prefixed("django", "5.1.1", "sha256:abc123def456")
         assert pkg_hash is not None
         assert pkg_hash.name == "django"
         assert pkg_hash.version == "5.1.1"
@@ -70,9 +66,7 @@ class TestPackageHash:
 
     def test_from_prefixed_sha512(self):
         """Test parsing sha512:... format."""
-        pkg_hash = PackageHash.from_prefixed(
-            "requests", "2.31.0", "sha512:fedcba987654"
-        )
+        pkg_hash = PackageHash.from_prefixed("requests", "2.31.0", "sha512:fedcba987654")
         assert pkg_hash is not None
         assert pkg_hash.algorithm == HashAlgorithm.SHA512
         assert pkg_hash.value == "fedcba987654"
@@ -134,7 +128,7 @@ class TestUvLockParser:
 
     @pytest.fixture
     def uv_lock_content(self):
-        return '''
+        return """
 version = 1
 
 [[package]]
@@ -150,7 +144,7 @@ wheels = [
 name = "requests"
 version = "2.31.0"
 sdist = { url = "...", hash = "sha256:reqhash", size = 100 }
-'''
+"""
 
     def test_parse_uv_lock(self, uv_lock_content, tmp_path):
         """Test parsing uv.lock file."""
@@ -302,7 +296,7 @@ class TestHashEnricher:
     @pytest.fixture
     def sample_uv_lock(self, tmp_path):
         """Create a sample uv.lock file."""
-        content = '''
+        content = """
 version = 1
 
 [[package]]
@@ -314,14 +308,12 @@ sdist = { hash = "sha256:abc123" }
 name = "requests"
 version = "2.31.0"
 sdist = { hash = "sha256:def456" }
-'''
+"""
         lock_file = tmp_path / "uv.lock"
         lock_file.write_text(content)
         return lock_file
 
-    def test_enrich_cyclonedx_adds_hashes(
-        self, sample_cyclonedx_sbom, sample_uv_lock, tmp_path
-    ):
+    def test_enrich_cyclonedx_adds_hashes(self, sample_cyclonedx_sbom, sample_uv_lock, tmp_path):
         """Test that CycloneDX components get hashes added."""
         # Write SBOM to file
         sbom_file = tmp_path / "sbom.json"
@@ -338,17 +330,13 @@ sdist = { hash = "sha256:def456" }
 
         # Verify hashes in output
         enriched = json.loads(sbom_file.read_text())
-        django_comp = next(
-            c for c in enriched["components"] if c["name"] == "django"
-        )
+        django_comp = next(c for c in enriched["components"] if c["name"] == "django")
         assert "hashes" in django_comp
         assert len(django_comp["hashes"]) == 1
         assert django_comp["hashes"][0]["alg"] == "SHA-256"
         assert django_comp["hashes"][0]["content"] == "abc123"
 
-    def test_enrich_spdx_adds_checksums(
-        self, sample_spdx_sbom, sample_uv_lock, tmp_path
-    ):
+    def test_enrich_spdx_adds_checksums(self, sample_spdx_sbom, sample_uv_lock, tmp_path):
         """Test that SPDX packages get checksums added."""
         # Write SBOM to file
         sbom_file = tmp_path / "sbom.json"
@@ -365,9 +353,7 @@ sdist = { hash = "sha256:def456" }
 
         # Verify checksums in output
         enriched = json.loads(sbom_file.read_text())
-        django_pkg = next(
-            p for p in enriched["packages"] if p["name"] == "django"
-        )
+        django_pkg = next(p for p in enriched["packages"] if p["name"] == "django")
         assert "checksums" in django_pkg
         assert len(django_pkg["checksums"]) == 1
         assert django_pkg["checksums"][0]["algorithm"] == "SHA256"
@@ -393,14 +379,14 @@ sdist = { hash = "sha256:def456" }
         sbom_file.write_text(json.dumps(sbom))
 
         # Lock file with different hash
-        lock_content = '''
+        lock_content = """
 version = 1
 
 [[package]]
 name = "django"
 version = "5.1.1"
 sdist = { hash = "sha256:newvalue" }
-'''
+"""
         lock_file = tmp_path / "uv.lock"
         lock_file.write_text(lock_content)
 
@@ -439,14 +425,14 @@ sdist = { hash = "sha256:newvalue" }
         sbom_file.write_text(json.dumps(sbom))
 
         # Lock file with different hash
-        lock_content = '''
+        lock_content = """
 version = 1
 
 [[package]]
 name = "django"
 version = "5.1.1"
 sdist = { hash = "sha256:newvalue" }
-'''
+"""
         lock_file = tmp_path / "uv.lock"
         lock_file.write_text(lock_content)
 
