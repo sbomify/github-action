@@ -302,13 +302,13 @@ jobs:
           # Arbitrary OS packages (curl, busybox, etc.) do NOT get distro lifecycle
           # because the PURL doesn't reliably indicate distro version.
           
-          # Check OS component has CLE properties
-          OS_CLE=$(jq '.components[] | select(.type == "operating-system") | .properties[]? | select(.name | startswith("cle:"))' alpine-enriched.cdx.json)
-          
+          # Check OS component has CLE properties (using cdx:lifecycle taxonomy)
+          OS_CLE=$(jq '.components[] | select(.type == "operating-system") | .properties[]? | select(.name | startswith("cdx:lifecycle"))' alpine-enriched.cdx.json)
+
           if [ -n "$OS_CLE" ]; then
             echo "✅ OS component has CLE lifecycle properties"
             echo "OS component CLE:"
-            jq '.components[] | select(.type == "operating-system") | {name, version, cle: [.properties[]? | select(.name | startswith("cle:"))]}' alpine-enriched.cdx.json
+            jq '.components[] | select(.type == "operating-system") | {name, version, cle: [.properties[]? | select(.name | startswith("cdx:lifecycle"))]}' alpine-enriched.cdx.json
           else
             echo "❌ Expected CLE properties on OS component"
             exit 1
@@ -488,7 +488,7 @@ jobs:
           # Show all CLE-enriched components summary
           echo ""
           echo "=== All CLE-enriched components ==="
-          jq -r '.components[] | select(.properties[]?.name | startswith("cle:")) | "\(.type // "library"): \(.name) v\(.version)"' debian-enriched.cdx.json | sort -u
+          jq -r '.components[] | select(.properties[]?.name | startswith("cdx:lifecycle")) | "\(.type // "library"): \(.name) v\(.version)"' debian-enriched.cdx.json | sort -u
 
       - name: Upload enriched SBOM artifact
         uses: actions/upload-artifact@v4
