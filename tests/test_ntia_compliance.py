@@ -1708,10 +1708,10 @@ class TestNTIAEdgeCases:
         with open(output_file) as f:
             enriched_data = json.load(f)
 
-        # Verify the component got supplier from author_email
+        # Verify the component got supplier as distribution platform
         component = enriched_data["components"][0]
-        assert component.get("publisher") == "Test Author", (
-            f"Expected publisher 'Test Author' from author_email, got: {component.get('publisher')}"
+        assert component.get("publisher") == "Python Package Index (PyPI)", (
+            f"Expected publisher 'Python Package Index (PyPI)', got: {component.get('publisher')}"
         )
 
     def test_lockfile_components_have_version(self, tmp_path):
@@ -1892,26 +1892,27 @@ class TestNTIAEdgeCases:
             f"Self-referencing component should inherit publisher from root. Got: {self_component.get('publisher')}"
         )
 
-    def test_ecosystems_does_not_use_platform_as_supplier(self, tmp_path):
-        """Test that ecosyste.ms doesn't use platform name (pypi, npm) as supplier.
+    def test_ecosystems_uses_platform_as_supplier(self, tmp_path):
+        """Test that ecosyste.ms uses distribution platform as supplier.
 
-        Registry/platform names are not valid suppliers - they're distribution channels.
+        The distribution platform (PyPI, npm, etc.) is the supplier, not the
+        individual package author/maintainer.
         """
         import requests
         from packageurl import PackageURL
 
         from sbomify_action._enrichment.sources.ecosystems import EcosystemsSource
 
-        # Create mock response with ecosystem but no maintainer name
+        # Create mock response with ecosystem and maintainer
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = [
             {
-                "ecosystem": "pypi",  # Should NOT be used as supplier
+                "ecosystem": "pypi",
                 "description": "Test package",
                 "normalized_licenses": ["MIT"],
                 "maintainers": [
-                    {"login": "testuser", "name": None}  # No name, only login
+                    {"login": "testuser", "name": None}  # Maintainer info preserved in maintainer_name
                 ],
             }
         ]
@@ -1923,7 +1924,10 @@ class TestNTIAEdgeCases:
             purl = PackageURL.from_string("pkg:pypi/test-package@1.0.0")
             metadata = source.fetch(purl, session)
 
-        # Supplier should be the maintainer login, NOT "pypi"
+        # Supplier should be the distribution platform
         assert metadata is not None
-        assert metadata.supplier != "pypi", "Should not use ecosystem name as supplier"
-        assert metadata.supplier == "testuser", f"Should use maintainer login as supplier. Got: {metadata.supplier}"
+        assert metadata.supplier == "Python Package Index (PyPI)", (
+            f"Should use platform as supplier. Got: {metadata.supplier}"
+        )
+        # Maintainer info is preserved separately
+        assert metadata.maintainer_name == "testuser"
