@@ -11,3 +11,5 @@ step_1.json
 additional_packages.txt
 .cursor
 node_modules
+sbomify.json
+sbomify.json.bak

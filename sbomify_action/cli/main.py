@@ -1713,7 +1713,7 @@ def _parse_upload_destinations_callback(
     return None
 
 
-@click.command(context_settings={"help_option_names": ["-h", "--help"]})
+@click.group(invoke_without_command=True, context_settings={"help_option_names": ["-h", "--help"]})
 @click.option(
     "--token",
     envvar="TOKEN",
@@ -1878,6 +1878,10 @@ def cli(
     Provide one of: --sbom-file, --lock-file, or --docker-image as input.
 
     \b
+    Commands:
+      init    Interactive wizard to create sbomify.json configuration
+
+    \b
     Examples:
       # Generate SBOM from lock file
       sbomify-action --lock-file requirements.txt --enrich --no-upload
@@ -1887,7 +1891,14 @@ def cli(
 
       # Generate from Docker image with SPDX format
       sbomify-action --docker-image nginx:latest -f spdx -o sbom.spdx.json
+
+      # Create sbomify.json configuration interactively
+      sbomify-action init
     """
+    # If a subcommand was invoked, don't run the default pipeline
+    if ctx.invoked_subcommand is not None:
+        return
+
     # Show help with banner if no input source is provided
     if not any([sbom_file, docker_image, lock_file]):
         print_banner()
@@ -1945,6 +1956,34 @@ def cli(
 
     # Run the pipeline
     run_pipeline(config)
+
+
+@cli.command("init")
+@click.option(
+    "-o",
+    "--output",
+    default="sbomify.json",
+    show_default=True,
+    help="Output path for the configuration file.",
+)
+def init_cmd(output: str) -> None:
+    """Interactive wizard to create sbomify.json configuration.
+
+    This wizard helps you create a sbomify.json file that provides metadata
+    for SBOM augmentation. All fields are optional.
+
+    \b
+    The configuration includes:
+      - Organization info (supplier, manufacturer)
+      - Authors
+      - Licenses (SPDX identifiers)
+      - Security contact (CRA compliance)
+      - Lifecycle phase and dates
+      - VCS overrides (for self-hosted git servers)
+    """
+    from sbomify_action.cli.wizard import run_wizard
+
+    sys.exit(run_wizard(output))
 
 
 def main() -> None:
