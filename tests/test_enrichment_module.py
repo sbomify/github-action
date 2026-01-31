@@ -1040,8 +1040,8 @@ class TestEndToEndEnrichment:
             result = json.load(f)
 
         assert result["components"][0]["description"] == "Django web framework"
-        # Publisher is the distribution platform
-        assert result["components"][0]["publisher"] == "Python Package Index (PyPI)"
+        # Publisher is the package author (maintainer_name), not distribution platform
+        assert result["components"][0]["publisher"] == "Django Software Foundation"
 
     def test_enrich_spdx_sbom(self, tmp_path):
         """Test enriching an SPDX SBOM end-to-end."""

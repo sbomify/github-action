@@ -418,7 +418,7 @@ class TestNTIAPURLFallback:
             print(f"  {component['name']}: publisher = {component.get('publisher')}")
 
     def test_alpine_package_purl_fallback(self, tmp_path):
-        """Test that Alpine packages get supplier from PURL namespace."""
+        """Test that Alpine packages get supplier from PURL namespace when other sources fail."""
         clear_cache()
 
         sbom_data = {
@@ -449,7 +449,11 @@ class TestNTIAPURLFallback:
         # Mock API responses to 404 (simulating no data - force PURL fallback)
         mock_response = Mock()
         mock_response.status_code = 404
-        with patch("requests.Session.get", return_value=mock_response):
+        with (
+            patch("requests.Session.get", return_value=mock_response),
+            # Also disable LicenseDB so PURL fallback is truly tested
+            patch("sbomify_action._enrichment.sources.license_db.LicenseDBSource.fetch", return_value=None),
+        ):
             enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
@@ -1675,10 +1679,10 @@ class TestNTIAEdgeCases:
         with open(output_file) as f:
             enriched_data = json.load(f)
 
-        # Verify the component got supplier as distribution platform
+        # Verify the component got publisher from author_email (extracted name: "Test Author")
         component = enriched_data["components"][0]
-        assert component.get("publisher") == "Python Package Index (PyPI)", (
-            f"Expected publisher 'Python Package Index (PyPI)', got: {component.get('publisher')}"
+        assert component.get("publisher") == "Test Author", (
+            f"Expected publisher 'Test Author' from author_email, got: {component.get('publisher')}"
         )
 
     def test_lockfile_components_have_version(self, tmp_path):

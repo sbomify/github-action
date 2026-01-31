@@ -180,11 +180,15 @@ class PURLSource:
         field_sources = {}
         if supplier:
             field_sources["supplier"] = self.name
+            # For OS packages, the distribution is also the maintainer/publisher
+            field_sources["maintainer_name"] = self.name
         if homepage:
             field_sources["homepage"] = self.name
 
         return NormalizedMetadata(
             supplier=supplier,
+            # For OS packages, distribution is the publisher (maintainer_name -> component.publisher)
+            maintainer_name=supplier,
             homepage=homepage,
             source=self.name,
             field_sources=field_sources,
