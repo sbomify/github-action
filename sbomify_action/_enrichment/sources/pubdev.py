@@ -12,6 +12,7 @@ from ..license_utils import normalize_license_list
 from ..metadata import NormalizedMetadata
 from ..sanitization import normalize_vcs_url
 from ..utils import parse_author_string
+from .purl import PURL_TYPE_TO_SUPPLIER
 
 PUBDEV_API_BASE = "https://pub.dev/api/packages"
 DEFAULT_TIMEOUT = 10  # seconds - pub.dev is generally fast
@@ -134,8 +135,7 @@ class PubDevSource:
         documentation_url = pubspec.get("documentation")
         issue_tracker_url = pubspec.get("issue_tracker")
 
-        # Extract publisher/author info using shared utility
-        supplier = None
+        # Extract author info for maintainer_name field
         maintainer_name = None
         maintainer_email = None
 
@@ -143,17 +143,15 @@ class PubDevSource:
         authors = pubspec.get("authors")
         if authors and isinstance(authors, list) and len(authors) > 0:
             maintainer_name, maintainer_email = parse_author_string(authors[0])
-            supplier = maintainer_name
         elif pubspec.get("author"):
             maintainer_name, maintainer_email = parse_author_string(pubspec["author"])
-            supplier = maintainer_name
 
         # Check for publisher in the top-level response (newer pub.dev API)
-        # Publisher takes precedence over author for supplier
+        # Use publisher ID as maintainer_name if available
         if data.get("publisher"):
             publisher_id = data["publisher"].get("publisherId")
-            if publisher_id:
-                supplier = publisher_id
+            if publisher_id and not maintainer_name:
+                maintainer_name = publisher_id
 
         logger.debug(f"Successfully fetched pub.dev metadata for: {package_name}")
 
@@ -163,8 +161,8 @@ class PubDevSource:
             field_sources["description"] = self.name
         if licenses:
             field_sources["licenses"] = self.name
-        if supplier:
-            field_sources["supplier"] = self.name
+        # Supplier is always the distribution platform
+        field_sources["supplier"] = self.name
         if homepage:
             field_sources["homepage"] = self.name
         if repository_url:
@@ -178,7 +176,7 @@ class PubDevSource:
             description=description,
             licenses=licenses,
             license_texts=license_texts,
-            supplier=supplier,
+            supplier=PURL_TYPE_TO_SUPPLIER["pub"],
             homepage=homepage,
             repository_url=repository_url,
             documentation_url=documentation_url,

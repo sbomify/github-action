@@ -11,6 +11,7 @@ from sbomify_action.logging_config import logger
 from ..metadata import NormalizedMetadata
 from ..sanitization import normalize_vcs_url
 from ..utils import purl_to_string
+from .purl import PURL_TYPE_TO_SUPPLIER
 
 ECOSYSTEMS_API_BASE = "https://packages.ecosyste.ms/api/v1"
 DEFAULT_TIMEOUT = 15  # seconds - ecosyste.ms can be slower
@@ -87,9 +88,9 @@ class EcosystemsSource:
                 data = response.json()
                 # API returns an array, take first result
                 if isinstance(data, list) and len(data) > 0:
-                    metadata = self._normalize_response(data[0])
+                    metadata = self._normalize_response(purl.type, data[0])
                 elif isinstance(data, dict):
-                    metadata = self._normalize_response(data)
+                    metadata = self._normalize_response(purl.type, data)
                 else:
                     logger.debug(f"No package data found in ecosyste.ms for: {purl_str}")
             elif response.status_code == 404:
@@ -119,11 +120,12 @@ class EcosystemsSource:
             _cache[cache_key] = None
             return None
 
-    def _normalize_response(self, data: Dict[str, Any]) -> Optional[NormalizedMetadata]:
+    def _normalize_response(self, purl_type: str, data: Dict[str, Any]) -> Optional[NormalizedMetadata]:
         """
         Normalize ecosyste.ms API response to NormalizedMetadata.
 
         Args:
+            purl_type: PURL type (e.g., "pypi", "npm", "cargo")
             data: Raw ecosyste.ms API response
 
         Returns:
@@ -151,20 +153,8 @@ class EcosystemsSource:
             maintainer_name = first_maintainer.get("name") or first_maintainer.get("login")
             maintainer_email = first_maintainer.get("email")
 
-        # Extract supplier from maintainer or repo owner
-        # NEVER use ecosystem name as supplier - "pypi", "npm", etc. are platforms, not suppliers
-        supplier = None
-        # Priority 1: Maintainer name or login (already extracted above)
-        if maintainer_name:
-            supplier = maintainer_name
-        # Priority 2: Repo owner name or login
-        elif data.get("repo_metadata") and data["repo_metadata"].get("owner"):
-            owner = data["repo_metadata"]["owner"]
-            if isinstance(owner, dict):
-                supplier = owner.get("name") or owner.get("login")
-            elif isinstance(owner, str):
-                supplier = owner
-        # Do NOT fall back to data["ecosystem"] - it's just the platform name
+        # Supplier is the distribution platform based on PURL type
+        supplier = PURL_TYPE_TO_SUPPLIER.get(purl_type)
 
         # Extract issue tracker URL from repo metadata
         issue_tracker_url = None

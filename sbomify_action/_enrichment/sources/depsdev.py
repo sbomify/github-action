@@ -12,6 +12,7 @@ from sbomify_action.logging_config import logger
 from ..metadata import NormalizedMetadata
 from ..sanitization import normalize_vcs_url
 from ..utils import get_qualified_name
+from .purl import PURL_TYPE_TO_SUPPLIER
 
 DEPSDEV_API_BASE = "https://api.deps.dev/v3"
 DEFAULT_TIMEOUT = 10  # seconds - deps.dev is generally fast
@@ -108,7 +109,7 @@ class DepsDevSource:
             metadata = None
             if response.status_code == 200:
                 data = response.json()
-                metadata = self._normalize_response(purl.name, data)
+                metadata = self._normalize_response(purl.name, purl.type, data)
             elif response.status_code == 404:
                 logger.debug(f"Package not found in deps.dev: {purl}")
             else:
@@ -131,12 +132,15 @@ class DepsDevSource:
             _cache[cache_key] = None
             return None
 
-    def _normalize_response(self, package_name: str, data: Dict[str, Any]) -> Optional[NormalizedMetadata]:
+    def _normalize_response(
+        self, package_name: str, purl_type: str, data: Dict[str, Any]
+    ) -> Optional[NormalizedMetadata]:
         """
         Normalize deps.dev API response to NormalizedMetadata.
 
         Args:
             package_name: Name of the package
+            purl_type: PURL type (e.g., "pypi", "npm", "cargo")
             data: Raw deps.dev API response
 
         Returns:
@@ -179,17 +183,23 @@ class DepsDevSource:
         if repository_url:
             repository_url = normalize_vcs_url(repository_url)
 
+        # Get supplier from PURL type mapping
+        supplier = PURL_TYPE_TO_SUPPLIER.get(purl_type)
+
         # Build field_sources for attribution
-        field_sources = {}
+        field_sources: dict[str, str] = {}
         if licenses:
             field_sources["licenses"] = self.name
         if homepage:
             field_sources["homepage"] = self.name
         if repository_url:
             field_sources["repository_url"] = self.name
+        if supplier:
+            field_sources["supplier"] = self.name
 
         metadata = NormalizedMetadata(
             licenses=licenses,
+            supplier=supplier,
             homepage=homepage,
             repository_url=repository_url,
             source=self.name,

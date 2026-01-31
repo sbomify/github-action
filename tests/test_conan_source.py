@@ -191,7 +191,7 @@ class TestConanSourceFetchMocked:
         assert metadata is None
 
     def test_fetch_with_author(self, mock_session):
-        """Test that author is used as supplier."""
+        """Test that author is preserved as maintainer_name."""
         source = ConanSource()
         purl = PackageURL.from_string("pkg:conan/testpkg@1.0.0")
 
@@ -221,7 +221,10 @@ class TestConanSourceFetchMocked:
                 metadata = source.fetch(purl, mock_session)
 
         assert metadata is not None
-        assert metadata.supplier == "Test Author"
+        # Supplier is always the distribution platform
+        assert metadata.supplier == "Conan Center"
+        # Author is preserved as maintainer_name
+        assert metadata.maintainer_name == "Test Author"
 
 
 class TestConanSourceCaching:

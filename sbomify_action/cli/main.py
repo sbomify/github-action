@@ -1071,6 +1071,35 @@ def run_pipeline(config: Config) -> None:
         )
         # Don't fail the entire process for additional packages injection issues
 
+    # Step 1.5: Hash Enrichment from Lockfile (if lockfile was used for generation)
+    if config.lock_file:
+        _log_step_header(1.5, "Hash Enrichment from Lockfile")
+        try:
+            from sbomify_action._hash_enrichment import enrich_sbom_with_hashes
+
+            logger.info(f"Extracting hashes from lockfile: {config.lock_file}")
+
+            stats = enrich_sbom_with_hashes(
+                sbom_file=STEP_1_FILE,
+                lock_file=config.lock_file,
+                overwrite_existing=False,
+            )
+
+            if stats["hashes_added"] > 0:
+                logger.info(
+                    f"Added {stats['hashes_added']} hash(es) to "
+                    f"{stats['components_matched']}/{stats['sbom_components']} component(s)"
+                )
+            else:
+                logger.info("No additional hashes to add from lockfile")
+
+            _log_step_end(1.5)
+
+        except Exception as e:
+            logger.warning(f"Hash enrichment failed (non-fatal): {e}")
+            _log_step_end(1.5, success=False)
+            # Don't fail the entire process for hash enrichment issues
+
     # Step 2: Augmentation
     if config.augment:
         _log_step_header(2, "SBOM Augmentation with Backend Metadata")

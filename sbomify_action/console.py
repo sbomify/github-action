@@ -625,6 +625,16 @@ class AuditTrail:
             self._add_entry("ENRICHMENT", "added", field_name, component=purl, source=source)
         self._enrichment_count += len(fields_added)
 
+    def record_hash_added(
+        self,
+        component: str,
+        algorithm: str,
+        source: str = "lockfile",
+    ) -> None:
+        """Record a hash added to a component from lockfile."""
+        self._add_entry("ENRICHMENT", "added", f"hash.{algorithm}", component=component, source=source)
+        self._enrichment_count += 1
+
     # ==========================================================================
     # Sanitization Recording (Legacy compatibility + new interface)
     # ==========================================================================

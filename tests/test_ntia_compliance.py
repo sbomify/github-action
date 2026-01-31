@@ -418,7 +418,7 @@ class TestNTIAPURLFallback:
             print(f"  {component['name']}: publisher = {component.get('publisher')}")
 
     def test_alpine_package_purl_fallback(self, tmp_path):
-        """Test that Alpine packages get supplier from PURL namespace."""
+        """Test that Alpine packages get supplier from PURL namespace when other sources fail."""
         clear_cache()
 
         sbom_data = {
@@ -449,7 +449,11 @@ class TestNTIAPURLFallback:
         # Mock API responses to 404 (simulating no data - force PURL fallback)
         mock_response = Mock()
         mock_response.status_code = 404
-        with patch("requests.Session.get", return_value=mock_response):
+        with (
+            patch("requests.Session.get", return_value=mock_response),
+            # Also disable LicenseDB so PURL fallback is truly tested
+            patch("sbomify_action._enrichment.sources.license_db.LicenseDBSource.fetch", return_value=None),
+        ):
             enrich_sbom(str(input_file), str(output_file))
 
         with open(output_file) as f:
@@ -1675,7 +1679,7 @@ class TestNTIAEdgeCases:
         with open(output_file) as f:
             enriched_data = json.load(f)
 
-        # Verify the component got supplier from author_email
+        # Verify the component got publisher from author_email (extracted name: "Test Author")
         component = enriched_data["components"][0]
         assert component.get("publisher") == "Test Author", (
             f"Expected publisher 'Test Author' from author_email, got: {component.get('publisher')}"
@@ -1859,26 +1863,27 @@ class TestNTIAEdgeCases:
             f"Self-referencing component should inherit publisher from root. Got: {self_component.get('publisher')}"
         )
 
-    def test_ecosystems_does_not_use_platform_as_supplier(self, tmp_path):
-        """Test that ecosyste.ms doesn't use platform name (pypi, npm) as supplier.
+    def test_ecosystems_uses_platform_as_supplier(self, tmp_path):
+        """Test that ecosyste.ms uses distribution platform as supplier.
 
-        Registry/platform names are not valid suppliers - they're distribution channels.
+        The distribution platform (PyPI, npm, etc.) is the supplier, not the
+        individual package author/maintainer.
         """
         import requests
         from packageurl import PackageURL
 
         from sbomify_action._enrichment.sources.ecosystems import EcosystemsSource
 
-        # Create mock response with ecosystem but no maintainer name
+        # Create mock response with ecosystem and maintainer
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = [
             {
-                "ecosystem": "pypi",  # Should NOT be used as supplier
+                "ecosystem": "pypi",
                 "description": "Test package",
                 "normalized_licenses": ["MIT"],
                 "maintainers": [
-                    {"login": "testuser", "name": None}  # No name, only login
+                    {"login": "testuser", "name": None}  # Maintainer info preserved in maintainer_name
                 ],
             }
         ]
@@ -1890,7 +1895,10 @@ class TestNTIAEdgeCases:
             purl = PackageURL.from_string("pkg:pypi/test-package@1.0.0")
             metadata = source.fetch(purl, session)
 
-        # Supplier should be the maintainer login, NOT "pypi"
+        # Supplier should be the distribution platform
         assert metadata is not None
-        assert metadata.supplier != "pypi", "Should not use ecosystem name as supplier"
-        assert metadata.supplier == "testuser", f"Should use maintainer login as supplier. Got: {metadata.supplier}"
+        assert metadata.supplier == "Python Package Index (PyPI)", (
+            f"Should use platform as supplier. Got: {metadata.supplier}"
+        )
+        # Maintainer info is preserved separately
+        assert metadata.maintainer_name == "testuser"
