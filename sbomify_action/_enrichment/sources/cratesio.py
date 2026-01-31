@@ -11,6 +11,7 @@ from sbomify_action.logging_config import logger
 from ..license_utils import normalize_license_list
 from ..metadata import NormalizedMetadata
 from ..sanitization import normalize_vcs_url
+from .purl import PURL_TYPE_TO_SUPPLIER
 
 CRATESIO_API_BASE = "https://crates.io/api/v1/crates"
 DEFAULT_TIMEOUT = 10  # seconds
@@ -161,8 +162,8 @@ class CratesIOSource:
             field_sources["description"] = self.name
         if licenses:
             field_sources["licenses"] = self.name
-        if maintainer_name:
-            field_sources["supplier"] = self.name
+        # Supplier is always the distribution platform
+        field_sources["supplier"] = self.name
         if homepage:
             field_sources["homepage"] = self.name
         if repository_url:
@@ -174,9 +175,7 @@ class CratesIOSource:
             description=description,
             licenses=licenses,
             license_texts=license_texts,
-            # supplier is the NTIA-required field; maintainer_name provides additional detail.
-            # For crates.io, the publisher (published_by) serves as both.
-            supplier=maintainer_name,
+            supplier=PURL_TYPE_TO_SUPPLIER["cargo"],
             homepage=homepage,
             repository_url=repository_url,
             documentation_url=documentation,

@@ -49,6 +49,58 @@ NAMESPACE_TO_SUPPLIER: Dict[str, str] = {
     "chainguard": "Chainguard, Inc.",
 }
 
+# Mapping of PURL type to distribution platform supplier name
+# For language packages, the distribution platform (not the author) is the supplier
+PURL_TYPE_TO_SUPPLIER: dict[str, str] = {
+    # Language package registries
+    "pypi": "Python Package Index (PyPI)",
+    "npm": "npm",
+    "cargo": "crates.io",
+    "maven": "Maven Central",
+    "gem": "RubyGems.org",
+    "nuget": "NuGet Gallery",
+    "golang": "Go Modules",
+    "pub": "pub.dev",
+    "conan": "Conan Center",
+    "composer": "Packagist",
+    "hex": "Hex.pm",
+    "cocoapods": "CocoaPods",
+    "conda": "Anaconda",
+    "hackage": "Hackage",
+    "swift": "Swift Package Registry",
+    # Container registries
+    "docker": "Docker Hub",
+    "oci": "OCI Registry",
+}
+
+
+def get_supplier_for_purl(purl: PackageURL) -> str | None:
+    """Get the appropriate supplier for a PURL.
+
+    For OS packages (deb, rpm, apk), uses NAMESPACE_TO_SUPPLIER based on the
+    distribution namespace (e.g., debian, ubuntu, alpine).
+
+    For language packages (pypi, npm, cargo, etc.), uses PURL_TYPE_TO_SUPPLIER
+    to return the distribution platform as the supplier.
+
+    Args:
+        purl: Parsed PackageURL
+
+    Returns:
+        Supplier name or None if not found
+    """
+    # OS packages use namespace-based supplier (distribution name)
+    if purl.type in OS_PACKAGE_TYPES and purl.namespace:
+        supplier = NAMESPACE_TO_SUPPLIER.get(purl.namespace.lower())
+        if supplier:
+            return supplier
+        # Fallback for unknown namespaces
+        return f"{purl.namespace.title()} Project"
+
+    # Language packages use type-based supplier (platform name)
+    return PURL_TYPE_TO_SUPPLIER.get(purl.type)
+
+
 # Mapping of PURL type/namespace to package tracker URL templates
 PACKAGE_TRACKER_URLS: Dict[str, Dict[str, str]] = {
     "deb": {

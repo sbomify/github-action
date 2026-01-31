@@ -13,6 +13,7 @@ from sbomify_action.logging_config import logger
 
 from ..metadata import NormalizedMetadata
 from ..sanitization import normalize_vcs_url
+from .purl import PURL_TYPE_TO_SUPPLIER
 
 # Simple in-memory cache
 _cache: Dict[str, Optional[NormalizedMetadata]] = {}
@@ -227,15 +228,17 @@ class ConanSource:
         if repository_url:
             field_sources["repository_url"] = self.name
 
-        # Use author as supplier if available
-        supplier = author if author else None
-        if supplier:
-            field_sources["supplier"] = self.name
+        # Supplier is always the distribution platform
+        field_sources["supplier"] = self.name
+
+        # Preserve author info as maintainer_name
+        maintainer_name = author if author else None
 
         metadata = NormalizedMetadata(
             description=description,
             licenses=licenses,
-            supplier=supplier,
+            supplier=PURL_TYPE_TO_SUPPLIER["conan"],
+            maintainer_name=maintainer_name,
             homepage=homepage,
             repository_url=repository_url,
             registry_url=f"https://conan.io/center/recipes/{package_name}",

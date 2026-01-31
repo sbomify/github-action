@@ -281,7 +281,9 @@ class TestPyPISource:
         assert metadata.description == "A high-level Python web framework"
         assert metadata.homepage == "https://www.djangoproject.com/"
         assert "BSD-3-Clause" in metadata.licenses
-        assert metadata.supplier == "Django Software Foundation"
+        # Supplier is the distribution platform, not the author
+        assert metadata.supplier == "Python Package Index (PyPI)"
+        assert metadata.maintainer_name == "Django Software Foundation"
         assert metadata.repository_url == "git+https://github.com/django/django"
 
     def test_fetch_not_found(self, mock_session):
@@ -335,8 +337,11 @@ class TestPyPISource:
         metadata = source.fetch(purl, mock_session)
 
         assert metadata is not None
-        assert metadata.supplier == "Peter Linss", (
-            f"Expected 'Peter Linss' extracted from author_email, got: {metadata.supplier}"
+        # Supplier is always the distribution platform
+        assert metadata.supplier == "Python Package Index (PyPI)"
+        # Author name extracted from email field is preserved in maintainer_name
+        assert metadata.maintainer_name == "Peter Linss", (
+            f"Expected 'Peter Linss' extracted from author_email, got: {metadata.maintainer_name}"
         )
 
     def test_fetch_author_from_maintainer_email_field(self, mock_session):
@@ -361,8 +366,11 @@ class TestPyPISource:
         metadata = source.fetch(purl, mock_session)
 
         assert metadata is not None
-        assert metadata.supplier == "Jane Doe", (
-            f"Expected 'Jane Doe' extracted from maintainer_email, got: {metadata.supplier}"
+        # Supplier is always the distribution platform
+        assert metadata.supplier == "Python Package Index (PyPI)"
+        # Author name extracted from maintainer_email is preserved in maintainer_name
+        assert metadata.maintainer_name == "Jane Doe", (
+            f"Expected 'Jane Doe' extracted from maintainer_email, got: {metadata.maintainer_name}"
         )
 
     def test_fetch_prefers_direct_author_over_email(self, mock_session):
@@ -385,8 +393,11 @@ class TestPyPISource:
         metadata = source.fetch(purl, mock_session)
 
         assert metadata is not None
-        assert metadata.supplier == "Direct Author", (
-            f"Expected 'Direct Author' from author field, got: {metadata.supplier}"
+        # Supplier is always the distribution platform
+        assert metadata.supplier == "Python Package Index (PyPI)"
+        # Direct author is preferred for maintainer_name
+        assert metadata.maintainer_name == "Direct Author", (
+            f"Expected 'Direct Author' from author field, got: {metadata.maintainer_name}"
         )
 
 
@@ -455,7 +466,10 @@ class TestPubDevSource:
         assert metadata.homepage == "https://github.com/dart-lang/http"
         assert metadata.repository_url == "git+https://github.com/dart-lang/http"
         assert metadata.issue_tracker_url == "https://github.com/dart-lang/http/issues"
-        assert metadata.supplier == "dart.dev"
+        # Supplier is the distribution platform
+        assert metadata.supplier == "pub.dev"
+        # Publisher ID is preserved in maintainer_name
+        assert metadata.maintainer_name == "dart.dev"
         assert metadata.registry_url == "https://pub.dev/packages/http"
         assert metadata.source == "pub.dev"
 
@@ -484,7 +498,8 @@ class TestPubDevSource:
         assert metadata is not None
         assert metadata.maintainer_name == "John Doe"
         assert metadata.maintainer_email == "john@example.com"
-        assert metadata.supplier == "John Doe"
+        # Supplier is always the distribution platform
+        assert metadata.supplier == "pub.dev"
 
     def test_fetch_with_authors_list(self, mock_session):
         """Test metadata fetch with authors list field."""
@@ -1025,7 +1040,8 @@ class TestEndToEndEnrichment:
             result = json.load(f)
 
         assert result["components"][0]["description"] == "Django web framework"
-        assert result["components"][0]["publisher"] == "Django Software Foundation"
+        # Publisher is the distribution platform
+        assert result["components"][0]["publisher"] == "Python Package Index (PyPI)"
 
     def test_enrich_spdx_sbom(self, tmp_path):
         """Test enriching an SPDX SBOM end-to-end."""
