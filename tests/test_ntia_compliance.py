@@ -1219,9 +1219,15 @@ class TestNTIAAugmentation:
         # Check all properties were added (using official CycloneDX property taxonomy)
         props = list(augmented_bom.metadata.properties)
         prop_names = [p.name for p in props]
-        assert "cdx:lifecycle:milestone:generalAvailability" in prop_names, "Should have cdx:lifecycle:milestone:generalAvailability property"
-        assert "cdx:lifecycle:milestone:endOfSupport" in prop_names, "Should have cdx:lifecycle:milestone:endOfSupport property"
-        assert "cdx:lifecycle:milestone:endOfLife" in prop_names, "Should have cdx:lifecycle:milestone:endOfLife property"
+        assert "cdx:lifecycle:milestone:generalAvailability" in prop_names, (
+            "Should have cdx:lifecycle:milestone:generalAvailability property"
+        )
+        assert "cdx:lifecycle:milestone:endOfSupport" in prop_names, (
+            "Should have cdx:lifecycle:milestone:endOfSupport property"
+        )
+        assert "cdx:lifecycle:milestone:endOfLife" in prop_names, (
+            "Should have cdx:lifecycle:milestone:endOfLife property"
+        )
 
         print("\nAll Lifecycle Dates Augmentation Results (CycloneDX 1.6):")
         print(f"  Properties: {prop_names}")
