@@ -128,4 +128,3 @@ class TestWizardSections:
         assert SECTION_SECURITY == "security"
         assert SECTION_LIFECYCLE == "lifecycle"
         assert SECTION_VCS == "vcs"
-

@@ -14,6 +14,7 @@ class GoBack(Exception):
 
     pass
 
+
 # Custom style - minimal, no highlighting or background colors
 WIZARD_STYLE = Style(
     [

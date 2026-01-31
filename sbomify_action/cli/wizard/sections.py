@@ -90,8 +90,7 @@ def _collect_organization_entity(entity_type: str, existing: dict[str, Any] | No
         default=", ".join(existing.get("url", [])) if existing else "",
         validate=lambda x: True
         if not x
-        else all(validate_url(u.strip()) for u in x.split(","))
-        or "One or more URLs are invalid",
+        else all(validate_url(u.strip()) for u in x.split(",")) or "One or more URLs are invalid",
     )
     if urls_str:
         urls = [u.strip() for u in urls_str.split(",") if u.strip()]

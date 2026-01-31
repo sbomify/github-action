@@ -1,6 +1,5 @@
 """Tests for the sbomify.json wizard validators."""
 
-
 from sbomify_action.cli.wizard.validators import (
     LIFECYCLE_PHASES,
     validate_email,

@@ -162,8 +162,12 @@ def run_wizard(output_path: str = "sbomify.json") -> int:
                 completed.add(SECTION_LICENSES)
             if config.get("security_contact"):
                 completed.add(SECTION_SECURITY)
-            if (config.get("lifecycle_phase") or config.get("release_date") or
-                    config.get("support_period_end") or config.get("end_of_life")):
+            if (
+                config.get("lifecycle_phase")
+                or config.get("release_date")
+                or config.get("support_period_end")
+                or config.get("end_of_life")
+            ):
                 completed.add(SECTION_LIFECYCLE)
             if config.get("vcs_url"):
                 completed.add(SECTION_VCS)
