@@ -154,6 +154,26 @@ class TestPathExpansionEdgeCases(unittest.TestCase):
             # Should resolve to the symlink path (Path.is_file() returns True for symlinks)
             self.assertTrue(Path(result).is_file())
 
+    def test_path_looks_like_cli_flag_raises_helpful_error(self):
+        """Test that a path starting with '-' raises a helpful error message."""
+        with self.assertRaises(FileProcessingError) as context:
+            path_expansion("--no-augment")
+
+        error_message = str(context.exception)
+        self.assertIn("--no-augment", error_message)
+        self.assertIn("looks like a CLI flag", error_message)
+        self.assertIn("Did you forget to specify a file path?", error_message)
+        self.assertIn("LOCK_FILE environment variable", error_message)
+
+    def test_path_looks_like_short_cli_flag_raises_helpful_error(self):
+        """Test that a path starting with single '-' raises a helpful error message."""
+        with self.assertRaises(FileProcessingError) as context:
+            path_expansion("-v")
+
+        error_message = str(context.exception)
+        self.assertIn("-v", error_message)
+        self.assertIn("looks like a CLI flag", error_message)
+
 
 if __name__ == "__main__":
     unittest.main()

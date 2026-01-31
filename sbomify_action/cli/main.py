@@ -714,8 +714,16 @@ def path_expansion(path: str) -> str:
         Absolute path string
 
     Raises:
-        FileProcessingError: If file is not found
+        FileProcessingError: If file is not found or path looks like a CLI flag
     """
+    # Check if the path looks like a CLI flag (common mistake when forgetting to provide a value)
+    if path.startswith("-"):
+        raise FileProcessingError(
+            f"Invalid file path '{path}' - this looks like a CLI flag. "
+            f"Did you forget to specify a file path? "
+            f"Example: --lock-file requirements.txt or set the LOCK_FILE environment variable."
+        )
+
     current_dir = Path.cwd()
     relative_path = current_dir / path
     workspace_relative_path = Path("/github/workspace") / path
