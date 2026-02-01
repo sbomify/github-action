@@ -1450,7 +1450,7 @@ wheels = [
 
 [[package]]
 name = "sbomify-action"
-version = "0.12"
+version = "0.13"
 source = { editable = "." }
 dependencies = [
     { name = "conan" },
