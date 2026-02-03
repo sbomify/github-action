@@ -1,0 +1,294 @@
+"""Dependency expansion orchestration for SBOMs."""
+
+import json
+from pathlib import Path
+from typing import Any
+
+from cyclonedx.model.bom import Bom
+from cyclonedx.model.component import Component, ComponentType
+from packageurl import PackageURL
+
+from ..console import get_audit_trail
+from ..logging_config import logger
+from ..serialization import serialize_cyclonedx_bom
+from .expanders.pipdeptree import PipdeptreeExpander
+from .models import DiscoveredDependency, ExpansionResult, normalize_python_package_name
+from .registry import ExpanderRegistry
+
+
+def create_default_registry() -> ExpanderRegistry:
+    """Create registry with default expanders."""
+    registry = ExpanderRegistry()
+    registry.register(PipdeptreeExpander())
+    return registry
+
+
+class DependencyEnricher:
+    """Orchestrates dependency expansion for SBOMs.
+
+    Uses registered expanders to discover transitive dependencies
+    and adds them to the SBOM. Records all additions to the audit trail.
+    """
+
+    def __init__(self, registry: ExpanderRegistry | None = None) -> None:
+        self._registry = registry or create_default_registry()
+
+    def expand_sbom(
+        self,
+        sbom_file: str,
+        lock_file: str,
+    ) -> ExpansionResult:
+        """Expand SBOM with discovered transitive dependencies.
+
+        Args:
+            sbom_file: Path to SBOM file (modified in place)
+            lock_file: Path to lockfile that was used for generation
+
+        Returns:
+            ExpansionResult with statistics
+        """
+        sbom_path = Path(sbom_file)
+        lock_path = Path(lock_file)
+
+        # Find applicable expander
+        expander = self._registry.get_expander_for(lock_path)
+        if not expander:
+            logger.debug(f"No expander supports {lock_path.name}")
+            return ExpansionResult(
+                original_count=0,
+                discovered_count=0,
+                added_count=0,
+                dependencies=[],
+                source="none",
+            )
+
+        # Check if expansion is possible
+        if not expander.can_expand():
+            logger.info(
+                f"Dependency expansion skipped: {expander.name} cannot run "
+                "(packages may not be installed in environment)"
+            )
+            return ExpansionResult(
+                original_count=0,
+                discovered_count=0,
+                added_count=0,
+                dependencies=[],
+                source=expander.name,
+            )
+
+        # Discover transitive dependencies
+        logger.info(f"Discovering transitive dependencies with {expander.name}...")
+        discovered = expander.expand(lock_path)
+
+        if not discovered:
+            logger.info("No transitive dependencies discovered")
+            return ExpansionResult(
+                original_count=0,
+                discovered_count=0,
+                added_count=0,
+                dependencies=[],
+                source=expander.name,
+            )
+
+        # Load SBOM and detect format
+        with sbom_path.open("r") as f:
+            sbom_data = json.load(f)
+
+        if sbom_data.get("bomFormat") == "CycloneDX":
+            result = self._enrich_cyclonedx(sbom_path, sbom_data, discovered, expander.name)
+        elif sbom_data.get("spdxVersion"):
+            result = self._enrich_spdx(sbom_path, sbom_data, discovered, expander.name)
+        else:
+            logger.warning("Unknown SBOM format, skipping dependency expansion")
+            result = ExpansionResult(
+                original_count=0,
+                discovered_count=len(discovered),
+                added_count=0,
+                dependencies=discovered,
+                source=expander.name,
+            )
+
+        return result
+
+    def _enrich_cyclonedx(
+        self,
+        sbom_path: Path,
+        sbom_data: dict[str, Any],
+        discovered: list[DiscoveredDependency],
+        source: str,
+    ) -> ExpansionResult:
+        """Add discovered dependencies to CycloneDX SBOM."""
+        bom = Bom.from_json(sbom_data)
+        original_count = len(bom.components) if bom.components else 0
+
+        # Build set of existing PURLs for deduplication
+        existing_purls: set[str] = set()
+        if bom.components:
+            for comp in bom.components:
+                if comp.purl:
+                    existing_purls.add(str(comp.purl).lower())
+
+        # Add new components
+        added_count = 0
+        audit = get_audit_trail()
+
+        for dep in discovered:
+            # Skip if already exists
+            if dep.purl.lower() in existing_purls:
+                continue
+
+            # Create new component
+            try:
+                purl_obj = PackageURL.from_string(dep.purl)
+            except Exception as e:
+                logger.warning(f"Invalid PURL {dep.purl}: {e}")
+                continue
+
+            component = Component(
+                type=ComponentType.LIBRARY,
+                name=dep.name,
+                version=dep.version,
+                purl=purl_obj,
+            )
+
+            bom.components.add(component)
+            added_count += 1
+
+            # Record to audit trail
+            parent_info = f"discovered via {dep.parent}" if dep.parent else "discovered as transitive"
+            audit.record_enrichment(
+                component=dep.purl,
+                field="transitive_dependency",
+                value=parent_info,
+                source=source,
+            )
+
+        # Serialize back
+        spec_version = sbom_data.get("specVersion", "1.6")
+        serialized = serialize_cyclonedx_bom(bom, spec_version)
+        with sbom_path.open("w") as f:
+            f.write(serialized)
+
+        logger.info(
+            f"Dependency expansion: added {added_count} transitive dependencies "
+            f"(discovered {len(discovered)}, {original_count} original)"
+        )
+
+        return ExpansionResult(
+            original_count=original_count,
+            discovered_count=len(discovered),
+            added_count=added_count,
+            dependencies=discovered,
+            source=source,
+        )
+
+    def _enrich_spdx(
+        self,
+        sbom_path: Path,
+        sbom_data: dict[str, Any],
+        discovered: list[DiscoveredDependency],
+        source: str,
+    ) -> ExpansionResult:
+        """Add discovered dependencies to SPDX SBOM."""
+        packages = sbom_data.get("packages", [])
+        original_count = len(packages)
+
+        # Build set of existing package identifiers (normalized for comparison)
+        existing: set[str] = set()
+        existing_spdx_ids: set[str] = set()
+        for pkg in packages:
+            name = pkg.get("name", "")
+            version = pkg.get("versionInfo", "")
+            normalized = normalize_python_package_name(name)
+            existing.add(f"{normalized}@{version}")
+            if pkg.get("SPDXID"):
+                existing_spdx_ids.add(pkg["SPDXID"])
+
+        # Add new packages
+        added_count = 0
+        audit = get_audit_trail()
+
+        for dep in discovered:
+            normalized_name = normalize_python_package_name(dep.name)
+            key = f"{normalized_name}@{dep.version}"
+            if key in existing:
+                continue
+
+            # Create new SPDX package
+            # Generate a unique SPDXID (include hash suffix to avoid collisions)
+            safe_name = dep.name.replace("-", "").replace("_", "").replace(".", "")
+            safe_version = dep.version.replace(".", "").replace("-", "")
+            base_spdx_id = f"SPDXRef-Package-{safe_name}-{safe_version}"
+
+            # Handle potential collisions by adding a suffix
+            spdx_id = base_spdx_id
+            suffix = 1
+            while spdx_id in existing_spdx_ids:
+                spdx_id = f"{base_spdx_id}-{suffix}"
+                suffix += 1
+            existing_spdx_ids.add(spdx_id)
+
+            new_package = {
+                "SPDXID": spdx_id,
+                "name": dep.name,
+                "versionInfo": dep.version,
+                "downloadLocation": "NOASSERTION",
+                "filesAnalyzed": False,
+                "externalRefs": [
+                    {
+                        "referenceCategory": "PACKAGE-MANAGER",
+                        "referenceType": "purl",
+                        "referenceLocator": dep.purl,
+                    }
+                ],
+            }
+
+            packages.append(new_package)
+            added_count += 1
+
+            # Record to audit trail
+            parent_info = f"discovered via {dep.parent}" if dep.parent else "discovered as transitive"
+            audit.record_enrichment(
+                component=dep.purl,
+                field="transitive_dependency",
+                value=parent_info,
+                source=source,
+            )
+
+        sbom_data["packages"] = packages
+
+        # Write back
+        with sbom_path.open("w") as f:
+            json.dump(sbom_data, f, indent=2)
+
+        logger.info(
+            f"Dependency expansion: added {added_count} transitive dependencies "
+            f"(discovered {len(discovered)}, {original_count} original)"
+        )
+
+        return ExpansionResult(
+            original_count=original_count,
+            discovered_count=len(discovered),
+            added_count=added_count,
+            dependencies=discovered,
+            source=source,
+        )
+
+
+def expand_sbom_dependencies(
+    sbom_file: str,
+    lock_file: str,
+) -> ExpansionResult:
+    """Expand SBOM with transitive dependencies from installed packages.
+
+    This is the main public API for dependency expansion.
+
+    Args:
+        sbom_file: Path to SBOM file (modified in place)
+        lock_file: Path to lockfile used for generation
+
+    Returns:
+        ExpansionResult with statistics
+    """
+    enricher = DependencyEnricher()
+    return enricher.expand_sbom(sbom_file, lock_file)

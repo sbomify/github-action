@@ -20,6 +20,7 @@ from ..additional_packages import inject_additional_packages
 from ..augmentation import augment_sbom_from_file
 from ..console import (
     get_audit_trail,
+    gha_group,
     gha_notice,
     print_component_not_found_error,
     print_duplicate_sbom_error,
@@ -1070,6 +1071,47 @@ def run_pipeline(config: Config) -> None:
             "additional_packages.txt file) is present and correctly formatted."
         )
         # Don't fail the entire process for additional packages injection issues
+
+    # Step 1.4: Transitive Dependency Discovery (for requirements.txt)
+    if config.lock_file and Path(config.lock_file).name == "requirements.txt":
+        _log_step_header(1.4, "Transitive Dependency Discovery")
+        try:
+            from sbomify_action._dependency_expansion import expand_sbom_dependencies
+
+            logger.info("Discovering transitive dependencies with pipdeptree...")
+
+            result = expand_sbom_dependencies(
+                sbom_file=STEP_1_FILE,
+                lock_file=config.lock_file,
+            )
+
+            if result.added_count > 0:
+                logger.info(
+                    f"Added {result.added_count} transitive dependencies (discovered {result.discovered_count} total)"
+                )
+                # Log discovered packages in collapsible group
+                with gha_group("Discovered Transitive Dependencies"):
+                    for dep in result.dependencies[:50]:
+                        parent_info = f" (via {dep.parent})" if dep.parent else ""
+                        print(f"  {dep.purl}{parent_info}")
+                    if len(result.dependencies) > 50:
+                        print(f"  ... and {len(result.dependencies) - 50} more")
+            else:
+                if result.discovered_count > 0:
+                    logger.info(
+                        f"No new dependencies to add ({result.discovered_count} discovered were already in SBOM)"
+                    )
+                else:
+                    logger.info(
+                        "No transitive dependencies discovered (packages may not be installed, or all deps are direct)"
+                    )
+
+            _log_step_end(1.4)
+
+        except Exception as e:
+            logger.warning(f"Transitive dependency discovery failed (non-fatal): {e}")
+            _log_step_end(1.4, success=False)
+            # Don't fail the entire process - this is an enhancement
 
     # Step 1.5: Hash Enrichment from Lockfile (if lockfile was used for generation)
     if config.lock_file:
