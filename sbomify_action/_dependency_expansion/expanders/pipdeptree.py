@@ -216,6 +216,9 @@ class PipdeptreeExpander:
         parent: str | None = None,
     ) -> None:
         """Recursively collect transitive dependencies."""
+        # pipdeptree JSON output uses "package_name" in newer versions,
+        # but older versions used "key". We prefer "package_name" but
+        # fall back to "key" for compatibility.
         name = pkg.get("package_name", pkg.get("key", ""))
         version = pkg.get("installed_version", "")
         normalized = normalize_python_package_name(name)

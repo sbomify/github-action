@@ -215,7 +215,10 @@ class DependencyEnricher:
                 continue
 
             # Create new SPDX package
-            # Generate a unique SPDXID (include hash suffix to avoid collisions)
+            # Generate a unique SPDXID. SPDX IDs must contain only letters, numbers,
+            # dots, and hyphens, and cannot start with a number. We strip separators
+            # for simplicity; collision handling below ensures uniqueness within
+            # this document even if two packages normalize to the same ID.
             safe_name = dep.name.replace("-", "").replace("_", "").replace(".", "")
             safe_version = dep.version.replace(".", "").replace("-", "")
             base_spdx_id = f"SPDXRef-Package-{safe_name}-{safe_version}"

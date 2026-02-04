@@ -244,10 +244,10 @@ requests==2.31.0
 
         direct_names = {"requests"}
         discovered: list[DiscoveredDependency] = []
-        seen: set[str] = set()
+        seen_package_versions: set[str] = set()
 
         for pkg in tree:
-            expander._collect_transitives(pkg, direct_names, discovered, seen, depth=0)
+            expander._collect_transitives(pkg, direct_names, discovered, seen_package_versions, depth=0)
 
         # Should discover urllib3 and certifi as transitives
         assert len(discovered) == 2
