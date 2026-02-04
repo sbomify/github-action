@@ -909,24 +909,24 @@ def print_banner() -> None:
     console_print_banner(SBOMIFY_VERSION)
 
 
-def _log_step_header(step_num: int, title: str, emoji: str = "") -> None:
+def _log_step_header(step_num: int | float, title: str, emoji: str = "") -> None:
     """
     Log a nicely formatted step header optimized for GitHub Actions.
 
     Args:
-        step_num: Step number (1-6)
+        step_num: Step number (e.g., 1, 2, or substeps like 1.4, 1.5)
         title: Step title
         emoji: Optional emoji to include (deprecated, will be ignored)
     """
     print_step_header(step_num, title)
 
 
-def _log_step_end(step_num: int, success: bool = True) -> None:
+def _log_step_end(step_num: int | float, success: bool = True) -> None:
     """
     Log step completion and close GitHub Actions group if applicable.
 
     Args:
-        step_num: Step number (1-6)
+        step_num: Step number (e.g., 1, 2, or substeps like 1.4, 1.5)
         success: Whether the step completed successfully
     """
     print_step_end(step_num, success)
@@ -1073,6 +1073,8 @@ def run_pipeline(config: Config) -> None:
         # Don't fail the entire process for additional packages injection issues
 
     # Step 1.4: Transitive Dependency Discovery (for lockfiles that support expansion)
+    # Note: Steps 1.x are substeps of the main SBOM generation step (Step 1).
+    # These run after initial generation but before Step 2 (Validation/Augmentation).
     # Uses registry pattern to check if any expander supports the lockfile
     if config.lock_file:
         from sbomify_action._dependency_expansion import supports_dependency_expansion
