@@ -155,7 +155,7 @@ class PipdeptreeExpander:
             if op in line:
                 parts = line.split(op, 1)
                 name = parts[0].strip()
-                version = parts[1].strip() if len(parts) > 1 and op == "==" else None
+                version = parts[1].strip() if op == "==" else None
 
                 # Handle version ranges (e.g., "2.0,<3" -> just take first version)
                 if version and "," in version:

@@ -349,15 +349,14 @@ class TestExpandSbomDependencies:
 
         # Create a minimal SBOM
         sbom_file = tmp_path / "sbom.json"
-        sbom_file.write_text(
-            json.dumps(
-                {
-                    "bomFormat": "CycloneDX",
-                    "specVersion": "1.6",
-                    "components": [],
-                }
-            )
+        original_content = json.dumps(
+            {
+                "bomFormat": "CycloneDX",
+                "specVersion": "1.6",
+                "components": [],
+            }
         )
+        sbom_file.write_text(original_content)
 
         # Create requirements.txt
         lock_file = tmp_path / "requirements.txt"
@@ -368,3 +367,6 @@ class TestExpandSbomDependencies:
         assert result.added_count == 0
         assert result.discovered_count == 0
         assert result.source == "pipdeptree"
+
+        # Verify SBOM file was not modified
+        assert sbom_file.read_text() == original_content
