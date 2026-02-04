@@ -23,7 +23,12 @@ Note:
     installed, expansion is skipped gracefully.
 """
 
-from .enricher import DependencyEnricher, create_default_registry, expand_sbom_dependencies
+from .enricher import (
+    DependencyEnricher,
+    create_default_registry,
+    expand_sbom_dependencies,
+    supports_dependency_expansion,
+)
 from .models import DiscoveredDependency, ExpansionResult, normalize_python_package_name
 from .protocol import DependencyExpander
 from .registry import ExpanderRegistry
@@ -31,6 +36,7 @@ from .registry import ExpanderRegistry
 __all__ = [
     # Main API
     "expand_sbom_dependencies",
+    "supports_dependency_expansion",
     # Classes for advanced usage
     "DependencyEnricher",
     "ExpanderRegistry",

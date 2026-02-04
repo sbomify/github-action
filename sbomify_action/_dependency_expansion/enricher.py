@@ -292,3 +292,19 @@ def expand_sbom_dependencies(
     """
     enricher = DependencyEnricher()
     return enricher.expand_sbom(sbom_file, lock_file)
+
+
+def supports_dependency_expansion(lock_file: str) -> bool:
+    """Check if dependency expansion is supported for this lockfile.
+
+    Uses the registry to check if any expander supports the lockfile type.
+
+    Args:
+        lock_file: Path to lockfile
+
+    Returns:
+        True if an expander supports this lockfile type
+    """
+    registry = create_default_registry()
+    expander = registry.get_expander_for(Path(lock_file))
+    return expander is not None

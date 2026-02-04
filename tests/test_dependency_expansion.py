@@ -85,15 +85,17 @@ class TestExpansionResult:
         assert result.added_count == 8
         assert result.source == "pipdeptree"
 
-    def test_default_source(self):
-        """Test default source value."""
+    def test_source_required(self):
+        """Test that source is a required field."""
+        # source must be provided explicitly - no default value
         result = ExpansionResult(
             original_count=0,
             discovered_count=0,
             added_count=0,
             dependencies=[],
+            source="test-expander",
         )
-        assert result.source == "pipdeptree"
+        assert result.source == "test-expander"
 
 
 class TestPipdeptreeExpander:

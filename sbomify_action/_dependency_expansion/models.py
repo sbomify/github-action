@@ -40,7 +40,7 @@ class ExpansionResult:
     discovered_count: int
     added_count: int
     dependencies: list[DiscoveredDependency]
-    source: str = "pipdeptree"
+    source: str
 
 
 def normalize_python_package_name(name: str) -> str:
