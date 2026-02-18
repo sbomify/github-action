@@ -48,6 +48,9 @@ class TestDetectArchiveType:
     def test_plain_tar_gz(self):
         assert _detect_archive_type("image.tar.gz") == "gz"
 
+    def test_tgz(self):
+        assert _detect_archive_type("image.tgz") == "gz"
+
     def test_unsupported(self):
         with pytest.raises(FileProcessingError, match="Unsupported archive type"):
             _detect_archive_type("image.zip")
