@@ -262,9 +262,9 @@ class Config:
 
         # Validate additional-packages-only mode
         if self.is_additional_packages_only:
-            from ..additional_packages import get_additional_packages
+            from ..additional_packages import has_additional_packages_configured
 
-            if not get_additional_packages():
+            if not has_additional_packages_configured():
                 raise ConfigurationError(
                     "Additional packages only mode (--lock-file none / --sbom-file none) requires "
                     "additional packages to be configured via ADDITIONAL_PACKAGES env var, "
