@@ -132,6 +132,32 @@ def parse_purl(purl_string: str) -> Optional[PackageURL]:
         return None
 
 
+def has_additional_packages_configured() -> bool:
+    """
+    Check whether additional packages are configured via any source.
+
+    This checks for the *presence* of configuration (env vars set, files exist)
+    without parsing or validating the content. Use this to detect misconfiguration
+    where sources exist but contain no valid PURLs.
+
+    Returns:
+        True if any additional packages source is configured
+    """
+    # Check default file
+    if (Path.cwd() / DEFAULT_PACKAGES_FILE).exists():
+        return True
+
+    # Check custom file env var
+    if os.getenv(ENV_PACKAGES_FILE):
+        return True
+
+    # Check inline env var
+    if os.getenv(ENV_PACKAGES_INLINE):
+        return True
+
+    return False
+
+
 def get_additional_packages() -> List[str]:
     """
     Collect additional packages from all sources.

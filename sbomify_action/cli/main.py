@@ -1978,9 +1978,9 @@ def cli(
     # Show help with banner if no input source is provided
     if not any([sbom_file, docker_image, lock_file]):
         # Check if additional packages are configured — user likely forgot --lock-file none
-        from ..additional_packages import get_additional_packages
+        from ..additional_packages import has_additional_packages_configured
 
-        if get_additional_packages():
+        if has_additional_packages_configured():
             print_banner()
             logger.error(
                 "Additional packages are configured but no input source is provided. "
