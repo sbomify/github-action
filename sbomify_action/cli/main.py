@@ -128,6 +128,7 @@ SBOMIFY_TOOL_NAME = "sbomify-action"
 SBOMIFY_VENDOR_NAME = "sbomify"
 LOCALHOST_PATTERNS = ["127.0.0.1", "localhost", "0.0.0.0"]
 VALID_SBOM_FORMATS: tuple[str, ...] = ("cyclonedx", "spdx")
+NONE_SENTINEL = "none"
 
 # Intermediate SBOM files for pipeline steps
 STEP_1_FILE = "step_1.json"  # Output of generation/validation
@@ -214,6 +215,13 @@ class Config:
         if self.upload_destinations is None:
             self.upload_destinations = ["sbomify"]  # Default to sbomify only
 
+    @property
+    def is_additional_packages_only(self) -> bool:
+        """Check if running in additional-packages-only mode (--lock-file none / --sbom-file none)."""
+        return (self.lock_file is not None and self.lock_file.lower() == NONE_SENTINEL) or (
+            self.sbom_file is not None and self.sbom_file.lower() == NONE_SENTINEL
+        )
+
     def validate(self) -> None:
         """
         Validate configuration settings.
@@ -251,6 +259,17 @@ class Config:
             raise ConfigurationError("Please provide only one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
         if not any(inputs):
             raise ConfigurationError("Please provide one of: SBOM_FILE, LOCK_FILE, or DOCKER_IMAGE")
+
+        # Validate additional-packages-only mode
+        if self.is_additional_packages_only:
+            from ..additional_packages import has_additional_packages_configured
+
+            if not has_additional_packages_configured():
+                raise ConfigurationError(
+                    "Additional packages only mode (--lock-file none / --sbom-file none) requires "
+                    "additional packages to be configured via ADDITIONAL_PACKAGES env var, "
+                    "ADDITIONAL_PACKAGES_FILE, or additional_packages.txt file."
+                )
 
         # Validate SBOM format
         if self.sbom_format not in VALID_SBOM_FORMATS:
@@ -470,9 +489,17 @@ def build_config(
     sbom_format_lower = sbom_format.lower()
     logger.info(f"SBOM format: {format_display_name(sbom_format_lower)}")
 
-    # Expand paths if provided
-    expanded_sbom_file = path_expansion(sbom_file) if sbom_file else None
-    expanded_lock_file = path_expansion(lock_file) if lock_file else None
+    # Expand paths if provided (skip expansion for "none" sentinel)
+    expanded_sbom_file = (
+        sbom_file
+        if (sbom_file and sbom_file.lower() == NONE_SENTINEL)
+        else (path_expansion(sbom_file) if sbom_file else None)
+    )
+    expanded_lock_file = (
+        lock_file
+        if (lock_file and lock_file.lower() == NONE_SENTINEL)
+        else (path_expansion(lock_file) if lock_file else None)
+    )
 
     config = Config(
         token=token or "",
@@ -942,7 +969,9 @@ def run_pipeline(config: Config) -> None:
     """
     # Initialize audit trail with input file info
     audit_trail = get_audit_trail()
-    if config.sbom_file:
+    if config.is_additional_packages_only:
+        audit_trail.input_file = "additional-packages-only"
+    elif config.sbom_file:
         audit_trail.input_file = config.sbom_file
     elif config.lock_file:
         audit_trail.input_file = config.lock_file
@@ -959,7 +988,9 @@ def run_pipeline(config: Config) -> None:
     _log_step_header(1, "SBOM Generation/Input Processing")
 
     # Check if either SBOM_FILE or LOCK_FILE exists
-    if config.sbom_file:
+    if config.is_additional_packages_only:
+        FILE_TYPE = "ADDITIONAL_ONLY"
+    elif config.sbom_file:
         FILE = config.sbom_file
         FILE_TYPE = "SBOM"
     elif config.lock_file:
@@ -973,54 +1004,65 @@ def run_pipeline(config: Config) -> None:
         sys.exit(1)
 
     # Process input based on type
-    try:
-        if FILE_TYPE == "SBOM":
-            logger.info(f"Processing existing SBOM file: {FILE}")
-            FORMAT = validate_sbom(FILE)
-            shutil.copy(FILE, STEP_1_FILE)
-        elif config.docker_image:
-            logger.info(f"Generating SBOM from Docker image: {config.docker_image}")
-            result = generate_sbom(
-                docker_image=config.docker_image,
-                output_file=STEP_1_FILE,
-                output_format=config.sbom_format,
-            )
-            if not result.success:
-                raise SBOMGenerationError(result.error_message or "SBOM generation failed")
-        elif FILE_TYPE == "LOCK_FILE":
-            logger.info(f"Generating SBOM from lock file: {FILE}")
-            result = process_lock_file(
-                FILE,
-                output_file=STEP_1_FILE,
-                output_format=config.sbom_format,
-            )
-            if not result.success:
-                raise SBOMGenerationError(result.error_message or "SBOM generation failed")
-        else:
-            logger.error("Unrecognized FILE_TYPE.")
-            sys.exit(1)
-    except SBOMValidationError as e:
-        # User-provided SBOM validation errors - don't send to Sentry
-        logger.error(f"Step 1 failed: {e}")
-        if FILE_TYPE == "SBOM":
-            file_name = Path(FILE).name
-            logger.error(f"The provided SBOM file '{FILE}' appears to be invalid.")
-            logger.error("Please ensure the file is a valid CycloneDX or SPDX JSON document.")
+    if FILE_TYPE == "ADDITIONAL_ONLY":
+        from ..additional_packages import create_empty_sbom
 
-            # Check if user accidentally provided a lock file instead of an SBOM
-            if file_name in ALL_LOCK_FILES:
-                logger.error(f"'{file_name}' is a lock file, not an SBOM.")
-                logger.error(f"Please use LOCK_FILE instead of SBOM_FILE for '{file_name}'.")
-        _log_step_end(1, success=False)
-        sys.exit(1)
-    except (FileProcessingError, SBOMGenerationError) as e:
-        logger.error(f"Step 1 failed: {e}")
-        _log_step_end(1, success=False)
-        sys.exit(1)
+        logger.info("Additional packages only mode: creating empty SBOM")
+        try:
+            FORMAT = create_empty_sbom(STEP_1_FILE, config.sbom_format)
+        except Exception as e:
+            logger.error(f"Failed to create empty SBOM: {e}")
+            _log_step_end(1, success=False)
+            sys.exit(1)
+    else:
+        try:
+            if FILE_TYPE == "SBOM":
+                logger.info(f"Processing existing SBOM file: {FILE}")
+                FORMAT = validate_sbom(FILE)
+                shutil.copy(FILE, STEP_1_FILE)
+            elif config.docker_image:
+                logger.info(f"Generating SBOM from Docker image: {config.docker_image}")
+                result = generate_sbom(
+                    docker_image=config.docker_image,
+                    output_file=STEP_1_FILE,
+                    output_format=config.sbom_format,
+                )
+                if not result.success:
+                    raise SBOMGenerationError(result.error_message or "SBOM generation failed")
+            elif FILE_TYPE == "LOCK_FILE":
+                logger.info(f"Generating SBOM from lock file: {FILE}")
+                result = process_lock_file(
+                    FILE,
+                    output_file=STEP_1_FILE,
+                    output_format=config.sbom_format,
+                )
+                if not result.success:
+                    raise SBOMGenerationError(result.error_message or "SBOM generation failed")
+            else:
+                logger.error("Unrecognized FILE_TYPE.")
+                sys.exit(1)
+        except SBOMValidationError as e:
+            # User-provided SBOM validation errors - don't send to Sentry
+            logger.error(f"Step 1 failed: {e}")
+            if FILE_TYPE == "SBOM":
+                file_name = Path(FILE).name
+                logger.error(f"The provided SBOM file '{FILE}' appears to be invalid.")
+                logger.error("Please ensure the file is a valid CycloneDX or SPDX JSON document.")
+
+                # Check if user accidentally provided a lock file instead of an SBOM
+                if file_name in ALL_LOCK_FILES:
+                    logger.error(f"'{file_name}' is a lock file, not an SBOM.")
+                    logger.error(f"Please use LOCK_FILE instead of SBOM_FILE for '{file_name}'.")
+            _log_step_end(1, success=False)
+            sys.exit(1)
+        except (FileProcessingError, SBOMGenerationError) as e:
+            logger.error(f"Step 1 failed: {e}")
+            _log_step_end(1, success=False)
+            sys.exit(1)
 
     # Set the SBOM format based on the output (silent detection for generated SBOMs)
     try:
-        if FILE_TYPE != "SBOM":  # Only detect format if we generated the SBOM
+        if FILE_TYPE not in ("SBOM", "ADDITIONAL_ONLY"):  # Only detect format if we generated the SBOM
             FORMAT = _detect_sbom_format_silent(STEP_1_FILE)
             logger.info(f"Generated SBOM format: {format_display_name(FORMAT)}")
     except SBOMValidationError as e:
@@ -1062,17 +1104,22 @@ def run_pipeline(config: Config) -> None:
         injected_count = inject_additional_packages(STEP_1_FILE)
         if injected_count > 0:
             logger.info(f"Successfully injected {injected_count} additional package(s) into SBOM")
+        elif config.is_additional_packages_only:
+            logger.error("Additional packages only mode: no packages were injected")
+            sys.exit(1)
     except Exception as e:
+        if config.is_additional_packages_only:
+            logger.error(f"Additional packages only mode: injection failed: {e}")
+            sys.exit(1)
         logger.warning(
             f"Failed to inject additional packages into SBOM: {e}. "
             f"Verify that the SBOM file '{STEP_1_FILE}' exists and is readable, and that any "
             "additional package configuration (ADDITIONAL_PACKAGES env var or "
             "additional_packages.txt file) is present and correctly formatted."
         )
-        # Don't fail the entire process for additional packages injection issues
 
     # Step 1.5: Hash Enrichment from Lockfile (if lockfile was used for generation)
-    if config.lock_file:
+    if config.lock_file and not config.is_additional_packages_only:
         _log_step_header(1.5, "Hash Enrichment from Lockfile")
         try:
             from sbomify_action._hash_enrichment import enrich_sbom_with_hashes
@@ -1930,6 +1977,16 @@ def cli(
 
     # Show help with banner if no input source is provided
     if not any([sbom_file, docker_image, lock_file]):
+        # Check if additional packages are configured — user likely forgot --lock-file none
+        from ..additional_packages import has_additional_packages_configured
+
+        if has_additional_packages_configured():
+            print_banner()
+            logger.error(
+                "Additional packages are configured but no input source is provided. "
+                "Use '--lock-file none' to create an SBOM from additional packages only."
+            )
+            ctx.exit(1)
         print_banner()
         click.echo(ctx.get_help())
         ctx.exit(0)

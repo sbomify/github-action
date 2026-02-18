@@ -22,6 +22,9 @@ from cyclonedx.model.bom import Bom
 from cyclonedx.model.component import Component, ComponentType
 from packageurl import PackageURL
 from spdx_tools.spdx.model import (
+    Actor,
+    ActorType,
+    CreationInfo,
     Document,
     ExternalPackageRef,
     ExternalPackageRefCategory,
@@ -127,6 +130,32 @@ def parse_purl(purl_string: str) -> Optional[PackageURL]:
         return PackageURL.from_string(purl_string)
     except Exception:
         return None
+
+
+def has_additional_packages_configured() -> bool:
+    """
+    Check whether additional packages are configured via any source.
+
+    This checks for the *presence* of configuration (env vars set, files exist)
+    without parsing or validating the content. Use this to detect misconfiguration
+    where sources exist but contain no valid PURLs.
+
+    Returns:
+        True if any additional packages source is configured
+    """
+    # Check default file
+    if (Path.cwd() / DEFAULT_PACKAGES_FILE).exists():
+        return True
+
+    # Check custom file env var
+    if os.getenv(ENV_PACKAGES_FILE):
+        return True
+
+    # Check inline env var
+    if os.getenv(ENV_PACKAGES_INLINE):
+        return True
+
+    return False
 
 
 def get_additional_packages() -> List[str]:
@@ -342,6 +371,55 @@ def inject_packages_into_spdx(document: Document, purls: List[str]) -> int:
         logger.debug(f"Injected package: {purl.name}@{purl.version or 'unknown'}")
 
     return injected
+
+
+def create_empty_sbom(output_file: str, sbom_format: str) -> str:
+    """
+    Create a minimal valid empty SBOM file.
+
+    Used in additional-packages-only mode to bootstrap an SBOM from scratch
+    before injecting additional packages.
+
+    Args:
+        output_file: Path to write the empty SBOM
+        sbom_format: Either "cyclonedx" or "spdx"
+
+    Returns:
+        The format string ("cyclonedx" or "spdx")
+
+    Raises:
+        ValueError: If sbom_format is not supported
+    """
+    import uuid
+    from datetime import datetime, timezone
+
+    from .serialization import DEFAULT_CYCLONEDX_VERSION, serialize_cyclonedx_bom
+
+    if sbom_format == "cyclonedx":
+        bom = Bom()
+        serialized = serialize_cyclonedx_bom(bom, DEFAULT_CYCLONEDX_VERSION)
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(serialized)
+        logger.info(f"Created empty CycloneDX SBOM: {output_file}")
+        return "cyclonedx"
+
+    elif sbom_format == "spdx":
+        creation_info = CreationInfo(
+            spdx_version="SPDX-2.3",
+            spdx_id="SPDXRef-DOCUMENT",
+            name="additional-packages-sbom",
+            document_namespace=f"https://sbomify.com/additional-packages/{uuid.uuid4()}",
+            creators=[Actor(ActorType.TOOL, "sbomify-action")],
+            created=datetime.now(timezone.utc),
+        )
+        document = Document(creation_info=creation_info)
+        spdx_write_file(document, output_file, validate=False)
+        sanitize_spdx_json_file(output_file)
+        logger.info(f"Created empty SPDX SBOM: {output_file}")
+        return "spdx"
+
+    else:
+        raise ValueError(f"Unsupported SBOM format: {sbom_format}. Must be 'cyclonedx' or 'spdx'.")
 
 
 def inject_additional_packages(sbom_file: str) -> int:
