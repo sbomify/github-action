@@ -839,8 +839,12 @@ class TestSyftImageGenerator(unittest.TestCase):
 class TestRegistryGenerateWithFallback(unittest.TestCase):
     """Tests for registry generate with fallback behavior."""
 
-    def test_generate_no_generators_raises_error(self):
+    @patch("sbomify_action._generation.registry.check_tool_for_input")
+    def test_generate_no_generators_raises_error(self, mock_check_tool):
         """Test that generate raises error when no generators available."""
+        # Tools are available but none support this format/version
+        mock_check_tool.return_value = (["trivy"], [])
+
         registry = GeneratorRegistry()
 
         input = GenerationInput(lock_file="/path/unknown.xyz", output_format="cyclonedx")

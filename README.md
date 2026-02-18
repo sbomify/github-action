@@ -118,6 +118,34 @@ Generate SPDX instead of CycloneDX:
     ENRICH: true
 ```
 
+### Additional Packages Only (No Lockfile)
+
+Create an SBOM from scratch containing only manually-specified packages—useful for vendored code, system libraries, or manual dependency declarations where no lockfile exists:
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: none
+    ADDITIONAL_PACKAGES: "pkg:pypi/requests@2.31.0,pkg:deb/debian/openssl@3.0.11"
+    OUTPUT_FILE: sbom.cdx.json
+    UPLOAD: false
+    ENRICH: true
+```
+
+Or use a file for more complex package lists:
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: none
+    ADDITIONAL_PACKAGES_FILE: my-packages.txt
+    OUTPUT_FILE: sbom.cdx.json
+    SBOM_FORMAT: spdx
+    UPLOAD: false
+```
+
+Setting `LOCK_FILE` (or `SBOM_FILE`) to `none` creates an empty SBOM and injects the specified additional packages. At least one additional package must be configured via `ADDITIONAL_PACKAGES`, `ADDITIONAL_PACKAGES_FILE`, or `additional_packages.txt`.
+
 ### With Attestation
 
 ```yaml
@@ -185,8 +213,8 @@ All timestamps are in UTC (ISO 8601 format with Z suffix).
 
 | Variable                   | Required | Description                                                                      |
 | -------------------------- | -------- | -------------------------------------------------------------------------------- |
-| `LOCK_FILE`                | †        | Path to lockfile (requirements.txt, poetry.lock, Cargo.lock, etc.)               |
-| `SBOM_FILE`                | †        | Path to existing SBOM file                                                       |
+| `LOCK_FILE`                | †        | Path to lockfile, or `none` for additional-packages-only mode                    |
+| `SBOM_FILE`                | †        | Path to existing SBOM file, or `none` for additional-packages-only mode          |
 | `DOCKER_IMAGE`             | †        | Docker image name                                                                |
 | `OUTPUT_FILE`              | No       | Write final SBOM to this path                                                    |
 | `SBOM_FORMAT`              | No       | Output format: `cyclonedx` (default) or `spdx`                                   |
@@ -409,6 +437,10 @@ Append packages across multiple steps:
 ```
 
 **Merge behavior:** If both file and inline packages are provided, they are merged and deduplicated. Injected packages flow through augmentation and enrichment like any other component.
+
+### Standalone Mode (No Lockfile)
+
+Use `LOCK_FILE=none` (or `SBOM_FILE=none`) to create an SBOM containing only additional packages—no lockfile or existing SBOM required. See the [Additional Packages Only example](#additional-packages-only-no-lockfile) above.
 
 ## Other CI/CD Platforms
 

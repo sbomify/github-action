@@ -651,6 +651,128 @@ class TestConfig(unittest.TestCase):
                 self.assertEqual(cm.exception.code, 1)
 
 
+class TestAdditionalPackagesOnlyMode(unittest.TestCase):
+    """Test cases for additional-packages-only mode (--lock-file none / --sbom-file none)."""
+
+    def test_is_additional_packages_only_lock_file_none(self):
+        """Test that lock_file='none' triggers additional-packages-only mode."""
+        config = Config(
+            token="",
+            component_id="",
+            lock_file="none",
+            upload=False,
+        )
+        self.assertTrue(config.is_additional_packages_only)
+
+    def test_is_additional_packages_only_sbom_file_none(self):
+        """Test that sbom_file='none' triggers additional-packages-only mode."""
+        config = Config(
+            token="",
+            component_id="",
+            sbom_file="none",
+            upload=False,
+        )
+        self.assertTrue(config.is_additional_packages_only)
+
+    def test_is_additional_packages_only_case_insensitive(self):
+        """Test that 'None', 'NONE' etc. also trigger additional-packages-only mode."""
+        for value in ["None", "NONE", "nOnE"]:
+            config = Config(
+                token="",
+                component_id="",
+                lock_file=value,
+                upload=False,
+            )
+            self.assertTrue(config.is_additional_packages_only, f"Expected True for lock_file='{value}'")
+
+    def test_is_additional_packages_only_false_for_regular_file(self):
+        """Test that regular file paths do not trigger additional-packages-only mode."""
+        config = Config(
+            token="",
+            component_id="",
+            lock_file="/path/to/requirements.txt",
+            upload=False,
+        )
+        self.assertFalse(config.is_additional_packages_only)
+
+    def test_is_additional_packages_only_false_when_no_inputs(self):
+        """Test that no inputs do not trigger additional-packages-only mode."""
+        config = Config(
+            token="",
+            component_id="",
+            upload=False,
+        )
+        self.assertFalse(config.is_additional_packages_only)
+
+    @patch.dict(os.environ, {"ADDITIONAL_PACKAGES": "pkg:pypi/requests@2.31.0"})
+    def test_validate_lock_file_none_with_packages_passes(self):
+        """Test that lock_file='none' with additional packages configured passes validation."""
+        config = Config(
+            token="",
+            component_id="",
+            lock_file="none",
+            upload=False,
+        )
+        # Should not raise
+        config.validate()
+
+    def test_validate_lock_file_none_without_packages_fails(self):
+        """Test that lock_file='none' without additional packages raises ConfigurationError."""
+        config = Config(
+            token="",
+            component_id="",
+            lock_file="none",
+            upload=False,
+        )
+        # Ensure no additional packages are configured
+        with patch.dict(os.environ, {}, clear=False):
+            # Remove any env vars that could provide packages
+            for key in ["ADDITIONAL_PACKAGES", "ADDITIONAL_PACKAGES_FILE"]:
+                os.environ.pop(key, None)
+
+            with self.assertRaises(ConfigurationError) as cm:
+                config.validate()
+            self.assertIn("Additional packages only mode", str(cm.exception))
+
+    @patch.dict(os.environ, {"ADDITIONAL_PACKAGES": "pkg:pypi/requests@2.31.0"})
+    def test_validate_sbom_file_none_with_packages_passes(self):
+        """Test that sbom_file='none' with additional packages configured passes validation."""
+        config = Config(
+            token="",
+            component_id="",
+            sbom_file="none",
+            upload=False,
+        )
+        # Should not raise
+        config.validate()
+
+    @patch.dict(os.environ, {"ADDITIONAL_PACKAGES": "pkg:pypi/requests@2.31.0"})
+    def test_build_config_lock_file_none_skips_path_expansion(self):
+        """Test that build_config with lock_file='none' doesn't try to expand paths."""
+        from sbomify_action.cli.main import build_config
+
+        # Should not raise FileProcessingError
+        config = build_config(
+            lock_file="none",
+            upload=False,
+        )
+        self.assertEqual(config.lock_file, "none")
+        self.assertTrue(config.is_additional_packages_only)
+
+    @patch.dict(os.environ, {"ADDITIONAL_PACKAGES": "pkg:pypi/requests@2.31.0"})
+    def test_build_config_sbom_file_none_skips_path_expansion(self):
+        """Test that build_config with sbom_file='none' doesn't try to expand paths."""
+        from sbomify_action.cli.main import build_config
+
+        # Should not raise FileProcessingError
+        config = build_config(
+            sbom_file="none",
+            upload=False,
+        )
+        self.assertEqual(config.sbom_file, "none")
+        self.assertTrue(config.is_additional_packages_only)
+
+
 class TestBuildConfig(unittest.TestCase):
     """Test cases for the build_config function (new CLI helper)."""
 

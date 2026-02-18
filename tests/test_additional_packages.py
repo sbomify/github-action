@@ -647,5 +647,75 @@ class TestEdgeCases(unittest.TestCase):
             del os.environ[ENV_PACKAGES_INLINE]
 
 
+class TestCreateEmptySbom(unittest.TestCase):
+    """Tests for create_empty_sbom() function."""
+
+    def test_create_empty_cyclonedx(self):
+        """Test creating an empty CycloneDX SBOM produces valid JSON parseable by Bom.from_json()."""
+        from sbomify_action.additional_packages import create_empty_sbom
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            output_path = f.name
+
+        try:
+            result_format = create_empty_sbom(output_path, "cyclonedx")
+            self.assertEqual(result_format, "cyclonedx")
+
+            # Verify file exists and is valid JSON
+            with open(output_path, "r") as f:
+                data = json.load(f)
+
+            # Verify CycloneDX structure
+            self.assertEqual(data.get("bomFormat"), "CycloneDX")
+            self.assertIn("specVersion", data)
+
+            # Verify parseable by cyclonedx-python-lib
+            bom = Bom.from_json(data)
+            self.assertIsNotNone(bom)
+        finally:
+            os.unlink(output_path)
+
+    def test_create_empty_spdx(self):
+        """Test creating an empty SPDX SBOM produces valid JSON parseable by spdx_parse_file()."""
+        from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
+
+        from sbomify_action.additional_packages import create_empty_sbom
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            output_path = f.name
+
+        try:
+            result_format = create_empty_sbom(output_path, "spdx")
+            self.assertEqual(result_format, "spdx")
+
+            # Verify file exists and is valid JSON
+            with open(output_path, "r") as f:
+                data = json.load(f)
+
+            # Verify SPDX structure
+            self.assertIn("spdxVersion", data)
+            self.assertEqual(data.get("spdxVersion"), "SPDX-2.3")
+
+            # Verify parseable by spdx-tools
+            document = spdx_parse_file(output_path)
+            self.assertIsNotNone(document)
+        finally:
+            os.unlink(output_path)
+
+    def test_invalid_format_raises(self):
+        """Test that unsupported format raises ValueError."""
+        from sbomify_action.additional_packages import create_empty_sbom
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            output_path = f.name
+
+        try:
+            with self.assertRaises(ValueError) as cm:
+                create_empty_sbom(output_path, "unsupported")
+            self.assertIn("Unsupported SBOM format", str(cm.exception))
+        finally:
+            os.unlink(output_path)
+
+
 if __name__ == "__main__":
     unittest.main()

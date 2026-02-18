@@ -578,6 +578,104 @@ class TestParseUploadDestinations(unittest.TestCase):
         self.assertEqual(result, ["sbomify", "dependency-track"])
 
 
+class TestCLIAdditionalPackagesOnlyMode(unittest.TestCase):
+    """Test CLI integration for additional-packages-only mode."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
+    def test_lock_file_none_triggers_pipeline(self, mock_sentry, mock_deps, mock_run):
+        """Test --lock-file none with ADDITIONAL_PACKAGES triggers the pipeline."""
+        result = self.runner.invoke(
+            cli,
+            [
+                "--lock-file",
+                "none",
+                "--no-upload",
+            ],
+            env={"ADDITIONAL_PACKAGES": "pkg:pypi/requests@2.31.0"},
+        )
+
+        self.assertEqual(result.exit_code, 0, f"CLI failed unexpectedly: {result.output}")
+        mock_run.assert_called_once()
+        config = mock_run.call_args[0][0]
+        self.assertTrue(config.is_additional_packages_only)
+        self.assertEqual(config.lock_file, "none")
+
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
+    def test_sbom_file_none_triggers_pipeline(self, mock_sentry, mock_deps, mock_run):
+        """Test --sbom-file none with ADDITIONAL_PACKAGES triggers the pipeline."""
+        result = self.runner.invoke(
+            cli,
+            [
+                "--sbom-file",
+                "none",
+                "--no-upload",
+            ],
+            env={"ADDITIONAL_PACKAGES": "pkg:pypi/requests@2.31.0"},
+        )
+
+        self.assertEqual(result.exit_code, 0, f"CLI failed unexpectedly: {result.output}")
+        mock_run.assert_called_once()
+        config = mock_run.call_args[0][0]
+        self.assertTrue(config.is_additional_packages_only)
+        self.assertEqual(config.sbom_file, "none")
+
+    def test_lock_file_none_without_packages_fails(self):
+        """Test --lock-file none without additional packages configured fails."""
+        result = self.runner.invoke(
+            cli,
+            [
+                "--lock-file",
+                "none",
+                "--no-upload",
+            ],
+            env={},
+        )
+
+        # Should exit with error
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_no_input_with_additional_packages_exits_with_hint(self):
+        """Test that no input source + ADDITIONAL_PACKAGES exits 1 with helpful message."""
+        result = self.runner.invoke(
+            cli,
+            [],
+            env={"ADDITIONAL_PACKAGES": "pkg:pypi/requests@2.31.0"},
+        )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--lock-file none", result.output)
+
+    @patch.object(cli_main_module, "run_pipeline")
+    @patch.object(cli_main_module, "setup_dependencies")
+    @patch.object(cli_main_module, "initialize_sentry")
+    def test_lock_file_none_with_spdx_format(self, mock_sentry, mock_deps, mock_run):
+        """Test --lock-file none with SPDX format."""
+        result = self.runner.invoke(
+            cli,
+            [
+                "--lock-file",
+                "none",
+                "-f",
+                "spdx",
+                "--no-upload",
+            ],
+            env={"ADDITIONAL_PACKAGES": "pkg:pypi/requests@2.31.0"},
+        )
+
+        self.assertEqual(result.exit_code, 0, f"CLI failed unexpectedly: {result.output}")
+        mock_run.assert_called_once()
+        config = mock_run.call_args[0][0]
+        self.assertTrue(config.is_additional_packages_only)
+        self.assertEqual(config.sbom_format, "spdx")
+
+
 class TestEvaluateBoolean(unittest.TestCase):
     """Test the evaluate_boolean utility function."""
 
