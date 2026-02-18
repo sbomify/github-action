@@ -79,8 +79,19 @@ def _safe_extractall(tar: tarfile.TarFile, dest: Path) -> None:
     try:
         tar.extractall(path=dest, filter="data")
     except TypeError:
-        # Python < 3.12: TarFile.extractall does not support the 'filter' argument
-        tar.extractall(path=dest)
+        # Python < 3.12: manual path-validated extraction to prevent traversal
+        dest_resolved = dest.resolve()
+        for member in tar:
+            if not member.name:
+                continue
+            target_path = (dest_resolved / member.name).resolve()
+            try:
+                target_path.relative_to(dest_resolved)
+            except ValueError as exc:
+                raise FileProcessingError(
+                    f"Refusing to extract member outside destination directory: {member.name}"
+                ) from exc
+            tar.extract(member, path=dest_resolved)
 
 
 def _extract_tar_zst(archive: Path, dest: Path) -> None:

@@ -39,17 +39,13 @@ def list_components(api_base_url: str, token: str) -> dict[str, str]:
             raise APIError(f"Failed to list components. [{response.status_code}]")
 
         data = response.json()
-        items = data.get("items", [])
-        if not items:
-            break
-
-        for item in items:
+        for item in data.get("items", []):
             name = item.get("name")
             comp_id = item.get("id")
             if name and comp_id:
                 components[name] = str(comp_id)
 
-        # Check for next page
+        # Paginate based on 'next' link, not empty items
         if not data.get("next"):
             break
         page += 1
