@@ -957,6 +957,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ee/c0/53a2f017ac5b5397a7064c2654b73c3334ac8461315707cbede6c12199eb/patch-ng-1.18.1.tar.gz", hash = "sha256:52fd46ee46f6c8667692682c1fd7134edc65a2d2d084ebec1d295a6087fc0291", size = 17913, upload-time = "2024-10-25T12:20:10.591Z" }
 
 [[package]]
+name = "pip"
+version = "26.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/44/c2/65686a7783a7c27a329706207147e82f23c41221ee9ae33128fc331670a0/pip-26.0.tar.gz", hash = "sha256:3ce220a0a17915972fbf1ab451baae1521c4539e778b28127efa79b974aff0fa", size = 1812654, upload-time = "2026-01-31T01:40:54.361Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/69/00/5ac7aa77688ec4d34148b423d34dc0c9bc4febe0d872a9a1ad9860b2f6f1/pip-26.0-py3-none-any.whl", hash = "sha256:98436feffb9e31bc9339cf369fd55d3331b1580b6a6f1173bacacddcf9c34754", size = 1787564, upload-time = "2026-01-31T01:40:52.252Z" },
+]
+
+[[package]]
 name = "pip-requirements-parser"
 version = "32.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -967,6 +976,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5e/2a/63b574101850e7f7b306ddbdb02cb294380d37948140eecd468fae392b54/pip-requirements-parser-32.0.1.tar.gz", hash = "sha256:b4fa3a7a0be38243123cf9d1f3518da10c51bdb165a2b2985566247f9155a7d3", size = 209359, upload-time = "2022-12-21T15:25:22.732Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/d0/d04f1d1e064ac901439699ee097f58688caadea42498ec9c4b4ad2ef84ab/pip_requirements_parser-32.0.1-py3-none-any.whl", hash = "sha256:4659bc2a667783e7a15d190f6fccf8b2486685b6dba4c19c3876314769c57526", size = 35648, upload-time = "2022-12-21T15:25:21.046Z" },
+]
+
+[[package]]
+name = "pipdeptree"
+version = "2.30.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "pip" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/03/65/f1881a1b6c49e9c94a463f7c52a23cbadcb0e778418056c9f97cbfae4ede/pipdeptree-2.30.0.tar.gz", hash = "sha256:0f78fe4bcf36a72d0d006aee0f4e315146cb278e4c4d51621f370a3d6b8861c1", size = 42737, upload-time = "2025-11-12T04:16:20.315Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/90/3d/21d6b9a0d04c6aa48621d500af4648435e4b0906437c8474ddb188249436/pipdeptree-2.30.0-py3-none-any.whl", hash = "sha256:e08ee7eb8152c0d67aee308c8477a489ab0af1a4aafe988d9d2d9998f78a24a6", size = 34017, upload-time = "2025-11-12T04:16:18.835Z" },
 ]
 
 [[package]]
@@ -1457,6 +1479,7 @@ dependencies = [
     { name = "cyclonedx-bom" },
     { name = "cyclonedx-python-lib" },
     { name = "packageurl-python" },
+    { name = "pipdeptree" },
     { name = "questionary" },
     { name = "requests" },
     { name = "rich" },
@@ -1482,6 +1505,7 @@ requires-dist = [
     { name = "cyclonedx-bom", specifier = ">=7.2.1,<8" },
     { name = "cyclonedx-python-lib", specifier = ">=11.5.0,<12" },
     { name = "packageurl-python", specifier = ">=0.17.6" },
+    { name = "pipdeptree", specifier = ">=2.0.0" },
     { name = "questionary", specifier = ">=2.0.1,<3" },
     { name = "requests", specifier = ">=2.32.3,<3" },
     { name = "rich", specifier = ">=14.2.0" },

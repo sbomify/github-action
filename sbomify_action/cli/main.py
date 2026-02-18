@@ -20,6 +20,7 @@ from ..additional_packages import inject_additional_packages
 from ..augmentation import augment_sbom_from_file
 from ..console import (
     get_audit_trail,
+    gha_group,
     gha_notice,
     print_component_not_found_error,
     print_duplicate_sbom_error,
@@ -935,24 +936,24 @@ def print_banner() -> None:
     console_print_banner(SBOMIFY_VERSION)
 
 
-def _log_step_header(step_num: int, title: str, emoji: str = "") -> None:
+def _log_step_header(step_num: int | float, title: str, emoji: str = "") -> None:
     """
     Log a nicely formatted step header optimized for GitHub Actions.
 
     Args:
-        step_num: Step number (1-6)
+        step_num: Step number (e.g., 1, 2, or substeps like 1.4, 1.5)
         title: Step title
         emoji: Optional emoji to include (deprecated, will be ignored)
     """
     print_step_header(step_num, title)
 
 
-def _log_step_end(step_num: int, success: bool = True) -> None:
+def _log_step_end(step_num: int | float, success: bool = True) -> None:
     """
     Log step completion and close GitHub Actions group if applicable.
 
     Args:
-        step_num: Step number (1-6)
+        step_num: Step number (e.g., 1, 2, or substeps like 1.4, 1.5)
         success: Whether the step completed successfully
     """
     print_step_end(step_num, success)
@@ -1117,6 +1118,53 @@ def run_pipeline(config: Config) -> None:
             "additional package configuration (ADDITIONAL_PACKAGES env var or "
             "additional_packages.txt file) is present and correctly formatted."
         )
+
+    # Step 1.4: Transitive Dependency Discovery (for lockfiles that support expansion)
+    # Note: Steps 1.x are substeps of the main SBOM generation step (Step 1).
+    # These run after initial generation but before Step 2 (Validation/Augmentation).
+    # Uses registry pattern to check if any expander supports the lockfile
+    if config.lock_file:
+        from sbomify_action._dependency_expansion import supports_dependency_expansion
+
+        if supports_dependency_expansion(config.lock_file):
+            _log_step_header(1.4, "Transitive Dependency Discovery")
+            try:
+                from sbomify_action._dependency_expansion import expand_sbom_dependencies
+
+                logger.info("Discovering transitive dependencies...")
+
+                result = expand_sbom_dependencies(
+                    sbom_file=STEP_1_FILE,
+                    lock_file=config.lock_file,
+                )
+
+                if result.added_count > 0:
+                    logger.info(
+                        f"Added {result.added_count} transitive dependencies (discovered {result.discovered_count} total)"
+                    )
+                    # Log discovered packages in collapsible group
+                    with gha_group("Discovered Transitive Dependencies"):
+                        for dep in result.dependencies[:50]:
+                            parent_info = f" (via {dep.parent})" if dep.parent else ""
+                            print(f"  {dep.purl}{parent_info}")
+                        if len(result.dependencies) > 50:
+                            print(f"  ... and {len(result.dependencies) - 50} more")
+                else:
+                    if result.discovered_count > 0:
+                        logger.info(
+                            f"No new dependencies to add ({result.discovered_count} discovered were already in SBOM)"
+                        )
+                    else:
+                        logger.info(
+                            "No transitive dependencies discovered (packages may not be installed, or all deps are direct)"
+                        )
+
+                _log_step_end(1.4)
+
+            except Exception as e:
+                logger.warning(f"Transitive dependency discovery failed (non-fatal): {e}")
+                _log_step_end(1.4, success=False)
+                # Don't fail the entire process - this is an enhancement
 
     # Step 1.5: Hash Enrichment from Lockfile (if lockfile was used for generation)
     if config.lock_file and not config.is_additional_packages_only:

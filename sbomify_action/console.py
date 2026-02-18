@@ -106,7 +106,7 @@ def print_banner(version: str = "unknown") -> None:
     console.print(banner)
 
 
-def print_step_header(step_num: int, title: str) -> None:
+def print_step_header(step_num: int | float, title: str) -> None:
     """
     Print a styled step header.
 
@@ -114,7 +114,7 @@ def print_step_header(step_num: int, title: str) -> None:
     In other environments, uses Rich styling.
 
     Args:
-        step_num: Step number (1-6)
+        step_num: Step number (e.g., 1, 2, or substeps like 1.4, 1.5)
         title: Step title
     """
     step_title = f"STEP {step_num}: {title}"
@@ -129,12 +129,12 @@ def print_step_header(step_num: int, title: str) -> None:
         console.rule(f"[bold blue]{step_title}[/bold blue]", style="blue")
 
 
-def print_step_end(step_num: int, success: bool = True) -> None:
+def print_step_end(step_num: int | float, success: bool = True) -> None:
     """
     Print step completion status and close GitHub Actions group.
 
     Args:
-        step_num: Step number (1-6)
+        step_num: Step number (e.g., 1, 2, or substeps like 1.4, 1.5)
         success: Whether the step completed successfully
     """
     if success:
