@@ -27,10 +27,9 @@ def _is_rootfs_manifest(file_path: Path, data: dict) -> bool:
     """Check if an SPDX document is the rootfs manifest.
 
     The rootfs manifest is the image-level index that references all packages.
-    It is identified by having ".rootfs" in its document name AND a large number
-    of externalDocumentRefs (typically 100+). Individual package SBOMs also have
-    externalDocumentRefs (usually 1, pointing to their recipe), so we cannot
-    rely on externalDocumentRefs alone.
+    It is identified by having ".rootfs" in its document name or in the SPDX
+    filename. While rootfs manifests typically have many externalDocumentRefs,
+    this function only uses the ".rootfs" pattern for detection.
     """
     name = data.get("name", "")
     # Yocto rootfs names contain ".rootfs" (e.g. "core-image-base-qemux86-64.rootfs-20260214054917")

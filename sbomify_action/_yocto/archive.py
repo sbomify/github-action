@@ -74,16 +74,25 @@ def extract_archive(archive_path: str, dest_dir: str | None = None) -> str:
     return str(dest)
 
 
+def _safe_extractall(tar: tarfile.TarFile, dest: Path) -> None:
+    """Extract tarfile with safe filter, falling back for Python < 3.12."""
+    try:
+        tar.extractall(path=dest, filter="data")
+    except TypeError:
+        # Python < 3.12: TarFile.extractall does not support the 'filter' argument
+        tar.extractall(path=dest)
+
+
 def _extract_tar_zst(archive: Path, dest: Path) -> None:
     """Extract a tar.zst archive."""
     dctx = zstandard.ZstdDecompressor()
     with open(archive, "rb") as fh:
         with dctx.stream_reader(fh) as reader:
             with tarfile.open(fileobj=reader, mode="r|") as tar:
-                tar.extractall(path=dest, filter="data")
+                _safe_extractall(tar, dest)
 
 
 def _extract_tar_gz(archive: Path, dest: Path) -> None:
     """Extract a tar.gz archive."""
     with tarfile.open(archive, "r:gz") as tar:
-        tar.extractall(path=dest, filter="data")
+        _safe_extractall(tar, dest)
