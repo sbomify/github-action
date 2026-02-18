@@ -74,36 +74,16 @@ def extract_archive(archive_path: str, dest_dir: str | None = None) -> str:
     return str(dest)
 
 
-def _safe_extractall(tar: tarfile.TarFile, dest: Path) -> None:
-    """Extract tarfile with safe filter, falling back for Python < 3.12."""
-    try:
-        tar.extractall(path=dest, filter="data")
-    except TypeError:
-        # Python < 3.12: manual path-validated extraction to prevent traversal
-        dest_resolved = dest.resolve()
-        for member in tar:
-            if not member.name:
-                continue
-            target_path = (dest_resolved / member.name).resolve()
-            try:
-                target_path.relative_to(dest_resolved)
-            except ValueError as exc:
-                raise FileProcessingError(
-                    f"Refusing to extract member outside destination directory: {member.name}"
-                ) from exc
-            tar.extract(member, path=dest_resolved)
-
-
 def _extract_tar_zst(archive: Path, dest: Path) -> None:
     """Extract a tar.zst archive."""
     dctx = zstandard.ZstdDecompressor()
     with open(archive, "rb") as fh:
         with dctx.stream_reader(fh) as reader:
             with tarfile.open(fileobj=reader, mode="r|") as tar:
-                _safe_extractall(tar, dest)
+                tar.extractall(path=dest, filter="data")
 
 
 def _extract_tar_gz(archive: Path, dest: Path) -> None:
     """Extract a tar.gz archive."""
     with tarfile.open(archive, "r:gz") as tar:
-        _safe_extractall(tar, dest)
+        tar.extractall(path=dest, filter="data")
