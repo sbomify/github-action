@@ -8,7 +8,7 @@ from ...logging_config import logger
 from ...tool_checks import check_tool_available
 from ..models import DiscoveredDependency, normalize_python_package_name
 
-_PIPDEPTREE_AVAILABLE, _PIPDEPTREE_PATH = check_tool_available("pipdeptree")
+_PIPDEPTREE_AVAILABLE, _ = check_tool_available("pipdeptree")
 
 
 class PipdeptreeExpander:
@@ -92,7 +92,7 @@ class PipdeptreeExpander:
 
         # 3. Find transitive dependencies (deps of direct packages that aren't in requirements.txt)
         discovered: list[DiscoveredDependency] = []
-        seen: set[str] = set()
+        seen_package_versions: set[str] = set()
 
         for pkg in tree:
             # Start at depth=0 for the direct dependency, its children are depth=1
@@ -100,7 +100,7 @@ class PipdeptreeExpander:
                 pkg,
                 direct_names,
                 discovered,
-                seen,
+                seen_package_versions,
                 depth=0,
             )
 
@@ -121,6 +121,16 @@ class PipdeptreeExpander:
 
                 # Skip options like -r, -e, --index-url, etc.
                 if line.startswith("-"):
+                    continue
+
+                # Skip URL/VCS requirements (git+https://..., https://..., etc.)
+                if "://" in line:
+                    logger.debug(f"Skipping URL requirement: {line}")
+                    continue
+
+                # Skip PEP 508 direct references (pkg @ https://...)
+                if " @ " in line:
+                    logger.debug(f"Skipping direct reference requirement: {line}")
                     continue
 
                 # Handle environment markers (e.g., requests; python_version >= "3.6")
@@ -211,7 +221,7 @@ class PipdeptreeExpander:
         pkg: dict,
         direct_names: set[str],
         discovered: list[DiscoveredDependency],
-        seen: set[str],
+        seen_package_versions: set[str],
         depth: int,
         parent: str | None = None,
     ) -> None:
@@ -224,9 +234,9 @@ class PipdeptreeExpander:
 
         # Skip if already processed
         pkg_key = f"{normalized}@{version}"
-        if pkg_key in seen:
+        if pkg_key in seen_package_versions:
             return
-        seen.add(pkg_key)
+        seen_package_versions.add(pkg_key)
 
         # If this is NOT a direct dependency and we're past the root level,
         # it's a transitive dependency
@@ -248,7 +258,7 @@ class PipdeptreeExpander:
                 dep,
                 direct_names,
                 discovered,
-                seen,
+                seen_package_versions,
                 depth=depth + 1,
                 parent=name,
             )

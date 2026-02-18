@@ -81,7 +81,7 @@ class ExpanderRegistry:
             logger.debug(f"Discovered {len(dependencies)} transitive dependencies")
             return dependencies
         except Exception as e:
-            logger.warning(f"Failed to expand {lock_file.name}: {e}")
+            logger.warning(f"Failed to expand {lock_file.name}: {e}", exc_info=True)
             return []
 
     @property

@@ -11,6 +11,7 @@ from sbomify_action._dependency_expansion import (
     expand_sbom_dependencies,
     normalize_python_package_name,
 )
+from sbomify_action._dependency_expansion.enricher import DependencyEnricher
 from sbomify_action._dependency_expansion.expanders.pipdeptree import PipdeptreeExpander
 from sbomify_action._dependency_expansion.registry import ExpanderRegistry
 
@@ -370,3 +371,269 @@ class TestExpandSbomDependencies:
 
         # Verify SBOM file was not modified
         assert sbom_file.read_text() == original_content
+
+
+class TestEnrichCycloneDX:
+    """Tests for CycloneDX SBOM enrichment."""
+
+    def _make_discovered(self, name="urllib3", version="2.0.4", parent="requests"):
+        return [
+            DiscoveredDependency(
+                name=name,
+                version=version,
+                purl=f"pkg:pypi/{name}@{version}",
+                parent=parent,
+                depth=1,
+            )
+        ]
+
+    def test_adds_transitive_deps_to_cyclonedx(self, tmp_path):
+        """Test that transitive dependencies are added to CycloneDX SBOM."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "components": [
+                {
+                    "type": "library",
+                    "name": "requests",
+                    "version": "2.31.0",
+                    "purl": "pkg:pypi/requests@2.31.0",
+                }
+            ],
+        }
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        # Mock the expander to return our discovered deps
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = self._make_discovered()
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        result = enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+
+        assert result.added_count == 1
+        assert result.discovered_count == 1
+        assert result.original_count == 1
+        assert result.source == "pipdeptree"
+
+        # Verify the SBOM was updated
+        updated = json.loads(sbom_file.read_text())
+        component_names = [c["name"] for c in updated.get("components", [])]
+        assert "urllib3" in component_names
+
+    def test_deduplicates_existing_purls(self, tmp_path):
+        """Test that existing PURLs are not duplicated."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "components": [
+                {
+                    "type": "library",
+                    "name": "urllib3",
+                    "version": "2.0.4",
+                    "purl": "pkg:pypi/urllib3@2.0.4",
+                }
+            ],
+        }
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = self._make_discovered()
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        result = enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+
+        assert result.added_count == 0
+        assert result.discovered_count == 1
+
+    def test_empty_components_cyclonedx(self, tmp_path):
+        """Test enrichment when SBOM has no components."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "components": [],
+        }
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = self._make_discovered()
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        result = enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+
+        assert result.added_count == 1
+        assert result.original_count == 0
+
+
+class TestEnrichSPDX:
+    """Tests for SPDX SBOM enrichment."""
+
+    def _make_discovered(self, name="urllib3", version="2.0.4", parent="requests"):
+        return [
+            DiscoveredDependency(
+                name=name,
+                version=version,
+                purl=f"pkg:pypi/{name}@{version}",
+                parent=parent,
+                depth=1,
+            )
+        ]
+
+    def test_adds_transitive_deps_to_spdx(self, tmp_path):
+        """Test that transitive dependencies are added to SPDX SBOM."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test",
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-Package-requests-2.31.0",
+                    "name": "requests",
+                    "versionInfo": "2.31.0",
+                    "downloadLocation": "NOASSERTION",
+                }
+            ],
+        }
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = self._make_discovered()
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        result = enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+
+        assert result.added_count == 1
+        assert result.discovered_count == 1
+        assert result.source == "pipdeptree"
+
+        # Verify the SBOM was updated
+        updated = json.loads(sbom_file.read_text())
+        pkg_names = [p["name"] for p in updated["packages"]]
+        assert "urllib3" in pkg_names
+
+        # Verify SPDXID was generated
+        new_pkg = [p for p in updated["packages"] if p["name"] == "urllib3"][0]
+        assert new_pkg["SPDXID"].startswith("SPDXRef-")
+
+        # Verify PURL in external refs
+        assert any(ref["referenceLocator"] == "pkg:pypi/urllib3@2.0.4" for ref in new_pkg["externalRefs"])
+
+    def test_deduplicates_existing_spdx_packages(self, tmp_path):
+        """Test that existing packages are not duplicated in SPDX."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test",
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-Package-urllib3-2.0.4",
+                    "name": "urllib3",
+                    "versionInfo": "2.0.4",
+                    "downloadLocation": "NOASSERTION",
+                }
+            ],
+        }
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = self._make_discovered()
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        result = enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+
+        assert result.added_count == 0
+        assert result.discovered_count == 1
+
+    def test_empty_packages_spdx(self, tmp_path):
+        """Test enrichment when SPDX SBOM has no packages."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test",
+            "packages": [],
+        }
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = self._make_discovered()
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        result = enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+
+        assert result.added_count == 1
+        assert result.original_count == 0
+
+
+class TestParseRequirementsEdgeCases:
+    """Tests for requirements.txt parsing edge cases."""
+
+    def test_skips_url_requirements(self, tmp_path):
+        """Test that URL/VCS requirements are skipped."""
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text(
+            "git+https://github.com/user/repo.git\nhttps://example.com/package.tar.gz\nrequests==2.31.0\n"
+        )
+
+        expander = PipdeptreeExpander()
+        deps = expander._parse_requirements(req_file)
+
+        assert len(deps) == 1
+        assert "requests" in deps
+
+    def test_skips_pep508_direct_references(self, tmp_path):
+        """Test that PEP 508 direct references are skipped."""
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("mypackage @ https://example.com/mypackage-1.0.tar.gz\nrequests==2.31.0\n")
+
+        expander = PipdeptreeExpander()
+        deps = expander._parse_requirements(req_file)
+
+        assert len(deps) == 1
+        assert "requests" in deps
