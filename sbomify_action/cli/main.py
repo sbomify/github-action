@@ -2044,6 +2044,91 @@ def cli(
     run_pipeline(config)
 
 
+@cli.command("yocto")
+@click.argument("sbom_input", type=click.Path(exists=True))
+@click.option(
+    "--token",
+    "yocto_token",
+    envvar="TOKEN",
+    required=True,
+    help="sbomify API token.",
+)
+@click.option(
+    "--release",
+    required=True,
+    help="Product release in product_id:version format.",
+)
+@click.option(
+    "--api-base-url",
+    envvar="API_BASE_URL",
+    default="https://app.sbomify.com",
+    show_default=True,
+    help="sbomify API base URL.",
+)
+@click.option("--augment/--no-augment", default=False, help="Run augmentation per SBOM.")
+@click.option("--enrich/--no-enrich", default=False, help="Run enrichment per SBOM.")
+@click.option("--dry-run", is_flag=True, default=False, help="Show what would happen without API calls.")
+@click.option("--verbose", is_flag=True, default=False, help="Enable verbose logging.")
+def yocto_cmd(
+    sbom_input: str,
+    yocto_token: str,
+    release: str,
+    api_base_url: str,
+    augment: bool,
+    enrich: bool,
+    dry_run: bool,
+    verbose: bool,
+) -> None:
+    """Process Yocto/OpenEmbedded SPDX SBOM archives.
+
+    \b
+    Extracts a .spdx.tar.zst (or .tar.gz) archive from a Yocto build,
+    discovers package SBOMs, creates components, uploads SBOMs, and
+    tags them with a release.
+
+    \b
+    SBOM_INPUT is the path to the Yocto SPDX archive (.spdx.tar.zst or .tar.gz).
+
+    \b
+    Example:
+      sbomify-action yocto build/deploy/images/qemux86-64/image.spdx.tar.zst \\
+        --token $TOKEN --release "product-id:1.0.0"
+    """
+    if verbose:
+        import logging
+
+        logging.getLogger("sbomify_action").setLevel(logging.DEBUG)
+
+    # Parse release format
+    if ":" not in release:
+        raise click.BadParameter(
+            "Must be in product_id:version format (e.g., 'my-product:1.0.0').", param_hint="'--release'"
+        )
+
+    product_id, release_version = release.split(":", 1)
+    if not product_id or not release_version:
+        raise click.BadParameter("Both product_id and version must be non-empty.", param_hint="'--release'")
+
+    from sbomify_action._yocto.models import YoctoConfig
+    from sbomify_action._yocto.pipeline import run_yocto_pipeline
+
+    config = YoctoConfig(
+        archive_path=sbom_input,
+        token=yocto_token,
+        product_id=product_id,
+        release_version=release_version,
+        api_base_url=api_base_url.rstrip("/"),
+        augment=augment,
+        enrich=enrich,
+        dry_run=dry_run,
+    )
+
+    result = run_yocto_pipeline(config)
+
+    if result.has_errors:
+        sys.exit(1)
+
+
 @cli.command("init")
 @click.option(
     "-o",
