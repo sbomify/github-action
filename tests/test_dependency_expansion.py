@@ -373,6 +373,72 @@ class TestExpandSbomDependencies:
         assert sbom_file.read_text() == original_content
 
 
+class TestOriginalCountWhenNoDiscoveries:
+    """Tests that original_count is accurate even when no deps are discovered."""
+
+    def test_original_count_cyclonedx_no_discoveries(self, tmp_path):
+        """Test original_count reflects SBOM components when no deps discovered."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "components": [
+                {"type": "library", "name": "requests", "version": "2.31.0", "purl": "pkg:pypi/requests@2.31.0"},
+                {"type": "library", "name": "flask", "version": "3.0.0", "purl": "pkg:pypi/flask@3.0.0"},
+            ],
+        }
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = []  # No discoveries
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        result = enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+
+        assert result.original_count == 2
+        assert result.added_count == 0
+        assert result.discovered_count == 0
+
+    def test_original_count_spdx_no_discoveries(self, tmp_path):
+        """Test original_count reflects SBOM packages when no deps discovered."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test",
+            "packages": [
+                {"SPDXID": "SPDXRef-Package-requests", "name": "requests", "versionInfo": "2.31.0"},
+                {"SPDXID": "SPDXRef-Package-flask", "name": "flask", "versionInfo": "3.0.0"},
+                {"SPDXID": "SPDXRef-Package-django", "name": "django", "versionInfo": "5.0"},
+            ],
+        }
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = []  # No discoveries
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        result = enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+
+        assert result.original_count == 3
+        assert result.added_count == 0
+        assert result.discovered_count == 0
+
+
 class TestEnrichCycloneDX:
     """Tests for CycloneDX SBOM enrichment."""
 

@@ -76,23 +76,33 @@ class DependencyEnricher:
                 source=expander.name,
             )
 
+        # Load SBOM early so we can report accurate original_count
+        # even when no transitive dependencies are discovered.
+        with sbom_path.open("r") as f:
+            sbom_data = json.load(f)
+
         # Discover transitive dependencies
         logger.info(f"Discovering transitive dependencies with {expander.name}...")
         discovered = expander.expand(lock_path)
 
         if not discovered:
             logger.info("No transitive dependencies discovered")
+
+            # Determine original component count from the loaded SBOM
+            if sbom_data.get("bomFormat") == "CycloneDX":
+                original_count = len(sbom_data.get("components") or [])
+            elif sbom_data.get("spdxVersion"):
+                original_count = len(sbom_data.get("packages") or [])
+            else:
+                original_count = 0
+
             return ExpansionResult(
-                original_count=0,
+                original_count=original_count,
                 discovered_count=0,
                 added_count=0,
                 dependencies=[],
                 source=expander.name,
             )
-
-        # Load SBOM and detect format
-        with sbom_path.open("r") as f:
-            sbom_data = json.load(f)
 
         if sbom_data.get("bomFormat") == "CycloneDX":
             result = self._enrich_cyclonedx(sbom_path, sbom_data, discovered, expander.name)
@@ -220,8 +230,9 @@ class DependencyEnricher:
 
             # Create new SPDX package
             # Generate a unique SPDXID. SPDX IDs must contain only letters, numbers,
-            # dots, and hyphens, and cannot start with a number. We normalize
-            # separators to hyphens; collision handling below ensures uniqueness
+            # dots, and hyphens, and cannot start with a number. Although dots are
+            # allowed by the SPDX spec, we normalize separators (dots, underscores)
+            # to hyphens for consistency; collision handling below ensures uniqueness
             # within this document if two packages still normalize to the same ID.
             safe_name = dep.name.replace("_", "-").replace(".", "-")
             safe_version = dep.version.replace("_", "-")
