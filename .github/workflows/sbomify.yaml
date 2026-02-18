@@ -1133,6 +1133,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Cache sbomify data
+        uses: actions/cache@v4
+        with:
+          path: .sbomify-cache
+          key: sbomify-${{ runner.os }}
+
       - name: Determine version
         id: version
         uses: ./.github/actions/determine-version
@@ -1153,6 +1159,9 @@ jobs:
           ENRICH: true
           UPLOAD: true
           OUTPUT_FILE: ${{ matrix.output_file }}
+          SBOMIFY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache
+          TRIVY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/trivy
+          SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
 
       - name: Attest SBOM
         uses: actions/attest-build-provenance@v1
@@ -1211,6 +1220,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Cache sbomify data
+        uses: actions/cache@v4
+        with:
+          path: .sbomify-cache
+          key: sbomify-${{ runner.os }}
+
       - name: Determine version
         id: version
         uses: ./.github/actions/determine-version
@@ -1230,6 +1245,9 @@ jobs:
           ENRICH: true
           UPLOAD: true
           OUTPUT_FILE: ${{ matrix.output_file }}
+          SBOMIFY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache
+          TRIVY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/trivy
+          SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
 
       - name: Attest SBOM
         uses: actions/attest-build-provenance@v1
@@ -1268,6 +1286,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Cache sbomify data
+        uses: actions/cache@v4
+        with:
+          path: .sbomify-cache
+          key: sbomify-${{ runner.os }}
+
       - name: Generate additional packages from Dockerfile
         run: ./scripts/generate_additional_packages.sh > container_additional_packages.txt
 
@@ -1292,6 +1316,9 @@ jobs:
           ENRICH: true
           UPLOAD: true
           OUTPUT_FILE: ${{ matrix.output_file }}
+          SBOMIFY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache
+          TRIVY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/trivy
+          SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
 
       - name: Attest SBOM
         uses: actions/attest-build-provenance@v1
@@ -1330,6 +1357,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Cache sbomify data
+        uses: actions/cache@v4
+        with:
+          path: .sbomify-cache
+          key: sbomify-${{ runner.os }}
+
       - name: Generate additional packages from Dockerfile
         run: ./scripts/generate_additional_packages.sh > container_additional_packages.txt
 
@@ -1353,6 +1386,9 @@ jobs:
           ENRICH: true
           UPLOAD: true
           OUTPUT_FILE: ${{ matrix.output_file }}
+          SBOMIFY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache
+          TRIVY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/trivy
+          SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
 
       - name: Attest SBOM
         uses: actions/attest-build-provenance@v1

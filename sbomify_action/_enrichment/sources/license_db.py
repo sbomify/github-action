@@ -114,8 +114,19 @@ def clear_cache() -> None:
 
 
 def get_cache_dir() -> Path:
-    """Get the cache directory, creating it if needed."""
-    cache_dir = DEFAULT_CACHE_DIR
+    """Get the cache directory, creating it if needed.
+
+    Priority:
+    1. SBOMIFY_CACHE_DIR environment variable (explicit cache location)
+    2. XDG_CACHE_HOME/sbomify/license-db (XDG standard)
+    3. ~/.cache/sbomify/license-db (fallback)
+    """
+    explicit_cache = os.environ.get("SBOMIFY_CACHE_DIR")
+    if explicit_cache:
+        cache_dir = Path(explicit_cache) / "license-db"
+    else:
+        cache_dir = DEFAULT_CACHE_DIR
+
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
 
