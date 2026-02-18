@@ -1,6 +1,7 @@
 """Pipdeptree-based dependency expander for Python requirements.txt files."""
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -9,6 +10,9 @@ from ...tool_checks import check_tool_available
 from ..models import DiscoveredDependency, normalize_python_package_name
 
 _PIPDEPTREE_AVAILABLE, _ = check_tool_available("pipdeptree")
+
+# Valid Python package name pattern (PEP 508): alphanumeric, hyphens, underscores, dots
+_VALID_PACKAGE_NAME = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$")
 
 
 class PipdeptreeExpander:
@@ -80,8 +84,10 @@ class PipdeptreeExpander:
         if not direct_deps:
             return []
 
-        # 2. Run pipdeptree filtered to only the direct dependencies
-        # This ensures we only see trees for packages actually in requirements.txt
+        # 2. Run pipdeptree filtered to only the direct dependencies.
+        # We pass original (non-normalized) names here because pipdeptree
+        # performs its own name normalization internally via pkg_resources.
+        # The normalized `direct_names` set is used later for comparison.
         package_list = ",".join(direct_deps.keys())
         tree = self._run_pipdeptree(packages=package_list)
         if not tree:
@@ -140,6 +146,10 @@ class PipdeptreeExpander:
                 # Parse the requirement line
                 name, version = self._parse_requirement_line(line)
                 if name:
+                    # Validate package name contains only allowed characters
+                    if not _VALID_PACKAGE_NAME.match(name):
+                        logger.debug(f"Skipping invalid package name: {name}")
+                        continue
                     deps[name] = version
 
         return deps

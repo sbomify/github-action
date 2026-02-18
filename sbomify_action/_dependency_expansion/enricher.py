@@ -121,12 +121,16 @@ class DependencyEnricher:
         bom = Bom.from_json(sbom_data)
         original_count = len(bom.components) if bom.components else 0
 
+        # Ensure components collection is initialized in case Bom.from_json
+        # yields a Bom with components=None for unusual input.
+        if bom.components is None:
+            bom.components = type(Bom().components)()
+
         # Build set of existing PURLs for deduplication
         existing_purls: set[str] = set()
-        if bom.components:
-            for comp in bom.components:
-                if comp.purl:
-                    existing_purls.add(str(comp.purl).lower())
+        for comp in bom.components:
+            if comp.purl:
+                existing_purls.add(str(comp.purl).lower())
 
         # Add new components
         added_count = 0
