@@ -71,20 +71,12 @@ class TestCategorizeDocument:
 
 
 class TestComputeSha256:
-    def test_deterministic(self, tmp_path):
+    def test_deterministic(self):
         """Same content should produce same hash regardless of key order."""
-        f1 = tmp_path / "a.json"
-        f2 = tmp_path / "b.json"
-        f1.write_text(json.dumps({"b": 2, "a": 1}))
-        f2.write_text(json.dumps({"a": 1, "b": 2}))
-        assert _compute_sha256(str(f1)) == _compute_sha256(str(f2))
+        assert _compute_sha256({"b": 2, "a": 1}) == _compute_sha256({"a": 1, "b": 2})
 
-    def test_different_content(self, tmp_path):
-        f1 = tmp_path / "a.json"
-        f2 = tmp_path / "b.json"
-        f1.write_text(json.dumps({"x": 1}))
-        f2.write_text(json.dumps({"x": 2}))
-        assert _compute_sha256(str(f1)) != _compute_sha256(str(f2))
+    def test_different_content(self):
+        assert _compute_sha256({"x": 1}) != _compute_sha256({"x": 2})
 
 
 class TestDiscoverPackages:

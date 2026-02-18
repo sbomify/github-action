@@ -2047,13 +2047,6 @@ def cli(
 @cli.command("yocto")
 @click.argument("sbom_input", type=click.Path(exists=True))
 @click.option(
-    "--token",
-    "yocto_token",
-    envvar="TOKEN",
-    required=True,
-    help="sbomify API token.",
-)
-@click.option(
     "--release",
     required=True,
     help="Product release in product_id:version format.",
@@ -2069,9 +2062,10 @@ def cli(
 @click.option("--enrich/--no-enrich", default=False, help="Run enrichment per SBOM.")
 @click.option("--dry-run", is_flag=True, default=False, help="Show what would happen without API calls.")
 @click.option("--verbose", is_flag=True, default=False, help="Enable verbose logging.")
+@click.pass_context
 def yocto_cmd(
+    ctx: click.Context,
     sbom_input: str,
-    yocto_token: str,
     release: str,
     api_base_url: str,
     augment: bool,
@@ -2098,6 +2092,14 @@ def yocto_cmd(
         import logging
 
         logging.getLogger("sbomify_action").setLevel(logging.DEBUG)
+
+    # Get token from parent CLI group (--token on the root command or TOKEN env var)
+    yocto_token = ctx.parent.params.get("token") if ctx.parent else None
+    if not yocto_token:
+        # Also check env var directly as fallback
+        yocto_token = os.getenv("TOKEN")
+    if not yocto_token:
+        raise click.UsageError("Missing required option '--token' (provide via root command or TOKEN env var).")
 
     # Parse release format
     if ":" not in release:

@@ -77,6 +77,26 @@ class TestListComponents:
         with pytest.raises(APIError, match="Failed to connect"):
             list_components(API_BASE, TOKEN)
 
+    @patch("sbomify_action._yocto.api.requests.get")
+    def test_invalid_json_response(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.ok = True
+        mock_resp.json.side_effect = ValueError("No JSON")
+        mock_get.return_value = mock_resp
+
+        with pytest.raises(APIError, match="invalid JSON response"):
+            list_components(API_BASE, TOKEN)
+
+    @patch("sbomify_action._yocto.api.requests.get")
+    def test_non_dict_response(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.ok = True
+        mock_resp.json.return_value = ["not", "a", "dict"]
+        mock_get.return_value = mock_resp
+
+        with pytest.raises(APIError, match="unexpected response type"):
+            list_components(API_BASE, TOKEN)
+
 
 class TestCreateComponent:
     @patch("sbomify_action._yocto.api.requests.post")

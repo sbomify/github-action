@@ -38,7 +38,14 @@ def list_components(api_base_url: str, token: str) -> dict[str, str]:
         if not response.ok:
             raise APIError(f"Failed to list components. [{response.status_code}]")
 
-        data = response.json()
+        try:
+            data = response.json()
+        except (ValueError, requests.exceptions.JSONDecodeError):
+            raise APIError("Failed to list components: invalid JSON response from API")
+
+        if not isinstance(data, dict):
+            raise APIError(f"Failed to list components: unexpected response type ({type(data).__name__})")
+
         for item in data.get("items", []):
             name = item.get("name")
             comp_id = item.get("id")

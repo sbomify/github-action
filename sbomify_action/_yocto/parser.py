@@ -10,10 +10,8 @@ from sbomify_action.logging_config import logger
 from .models import YoctoPackage
 
 
-def _compute_sha256(file_path: str) -> str:
-    """Compute SHA256 of a JSON file with normalized content (sorted keys)."""
-    with open(file_path, "r") as f:
-        data = json.load(f)
+def _compute_sha256(data: dict) -> str:
+    """Compute SHA256 of parsed JSON data with normalized content (sorted keys)."""
     normalized = json.dumps(data, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(normalized.encode()).hexdigest()
 
@@ -68,7 +66,7 @@ def _extract_package_info(file_path: str, data: dict) -> YoctoPackage:
     if packages:
         version = packages[0].get("versionInfo", "")
 
-    sha256 = _compute_sha256(file_path)
+    sha256 = _compute_sha256(data)
 
     return YoctoPackage(
         name=name,

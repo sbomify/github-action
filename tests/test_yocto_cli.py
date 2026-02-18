@@ -33,7 +33,7 @@ class TestYoctoCli:
     def test_missing_release(self, tmp_path):
         archive = _make_tar_gz(tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, ["yocto", archive, "--token", "t"])
+        result = runner.invoke(cli, ["--token", "t", "yocto", archive])
         assert result.exit_code != 0
         assert "Missing option '--release'" in result.output or "required" in result.output.lower()
 
@@ -46,21 +46,21 @@ class TestYoctoCli:
     def test_invalid_release_format(self, tmp_path):
         archive = _make_tar_gz(tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, ["yocto", archive, "--token", "t", "--release", "no-colon"])
+        result = runner.invoke(cli, ["--token", "t", "yocto", archive, "--release", "no-colon"])
         assert result.exit_code != 0
         assert "product_id:version" in result.output
 
     def test_empty_product_id(self, tmp_path):
         archive = _make_tar_gz(tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, ["yocto", archive, "--token", "t", "--release", ":1.0"])
+        result = runner.invoke(cli, ["--token", "t", "yocto", archive, "--release", ":1.0"])
         assert result.exit_code != 0
         assert "non-empty" in result.output
 
     def test_empty_version(self, tmp_path):
         archive = _make_tar_gz(tmp_path)
         runner = CliRunner()
-        result = runner.invoke(cli, ["yocto", archive, "--token", "t", "--release", "prod:"])
+        result = runner.invoke(cli, ["--token", "t", "yocto", archive, "--release", "prod:"])
         assert result.exit_code != 0
         assert "non-empty" in result.output
 
@@ -70,7 +70,7 @@ class TestYoctoCli:
         mock_pipeline.return_value = YoctoPipelineResult(packages_found=3, sboms_skipped=3)
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["yocto", archive, "--token", "t", "--release", "prod:1.0", "--dry-run"])
+        result = runner.invoke(cli, ["--token", "t", "yocto", archive, "--release", "prod:1.0", "--dry-run"])
         assert result.exit_code == 0
         mock_pipeline.assert_called_once()
 
@@ -85,7 +85,7 @@ class TestYoctoCli:
         mock_pipeline.return_value = YoctoPipelineResult(errors=1)
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["yocto", archive, "--token", "t", "--release", "prod:1.0"])
+        result = runner.invoke(cli, ["--token", "t", "yocto", archive, "--release", "prod:1.0"])
         assert result.exit_code == 1
 
     @patch("sbomify_action._yocto.pipeline.run_yocto_pipeline")
@@ -96,7 +96,7 @@ class TestYoctoCli:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["yocto", archive, "--token", "t", "--release", "prod:1.0", "--augment", "--enrich"],
+            ["--token", "t", "yocto", archive, "--release", "prod:1.0", "--augment", "--enrich"],
         )
         assert result.exit_code == 0
 
@@ -113,10 +113,10 @@ class TestYoctoCli:
         result = runner.invoke(
             cli,
             [
-                "yocto",
-                archive,
                 "--token",
                 "t",
+                "yocto",
+                archive,
                 "--release",
                 "prod:1.0",
                 "--api-base-url",

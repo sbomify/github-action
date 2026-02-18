@@ -75,7 +75,11 @@ def _process_single_package(
     if not result.success:
         raise APIError(f"Upload failed for '{pkg_name}': {result.error_message}")
 
-    return None
+    # Upload reported success but no SBOM ID was returned
+    raise APIError(
+        f"Upload reported success for '{pkg_name}' but no SBOM ID was returned; "
+        "this likely indicates a malformed response from the upload destination."
+    )
 
 
 def _print_summary(result: YoctoPipelineResult) -> None:

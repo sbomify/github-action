@@ -74,6 +74,15 @@ class TestProcessSinglePackage:
             _process_single_package("busybox", spdx_file, "comp-1", config)
 
     @patch("sbomify_action._yocto.pipeline.upload_sbom")
+    def test_upload_success_without_sbom_id_raises(self, mock_upload, tmp_path):
+        spdx_file = str(YOCTO_TEST_DATA / "busybox.spdx.json")
+        mock_upload.return_value = UploadResult.success_result(destination_name="sbomify", sbom_id=None)
+        config = _make_config(str(tmp_path / "dummy.tar.gz"))
+
+        with pytest.raises(APIError, match="no SBOM ID was returned"):
+            _process_single_package("busybox", spdx_file, "comp-1", config)
+
+    @patch("sbomify_action._yocto.pipeline.upload_sbom")
     @patch("sbomify_action._yocto.pipeline.augment_sbom_from_file")
     def test_augment_called(self, mock_augment, mock_upload, tmp_path):
         spdx_file = str(YOCTO_TEST_DATA / "busybox.spdx.json")
