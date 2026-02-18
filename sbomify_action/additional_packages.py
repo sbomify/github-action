@@ -364,6 +364,7 @@ def create_empty_sbom(output_file: str, sbom_format: str) -> str:
     Raises:
         ValueError: If sbom_format is not supported
     """
+    import uuid
     from datetime import datetime, timezone
 
     from .serialization import DEFAULT_CYCLONEDX_VERSION, serialize_cyclonedx_bom
@@ -381,7 +382,7 @@ def create_empty_sbom(output_file: str, sbom_format: str) -> str:
             spdx_version="SPDX-2.3",
             spdx_id="SPDXRef-DOCUMENT",
             name="additional-packages-sbom",
-            document_namespace="https://sbomify.com/additional-packages",
+            document_namespace=f"https://sbomify.com/additional-packages/{uuid.uuid4()}",
             creators=[Actor(ActorType.TOOL, "sbomify-action")],
             created=datetime.now(timezone.utc),
         )

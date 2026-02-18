@@ -599,11 +599,11 @@ class TestCLIAdditionalPackagesOnlyMode(unittest.TestCase):
             env={"ADDITIONAL_PACKAGES": "pkg:pypi/requests@2.31.0"},
         )
 
-        if result.exit_code == 0:
-            mock_run.assert_called_once()
-            config = mock_run.call_args[0][0]
-            self.assertTrue(config.is_additional_packages_only)
-            self.assertEqual(config.lock_file, "none")
+        self.assertEqual(result.exit_code, 0, f"CLI failed unexpectedly: {result.output}")
+        mock_run.assert_called_once()
+        config = mock_run.call_args[0][0]
+        self.assertTrue(config.is_additional_packages_only)
+        self.assertEqual(config.lock_file, "none")
 
     @patch.object(cli_main_module, "run_pipeline")
     @patch.object(cli_main_module, "setup_dependencies")
@@ -620,11 +620,11 @@ class TestCLIAdditionalPackagesOnlyMode(unittest.TestCase):
             env={"ADDITIONAL_PACKAGES": "pkg:pypi/requests@2.31.0"},
         )
 
-        if result.exit_code == 0:
-            mock_run.assert_called_once()
-            config = mock_run.call_args[0][0]
-            self.assertTrue(config.is_additional_packages_only)
-            self.assertEqual(config.sbom_file, "none")
+        self.assertEqual(result.exit_code, 0, f"CLI failed unexpectedly: {result.output}")
+        mock_run.assert_called_once()
+        config = mock_run.call_args[0][0]
+        self.assertTrue(config.is_additional_packages_only)
+        self.assertEqual(config.sbom_file, "none")
 
     def test_lock_file_none_without_packages_fails(self):
         """Test --lock-file none without additional packages configured fails."""
@@ -669,11 +669,11 @@ class TestCLIAdditionalPackagesOnlyMode(unittest.TestCase):
             env={"ADDITIONAL_PACKAGES": "pkg:pypi/requests@2.31.0"},
         )
 
-        if result.exit_code == 0:
-            mock_run.assert_called_once()
-            config = mock_run.call_args[0][0]
-            self.assertTrue(config.is_additional_packages_only)
-            self.assertEqual(config.sbom_format, "spdx")
+        self.assertEqual(result.exit_code, 0, f"CLI failed unexpectedly: {result.output}")
+        mock_run.assert_called_once()
+        config = mock_run.call_args[0][0]
+        self.assertTrue(config.is_additional_packages_only)
+        self.assertEqual(config.sbom_format, "spdx")
 
 
 class TestEvaluateBoolean(unittest.TestCase):
