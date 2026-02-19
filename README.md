@@ -5,6 +5,12 @@
 [![PyPI version](https://badge.fury.io/py/sbomify-action.svg)](https://pypi.org/project/sbomify-action/)
 [![Slack](https://img.shields.io/badge/Slack-Join%20Community-4A154B?logo=slack)](https://join.slack.com/t/sbomify/shared_invite/zt-3na54pa1f-MXrFWhotmZr0YxXc8sABTw)
 
+### See it in action: FOSDEM 2026 Talk
+
+Watch our FOSDEM 2026 talk for a real-world crash course on generating CRA-ready SBOMs — covering the full pipeline from authoring to enrichment and signing.
+
+[![CRA-Ready SBOMs: A Practical Blueprint for High-Quality Generation — FOSDEM 2026](docs/assets/fosdem-2026-talk-thumbnail.png)](https://sbomify.com/2026/02/04/announcing-sbomify-action-v0-13-the-one-where-we-go-to-fosdem/)
+
 Generate, augment, enrich, and manage SBOMs in your CI/CD pipeline. Works standalone or with [sbomify](https://sbomify.com).
 
 **Recommended**: Use the GitHub Action or Docker image—they include all SBOM generators (Trivy, Syft, cdxgen) pre-installed. For other CI platforms, see [examples below](#other-cicd-platforms). A [pip package](#pip-advanced) is also available for advanced use cases.
