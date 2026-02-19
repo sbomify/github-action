@@ -1062,7 +1062,7 @@ def run_pipeline(config: Config) -> None:
                     logger.error(f"Please use LOCK_FILE instead of SBOM_FILE for '{file_name}'.")
             _log_step_end(1, success=False)
             sys.exit(1)
-        except (FileProcessingError, SBOMGenerationError) as e:
+        except (FileProcessingError, SBOMGenerationError, ValueError) as e:
             logger.error(f"Step 1 failed: {e}")
             _log_step_end(1, success=False)
             sys.exit(1)
