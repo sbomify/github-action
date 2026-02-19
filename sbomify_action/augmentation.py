@@ -1725,6 +1725,21 @@ def augment_spdx3_sbom(
     # Apply component version override
     if component_version and root_pkg:
         root_pkg.package_version = component_version
+        # Update PURL version to maintain consistency
+        if root_pkg.package_url:
+            try:
+                old_purl = PackageURL.from_string(root_pkg.package_url)
+                root_pkg.package_url = str(PackageURL(
+                    type=old_purl.type,
+                    namespace=old_purl.namespace,
+                    name=old_purl.name,
+                    version=component_version,
+                    qualifiers=old_purl.qualifiers,
+                    subpath=old_purl.subpath,
+                ))
+                logger.debug(f"Updated SPDX 3 package PURL version: {old_purl} -> {root_pkg.package_url}")
+            except Exception as e:
+                logger.warning(f"Failed to update SPDX 3 package PURL version: {e}")
         logger.info(f"Set component version: {component_version}")
 
     # Apply VCS information
