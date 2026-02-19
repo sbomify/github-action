@@ -1080,7 +1080,7 @@ def _enrich_spdx3_sbom(input_path: Path, output_path: Path, enricher: Enricher) 
     try:
         payload = parse_spdx3_file(str(input_path))
     except Exception as e:
-        raise SBOMValidationError(f"Failed to parse SPDX 3 SBOM: {e}")
+        raise SBOMValidationError(f"Failed to parse SPDX 3 SBOM: {e}") from e
 
     packages = get_spdx3_packages(payload)
     if not packages:

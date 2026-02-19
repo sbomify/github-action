@@ -92,8 +92,16 @@ class DependencyEnricher:
             # Determine original component count from the loaded SBOM
             if sbom_data.get("bomFormat") == "CycloneDX":
                 original_count = len(sbom_data.get("components") or [])
-            elif sbom_data.get("spdxVersion") or is_spdx3(sbom_data):
+            elif sbom_data.get("spdxVersion"):
                 original_count = len(sbom_data.get("packages") or [])
+            elif is_spdx3(sbom_data):
+                # SPDX 3 packages live in @graph alongside other element types;
+                # count only software_Package / Package entries.
+                original_count = sum(
+                    1
+                    for e in sbom_data.get("@graph", [])
+                    if isinstance(e, dict) and (e.get("type") or e.get("@type", "")) in ("software_Package", "Package")
+                )
             else:
                 original_count = 0
 

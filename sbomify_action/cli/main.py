@@ -1031,6 +1031,7 @@ def run_pipeline(config: Config) -> None:
                     docker_image=config.docker_image,
                     output_file=STEP_1_FILE,
                     output_format=config.sbom_format,
+                    spec_version=config.spec_version,
                 )
                 if not result.success:
                     raise SBOMGenerationError(result.error_message or "SBOM generation failed")
@@ -1040,6 +1041,7 @@ def run_pipeline(config: Config) -> None:
                     FILE,
                     output_file=STEP_1_FILE,
                     output_format=config.sbom_format,
+                    spec_version=config.spec_version,
                 )
                 if not result.success:
                     raise SBOMGenerationError(result.error_message or "SBOM generation failed")

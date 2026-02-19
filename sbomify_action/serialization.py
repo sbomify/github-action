@@ -718,7 +718,7 @@ def _fix_purl_encoding_bugs_in_json(json_str: str) -> str:
 # SPDX Version Management
 # ============================================================================
 
-# SPDX versions supported by the spdx-tools library
+# SPDX versions supported (2.x via spdx-tools library, 3.0.1 via custom parser/writer in spdx3.py)
 SUPPORTED_SPDX_VERSIONS = ["2.2", "2.3", "3.0.1"]
 
 # Default SPDX version

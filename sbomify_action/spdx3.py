@@ -558,7 +558,6 @@ def get_spdx3_root_package(payload: Payload) -> Package | None:
 
 
 def make_spdx3_creation_info(
-    tool_name: str = "sbomify-action",
     created_by: list[str] | None = None,
 ) -> CreationInfo:
     """Create a standard :class:`CreationInfo` for SPDX 3 documents."""
@@ -605,7 +604,9 @@ def spdx3_license_from_string(license_str: str) -> ListedLicense | CustomLicense
     )
 
 
-def spdx3_licenses_from_list(license_ids: list[str]) -> DisjunctiveLicenseSet | ListedLicense | NoAssertionLicense:
+def spdx3_licenses_from_list(
+    license_ids: list[str],
+) -> DisjunctiveLicenseSet | ListedLicense | CustomLicense | NoAssertionLicense | NoneLicense:
     """Convert a list of license ID strings to an SPDX 3 license field.
 
     Single license → :class:`ListedLicense`.
