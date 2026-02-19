@@ -1,0 +1,22 @@
+{
+    "spdxVersion": "SPDX-2.2",
+    "dataLicense": "CC0-1.0",
+    "SPDXID": "SPDXRef-DOCUMENT",
+    "name": "runtime-busybox",
+    "documentNamespace": "http://spdx.org/spdxdocs/runtime-busybox-1.36.1-mnop",
+    "creationInfo": {
+        "created": "2024-01-01T00:00:00Z",
+        "creators": ["Tool: oe-spdx"],
+        "licenseListVersion": "3.19"
+    },
+    "packages": [
+        {
+            "SPDXID": "SPDXRef-Runtime",
+            "name": "runtime-busybox",
+            "versionInfo": "1.36.1",
+            "supplier": "Organization: OpenEmbedded",
+            "downloadLocation": "NOASSERTION",
+            "filesAnalyzed": false
+        }
+    ]
+}

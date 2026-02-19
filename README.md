@@ -28,6 +28,7 @@ That's it! This generates a CycloneDX SBOM from your lockfile and enriches it wi
 
 - **Generate** SBOMs from lockfiles (Python, Node, Rust, Go, Ruby, Dart, C++) in CycloneDX or SPDX format
 - **Generate** SBOMs from Docker images
+- **Yocto/OpenEmbedded** — Batch process SPDX SBOMs from Yocto builds (extract, upload, release-tag)
 - **Inject** additional packages not in lockfiles (vendored code, runtime deps, system libraries)
 - **Augment** with business metadata (supplier, authors, licenses, lifecycle phase) from config file or sbomify
 - **VCS Auto-Detection** — Automatically adds repository URL, commit SHA, and branch info from CI environment
@@ -52,6 +53,32 @@ That's it! This generates a CycloneDX SBOM from your lockfile and enriches it wi
     ENRICH: true
 ```
 
+### With sbomify
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+    COMPONENT_ID: your-component-id
+    LOCK_FILE: requirements.txt
+    AUGMENT: true
+    ENRICH: true
+```
+
+### Docker Image
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    DOCKER_IMAGE: my-app:latest
+    OUTPUT_FILE: sbom.cdx.json
+    UPLOAD: false
+    ENRICH: true
+```
+
+<details>
+<summary><strong>More examples</strong> (augmentation, SPDX, attestation, additional packages...)</summary>
+
 ### Standalone with Augmentation
 
 Add business metadata without a sbomify account using a local config file:
@@ -68,18 +95,6 @@ Add business metadata without a sbomify account using a local config file:
 
 See [Augmentation Config File](#augmentation-config-file) for the config format.
 
-### With sbomify
-
-```yaml
-- uses: sbomify/github-action@master
-  env:
-    TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-    COMPONENT_ID: your-component-id
-    LOCK_FILE: requirements.txt
-    AUGMENT: true
-    ENRICH: true
-```
-
 ### Self-Hosted sbomify
 
 ```yaml
@@ -90,17 +105,6 @@ See [Augmentation Config File](#augmentation-config-file) for the config format.
     API_BASE_URL: https://sbomify.yourcompany.com
     LOCK_FILE: requirements.txt
     AUGMENT: true
-    ENRICH: true
-```
-
-### Docker Image
-
-```yaml
-- uses: sbomify/github-action@master
-  env:
-    DOCKER_IMAGE: my-app:latest
-    OUTPUT_FILE: sbom.cdx.json
-    UPLOAD: false
     ENRICH: true
 ```
 
@@ -161,53 +165,7 @@ Setting `LOCK_FILE` (or `SBOM_FILE`) to `none` creates an empty SBOM and injects
     subject-path: sbom.cdx.json
 ```
 
-## Audit Trail
-
-Every modification made to your SBOM is tracked and recorded for attestation and compliance purposes. The audit trail captures:
-
-- **Overrides**: Component name, version, and PURL changes from CLI/environment
-- **Augmentation**: Supplier, manufacturer, authors, licenses, VCS info, lifecycle phase
-- **Enrichment**: Per-component metadata additions (description, license, publisher, URLs)
-- **Sanitization**: PURL normalizations, URL validations, stub components added
-
-### Output
-
-1. **Summary table** (always visible) — Shows counts by category
-2. **`audit_trail.txt` file** — Detailed log written alongside your SBOM output
-3. **Attestation output** — Full audit trail printed in collapsible GitHub Actions group
-
-### Example Output
-
-**Summary:**
-
-```
-┌─────────────────────┬───────┐
-│ Metric              │ Value │
-├─────────────────────┼───────┤
-│ Overrides applied   │     3 │
-│ Components enriched │    42 │
-│ Sanitization fixes  │     5 │
-└─────────────────────┴───────┘
-```
-
-**audit_trail.txt:**
-
-```
-# SBOM Audit Trail
-# Generated: 2026-01-18T12:34:56Z
-# Input: requirements.txt
-# Output: sbom.cdx.json
-
-## Override
-[2026-01-18T12:34:56Z] OVERRIDE component.version SET "2.0.0" (source: cli/env)
-[2026-01-18T12:34:56Z] OVERRIDE component.name MODIFIED "old-name" -> "my-app" (source: cli/env)
-
-## Enrichment
-[2026-01-18T12:34:57Z] ENRICHMENT pkg:pypi/requests@2.31.0 license ADDED (source: pypi)
-[2026-01-18T12:34:57Z] ENRICHMENT pkg:pypi/requests@2.31.0 description ADDED (source: pypi)
-```
-
-All timestamps are in UTC (ISO 8601 format with Z suffix).
+</details>
 
 ## Configuration
 
@@ -239,7 +197,8 @@ All timestamps are in UTC (ISO 8601 format with Z suffix).
 † **One** of `LOCK_FILE`, `SBOM_FILE`, or `DOCKER_IMAGE` is required (pick one)
 ‡ Required when uploading to sbomify or using sbomify features (`AUGMENT`, `PRODUCT_RELEASE`)
 
-### Dependency Track Configuration
+<details>
+<summary><strong>Dependency Track configuration</strong></summary>
 
 When uploading to Dependency Track (`UPLOAD_DESTINATIONS=dependency-track`), configure with `DTRACK_*` prefixed environment variables:
 
@@ -293,65 +252,7 @@ When uploading to Dependency Track (`UPLOAD_DESTINATIONS=dependency-track`), con
     ENRICH: true
 ```
 
-## Caching
-
-The sbomify action caches data internally to speed up runs:
-
-- **License databases** (~20-50MB) - Pre-computed metadata for Linux distro packages
-- **Trivy cache** - SBOM generation metadata and package databases
-- **Syft cache** - Package metadata for SBOM generation
-
-To persist caches across CI runs, configure your CI platform's caching mechanism.
-
-### GitHub Actions
-
-Use `actions/cache` before calling the sbomify action:
-
-```yaml
-- name: Cache sbomify data
-  uses: actions/cache@v4
-  with:
-    path: .sbomify-cache
-    key: sbomify-${{ runner.os }}
-
-- uses: sbomify/github-action@master
-  env:
-    SBOMIFY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache
-    TRIVY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/trivy
-    SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
-    LOCK_FILE: requirements.txt
-    ENRICH: true
-    UPLOAD: false
-```
-
-For caching in other CI environments (GitLab, Bitbucket, Docker), see [Other CI/CD Platforms](#other-cicd-platforms).
-
-## Product Releases
-
-Tag your SBOMs with product releases for version tracking and release management in sbomify.
-
-```yaml
-- uses: sbomify/github-action@master
-  env:
-    TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-    COMPONENT_ID: your-component-id
-    LOCK_FILE: requirements.txt
-    PRODUCT_RELEASE: '["product_id:v1.0.0"]'
-```
-
-**Format:** JSON array of `"product_id:version"` strings. You can tag multiple releases:
-
-```yaml
-PRODUCT_RELEASE: '["product_id_1:v1.0.0", "product_id_2:v2.0.0"]'
-```
-
-**Behavior:**
-
-- **Get-or-create**: If the release already exists, it's reused. If not, it's created automatically.
-- **Tagging**: The uploaded SBOM is associated with each specified release.
-- **Partial failures**: If some releases succeed and others fail, the action logs a warning but continues.
-
-> **Note**: Requires `TOKEN` and `COMPONENT_ID` to be set, as this feature interacts with the sbomify API.
+</details>
 
 ## Supported Lockfiles
 
@@ -372,174 +273,49 @@ PRODUCT_RELEASE: '["product_id_1:v1.0.0", "product_id_2:v2.0.0"]'
 | C++        | `conan.lock`                                                                   |
 | Terraform  | `.terraform.lock.hcl`                                                          |
 
-## Additional Packages
+## Yocto/OpenEmbedded
 
-Inject packages not captured by lockfile scanning—vendored code, runtime dependencies, or system libraries.
+Process SPDX SBOMs produced by Yocto/OpenEmbedded builds. The `yocto` subcommand extracts a `.spdx.tar.zst` (or `.tar.gz`) archive, discovers package SBOMs, creates components in sbomify, uploads each SBOM, and tags them with a product release.
 
-### Convention-Based File
-
-If `additional_packages.txt` exists in your working directory, it's automatically detected:
-
-```txt
-# additional_packages.txt
-# Runtime dependencies not in lockfile
-pkg:pypi/requests@2.31.0
-pkg:npm/lodash@4.17.21
-
-# System libraries
-pkg:deb/debian/openssl@3.0.11
+```bash
+sbomify-action --token $SBOMIFY_TOKEN \
+  yocto tmp/deploy/images/qemux86-64/core-image-base.rootfs.spdx.tar.zst \
+  --release "my-product:1.0.0"
 ```
 
-**File format:**
+| Option | Required | Description |
+| --- | --- | --- |
+| `SBOM_INPUT` (positional) | Yes | Path to `.spdx.tar.zst` or `.tar.gz` archive |
+| `--token` (root option) | Yes | sbomify API token (pass before `yocto`, or set `TOKEN` env var) |
+| `--release` | Yes | Product release in `product_id:version` format |
+| `--augment/--no-augment` | No | Run augmentation per SBOM (default: off) |
+| `--enrich/--no-enrich` | No | Run enrichment per SBOM (default: off) |
+| `--dry-run` | No | Show what would happen without making API calls |
+| `--verbose` | No | Enable verbose logging |
 
-- One [PURL](https://github.com/package-url/purl-spec) per line
-- Lines starting with `#` are comments
-- Empty lines are ignored
+**How it works:**
 
-### Custom File Location
+1. Extracts the archive to a temp directory
+2. Scans for `*.spdx.json` files and categorizes them (skips `recipe-*` and `runtime-*` documents)
+3. For each package SBOM: gets or creates a component, optionally augments and enriches, then uploads
+4. Creates a release and tags all uploaded SBOMs with it
+
+**Input format:** SPDX 2.2 only. The archive is typically found at `tmp/deploy/images/{machine}/` in your Yocto build output.
+
+<details>
+<summary><strong>GitHub Actions example</strong></summary>
 
 ```yaml
 - uses: sbomify/github-action@master
-  env:
-    LOCK_FILE: requirements.txt
-    ADDITIONAL_PACKAGES_FILE: .sbomify/extra-packages.txt
+  # Build your Yocto image first, then:
+- run: |
+    sbomify-action --token ${{ secrets.SBOMIFY_TOKEN }} \
+      yocto build/deploy/images/qemux86-64/core-image-base.rootfs.spdx.tar.zst \
+      --release "my-product:${{ github.ref_name }}" \
+      --enrich
 ```
 
-### Inline Packages
-
-For dynamic or programmatic use:
-
-```yaml
-- uses: sbomify/github-action@master
-  env:
-    LOCK_FILE: requirements.txt
-    ADDITIONAL_PACKAGES: "pkg:pypi/requests@2.31.0,pkg:npm/lodash@4.17.21"
-```
-
-### Build-Time Injection
-
-Append packages across multiple steps:
-
-```yaml
-- name: Add Python runtime deps
-  run: echo "pkg:pypi/requests@2.31.0" >> additional_packages.txt
-
-- name: Add system libraries
-  run: |
-    echo "pkg:deb/debian/openssl@3.0.11" >> additional_packages.txt
-    echo "pkg:deb/debian/libssl3@3.0.11" >> additional_packages.txt
-
-- name: Generate SBOM
-  uses: sbomify/github-action@master
-  env:
-    LOCK_FILE: requirements.txt
-    # No additional config needed - file is auto-detected
-```
-
-**Merge behavior:** If both file and inline packages are provided, they are merged and deduplicated. Injected packages flow through augmentation and enrichment like any other component.
-
-### Standalone Mode (No Lockfile)
-
-Use `LOCK_FILE=none` (or `SBOM_FILE=none`) to create an SBOM containing only additional packages—no lockfile or existing SBOM required. See the [Additional Packages Only example](#additional-packages-only-no-lockfile) above.
-
-## Other CI/CD Platforms
-
-### GitLab
-
-```yaml
-generate-sbom:
-  image: sbomifyhub/sbomify-action
-  cache:
-    key: sbomify-cache
-    paths:
-      - .sbomify-cache/
-  variables:
-    SBOMIFY_CACHE_DIR: "${CI_PROJECT_DIR}/.sbomify-cache/sbomify"
-    TRIVY_CACHE_DIR: "${CI_PROJECT_DIR}/.sbomify-cache/trivy"
-    SYFT_CACHE_DIR: "${CI_PROJECT_DIR}/.sbomify-cache/syft"
-    LOCK_FILE: poetry.lock
-    OUTPUT_FILE: sbom.cdx.json
-    UPLOAD: "false"
-    ENRICH: "true"
-  script:
-    - sbomify-action
-```
-
-### Bitbucket
-
-```yaml
-pipelines:
-  default:
-    - step:
-        caches:
-          - sbomify
-        script:
-          - pipe: docker://sbomifyhub/sbomify-action:latest
-            variables:
-              SBOMIFY_CACHE_DIR: "${BITBUCKET_CLONE_DIR}/.sbomify-cache/sbomify"
-              TRIVY_CACHE_DIR: "${BITBUCKET_CLONE_DIR}/.sbomify-cache/trivy"
-              SYFT_CACHE_DIR: "${BITBUCKET_CLONE_DIR}/.sbomify-cache/syft"
-              LOCK_FILE: poetry.lock
-              OUTPUT_FILE: sbom.cdx.json
-              UPLOAD: "false"
-              ENRICH: "true"
-
-definitions:
-  caches:
-    sbomify: .sbomify-cache
-```
-
-### Docker
-
-```bash
-# Create persistent cache volume
-docker volume create sbomify-cache
-
-docker run --rm \
-  -v $(pwd):/github/workspace \
-  -v sbomify-cache:/cache \
-  -w /github/workspace \
-  -e SBOMIFY_CACHE_DIR=/cache/sbomify \
-  -e TRIVY_CACHE_DIR=/cache/trivy \
-  -e SYFT_CACHE_DIR=/cache/syft \
-  -e LOCK_FILE=/github/workspace/requirements.txt \
-  -e OUTPUT_FILE=/github/workspace/sbom.cdx.json \
-  -e UPLOAD=false \
-  -e ENRICH=true \
-  sbomifyhub/sbomify-action
-```
-
-### pip (Advanced)
-
-For local development or environments where Docker isn't available, install via pip:
-
-```bash
-pip install sbomify-action
-```
-
-Run without arguments to see available options:
-
-```bash
-sbomify-action
-```
-
-Or use CLI arguments directly:
-
-```bash
-sbomify-action --lock-file requirements.txt --enrich --no-upload -o sbom.cdx.json
-```
-
-Environment variables also work (useful for scripts):
-
-```bash
-export LOCK_FILE=requirements.txt
-export OUTPUT_FILE=sbom.cdx.json
-export UPLOAD=false
-export ENRICH=true
-sbomify-action
-```
-
-**Note**: SBOM generation requires external tools (trivy, syft, or cdxgen) to be installed separately. The Docker image includes all tools pre-installed, which is why it's the recommended approach.
+</details>
 
 ## Augmentation vs Enrichment
 
@@ -575,7 +351,8 @@ Create `sbomify.json` in your project root to provide augmentation metadata:
 }
 ```
 
-**Supported fields:**
+<details>
+<summary><strong>Augmentation config field reference</strong></summary>
 
 | Field                | Description                                  | SBOM Mapping                                                                                         |
 | -------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -609,7 +386,10 @@ Create `sbomify.json` in your project root to provide augmentation metadata:
 
 **Priority:** Local config values override sbomify API values when both are available.
 
-### VCS Information (Auto-Detected)
+</details>
+
+<details>
+<summary><strong>VCS information (auto-detected)</strong></summary>
 
 When running in CI environments, sbomify automatically detects and adds VCS (Version Control System) information to your SBOM:
 
@@ -645,6 +425,8 @@ env:
   DISABLE_VCS_AUGMENTATION: "true"
 ```
 
+</details>
+
 ### Enrichment Data Sources
 
 | Source         | Package Types                                                    | Data                                            |
@@ -661,7 +443,8 @@ env:
 | ClearlyDefined | Python, npm, Cargo, Maven, Ruby, NuGet, Go                       | License, attribution                            |
 | Repology       | Linux distros                                                    | License, homepage                               |
 
-### License Database
+<details>
+<summary><strong>License database details</strong></summary>
 
 For Linux distro packages, sbomify uses pre-computed databases that provide comprehensive package metadata. The databases are built by pulling data directly from official distro sources (Alpine APKINDEX, Ubuntu/Debian apt repositories, RPM repos) and normalizing it into a consistent format with validated SPDX license expressions.
 
@@ -707,7 +490,10 @@ sbomify-license-db --distro alpine --version 3.20 --output alpine-3.20.json.gz
 
 > **Note**: Local generation fallback is disabled by default (Ubuntu/Debian can take hours to generate). Set `SBOMIFY_ENABLE_LICENSE_DB_GENERATION=true` to enable it.
 
-### Lifecycle Enrichment
+</details>
+
+<details>
+<summary><strong>Lifecycle enrichment details</strong></summary>
 
 sbomify provides [CLE (Common Lifecycle Enumeration)](https://sbomify.com/compliance/cle/) data including release dates, end-of-support, and end-of-life dates. This enables automated tracking of outdated or unsupported components.
 
@@ -766,11 +552,390 @@ Operating system components (CycloneDX `type: operating-system`) are enriched wi
 
 This allows downstream tools to identify components running on unsupported operating systems or runtimes.
 
-## SBOM Quality Improvement
+</details>
+
+<details>
+<summary><strong>Enrichment priority order by ecosystem</strong></summary>
+
+sbomify queries sources in priority order, stopping when data is found:
+
+| Ecosystem         | Primary Source   | Fallback Sources                        |
+| ----------------- | ---------------- | --------------------------------------- |
+| Python            | PyPI API         | deps.dev → ecosyste.ms → ClearlyDefined |
+| JavaScript        | deps.dev         | ecosyste.ms → ClearlyDefined            |
+| Rust              | crates.io API    | deps.dev → ecosyste.ms → ClearlyDefined |
+| Go                | deps.dev         | ecosyste.ms → ClearlyDefined            |
+| Ruby              | deps.dev         | ecosyste.ms → ClearlyDefined            |
+| Java/Maven        | deps.dev         | ecosyste.ms → ClearlyDefined            |
+| NuGet             | deps.dev         | ecosyste.ms → ClearlyDefined            |
+| Dart              | pub.dev API      | ecosyste.ms                             |
+| C++ (Conan)       | Conan Center API | ecosyste.ms                             |
+| Debian            | Debian Sources   | Repology → ecosyste.ms                  |
+| Ubuntu            | License DB       | Repology → ecosyste.ms                  |
+| Alpine            | License DB       | Repology → ecosyste.ms                  |
+| Wolfi             | License DB       | Repology → ecosyste.ms                  |
+| Rocky/Alma/CentOS | License DB       | Repology → ecosyste.ms                  |
+| Fedora            | License DB       | Repology → ecosyste.ms                  |
+| Amazon Linux      | License DB       | Repology → ecosyste.ms                  |
+
+**Limitations:**
+
+- **Network required**: Enrichment calls external APIs during CI. Not suitable for air-gapped environments.
+- **Rate limits**: APIs may rate-limit large SBOMs. sbomify uses caching and backoff, but very large dependency trees (1000+ packages) may see slower enrichment.
+- **Best effort**: If a package isn't in any registry (private packages, vendored code), no metadata will be added.
+
+> 📖 See [docs/enrichment_coverage.md](docs/enrichment_coverage.md) for detailed coverage information by ecosystem.
+
+</details>
+
+<details>
+<summary><strong>Audit trail</strong></summary>
+
+Every modification made to your SBOM is tracked and recorded for attestation and compliance purposes. The audit trail captures:
+
+- **Overrides**: Component name, version, and PURL changes from CLI/environment
+- **Augmentation**: Supplier, manufacturer, authors, licenses, VCS info, lifecycle phase
+- **Enrichment**: Per-component metadata additions (description, license, publisher, URLs)
+- **Sanitization**: PURL normalizations, URL validations, stub components added
+
+**Output:**
+
+1. **Summary table** (always visible) — Shows counts by category
+2. **`audit_trail.txt` file** — Detailed log written alongside your SBOM output
+3. **Attestation output** — Full audit trail printed in collapsible GitHub Actions group
+
+**Example:**
+
+```
+┌─────────────────────┬───────┐
+│ Metric              │ Value │
+├─────────────────────┼───────┤
+│ Overrides applied   │     3 │
+│ Components enriched │    42 │
+│ Sanitization fixes  │     5 │
+└─────────────────────┴───────┘
+```
+
+**audit_trail.txt:**
+
+```
+# SBOM Audit Trail
+# Generated: 2026-01-18T12:34:56Z
+# Input: requirements.txt
+# Output: sbom.cdx.json
+
+## Override
+[2026-01-18T12:34:56Z] OVERRIDE component.version SET "2.0.0" (source: cli/env)
+[2026-01-18T12:34:56Z] OVERRIDE component.name MODIFIED "old-name" -> "my-app" (source: cli/env)
+
+## Enrichment
+[2026-01-18T12:34:57Z] ENRICHMENT pkg:pypi/requests@2.31.0 license ADDED (source: pypi)
+[2026-01-18T12:34:57Z] ENRICHMENT pkg:pypi/requests@2.31.0 description ADDED (source: pypi)
+```
+
+All timestamps are in UTC (ISO 8601 format with Z suffix).
+
+</details>
+
+<details>
+<summary><strong>Product releases</strong></summary>
+
+Tag your SBOMs with product releases for version tracking and release management in sbomify.
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+    COMPONENT_ID: your-component-id
+    LOCK_FILE: requirements.txt
+    PRODUCT_RELEASE: '["product_id:v1.0.0"]'
+```
+
+**Format:** JSON array of `"product_id:version"` strings. You can tag multiple releases:
+
+```yaml
+PRODUCT_RELEASE: '["product_id_1:v1.0.0", "product_id_2:v2.0.0"]'
+```
+
+**Behavior:**
+
+- **Get-or-create**: If the release already exists, it's reused. If not, it's created automatically.
+- **Tagging**: The uploaded SBOM is associated with each specified release.
+- **Partial failures**: If some releases succeed and others fail, the action logs a warning but continues.
+
+> **Note**: Requires `TOKEN` and `COMPONENT_ID` to be set, as this feature interacts with the sbomify API.
+
+</details>
+
+<details>
+<summary><strong>Additional packages</strong></summary>
+
+Inject packages not captured by lockfile scanning—vendored code, runtime dependencies, or system libraries.
+
+#### Convention-Based File
+
+If `additional_packages.txt` exists in your working directory, it's automatically detected:
+
+```txt
+# additional_packages.txt
+# Runtime dependencies not in lockfile
+pkg:pypi/requests@2.31.0
+pkg:npm/lodash@4.17.21
+
+# System libraries
+pkg:deb/debian/openssl@3.0.11
+```
+
+**File format:**
+
+- One [PURL](https://github.com/package-url/purl-spec) per line
+- Lines starting with `#` are comments
+- Empty lines are ignored
+
+#### Custom File Location
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: requirements.txt
+    ADDITIONAL_PACKAGES_FILE: .sbomify/extra-packages.txt
+```
+
+#### Inline Packages
+
+For dynamic or programmatic use:
+
+```yaml
+- uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: requirements.txt
+    ADDITIONAL_PACKAGES: "pkg:pypi/requests@2.31.0,pkg:npm/lodash@4.17.21"
+```
+
+#### Build-Time Injection
+
+Append packages across multiple steps:
+
+```yaml
+- name: Add Python runtime deps
+  run: echo "pkg:pypi/requests@2.31.0" >> additional_packages.txt
+
+- name: Add system libraries
+  run: |
+    echo "pkg:deb/debian/openssl@3.0.11" >> additional_packages.txt
+    echo "pkg:deb/debian/libssl3@3.0.11" >> additional_packages.txt
+
+- name: Generate SBOM
+  uses: sbomify/github-action@master
+  env:
+    LOCK_FILE: requirements.txt
+    # No additional config needed - file is auto-detected
+```
+
+**Merge behavior:** If both file and inline packages are provided, they are merged and deduplicated. Injected packages flow through augmentation and enrichment like any other component.
+
+#### Standalone Mode (No Lockfile)
+
+Use `LOCK_FILE=none` (or `SBOM_FILE=none`) to create an SBOM containing only additional packages—no lockfile or existing SBOM required. See the [Additional Packages Only example](#additional-packages-only-no-lockfile) above.
+
+</details>
+
+<details>
+<summary><strong>Caching</strong></summary>
+
+The sbomify action caches data internally to speed up runs:
+
+- **License databases** (~20-50MB) - Pre-computed metadata for Linux distro packages
+- **Trivy cache** - SBOM generation metadata and package databases
+- **Syft cache** - Package metadata for SBOM generation
+
+To persist caches across CI runs, configure your CI platform's caching mechanism.
+
+#### GitHub Actions
+
+Use `actions/cache` before calling the sbomify action:
+
+```yaml
+- name: Cache sbomify data
+  uses: actions/cache@v4
+  with:
+    path: .sbomify-cache
+    key: sbomify-${{ runner.os }}
+
+- uses: sbomify/github-action@master
+  env:
+    SBOMIFY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache
+    TRIVY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/trivy
+    SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
+    LOCK_FILE: requirements.txt
+    ENRICH: true
+    UPLOAD: false
+```
+
+For caching in other CI environments (GitLab, Bitbucket, Docker), see [Other CI/CD Platforms](#other-cicd-platforms).
+
+</details>
+
+<details>
+<summary><strong>Other CI/CD platforms</strong> (GitLab, Bitbucket, Docker, pip)</summary>
+
+#### GitLab
+
+```yaml
+generate-sbom:
+  image: sbomifyhub/sbomify-action
+  cache:
+    key: sbomify-cache
+    paths:
+      - .sbomify-cache/
+  variables:
+    SBOMIFY_CACHE_DIR: "${CI_PROJECT_DIR}/.sbomify-cache/sbomify"
+    TRIVY_CACHE_DIR: "${CI_PROJECT_DIR}/.sbomify-cache/trivy"
+    SYFT_CACHE_DIR: "${CI_PROJECT_DIR}/.sbomify-cache/syft"
+    LOCK_FILE: poetry.lock
+    OUTPUT_FILE: sbom.cdx.json
+    UPLOAD: "false"
+    ENRICH: "true"
+  script:
+    - sbomify-action
+```
+
+#### Bitbucket
+
+```yaml
+pipelines:
+  default:
+    - step:
+        caches:
+          - sbomify
+        script:
+          - pipe: docker://sbomifyhub/sbomify-action:latest
+            variables:
+              SBOMIFY_CACHE_DIR: "${BITBUCKET_CLONE_DIR}/.sbomify-cache/sbomify"
+              TRIVY_CACHE_DIR: "${BITBUCKET_CLONE_DIR}/.sbomify-cache/trivy"
+              SYFT_CACHE_DIR: "${BITBUCKET_CLONE_DIR}/.sbomify-cache/syft"
+              LOCK_FILE: poetry.lock
+              OUTPUT_FILE: sbom.cdx.json
+              UPLOAD: "false"
+              ENRICH: "true"
+
+definitions:
+  caches:
+    sbomify: .sbomify-cache
+```
+
+#### Docker
+
+```bash
+# Create persistent cache volume
+docker volume create sbomify-cache
+
+docker run --rm \
+  -v $(pwd):/github/workspace \
+  -v sbomify-cache:/cache \
+  -w /github/workspace \
+  -e SBOMIFY_CACHE_DIR=/cache/sbomify \
+  -e TRIVY_CACHE_DIR=/cache/trivy \
+  -e SYFT_CACHE_DIR=/cache/syft \
+  -e LOCK_FILE=/github/workspace/requirements.txt \
+  -e OUTPUT_FILE=/github/workspace/sbom.cdx.json \
+  -e UPLOAD=false \
+  -e ENRICH=true \
+  sbomifyhub/sbomify-action
+```
+
+#### pip (Advanced)
+
+For local development or environments where Docker isn't available, install via pip:
+
+```bash
+pip install sbomify-action
+```
+
+Run without arguments to see available options:
+
+```bash
+sbomify-action
+```
+
+Or use CLI arguments directly:
+
+```bash
+sbomify-action --lock-file requirements.txt --enrich --no-upload -o sbom.cdx.json
+```
+
+Environment variables also work (useful for scripts):
+
+```bash
+export LOCK_FILE=requirements.txt
+export OUTPUT_FILE=sbom.cdx.json
+export UPLOAD=false
+export ENRICH=true
+sbomify-action
+```
+
+**Note**: SBOM generation requires external tools (trivy, syft, or cdxgen) to be installed separately. The Docker image includes all tools pre-installed, which is why it's the recommended approach.
+
+</details>
+
+<details>
+<summary><strong>SBOM generation internals</strong> (generator selection, format selection, required tools)</summary>
+
+sbomify uses a plugin architecture for SBOM generation, automatically selecting the best generator for each input type and ecosystem.
+
+#### Generator Selection
+
+Generators are tried in priority order. Native tools (optimized for specific ecosystems) are preferred over generic scanners. Each tool supports different ecosystems:
+
+| Priority | Generator           | Supported Ecosystems                                                                                           | Output Formats                  |
+| -------- | ------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| 10       | **cyclonedx-py**    | Python only                                                                                                    | CycloneDX 1.0–1.7               |
+| 10       | **cargo-cyclonedx** | Rust only                                                                                                      | CycloneDX 1.4–1.6               |
+| 20       | **cdxgen**          | Python, JavaScript, **Java/Gradle**, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Scala, Docker images | CycloneDX 1.4–1.7               |
+| 30       | **Trivy**           | Python, JavaScript, Java/Gradle, Go, Rust, Ruby, C++, PHP, .NET, Docker images                                 | CycloneDX 1.6, SPDX 2.3         |
+| 35       | **Syft**            | Python, JavaScript, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Terraform, Docker images              | CycloneDX 1.2–1.6, SPDX 2.2–2.3 |
+
+#### How It Works
+
+1. **Python lockfiles** → cyclonedx-py (native, most accurate for Python)
+2. **Rust lockfiles** (Cargo.lock) → cargo-cyclonedx (native, most accurate for Rust)
+3. **Java lockfiles** (pom.xml, build.gradle, gradle.lockfile) → cdxgen (best Java support)
+4. **Dart lockfiles** (pubspec.lock) → cdxgen or Syft (Trivy doesn't support Dart)
+5. **Other lockfiles** (package-lock.json, go.mod, etc.) → cdxgen (then Trivy, then Syft as fallbacks)
+6. **Docker images** → cdxgen (then Trivy, then Syft as fallbacks)
+
+If the primary generator fails or doesn't support the input, the next one in priority order is tried automatically.
+
+#### Format Selection
+
+Control the output format with the `SBOM_FORMAT` environment variable:
+
+- **CycloneDX** (`SBOM_FORMAT=cyclonedx`): Default format. Uses the latest version supported by the selected generator.
+- **SPDX** (`SBOM_FORMAT=spdx`): Uses Trivy (2.3) or Syft (2.2/2.3) depending on availability.
+
+Generated SBOMs are validated against their JSON schemas before output.
+
+#### Required Tools
+
+When installed via pip, sbomify-action requires external SBOM generators. The Docker image includes all tools pre-installed.
+
+| Tool             | Install Command                                                                                 | Notes                                                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **cyclonedx-py** | `pip install cyclonedx-bom`                                                                     | Native Python generator; `cyclonedx-py` is the CLI command provided by the `cyclonedx-bom` package (installed as a dependency) |
+| **Trivy**        | [Installation guide](https://aquasecurity.github.io/trivy/latest/getting-started/installation/) | macOS: `brew install trivy`                                                                                                    |
+| **Syft**         | [Installation guide](https://github.com/anchore/syft#installation)                              | macOS: `brew install syft`                                                                                                     |
+| **cdxgen**       | `npm install -g @cyclonedx/cdxgen`                                                              | Requires Node.js/Bun                                                                                                           |
+
+**Minimum requirement**: At least one generator must be installed for SBOM generation. For Python projects, `cyclonedx-bom` (which provides the `cyclonedx-py` command) is installed as a dependency when you install sbomify-action via pip. For other ecosystems or Docker images, install `trivy`, `syft`, or `cdxgen`.
+
+</details>
+
+<details>
+<summary><strong>SBOM quality improvement</strong> (what enrichment adds, before/after example)</summary>
 
 SBOM generators like Trivy and Syft focus on dependency detection—they produce name, version, and PURL, but typically leave metadata fields empty. sbomify queries package registries to fill in these gaps, improving license compliance and supply chain visibility.
 
-### What's Typically Missing
+#### What's Typically Missing
 
 Scanners detect packages but don't fetch metadata. Here's what a typical Trivy component looks like:
 
@@ -802,7 +967,7 @@ After sbomify enrichment, the same component includes supplier, license, and ref
 }
 ```
 
-### Fields sbomify Adds
+#### Fields sbomify Adds
 
 sbomify attempts to populate these fields for each component:
 
@@ -818,85 +983,7 @@ sbomify attempts to populate these fields for each component:
 
 **Coverage varies by ecosystem.** Popular packages on PyPI, npm, and crates.io have excellent metadata. Linux distros (Alpine, Ubuntu, Rocky, Alma, CentOS, Fedora, Amazon Linux, Wolfi) have high license coverage through pre-computed license databases. sbomify queries multiple sources with fallbacks, but some fields may remain empty for obscure packages.
 
-### Data Sources (Priority Order)
-
-sbomify queries sources in priority order, stopping when data is found:
-
-| Ecosystem         | Primary Source   | Fallback Sources                        |
-| ----------------- | ---------------- | --------------------------------------- |
-| Python            | PyPI API         | deps.dev → ecosyste.ms → ClearlyDefined |
-| JavaScript        | deps.dev         | ecosyste.ms → ClearlyDefined            |
-| Rust              | crates.io API    | deps.dev → ecosyste.ms → ClearlyDefined |
-| Go                | deps.dev         | ecosyste.ms → ClearlyDefined            |
-| Ruby              | deps.dev         | ecosyste.ms → ClearlyDefined            |
-| Java/Maven        | deps.dev         | ecosyste.ms → ClearlyDefined            |
-| NuGet             | deps.dev         | ecosyste.ms → ClearlyDefined            |
-| Dart              | pub.dev API      | ecosyste.ms                             |
-| C++ (Conan)       | Conan Center API | ecosyste.ms                             |
-| Debian            | Debian Sources   | Repology → ecosyste.ms                  |
-| Ubuntu            | License DB       | Repology → ecosyste.ms                  |
-| Alpine            | License DB       | Repology → ecosyste.ms                  |
-| Wolfi             | License DB       | Repology → ecosyste.ms                  |
-| Rocky/Alma/CentOS | License DB       | Repology → ecosyste.ms                  |
-| Fedora            | License DB       | Repology → ecosyste.ms                  |
-| Amazon Linux      | License DB       | Repology → ecosyste.ms                  |
-
-### Limitations
-
-- **Network required**: Enrichment calls external APIs during CI. Not suitable for air-gapped environments.
-- **Rate limits**: APIs may rate-limit large SBOMs. sbomify uses caching and backoff, but very large dependency trees (1000+ packages) may see slower enrichment.
-- **Best effort**: If a package isn't in any registry (private packages, vendored code), no metadata will be added.
-
-> 📖 See [docs/enrichment_coverage.md](docs/enrichment_coverage.md) for detailed coverage information by ecosystem.
-
-## SBOM Generation
-
-sbomify uses a plugin architecture for SBOM generation, automatically selecting the best generator for each input type and ecosystem.
-
-### Generator Selection
-
-Generators are tried in priority order. Native tools (optimized for specific ecosystems) are preferred over generic scanners. Each tool supports different ecosystems:
-
-| Priority | Generator           | Supported Ecosystems                                                                                           | Output Formats                  |
-| -------- | ------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| 10       | **cyclonedx-py**    | Python only                                                                                                    | CycloneDX 1.0–1.7               |
-| 10       | **cargo-cyclonedx** | Rust only                                                                                                      | CycloneDX 1.4–1.6               |
-| 20       | **cdxgen**          | Python, JavaScript, **Java/Gradle**, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Scala, Docker images | CycloneDX 1.4–1.7               |
-| 30       | **Trivy**           | Python, JavaScript, Java/Gradle, Go, Rust, Ruby, C++, PHP, .NET, Docker images                                 | CycloneDX 1.6, SPDX 2.3         |
-| 35       | **Syft**            | Python, JavaScript, Go, Rust, Ruby, Dart, C++, PHP, .NET, Swift, Elixir, Terraform, Docker images              | CycloneDX 1.2–1.6, SPDX 2.2–2.3 |
-
-### How It Works
-
-1. **Python lockfiles** → cyclonedx-py (native, most accurate for Python)
-2. **Rust lockfiles** (Cargo.lock) → cargo-cyclonedx (native, most accurate for Rust)
-3. **Java lockfiles** (pom.xml, build.gradle, gradle.lockfile) → cdxgen (best Java support)
-4. **Dart lockfiles** (pubspec.lock) → cdxgen or Syft (Trivy doesn't support Dart)
-5. **Other lockfiles** (package-lock.json, go.mod, etc.) → cdxgen (then Trivy, then Syft as fallbacks)
-6. **Docker images** → cdxgen (then Trivy, then Syft as fallbacks)
-
-If the primary generator fails or doesn't support the input, the next one in priority order is tried automatically.
-
-### Format Selection
-
-Control the output format with the `SBOM_FORMAT` environment variable:
-
-- **CycloneDX** (`SBOM_FORMAT=cyclonedx`): Default format. Uses the latest version supported by the selected generator.
-- **SPDX** (`SBOM_FORMAT=spdx`): Uses Trivy (2.3) or Syft (2.2/2.3) depending on availability.
-
-Generated SBOMs are validated against their JSON schemas before output.
-
-### Required Tools
-
-When installed via pip, sbomify-action requires external SBOM generators. The Docker image includes all tools pre-installed.
-
-| Tool             | Install Command                                                                                 | Notes                                                                                                                          |
-| ---------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **cyclonedx-py** | `pip install cyclonedx-bom`                                                                     | Native Python generator; `cyclonedx-py` is the CLI command provided by the `cyclonedx-bom` package (installed as a dependency) |
-| **Trivy**        | [Installation guide](https://aquasecurity.github.io/trivy/latest/getting-started/installation/) | macOS: `brew install trivy`                                                                                                    |
-| **Syft**         | [Installation guide](https://github.com/anchore/syft#installation)                              | macOS: `brew install syft`                                                                                                     |
-| **cdxgen**       | `npm install -g @cyclonedx/cdxgen`                                                              | Requires Node.js/Bun                                                                                                           |
-
-**Minimum requirement**: At least one generator must be installed for SBOM generation. For Python projects, `cyclonedx-bom` (which provides the `cyclonedx-py` command) is installed as a dependency when you install sbomify-action via pip. For other ecosystems or Docker images, install `trivy`, `syft`, or `cdxgen`.
+</details>
 
 ## Format Support
 

@@ -1,0 +1,35 @@
+{
+    "spdxVersion": "SPDX-2.2",
+    "dataLicense": "CC0-1.0",
+    "SPDXID": "SPDXRef-DOCUMENT",
+    "name": "base-files",
+    "documentNamespace": "http://spdx.org/spdxdocs/base-files-3.0.14-efgh",
+    "creationInfo": {
+        "created": "2024-01-01T00:00:00Z",
+        "creators": ["Tool: oe-spdx"],
+        "licenseListVersion": "3.19"
+    },
+    "externalDocumentRefs": [
+        {
+            "externalDocumentId": "DocumentRef-recipe-base-files",
+            "spdxDocument": "http://spdx.org/spdxdocs/recipe-base-files-3.0.14-qrst",
+            "checksum": {
+                "algorithm": "SHA256",
+                "checksumValue": "cafebabe"
+            }
+        }
+    ],
+    "packages": [
+        {
+            "SPDXID": "SPDXRef-Package",
+            "name": "base-files",
+            "versionInfo": "3.0.14",
+            "supplier": "Organization: OpenEmbedded",
+            "downloadLocation": "NOASSERTION",
+            "filesAnalyzed": false,
+            "licenseConcluded": "GPL-2.0-only",
+            "licenseDeclared": "GPL-2.0-only",
+            "copyrightText": "NOASSERTION"
+        }
+    ]
+}
