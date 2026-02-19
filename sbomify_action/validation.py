@@ -49,6 +49,7 @@ CDX_SCHEMAS = {
 SPDX_SCHEMAS = {
     "2.2": SPDX_SCHEMA_DIR / "spdx-2.2.schema.json",
     "2.3": SPDX_SCHEMA_DIR / "spdx-2.3.schema.json",
+    "3.0.1": SPDX_SCHEMA_DIR / "spdx-3.0.1.schema.json",
 }
 
 # Cache for loaded schemas
@@ -210,7 +211,11 @@ def validate_sbom_data(
         registry = _get_schema_registry()
 
         # Create a validator with the registry for local schema resolution
-        validator = jsonschema.Draft7Validator(schema, registry=registry)
+        # SPDX 3.x schemas use Draft 2020-12; others use Draft 7
+        if sbom_format == "spdx" and spec_version and spec_version.startswith("3"):
+            validator = jsonschema.Draft202012Validator(schema, registry=registry)
+        else:
+            validator = jsonschema.Draft7Validator(schema, registry=registry)
 
         # Validate and collect errors
         errors = list(validator.iter_errors(sbom_data))
@@ -293,7 +298,14 @@ def detect_sbom_format_and_version(sbom_data: dict) -> Tuple[Optional[SBOMFormat
             return "cyclonedx", spec_version
         return "cyclonedx", None
 
-    # SPDX detection
+    # SPDX 3 detection (must come before SPDX 2.x since SPDX 3 has no spdxVersion field)
+    from .spdx3 import extract_spdx3_version, is_spdx3
+
+    if is_spdx3(sbom_data):
+        version = extract_spdx3_version(sbom_data)
+        return "spdx", version
+
+    # SPDX 2.x detection
     if "spdxVersion" in sbom_data:
         spdx_version = sbom_data.get("spdxVersion", "")
         # Extract version from "SPDX-2.3" format

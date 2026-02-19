@@ -69,6 +69,7 @@ from .serialization import (
     sanitize_spdx_json_file,
     serialize_cyclonedx_bom,
 )
+from .spdx3 import is_spdx3
 from .validation import validate_sbom_file_auto
 
 # Constants for SPDX license parsing
@@ -1612,6 +1613,184 @@ def _ensure_spdx_main_package_purl(document: Document, augmentation_data: dict[s
         logger.info(f"Added PURL to SPDX main package: {purl}")
 
 
+def augment_spdx3_sbom(
+    input_file: str,
+    output_file: str,
+    augmentation_data: Dict[str, Any],
+    override_sbom_metadata: bool = False,
+    component_name: Optional[str] = None,
+    component_version: Optional[str] = None,
+) -> None:
+    """Augment an SPDX 3 SBOM with organizational metadata.
+
+    Args:
+        input_file: Path to the input SPDX 3 JSON-LD file
+        output_file: Path to write the augmented output
+        augmentation_data: Metadata from backend/config
+        override_sbom_metadata: Whether to override existing metadata
+        component_name: Optional component name override
+        component_version: Optional component version override
+    """
+    from .spdx3 import (
+        ExternalReference as Spdx3ExtRef,
+    )
+    from .spdx3 import (
+        ExternalReferenceType as Spdx3ExtRefType,
+    )
+    from .spdx3 import (
+        Organization as Spdx3Org,
+    )
+    from .spdx3 import (
+        Person as Spdx3Person,
+    )
+    from .spdx3 import (
+        Tool as Spdx3Tool,
+    )
+    from .spdx3 import (
+        get_spdx3_document,
+        get_spdx3_root_package,
+        make_spdx3_spdx_id,
+        parse_spdx3_file,
+        spdx3_licenses_from_list,
+        write_spdx3_file,
+    )
+
+    payload = parse_spdx3_file(input_file)
+    doc = get_spdx3_document(payload)
+    root_pkg = get_spdx3_root_package(payload)
+
+    # Add sbomify tool
+    tool_id = make_spdx3_spdx_id()
+    tool = Spdx3Tool(spdx_id=tool_id, name=f"{SBOMIFY_TOOL_NAME}-{SBOMIFY_VERSION}")
+    payload.add_element(tool)
+    if doc:
+        doc.element.append(tool_id)
+        if doc.creation_info and tool_id not in doc.creation_info.created_using:
+            doc.creation_info.created_using.append(tool_id)
+    logger.info("Added sbomify as processing tool")
+
+    # Apply supplier information
+    if "supplier" in augmentation_data and root_pkg:
+        supplier_data = augmentation_data["supplier"]
+        supplier_name = supplier_data.get("name")
+        if supplier_name and (not root_pkg.supplied_by or override_sbom_metadata):
+            org_id = make_spdx3_spdx_id()
+            org = Spdx3Org(spdx_id=org_id, name=supplier_name)
+            payload.add_element(org)
+            root_pkg.supplied_by = [org_id]
+            if doc:
+                doc.element.append(org_id)
+            logger.info(f"Set supplier: {supplier_name}")
+
+    # Apply authors
+    if "authors" in augmentation_data and augmentation_data["authors"]:
+        authors_data = augmentation_data["authors"]
+        for author_data in authors_data:
+            author_name = author_data.get("name")
+            if author_name:
+                person_id = make_spdx3_spdx_id()
+                person = Spdx3Person(spdx_id=person_id, name=author_name)
+                payload.add_element(person)
+                if doc:
+                    doc.element.append(person_id)
+                    if doc.creation_info:
+                        doc.creation_info.created_by.append(person_id)
+        logger.info(f"Added {len(authors_data)} author(s)")
+
+    # Apply licenses
+    if "licenses" in augmentation_data and augmentation_data["licenses"] and root_pkg:
+        licenses_data = augmentation_data["licenses"]
+        license_ids = []
+        for lic_data in licenses_data:
+            if isinstance(lic_data, dict):
+                spdx_id = lic_data.get("spdx_id") or lic_data.get("name", "")
+                if spdx_id:
+                    license_ids.append(spdx_id)
+            elif isinstance(lic_data, str):
+                license_ids.append(lic_data)
+
+        if license_ids and (not root_pkg.declared_license or override_sbom_metadata):
+            root_pkg.declared_license = spdx3_licenses_from_list(license_ids)
+            logger.info(f"Set license(s): {', '.join(license_ids)}")
+
+    # Apply component name override
+    if component_name:
+        if doc:
+            doc.name = component_name
+        if root_pkg:
+            root_pkg.name = component_name
+        logger.info(f"Set component name: {component_name}")
+
+    # Apply component version override
+    if component_version and root_pkg:
+        root_pkg.package_version = component_version
+        logger.info(f"Set component version: {component_version}")
+
+    # Apply VCS information
+    vcs_url = augmentation_data.get("vcs_url")
+    vcs_commit_sha = augmentation_data.get("vcs_commit_sha")
+    if vcs_url and root_pkg:
+        download_url = vcs_url
+        if vcs_commit_sha:
+            download_url = f"git+{vcs_url}@{vcs_commit_sha}"
+        if not root_pkg.download_location or override_sbom_metadata:
+            root_pkg.download_location = download_url
+
+        # Add VCS external reference
+        existing_locs = []
+        for ref in root_pkg.external_reference:
+            existing_locs.extend(ref.locator)
+        if vcs_url not in existing_locs:
+            root_pkg.external_reference.append(
+                Spdx3ExtRef(
+                    external_reference_type=Spdx3ExtRefType.VCS,
+                    locator=[vcs_url],
+                )
+            )
+            logger.info(f"Added VCS reference: {vcs_url}")
+
+    # Apply security contact
+    security_contact = augmentation_data.get("security_contact")
+    if security_contact and root_pkg:
+        existing_locs = []
+        for ref in root_pkg.external_reference:
+            existing_locs.extend(ref.locator)
+        if security_contact not in existing_locs:
+            root_pkg.external_reference.append(
+                Spdx3ExtRef(
+                    external_reference_type=Spdx3ExtRefType.SECURITY_POLICY,
+                    locator=[security_contact],
+                    comment="Security vulnerability reporting contact",
+                )
+            )
+            logger.info(f"Added security contact: {security_contact}")
+
+    # Apply support period end date
+    support_end = augmentation_data.get("support_period_end")
+    if support_end and root_pkg:
+        try:
+            from datetime import datetime
+
+            valid_until = datetime.fromisoformat(support_end)
+            if not root_pkg.valid_until_time or override_sbom_metadata:
+                root_pkg.valid_until_time = valid_until
+                logger.info(f"Set valid_until_time: {support_end}")
+        except ValueError:
+            logger.warning(f"Could not parse support_period_end date '{support_end}'")
+
+    # Apply lifecycle phase
+    lifecycle_phase = augmentation_data.get("lifecycle_phase")
+    if lifecycle_phase and doc and doc.creation_info:
+        comment = f"Lifecycle phase: {lifecycle_phase}"
+        if doc.creation_info.comment:
+            doc.creation_info.comment += f" | {comment}"
+        else:
+            doc.creation_info.comment = comment
+        logger.info(f"Added lifecycle phase: {lifecycle_phase}")
+
+    write_spdx3_file(payload, output_file)
+
+
 def augment_sbom_from_file(
     input_file: str,
     output_file: str,
@@ -1745,8 +1924,39 @@ def augment_sbom_from_file(
 
             return "cyclonedx"
 
+        elif is_spdx3(data):
+            # Parse as SPDX 3
+            logger.info("Processing SPDX 3 SBOM")
+            augment_spdx3_sbom(
+                str(input_path),
+                output_file,
+                augmentation_data,
+                override_sbom_metadata,
+                component_name,
+                component_version,
+            )
+
+            logger.info(f"Augmented SPDX 3 SBOM written to: {output_file}")
+
+            # Validate the augmented SBOM
+            if validate:
+                validation_result = validate_sbom_file_auto(output_file)
+                if validation_result.valid is None:
+                    logger.warning(
+                        f"Augmented SBOM could not be validated ({validation_result.sbom_format} "
+                        f"{validation_result.spec_version}): {validation_result.error_message}"
+                    )
+                elif not validation_result.valid:
+                    raise SBOMValidationError(f"Augmented SBOM failed validation: {validation_result.error_message}")
+                else:
+                    logger.info(
+                        f"Augmented SBOM validated: {validation_result.sbom_format} {validation_result.spec_version}"
+                    )
+
+            return "spdx"
+
         elif data.get("spdxVersion"):
-            # Parse as SPDX
+            # Parse as SPDX 2.x
             try:
                 document = spdx_parse_file(str(input_path))
             except Exception as e:

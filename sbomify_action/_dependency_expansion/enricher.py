@@ -11,6 +11,7 @@ from packageurl import PackageURL
 from ..console import get_audit_trail
 from ..logging_config import logger
 from ..serialization import serialize_cyclonedx_bom
+from ..spdx3 import is_spdx3
 from .expanders.pipdeptree import PipdeptreeExpander
 from .models import DiscoveredDependency, ExpansionResult, normalize_python_package_name
 from .registry import ExpanderRegistry
@@ -91,7 +92,7 @@ class DependencyEnricher:
             # Determine original component count from the loaded SBOM
             if sbom_data.get("bomFormat") == "CycloneDX":
                 original_count = len(sbom_data.get("components") or [])
-            elif sbom_data.get("spdxVersion"):
+            elif sbom_data.get("spdxVersion") or is_spdx3(sbom_data):
                 original_count = len(sbom_data.get("packages") or [])
             else:
                 original_count = 0
@@ -108,6 +109,16 @@ class DependencyEnricher:
             result = self._enrich_cyclonedx(sbom_path, sbom_data, discovered, expander.name)
         elif sbom_data.get("spdxVersion"):
             result = self._enrich_spdx(sbom_path, sbom_data, discovered, expander.name)
+        elif is_spdx3(sbom_data):
+            # SPDX 3 dependency expansion - pass through for now
+            logger.debug("SPDX 3 dependency expansion: skipping (not yet supported)")
+            result = ExpansionResult(
+                original_count=0,
+                discovered_count=len(discovered),
+                added_count=0,
+                dependencies=discovered,
+                source=expander.name,
+            )
         else:
             logger.warning("Unknown SBOM format, skipping dependency expansion")
             result = ExpansionResult(

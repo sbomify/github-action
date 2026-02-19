@@ -11,6 +11,7 @@ from cyclonedx.model.bom import Bom
 from ..console import get_audit_trail
 from ..logging_config import logger
 from ..serialization import serialize_cyclonedx_bom
+from ..spdx3 import is_spdx3
 from .models import HashAlgorithm, PackageHash, normalize_package_name
 from .parsers import (
     CargoLockParser,
@@ -320,12 +321,23 @@ def enrich_sbom_with_hashes(
             f.write(serialized)
 
     elif sbom_data.get("spdxVersion"):
-        # SPDX format
+        # SPDX 2.x format
         stats = enricher.enrich_spdx(sbom_data, lock_path, overwrite_existing)
 
         # Write back
         with sbom_path.open("w") as f:
             json.dump(sbom_data, f, indent=2)
+
+    elif is_spdx3(sbom_data):
+        # SPDX 3 format - pass through without hash enrichment for now
+        logger.debug("SPDX 3 hash enrichment: skipping (not yet supported)")
+        return {
+            "lockfile_packages": 0,
+            "sbom_components": 0,
+            "components_matched": 0,
+            "hashes_added": 0,
+            "hashes_skipped": 0,
+        }
 
     else:
         logger.warning("Unknown SBOM format, skipping hash enrichment")

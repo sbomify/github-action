@@ -36,6 +36,7 @@ from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
 
 from .logging_config import logger
 from .serialization import sanitize_spdx_json_file, serialize_cyclonedx_bom
+from .spdx3 import is_spdx3
 
 # Default file name for additional packages
 DEFAULT_PACKAGES_FILE = "additional_packages.txt"
@@ -373,7 +374,7 @@ def inject_packages_into_spdx(document: Document, purls: List[str]) -> int:
     return injected
 
 
-def create_empty_sbom(output_file: str, sbom_format: str) -> str:
+def create_empty_sbom(output_file: str, sbom_format: str, spec_version: str | None = None) -> str:
     """
     Create a minimal valid empty SBOM file.
 
@@ -383,6 +384,7 @@ def create_empty_sbom(output_file: str, sbom_format: str) -> str:
     Args:
         output_file: Path to write the empty SBOM
         sbom_format: Either "cyclonedx" or "spdx"
+        spec_version: Optional spec version override (e.g. "3.0.1" for SPDX 3)
 
     Returns:
         The format string ("cyclonedx" or "spdx")
@@ -404,6 +406,10 @@ def create_empty_sbom(output_file: str, sbom_format: str) -> str:
         return "cyclonedx"
 
     elif sbom_format == "spdx":
+        # Check if SPDX 3 is requested
+        if spec_version and spec_version.startswith("3"):
+            return _create_empty_spdx3(output_file)
+
         creation_info = CreationInfo(
             spdx_version="SPDX-2.3",
             spdx_id="SPDXRef-DOCUMENT",
@@ -420,6 +426,94 @@ def create_empty_sbom(output_file: str, sbom_format: str) -> str:
 
     else:
         raise ValueError(f"Unsupported SBOM format: {sbom_format}. Must be 'cyclonedx' or 'spdx'.")
+
+
+def _create_empty_spdx3(output_file: str) -> str:
+    """Create a minimal valid empty SPDX 3 document."""
+    from datetime import datetime, timezone
+
+    from semantic_version import Version
+    from spdx_tools.spdx3.model import CreationInfo as Spdx3CreationInfo
+    from spdx_tools.spdx3.model import ProfileIdentifierType, SpdxDocument
+    from spdx_tools.spdx3.model import Tool as Spdx3Tool
+    from spdx_tools.spdx3.payload import Payload
+
+    from .spdx3 import make_spdx3_spdx_id, write_spdx3_file
+
+    creation_info = Spdx3CreationInfo(
+        spec_version=Version("3.0.1"),
+        created=datetime.now(timezone.utc),
+        created_by=[],
+        profile=[ProfileIdentifierType.CORE, ProfileIdentifierType.SOFTWARE],
+    )
+
+    tool_id = make_spdx3_spdx_id()
+    tool = Spdx3Tool(spdx_id=tool_id, name="sbomify-action", creation_info=creation_info)
+
+    doc_id = make_spdx3_spdx_id()
+    doc = SpdxDocument(
+        spdx_id=doc_id,
+        name="additional-packages-sbom",
+        element=[tool_id],
+        root_element=[],
+        creation_info=creation_info,
+    )
+
+    payload = Payload()
+    payload.add_element(doc)
+    payload.add_element(tool)
+    write_spdx3_file(payload, output_file)
+    logger.info(f"Created empty SPDX 3 SBOM: {output_file}")
+    return "spdx"
+
+
+def inject_packages_into_spdx3(sbom_file: str, purls: list[PackageURL]) -> int:
+    """Inject additional packages into an SPDX 3 SBOM.
+
+    Args:
+        sbom_file: Path to the SPDX 3 JSON-LD file
+        purls: List of PackageURL objects to inject
+
+    Returns:
+        Number of packages injected
+    """
+    from spdx_tools.spdx3.model.software.package import Package as Spdx3Package
+
+    from .spdx3 import (
+        get_spdx3_document,
+        make_spdx3_spdx_id,
+        parse_spdx3_file,
+        write_spdx3_file,
+    )
+
+    payload = parse_spdx3_file(sbom_file)
+    doc = get_spdx3_document(payload)
+    injected = 0
+
+    for purl in purls:
+        pkg_id = make_spdx3_spdx_id()
+        pkg_name = purl.name or "unknown"
+        pkg_version = purl.version
+
+        pkg = Spdx3Package(
+            spdx_id=pkg_id,
+            name=pkg_name,
+            package_version=pkg_version,
+            package_url=str(purl),
+        )
+        payload.add_element(pkg)
+
+        # Add to document element list
+        if doc:
+            doc.element.append(pkg_id)
+
+        injected += 1
+        logger.debug(f"Injected SPDX 3 package: {pkg_name}@{pkg_version or 'unknown'}")
+
+    if injected > 0:
+        write_spdx3_file(payload, sbom_file)
+
+    return injected
 
 
 def inject_additional_packages(sbom_file: str) -> int:
@@ -483,7 +577,16 @@ def inject_additional_packages(sbom_file: str) -> int:
 
         return injected
 
-    # Handle SPDX
+    # Handle SPDX 3
+    elif is_spdx3(data):
+        injected = inject_packages_into_spdx3(str(sbom_path), purls)
+
+        if injected > 0:
+            logger.info(f"Injected {injected} additional package(s) into SPDX 3 SBOM")
+
+        return injected
+
+    # Handle SPDX 2.x
     elif "spdxVersion" in data:
         spdx_version = data.get("spdxVersion")
         if not isinstance(spdx_version, str) or not spdx_version:
