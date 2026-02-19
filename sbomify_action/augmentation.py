@@ -1662,7 +1662,9 @@ def augment_spdx3_sbom(
 
     # Add sbomify tool
     tool_id = make_spdx3_spdx_id()
-    tool = Spdx3Tool(spdx_id=tool_id, name=f"{SBOMIFY_TOOL_NAME}-{SBOMIFY_VERSION}", creation_info=make_spdx3_creation_info())
+    tool = Spdx3Tool(
+        spdx_id=tool_id, name=f"{SBOMIFY_TOOL_NAME}-{SBOMIFY_VERSION}", creation_info=make_spdx3_creation_info()
+    )
     payload.add_element(tool)
     if doc:
         doc.element.append(tool_id)
@@ -1729,14 +1731,16 @@ def augment_spdx3_sbom(
         if root_pkg.package_url:
             try:
                 old_purl = PackageURL.from_string(root_pkg.package_url)
-                root_pkg.package_url = str(PackageURL(
-                    type=old_purl.type,
-                    namespace=old_purl.namespace,
-                    name=old_purl.name,
-                    version=component_version,
-                    qualifiers=old_purl.qualifiers,
-                    subpath=old_purl.subpath,
-                ))
+                root_pkg.package_url = str(
+                    PackageURL(
+                        type=old_purl.type,
+                        namespace=old_purl.namespace,
+                        name=old_purl.name,
+                        version=component_version,
+                        qualifiers=old_purl.qualifiers,
+                        subpath=old_purl.subpath,
+                    )
+                )
                 logger.debug(f"Updated SPDX 3 package PURL version: {old_purl} -> {root_pkg.package_url}")
             except Exception as e:
                 logger.warning(f"Failed to update SPDX 3 package PURL version: {e}")
