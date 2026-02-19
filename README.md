@@ -278,17 +278,16 @@ When uploading to Dependency Track (`UPLOAD_DESTINATIONS=dependency-track`), con
 Process SPDX SBOMs produced by Yocto/OpenEmbedded builds. The `yocto` subcommand extracts a `.spdx.tar.zst` (or `.tar.gz`) archive, discovers package SBOMs, creates components in sbomify, uploads each SBOM, and tags them with a product release.
 
 ```bash
-sbomify-action yocto tmp/deploy/images/qemux86-64/core-image-base.rootfs.spdx.tar.zst \
-  --token $SBOMIFY_TOKEN \
+sbomify-action --token $SBOMIFY_TOKEN \
+  yocto tmp/deploy/images/qemux86-64/core-image-base.rootfs.spdx.tar.zst \
   --release "my-product:1.0.0"
 ```
 
 | Option | Required | Description |
 | --- | --- | --- |
 | `SBOM_INPUT` (positional) | Yes | Path to `.spdx.tar.zst` or `.tar.gz` archive |
-| `--token` | Yes | sbomify API token (also reads `TOKEN` env var) |
+| `--token` (root option) | Yes | sbomify API token (pass before `yocto`, or set `TOKEN` env var) |
 | `--release` | Yes | Product release in `product_id:version` format |
-| `--api-base-url` | No | sbomify API URL (default: `https://app.sbomify.com`) |
 | `--augment/--no-augment` | No | Run augmentation per SBOM (default: off) |
 | `--enrich/--no-enrich` | No | Run enrichment per SBOM (default: off) |
 | `--dry-run` | No | Show what would happen without making API calls |
@@ -310,8 +309,8 @@ sbomify-action yocto tmp/deploy/images/qemux86-64/core-image-base.rootfs.spdx.ta
 - uses: sbomify/github-action@master
   # Build your Yocto image first, then:
 - run: |
-    sbomify-action yocto build/deploy/images/qemux86-64/core-image-base.rootfs.spdx.tar.zst \
-      --token ${{ secrets.SBOMIFY_TOKEN }} \
+    sbomify-action --token ${{ secrets.SBOMIFY_TOKEN }} \
+      yocto build/deploy/images/qemux86-64/core-image-base.rootfs.spdx.tar.zst \
       --release "my-product:${{ github.ref_name }}" \
       --enrich
 ```

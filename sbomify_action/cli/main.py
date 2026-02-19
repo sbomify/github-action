@@ -2077,8 +2077,8 @@ def yocto_cmd(
 
     \b
     Example:
-      sbomify-action yocto build/deploy/images/qemux86-64/image.spdx.tar.zst \\
-        --token $TOKEN --release "product-id:1.0.0"
+      sbomify-action --token $TOKEN yocto build/deploy/images/qemux86-64/image.spdx.tar.zst \\
+        --release "product-id:1.0.0"
     """
     # Enable debug logging if requested either on this command or the root CLI group
     effective_verbose = verbose or (ctx.parent and ctx.parent.params.get("verbose"))
