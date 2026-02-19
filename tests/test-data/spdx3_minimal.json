@@ -37,7 +37,13 @@
     {
       "type": "Tool",
       "@id": "urn:spdx.dev:tool-test",
-      "name": "test-tool"
+      "name": "test-tool",
+      "creationInfo": {
+        "specVersion": "3.0.1",
+        "created": "2024-01-01T00:00:00Z",
+        "createdBy": [],
+        "profile": ["core", "software"]
+      }
     },
     {
       "type": "Relationship",

@@ -1069,6 +1069,7 @@ def _enrich_spdx3_sbom(input_path: Path, output_path: Path, enricher: Enricher) 
     from .spdx3 import (
         get_spdx3_document,
         get_spdx3_packages,
+        make_spdx3_creation_info,
         make_spdx3_spdx_id,
         parse_spdx3_file,
         spdx3_license_from_string,
@@ -1150,7 +1151,7 @@ def _enrich_spdx3_sbom(input_path: Path, output_path: Path, enricher: Enricher) 
             supplier_name = sanitize_supplier(metadata.supplier)
             if supplier_name:
                 org_id = make_spdx3_spdx_id()
-                org = Spdx3Org(spdx_id=org_id, name=supplier_name)
+                org = Spdx3Org(spdx_id=org_id, name=supplier_name, creation_info=make_spdx3_creation_info())
                 payload.add_element(org)
                 package.supplied_by = [org_id]
                 if doc:

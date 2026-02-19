@@ -1649,6 +1649,7 @@ def augment_spdx3_sbom(
     from .spdx3 import (
         get_spdx3_document,
         get_spdx3_root_package,
+        make_spdx3_creation_info,
         make_spdx3_spdx_id,
         parse_spdx3_file,
         spdx3_licenses_from_list,
@@ -1661,7 +1662,7 @@ def augment_spdx3_sbom(
 
     # Add sbomify tool
     tool_id = make_spdx3_spdx_id()
-    tool = Spdx3Tool(spdx_id=tool_id, name=f"{SBOMIFY_TOOL_NAME}-{SBOMIFY_VERSION}")
+    tool = Spdx3Tool(spdx_id=tool_id, name=f"{SBOMIFY_TOOL_NAME}-{SBOMIFY_VERSION}", creation_info=make_spdx3_creation_info())
     payload.add_element(tool)
     if doc:
         doc.element.append(tool_id)
@@ -1675,7 +1676,7 @@ def augment_spdx3_sbom(
         supplier_name = supplier_data.get("name")
         if supplier_name and (not root_pkg.supplied_by or override_sbom_metadata):
             org_id = make_spdx3_spdx_id()
-            org = Spdx3Org(spdx_id=org_id, name=supplier_name)
+            org = Spdx3Org(spdx_id=org_id, name=supplier_name, creation_info=make_spdx3_creation_info())
             payload.add_element(org)
             root_pkg.supplied_by = [org_id]
             if doc:
@@ -1689,7 +1690,7 @@ def augment_spdx3_sbom(
             author_name = author_data.get("name")
             if author_name:
                 person_id = make_spdx3_spdx_id()
-                person = Spdx3Person(spdx_id=person_id, name=author_name)
+                person = Spdx3Person(spdx_id=person_id, name=author_name, creation_info=make_spdx3_creation_info())
                 payload.add_element(person)
                 if doc:
                     doc.element.append(person_id)

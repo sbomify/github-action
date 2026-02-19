@@ -481,6 +481,7 @@ def inject_packages_into_spdx3(sbom_file: str, purls: list[PackageURL]) -> int:
 
     from .spdx3 import (
         get_spdx3_document,
+        make_spdx3_creation_info,
         make_spdx3_spdx_id,
         parse_spdx3_file,
         write_spdx3_file,
@@ -500,6 +501,7 @@ def inject_packages_into_spdx3(sbom_file: str, purls: list[PackageURL]) -> int:
             name=pkg_name,
             package_version=pkg_version,
             package_url=str(purl),
+            creation_info=make_spdx3_creation_info(),
         )
         payload.add_element(pkg)
 
