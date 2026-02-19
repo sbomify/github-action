@@ -115,12 +115,12 @@ class TestYoctoCli:
             [
                 "--token",
                 "t",
+                "--api-base-url",
+                "https://custom.example.com/",
                 "yocto",
                 archive,
                 "--release",
                 "prod:1.0",
-                "--api-base-url",
-                "https://custom.example.com/",
             ],
         )
         assert result.exit_code == 0

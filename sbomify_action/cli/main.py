@@ -2051,13 +2051,6 @@ def cli(
     required=True,
     help="Product release in product_id:version format.",
 )
-@click.option(
-    "--api-base-url",
-    envvar="API_BASE_URL",
-    default="https://app.sbomify.com",
-    show_default=True,
-    help="sbomify API base URL.",
-)
 @click.option("--augment/--no-augment", default=False, help="Run augmentation per SBOM.")
 @click.option("--enrich/--no-enrich", default=False, help="Run enrichment per SBOM.")
 @click.option("--dry-run", is_flag=True, default=False, help="Show what would happen without API calls.")
@@ -2067,7 +2060,6 @@ def yocto_cmd(
     ctx: click.Context,
     sbom_input: str,
     release: str,
-    api_base_url: str,
     augment: bool,
     enrich: bool,
     dry_run: bool,
@@ -2088,7 +2080,9 @@ def yocto_cmd(
       sbomify-action yocto build/deploy/images/qemux86-64/image.spdx.tar.zst \\
         --token $TOKEN --release "product-id:1.0.0"
     """
-    if verbose:
+    # Enable debug logging if requested either on this command or the root CLI group
+    effective_verbose = verbose or (ctx.parent and ctx.parent.params.get("verbose"))
+    if effective_verbose:
         import logging
 
         logging.getLogger("sbomify_action").setLevel(logging.DEBUG)
@@ -2101,15 +2095,18 @@ def yocto_cmd(
     if not yocto_token:
         raise click.UsageError("Missing required option '--token' (provide via root command or TOKEN env var).")
 
+    # Get api-base-url from parent CLI group (--api-base-url on the root command or API_BASE_URL env var)
+    api_base_url = (ctx.parent.params.get("api_base_url") if ctx.parent else None) or SBOMIFY_PRODUCTION_API
+
     # Parse release format
     if ":" not in release:
         raise click.BadParameter(
-            "Must be in product_id:version format (e.g., 'my-product:1.0.0').", param_hint="'--release'"
+            "Must be in product_id:version format (e.g., 'my-product:1.0.0').", param_hint="--release"
         )
 
     product_id, release_version = release.split(":", 1)
     if not product_id or not release_version:
-        raise click.BadParameter("Both product_id and version must be non-empty.", param_hint="'--release'")
+        raise click.BadParameter("Both product_id and version must be non-empty.", param_hint="--release")
 
     from sbomify_action._yocto.models import YoctoConfig
     from sbomify_action._yocto.pipeline import run_yocto_pipeline
