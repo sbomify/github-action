@@ -123,7 +123,11 @@ def _run_spdx3_pipeline(config: YoctoConfig, data: dict) -> YoctoPipelineResult:
         )
 
     graph = data.get("@graph", [])
-    pkg_count = sum(1 for el in graph if isinstance(el, dict) and el.get("type") == "software_Package")
+    pkg_count = sum(
+        1
+        for el in graph
+        if isinstance(el, dict) and (el.get("type") or el.get("@type")) in ("software_Package", "Package")
+    )
     console.print(f"\n[bold]SPDX 3 single file:[/bold] {config.input_path}")
     console.print(f"  {len(graph)} elements, {pkg_count} packages")
 

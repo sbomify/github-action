@@ -245,7 +245,7 @@ def _parse_hash(h_dict: dict) -> Hash:
     return Hash(algorithm=algorithm, hash_value=h_dict.get("hashValue", ""))
 
 
-def _parse_common_fields(elem: dict) -> dict:
+def _parse_common_fields(elem: dict, creation_info_map: dict[str, CreationInfo] | None = None) -> dict:
     """Extract fields common to all Element subclasses."""
     result: dict = {}
 
@@ -255,8 +255,15 @@ def _parse_common_fields(elem: dict) -> dict:
         logger.warning(f"Element missing @id/spdxId, generated fallback: {spdx_id}")
     result["spdx_id"] = spdx_id
 
-    if "creationInfo" in elem and isinstance(elem["creationInfo"], dict):
-        result["creation_info"] = _parse_creation_info(elem["creationInfo"])
+    creation_info_raw = elem.get("creationInfo")
+    if isinstance(creation_info_raw, dict):
+        result["creation_info"] = _parse_creation_info(creation_info_raw)
+    elif isinstance(creation_info_raw, str):
+        # IRI reference to a CreationInfo element in the graph
+        if creation_info_map and creation_info_raw in creation_info_map:
+            result["creation_info"] = creation_info_map[creation_info_raw]
+        else:
+            result["creation_info"] = make_spdx3_creation_info()
 
     for field_name in ("name", "summary", "description", "comment", "extension"):
         if field_name in elem:
@@ -346,9 +353,9 @@ def _parse_software_artifact_fields(elem: dict, fields: dict) -> None:
         fields["standard"] = stds
 
 
-def _parse_package(elem: dict) -> Package:
+def _parse_package(elem: dict, ci_map: dict[str, CreationInfo] | None = None) -> Package:
     """Parse a Package element."""
-    fields = _parse_common_fields(elem)
+    fields = _parse_common_fields(elem, ci_map)
     _parse_software_artifact_fields(elem, fields)
 
     # Package-specific fields
@@ -369,9 +376,9 @@ def _parse_package(elem: dict) -> Package:
     return Package(**fields)
 
 
-def _parse_file(elem: dict) -> SpdxFile:
+def _parse_file(elem: dict, ci_map: dict[str, CreationInfo] | None = None) -> SpdxFile:
     """Parse a File element."""
-    fields = _parse_common_fields(elem)
+    fields = _parse_common_fields(elem, ci_map)
     _parse_software_artifact_fields(elem, fields)
 
     # Ensure required 'name' field
@@ -381,9 +388,9 @@ def _parse_file(elem: dict) -> SpdxFile:
     return SpdxFile(**fields)
 
 
-def _parse_spdx_document(elem: dict) -> SpdxDocument:
+def _parse_spdx_document(elem: dict, ci_map: dict[str, CreationInfo] | None = None) -> SpdxDocument:
     """Parse an SpdxDocument element."""
-    fields = _parse_common_fields(elem)
+    fields = _parse_common_fields(elem, ci_map)
 
     element_list = elem.get("element", [])
     if isinstance(element_list, str):
@@ -403,9 +410,9 @@ def _parse_spdx_document(elem: dict) -> SpdxDocument:
     return SpdxDocument(**fields)
 
 
-def _parse_relationship(elem: dict) -> Relationship:
+def _parse_relationship(elem: dict, ci_map: dict[str, CreationInfo] | None = None) -> Relationship:
     """Parse a Relationship element."""
-    fields = _parse_common_fields(elem)
+    fields = _parse_common_fields(elem, ci_map)
 
     from_element = elem.get("from", elem.get("fromElement", ""))
     fields["from_element"] = from_element
@@ -422,9 +429,9 @@ def _parse_relationship(elem: dict) -> Relationship:
     return Relationship(**fields)
 
 
-def _parse_agent(elem: dict, cls: type) -> Organization | Person | Tool:
+def _parse_agent(elem: dict, cls: type, ci_map: dict[str, CreationInfo] | None = None) -> Organization | Person | Tool:
     """Parse an Organization, Person, or Tool element."""
-    fields = _parse_common_fields(elem)
+    fields = _parse_common_fields(elem, ci_map)
     return cls(**fields)
 
 
@@ -467,6 +474,19 @@ def parse_spdx3_data(data: dict) -> Payload:
     if not graph and ("type" in data or "@type" in data):
         graph = [data]
 
+    # First pass: collect CreationInfo elements keyed by IRI so that
+    # elements referencing them via string can be resolved.
+    ci_map: dict[str, CreationInfo] = {}
+    for elem in graph:
+        if not isinstance(elem, dict):
+            continue
+        elem_type = elem.get("type") or elem.get("@type", "")
+        if elem_type == "CreationInfo":
+            ci_id = elem.get("@id") or elem.get("spdxId")
+            if ci_id:
+                ci_map[ci_id] = _parse_creation_info(elem)
+
+    # Second pass: parse all other elements
     payload = Payload()
 
     for elem in graph:
@@ -479,19 +499,21 @@ def parse_spdx3_data(data: dict) -> Payload:
 
         try:
             if elem_type == "SpdxDocument":
-                payload.add_element(_parse_spdx_document(elem))
+                payload.add_element(_parse_spdx_document(elem, ci_map))
             elif elem_type == "Package":
-                payload.add_element(_parse_package(elem))
+                payload.add_element(_parse_package(elem, ci_map))
             elif elem_type == "File":
-                payload.add_element(_parse_file(elem))
+                payload.add_element(_parse_file(elem, ci_map))
             elif elem_type == "Organization":
-                payload.add_element(_parse_agent(elem, Organization))
+                payload.add_element(_parse_agent(elem, Organization, ci_map))
             elif elem_type == "Person":
-                payload.add_element(_parse_agent(elem, Person))
+                payload.add_element(_parse_agent(elem, Person, ci_map))
             elif elem_type == "Tool":
-                payload.add_element(_parse_agent(elem, Tool))
+                payload.add_element(_parse_agent(elem, Tool, ci_map))
             elif elem_type == "Relationship":
-                payload.add_element(_parse_relationship(elem))
+                payload.add_element(_parse_relationship(elem, ci_map))
+            elif elem_type == "CreationInfo":
+                pass  # Already handled in first pass
             else:
                 logger.debug(f"Skipping unknown SPDX 3 element type: {elem_type}")
         except Exception as e:
