@@ -120,8 +120,13 @@ class DependencyEnricher:
         elif is_spdx3(sbom_data):
             # SPDX 3 dependency expansion - pass through for now
             logger.debug("SPDX 3 dependency expansion: skipping (not yet supported)")
+            spdx3_count = sum(
+                1
+                for e in sbom_data.get("@graph", [])
+                if isinstance(e, dict) and (e.get("type") or e.get("@type", "")) in ("software_Package", "Package")
+            )
             result = ExpansionResult(
-                original_count=0,
+                original_count=spdx3_count,
                 discovered_count=len(discovered),
                 added_count=0,
                 dependencies=discovered,

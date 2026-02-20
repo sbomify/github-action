@@ -210,8 +210,9 @@ def _parse_creation_info(ci_dict: dict) -> CreationInfo:
 
 def _parse_external_reference(ref_dict: dict) -> ExternalReference:
     """Parse an external reference dict."""
-    ref_type_str = ref_dict.get("externalReferenceType", "")
-    ref_type = _EXT_REF_TYPES.get(ref_type_str.lower())
+    # SPDX 3.0.1 schema uses "externalRefType"; accept both forms for compatibility
+    ref_type_str = ref_dict.get("externalRefType") or ref_dict.get("externalReferenceType", "")
+    ref_type = _EXT_REF_TYPES.get(ref_type_str.lower(), ExternalReferenceType.OTHER) if ref_type_str else None
 
     locator = ref_dict.get("locator", [])
     if isinstance(locator, str):
@@ -261,19 +262,20 @@ def _parse_common_fields(elem: dict) -> dict:
         if field_name in elem:
             result[field_name] = elem[field_name]
 
-    # External references
-    ext_refs_raw = elem.get("externalReference", [])
+    # External references — SPDX 3.0.1 schema uses "externalRef"; accept both forms.
+    # Items can be dicts (embedded objects) or strings (IRIs); only parse dicts.
+    ext_refs_raw = elem.get("externalRef") or elem.get("externalReference", [])
     if isinstance(ext_refs_raw, dict):
         ext_refs_raw = [ext_refs_raw]
     if ext_refs_raw:
-        result["external_reference"] = [_parse_external_reference(r) for r in ext_refs_raw]
+        result["external_reference"] = [_parse_external_reference(r) for r in ext_refs_raw if isinstance(r, dict)]
 
-    # External identifiers
+    # External identifiers — items can be dicts or IRI strings; only parse dicts.
     ext_ids_raw = elem.get("externalIdentifier", [])
     if isinstance(ext_ids_raw, dict):
         ext_ids_raw = [ext_ids_raw]
     if ext_ids_raw:
-        result["external_identifier"] = [_parse_external_identifier(r) for r in ext_ids_raw]
+        result["external_identifier"] = [_parse_external_identifier(r) for r in ext_ids_raw if isinstance(r, dict)]
 
     # Verified using (hashes)
     hashes_raw = elem.get("verifiedUsing", [])
@@ -450,8 +452,17 @@ def parse_spdx3_file(file_path: str) -> Payload:
 
 
 def parse_spdx3_data(data: dict) -> Payload:
-    """Parse SPDX 3 JSON-LD data (already loaded) into a :class:`Payload`."""
+    """Parse SPDX 3 JSON-LD data (already loaded) into a :class:`Payload`.
+
+    Handles both ``@graph``-based documents and top-level element documents
+    (where the root object itself is the element, without ``@graph``).
+    """
     graph = data.get("@graph", [])
+
+    # Handle non-@graph form: top-level object is itself an element
+    if not graph and ("type" in data or "@type" in data):
+        graph = [data]
+
     payload = Payload()
 
     for elem in graph:
