@@ -18,7 +18,7 @@ class YoctoPackage:
 class YoctoConfig:
     """Configuration for the Yocto pipeline."""
 
-    archive_path: str
+    input_path: str
     token: str
     product_id: str
     release_version: str
@@ -26,6 +26,7 @@ class YoctoConfig:
     augment: bool = False
     enrich: bool = False
     dry_run: bool = False
+    component_id: str | None = None
 
 
 @dataclass

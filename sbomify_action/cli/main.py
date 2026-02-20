@@ -2161,6 +2161,7 @@ def cli(
     required=True,
     help="Product release in product_id:version format.",
 )
+@click.option("--component-id", default=None, help="Component ID for SPDX 3 single-file upload.")
 @click.option("--augment/--no-augment", default=False, help="Run augmentation per SBOM.")
 @click.option("--enrich/--no-enrich", default=False, help="Run enrichment per SBOM.")
 @click.option("--dry-run", is_flag=True, default=False, help="Show what would happen without API calls.")
@@ -2170,25 +2171,36 @@ def yocto_cmd(
     ctx: click.Context,
     sbom_input: str,
     release: str,
+    component_id: str | None,
     augment: bool,
     enrich: bool,
     dry_run: bool,
     verbose: bool,
 ) -> None:
-    """Process Yocto/OpenEmbedded SPDX SBOM archives.
+    """Process Yocto/OpenEmbedded SPDX SBOMs.
 
     \b
-    Extracts a .spdx.tar.zst (or .tar.gz) archive from a Yocto build,
-    discovers package SBOMs, creates components, uploads SBOMs, and
-    tags them with a release.
+    Supports two input modes:
 
     \b
-    SBOM_INPUT is the path to the Yocto SPDX archive (.spdx.tar.zst or .tar.gz).
+    1. SPDX 2.2 archive (.spdx.tar.zst or .tar.gz) — extracts per-package
+       SBOMs, creates components, uploads, and tags with a release.
 
     \b
-    Example:
-      sbomify-action --token $TOKEN yocto build/deploy/images/qemux86-64/image.spdx.tar.zst \\
+    2. SPDX 3 single JSON-LD file (Yocto 5.0+) — uploads the entire file
+       as one SBOM to the component specified by --component-id.
+
+    \b
+    SBOM_INPUT is a Yocto SPDX archive (.spdx.tar.zst/.tar.gz) or a single SPDX 3 JSON-LD file.
+
+    \b
+    Examples:
+      sbomify-action --token $TOKEN yocto build/deploy/images/image.spdx.tar.zst \\
         --release "product-id:1.0.0"
+
+    \b
+      sbomify-action --token $TOKEN yocto image.spdx.json \\
+        --release "product-id:1.0.0" --component-id "comp-abc123"
     """
     # Enable debug logging if requested either on this command or the root CLI group
     effective_verbose = verbose or (ctx.parent and ctx.parent.params.get("verbose"))
@@ -2222,7 +2234,7 @@ def yocto_cmd(
     from sbomify_action._yocto.pipeline import run_yocto_pipeline
 
     config = YoctoConfig(
-        archive_path=sbom_input,
+        input_path=sbom_input,
         token=yocto_token,
         product_id=product_id,
         release_version=release_version,
@@ -2230,6 +2242,7 @@ def yocto_cmd(
         augment=augment,
         enrich=enrich,
         dry_run=dry_run,
+        component_id=component_id,
     )
 
     result = run_yocto_pipeline(config)

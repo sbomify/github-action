@@ -1,5 +1,6 @@
 """Tests for the Yocto CLI command."""
 
+import json
 import tarfile
 from pathlib import Path
 from unittest.mock import patch
@@ -131,3 +132,61 @@ class TestYoctoCli:
         runner = CliRunner()
         result = runner.invoke(cli, ["yocto", "/nonexistent/path.tar.zst", "--token", "t", "--release", "prod:1.0"])
         assert result.exit_code != 0
+
+    @patch("sbomify_action._yocto.pipeline.run_yocto_pipeline")
+    def test_spdx3_with_component_id(self, mock_pipeline, tmp_path):
+        spdx3_file = tmp_path / "image.spdx.json"
+        spdx3_file.write_text(
+            json.dumps(
+                {
+                    "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+                    "@graph": [{"type": "software_Package", "spdxId": "urn:pkg", "name": "test"}],
+                }
+            )
+        )
+        mock_pipeline.return_value = YoctoPipelineResult(packages_found=1, sboms_uploaded=1)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--token",
+                "t",
+                "yocto",
+                str(spdx3_file),
+                "--release",
+                "prod:1.0",
+                "--component-id",
+                "comp-abc",
+            ],
+        )
+        assert result.exit_code == 0
+        mock_pipeline.assert_called_once()
+
+        config = mock_pipeline.call_args[0][0]
+        assert config.component_id == "comp-abc"
+        assert config.input_path == str(spdx3_file)
+
+    @patch("sbomify_action._yocto.pipeline.run_yocto_pipeline")
+    def test_spdx3_without_component_id(self, mock_pipeline, tmp_path):
+        """SPDX 3 without --component-id should fail in the pipeline (ConfigurationError)."""
+        spdx3_file = tmp_path / "image.spdx.json"
+        spdx3_file.write_text(
+            json.dumps(
+                {
+                    "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+                    "@graph": [{"type": "software_Package", "spdxId": "urn:pkg", "name": "test"}],
+                }
+            )
+        )
+        mock_pipeline.return_value = YoctoPipelineResult()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["--token", "t", "yocto", str(spdx3_file), "--release", "prod:1.0"],
+        )
+        # CLI itself accepts it (component_id=None), pipeline validates
+        assert result.exit_code == 0
+        config = mock_pipeline.call_args[0][0]
+        assert config.component_id is None

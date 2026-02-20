@@ -1,5 +1,6 @@
 """Batch orchestrator for Yocto SPDX pipeline."""
 
+import json
 import shutil
 
 from rich.table import Table
@@ -8,8 +9,9 @@ from sbomify_action._processors.releases_api import create_release, tag_sbom_wit
 from sbomify_action.augmentation import augment_sbom_from_file
 from sbomify_action.console import console
 from sbomify_action.enrichment import enrich_sbom
-from sbomify_action.exceptions import APIError
+from sbomify_action.exceptions import APIError, ConfigurationError
 from sbomify_action.logging_config import logger
+from sbomify_action.spdx3 import is_spdx3
 from sbomify_action.upload import upload_sbom
 
 from .api import get_or_create_component, list_components
@@ -99,14 +101,78 @@ def _print_summary(result: YoctoPipelineResult) -> None:
     console.print(table)
 
 
+def _detect_spdx3(input_path: str) -> dict | None:
+    """If *input_path* is an SPDX 3 JSON-LD file, return parsed data; else None."""
+    if not input_path.endswith((".json", ".spdx.json")):
+        return None
+    try:
+        with open(input_path) as f:
+            data = json.load(f)
+        if isinstance(data, dict) and is_spdx3(data):
+            return data
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
+
+
+def _run_spdx3_pipeline(config: YoctoConfig, data: dict) -> YoctoPipelineResult:
+    """Single-file SPDX 3 pipeline: augment, enrich, upload, release-tag."""
+    if not config.component_id:
+        raise ConfigurationError(
+            "SPDX 3 single-file mode requires --component-id. Specify the sbomify component ID to upload this SBOM to."
+        )
+
+    graph = data.get("@graph", [])
+    pkg_count = sum(1 for el in graph if isinstance(el, dict) and el.get("type") == "software_Package")
+    console.print(f"\n[bold]SPDX 3 single file:[/bold] {config.input_path}")
+    console.print(f"  {len(graph)} elements, {pkg_count} packages")
+
+    result = YoctoPipelineResult(packages_found=pkg_count)
+
+    if config.dry_run:
+        console.print("\n[bold yellow]DRY RUN[/bold yellow] - no API calls will be made")
+        console.print(f"  Would upload to component {config.component_id}")
+        result.sboms_skipped = 1
+        _print_summary(result)
+        return result
+
+    try:
+        sbom_id = _process_single_package(
+            pkg_name="spdx3-image",
+            pkg_spdx_file=config.input_path,
+            component_id=config.component_id,
+            config=config,
+        )
+
+        if sbom_id:
+            result.sboms_uploaded = 1
+
+            console.print(f"\n[bold]Creating release:[/bold] {config.product_id}:{config.release_version}")
+            release_id = create_release(config.api_base_url, config.token, config.product_id, config.release_version)
+            if release_id:
+                result.release_id = release_id
+                tag_sbom_with_release(config.api_base_url, config.token, sbom_id, release_id)
+                console.print(f"  Tagged SBOM with release {release_id}")
+        else:
+            result.sboms_skipped = 1
+
+    except Exception as e:
+        result.errors += 1
+        result.error_messages.append(str(e))
+        logger.error(f"SPDX 3 pipeline error: {e}")
+
+    _print_summary(result)
+    return result
+
+
 def run_yocto_pipeline(config: YoctoConfig) -> YoctoPipelineResult:
     """Run the full Yocto batch pipeline.
 
-    Steps:
-    1. Extract archive
-    2. Discover packages
-    3. For each package: get/create component, augment, enrich, upload
-    4. Create release and tag SBOMs
+    For SPDX 3 single JSON-LD files (Yocto 5.0+), uploads as one SBOM
+    to the component specified by --component-id.
+
+    For SPDX 2.2 archives (.spdx.tar.zst/.tar.gz), extracts and processes
+    each package SBOM individually.
 
     Args:
         config: Pipeline configuration
@@ -114,13 +180,18 @@ def run_yocto_pipeline(config: YoctoConfig) -> YoctoPipelineResult:
     Returns:
         YoctoPipelineResult with summary statistics
     """
+    # Detect SPDX 3 single-file input
+    spdx3_data = _detect_spdx3(config.input_path)
+    if spdx3_data is not None:
+        return _run_spdx3_pipeline(config, spdx3_data)
+
     result = YoctoPipelineResult()
     extract_dir = None
 
     try:
         # Step 1: Extract
-        console.print(f"\n[bold]Extracting archive:[/bold] {config.archive_path}")
-        extract_dir = extract_archive(config.archive_path)
+        console.print(f"\n[bold]Extracting archive:[/bold] {config.input_path}")
+        extract_dir = extract_archive(config.input_path)
 
         # Step 2: Discover packages
         console.print("[bold]Discovering packages...[/bold]")
