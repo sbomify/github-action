@@ -17,6 +17,21 @@ from .models import DiscoveredDependency, ExpansionResult, normalize_python_pack
 from .registry import ExpanderRegistry
 
 
+def _count_sbom_packages(sbom_data: dict) -> int:
+    """Count packages in any SBOM format (CycloneDX, SPDX 2.x, SPDX 3)."""
+    if sbom_data.get("bomFormat") == "CycloneDX":
+        return len(sbom_data.get("components") or [])
+    if sbom_data.get("spdxVersion"):
+        return len(sbom_data.get("packages") or [])
+    if is_spdx3(sbom_data):
+        return sum(
+            1
+            for e in sbom_data.get("@graph", [])
+            if isinstance(e, dict) and (e.get("type") or e.get("@type", "")) in ("software_Package", "Package")
+        )
+    return 0
+
+
 def create_default_registry() -> ExpanderRegistry:
     """Create registry with default expanders."""
     registry = ExpanderRegistry()
@@ -51,12 +66,18 @@ class DependencyEnricher:
         sbom_path = Path(sbom_file)
         lock_path = Path(lock_file)
 
+        # Load SBOM early so we can report accurate original_count
+        # even when no transitive dependencies are discovered or
+        # expansion is skipped entirely.
+        with sbom_path.open("r") as f:
+            sbom_data = json.load(f)
+
         # Find applicable expander
         expander = self._registry.get_expander_for(lock_path)
         if not expander:
             logger.debug(f"No expander supports {lock_path.name}")
             return ExpansionResult(
-                original_count=0,
+                original_count=_count_sbom_packages(sbom_data),
                 discovered_count=0,
                 added_count=0,
                 dependencies=[],
@@ -70,17 +91,12 @@ class DependencyEnricher:
                 "(packages may not be installed in environment)"
             )
             return ExpansionResult(
-                original_count=0,
+                original_count=_count_sbom_packages(sbom_data),
                 discovered_count=0,
                 added_count=0,
                 dependencies=[],
                 source=expander.name,
             )
-
-        # Load SBOM early so we can report accurate original_count
-        # even when no transitive dependencies are discovered.
-        with sbom_path.open("r") as f:
-            sbom_data = json.load(f)
 
         # Discover transitive dependencies
         logger.info(f"Discovering transitive dependencies with {expander.name}...")
@@ -88,25 +104,8 @@ class DependencyEnricher:
 
         if not discovered:
             logger.info("No transitive dependencies discovered")
-
-            # Determine original component count from the loaded SBOM
-            if sbom_data.get("bomFormat") == "CycloneDX":
-                original_count = len(sbom_data.get("components") or [])
-            elif sbom_data.get("spdxVersion"):
-                original_count = len(sbom_data.get("packages") or [])
-            elif is_spdx3(sbom_data):
-                # SPDX 3 packages live in @graph alongside other element types;
-                # count only software_Package / Package entries.
-                original_count = sum(
-                    1
-                    for e in sbom_data.get("@graph", [])
-                    if isinstance(e, dict) and (e.get("type") or e.get("@type", "")) in ("software_Package", "Package")
-                )
-            else:
-                original_count = 0
-
             return ExpansionResult(
-                original_count=original_count,
+                original_count=_count_sbom_packages(sbom_data),
                 discovered_count=0,
                 added_count=0,
                 dependencies=[],
@@ -120,13 +119,8 @@ class DependencyEnricher:
         elif is_spdx3(sbom_data):
             # SPDX 3 dependency expansion - pass through for now
             logger.debug("SPDX 3 dependency expansion: skipping (not yet supported)")
-            spdx3_count = sum(
-                1
-                for e in sbom_data.get("@graph", [])
-                if isinstance(e, dict) and (e.get("type") or e.get("@type", "")) in ("software_Package", "Package")
-            )
             result = ExpansionResult(
-                original_count=spdx3_count,
+                original_count=_count_sbom_packages(sbom_data),
                 discovered_count=len(discovered),
                 added_count=0,
                 dependencies=discovered,
@@ -135,7 +129,7 @@ class DependencyEnricher:
         else:
             logger.warning("Unknown SBOM format, skipping dependency expansion")
             result = ExpansionResult(
-                original_count=0,
+                original_count=_count_sbom_packages(sbom_data),
                 discovered_count=len(discovered),
                 added_count=0,
                 dependencies=discovered,
