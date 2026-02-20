@@ -212,7 +212,7 @@ def _parse_external_reference(ref_dict: dict) -> ExternalReference:
     """Parse an external reference dict."""
     # SPDX 3.0.1 schema uses "externalRefType"; accept both forms for compatibility
     ref_type_str = ref_dict.get("externalRefType") or ref_dict.get("externalReferenceType", "")
-    ref_type = _EXT_REF_TYPES.get(ref_type_str.lower(), ExternalReferenceType.OTHER) if ref_type_str else None
+    ref_type = _EXT_REF_TYPES.get(ref_type_str.lower(), ExternalReferenceType.OTHER)
 
     locator = ref_dict.get("locator", [])
     if isinstance(locator, str):
@@ -314,7 +314,11 @@ def _parse_software_artifact_fields(elem: dict, fields: dict) -> None:
     # Primary purpose
     pp = elem.get("primaryPurpose")
     if pp:
-        fields["primary_purpose"] = _SW_PURPOSES.get(pp.lower())
+        pp_key = pp.lower()
+        if pp_key in _SW_PURPOSES:
+            fields["primary_purpose"] = _SW_PURPOSES[pp_key]
+        else:
+            logger.warning("Unrecognized primaryPurpose value %r; omitting", pp)
 
     # Additional purposes
     aps = elem.get("additionalPurpose", [])

@@ -280,6 +280,20 @@ class Config:
                 f"Invalid SBOM_FORMAT: '{self.sbom_format}'. Must be one of: {', '.join(VALID_SBOM_FORMATS)}"
             )
 
+        # Validate spec_version against sbom_format
+        if self.spec_version:
+            from ..generation import CYCLONEDX_VERSIONS, SPDX_VERSIONS
+
+            if self.sbom_format == "cyclonedx" and self.spec_version not in CYCLONEDX_VERSIONS:
+                raise ConfigurationError(
+                    f"Invalid spec_version '{self.spec_version}' for CycloneDX. "
+                    f"Supported: {', '.join(CYCLONEDX_VERSIONS)}"
+                )
+            if self.sbom_format == "spdx" and self.spec_version not in SPDX_VERSIONS:
+                raise ConfigurationError(
+                    f"Invalid spec_version '{self.spec_version}' for SPDX. Supported: {', '.join(SPDX_VERSIONS)}"
+                )
+
         # Validate product releases format
         if self.product_releases:
             try:
