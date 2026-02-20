@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 from sbomify_action import format_display_name
-from sbomify_action.exceptions import ToolNotAvailableError
+from sbomify_action.exceptions import SBOMGenerationError, ToolNotAvailableError
 from sbomify_action.logging_config import logger
 from sbomify_action.serialization import (
     sanitize_cyclonedx_licenses,
@@ -123,7 +123,7 @@ class GeneratorRegistry:
                 input_type = "lock_file"
             else:
                 # SBOM file input or other - these don't need generation tools
-                raise ValueError(
+                raise SBOMGenerationError(
                     f"No generator found for input. "
                     f"Requested: format={input.output_format}, version={input.spec_version}."
                 )
@@ -139,7 +139,7 @@ class GeneratorRegistry:
             else:
                 # Tools available but don't support this format/version
                 available_formats = self._get_available_formats()
-                raise ValueError(
+                raise SBOMGenerationError(
                     f"No generator found for input. "
                     f"Requested: format={input.output_format}, version={input.spec_version}. "
                     f"Available formats: {available_formats}"

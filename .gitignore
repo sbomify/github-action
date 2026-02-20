@@ -2,6 +2,8 @@
 __pycache__
 venv
 enriched_sbom.cdx.json
+*.augmented.json
+*.enriched.json
 test_cargo_generation.json
 test_docker_image_generation.json
 test_conan_generation.json

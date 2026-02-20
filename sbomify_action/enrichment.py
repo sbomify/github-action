@@ -1055,6 +1055,169 @@ def _enrich_spdx_document_with_plugin_architecture(document: Document, enricher:
     return stats
 
 
+def _enrich_spdx3_sbom(input_path: Path, output_path: Path, enricher: Enricher) -> None:
+    """Enrich an SPDX 3 SBOM using Payload model objects."""
+    from .spdx3 import (
+        ExternalReference as Spdx3ExtRef,
+    )
+    from .spdx3 import (
+        ExternalReferenceType as Spdx3ExtRefType,
+    )
+    from .spdx3 import (
+        Organization as Spdx3Org,
+    )
+    from .spdx3 import (
+        get_spdx3_document,
+        get_spdx3_packages,
+        make_spdx3_creation_info,
+        make_spdx3_spdx_id,
+        parse_spdx3_file,
+        spdx3_license_from_string,
+        write_spdx3_file,
+    )
+
+    logger.info("Processing SPDX 3 SBOM")
+
+    try:
+        payload = parse_spdx3_file(str(input_path))
+    except Exception as e:
+        raise SBOMValidationError(f"Failed to parse SPDX 3 SBOM: {e}") from e
+
+    packages = get_spdx3_packages(payload)
+    if not packages:
+        logger.warning("No packages found in SPDX 3 SBOM, skipping enrichment")
+        write_spdx3_file(payload, str(output_path))
+        return
+
+    logger.info(f"Found {len(packages)} packages to enrich")
+
+    stats = {
+        "components_enriched": 0,
+        "descriptions_added": 0,
+        "licenses_added": 0,
+        "homepages_added": 0,
+        "suppliers_added": 0,
+        "external_refs_added": 0,
+        "sources": {},
+    }
+
+    doc = get_spdx3_document(payload)
+
+    for package in packages:
+        purl_str = package.package_url
+        if not purl_str:
+            continue
+
+        metadata = enricher.fetch_metadata(purl_str, merge_results=True)
+        if not metadata or not metadata.has_data():
+            continue
+
+        added_fields: list[str] = []
+        primary_source = metadata.source.split(", ")[0] if metadata.source else "unknown"
+
+        # Description
+        if metadata.description and not package.description:
+            desc = sanitize_description(metadata.description)
+            if desc:
+                package.description = desc
+                added_fields.append("description")
+
+        # Homepage
+        if metadata.homepage and not package.homepage:
+            hp = sanitize_url(metadata.homepage)
+            if hp:
+                package.homepage = hp
+                added_fields.append("homepage")
+
+        # Download location
+        if metadata.download_url and not package.download_location:
+            dl = sanitize_url(metadata.download_url)
+            if dl:
+                package.download_location = dl
+                added_fields.append("download_location")
+
+        # License
+        if metadata.licenses and not package.declared_license:
+            # Use first license
+            license_str = metadata.licenses[0] if metadata.licenses else None
+            if license_str:
+                lic = sanitize_license(license_str)
+                if lic:
+                    package.declared_license = spdx3_license_from_string(lic)
+                    added_fields.append("declared_license")
+
+        # Supplier
+        if metadata.supplier and not package.supplied_by:
+            supplier_name = sanitize_supplier(metadata.supplier)
+            if supplier_name:
+                org_id = make_spdx3_spdx_id()
+                org = Spdx3Org(spdx_id=org_id, name=supplier_name, creation_info=make_spdx3_creation_info())
+                payload.add_element(org)
+                package.supplied_by = [org_id]
+                if doc:
+                    doc.element.append(org_id)
+                added_fields.append("supplier")
+
+        # Repository URL as VCS external reference
+        if metadata.repository_url:
+            repo = sanitize_url(metadata.repository_url)
+            if repo:
+                existing_locs = []
+                for ref in package.external_reference:
+                    existing_locs.extend(ref.locator)
+                if repo not in existing_locs:
+                    package.external_reference.append(
+                        Spdx3ExtRef(
+                            external_reference_type=Spdx3ExtRefType.VCS,
+                            locator=[repo],
+                        )
+                    )
+                    added_fields.append("externalRef_vcs")
+
+        # Issue tracker
+        if metadata.issue_tracker_url:
+            issue_url = sanitize_url(metadata.issue_tracker_url)
+            if issue_url:
+                existing_locs = []
+                for ref in package.external_reference:
+                    existing_locs.extend(ref.locator)
+                if issue_url not in existing_locs:
+                    package.external_reference.append(
+                        Spdx3ExtRef(
+                            external_reference_type=Spdx3ExtRefType.ISSUE_TRACKER,
+                            locator=[issue_url],
+                        )
+                    )
+                    added_fields.append("externalRef_issue_tracker")
+
+        if added_fields:
+            stats["components_enriched"] += 1
+            stats["sources"][primary_source] = stats["sources"].get(primary_source, 0) + 1
+            for field in added_fields:
+                if "description" in field:
+                    stats["descriptions_added"] += 1
+                elif "license" in field:
+                    stats["licenses_added"] += 1
+                elif "homepage" in field:
+                    stats["homepages_added"] += 1
+                elif "supplier" in field:
+                    stats["suppliers_added"] += 1
+                elif "externalRef" in field:
+                    stats["external_refs_added"] += 1
+
+    # Print summary
+    from .console import print_enrichment_summary
+
+    print_enrichment_summary(stats, len(packages))
+
+    # Write output
+    try:
+        write_spdx3_file(payload, str(output_path))
+        logger.info(f"Enriched SPDX 3 SBOM written to: {output_path}")
+    except Exception as e:
+        raise SBOMValidationError(f"Failed to write enriched SPDX 3 SBOM: {e}") from e
+
+
 def enrich_sbom(input_file: str, output_file: str, validate: bool = True) -> None:
     """
     Enrich SBOM with metadata from multiple data sources using plugin architecture.
@@ -1106,8 +1269,12 @@ def enrich_sbom(input_file: str, output_file: str, validate: bool = True) -> Non
         sources = enricher.registry.list_sources()
         logger.debug(f"Registered data sources: {[s['name'] for s in sources]}")
 
+        from .spdx3 import is_spdx3
+
         if data.get("bomFormat") == "CycloneDX":
             _enrich_cyclonedx_sbom(data, input_path, output_path, enricher)
+        elif is_spdx3(data):
+            _enrich_spdx3_sbom(input_path, output_path, enricher)
         elif data.get("spdxVersion"):
             _enrich_spdx_sbom(input_path, output_path, enricher)
         else:

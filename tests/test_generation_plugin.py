@@ -849,7 +849,7 @@ class TestRegistryGenerateWithFallback(unittest.TestCase):
 
         input = GenerationInput(lock_file="/path/unknown.xyz", output_format="cyclonedx")
 
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(SBOMGenerationError) as cm:
             registry.generate(input)
 
         self.assertIn("No generator found", str(cm.exception))

@@ -49,6 +49,7 @@ from ..generation import (
 )
 from ..logging_config import logger
 from ..serialization import _fix_purl_encoding_bugs_in_json, serialize_cyclonedx_bom
+from ..spdx3 import is_spdx3
 from ..upload import upload_sbom
 
 
@@ -210,6 +211,7 @@ class Config:
     product_releases: Optional[str | list[str]] = None
     api_base_url: str = SBOMIFY_PRODUCTION_API
     sbom_format: SBOMFormat = "cyclonedx"
+    spec_version: Optional[str] = None
 
     def __post_init__(self) -> None:
         """Set default values that depend on other fields."""
@@ -277,6 +279,20 @@ class Config:
             raise ConfigurationError(
                 f"Invalid SBOM_FORMAT: '{self.sbom_format}'. Must be one of: {', '.join(VALID_SBOM_FORMATS)}"
             )
+
+        # Validate spec_version against sbom_format
+        if self.spec_version:
+            from ..generation import CYCLONEDX_VERSIONS, SPDX_VERSIONS
+
+            if self.sbom_format == "cyclonedx" and self.spec_version not in CYCLONEDX_VERSIONS:
+                raise ConfigurationError(
+                    f"Invalid spec_version '{self.spec_version}' for CycloneDX. "
+                    f"Supported: {', '.join(CYCLONEDX_VERSIONS)}"
+                )
+            if self.sbom_format == "spdx" and self.spec_version not in SPDX_VERSIONS:
+                raise ConfigurationError(
+                    f"Invalid spec_version '{self.spec_version}' for SPDX. Supported: {', '.join(SPDX_VERSIONS)}"
+                )
 
         # Validate product releases format
         if self.product_releases:
@@ -444,6 +460,7 @@ def build_config(
     product_releases: Optional[str] = None,
     api_base_url: str = SBOMIFY_PRODUCTION_API,
     sbom_format: str = "cyclonedx",
+    spec_version: Optional[str] = None,
 ) -> Config:
     """
     Build and validate configuration from provided arguments.
@@ -521,6 +538,7 @@ def build_config(
         product_releases=product_releases,
         api_base_url=api_base_url,
         sbom_format=sbom_format_lower,
+        spec_version=spec_version,
     )
 
     try:
@@ -829,7 +847,7 @@ def validate_sbom(file_path: str) -> str:
     if data.get("bomFormat") == "CycloneDX":
         logger.info("Detected CycloneDX SBOM.")
         return "cyclonedx"
-    elif data.get("spdxVersion") is not None:
+    elif data.get("spdxVersion") is not None or is_spdx3(data):
         logger.info("Detected SPDX SBOM.")
         return "spdx"
     else:
@@ -861,7 +879,7 @@ def _detect_sbom_format_silent(file_path: str) -> str:
     # Detect artifact type without logging
     if data.get("bomFormat") == "CycloneDX":
         return "cyclonedx"
-    elif data.get("spdxVersion") is not None:
+    elif data.get("spdxVersion") is not None or is_spdx3(data):
         return "spdx"
     else:
         raise SBOMValidationError("Neither CycloneDX nor SPDX format found in JSON file")
@@ -893,10 +911,10 @@ def load_sbom_from_file(file_path: str) -> tuple[str, dict, object]:
             # Use cyclonedx deserializer
             parsed_object = Bom.from_json(sbom_json)
             logger.debug(f"Successfully loaded CycloneDX SBOM from {file_path}")
-        elif sbom_json.get("spdxVersion") is not None:
+        elif sbom_json.get("spdxVersion") is not None or is_spdx3(sbom_json):
             sbom_format = "spdx"
-            # For now, just return the JSON - we'll add SPDX library later
-            parsed_object = sbom_json  # Placeholder for future SPDX object
+            # Return the JSON dict for both SPDX 2.x and 3.x
+            parsed_object = sbom_json
             logger.debug(f"Successfully loaded SPDX SBOM from {file_path}")
         else:
             raise SBOMValidationError("Neither CycloneDX nor SPDX format found in JSON file")
@@ -1010,7 +1028,7 @@ def run_pipeline(config: Config) -> None:
 
         logger.info("Additional packages only mode: creating empty SBOM")
         try:
-            FORMAT = create_empty_sbom(STEP_1_FILE, config.sbom_format)
+            FORMAT = create_empty_sbom(STEP_1_FILE, config.sbom_format, config.spec_version)
         except Exception as e:
             logger.error(f"Failed to create empty SBOM: {e}")
             _log_step_end(1, success=False)
@@ -1027,6 +1045,7 @@ def run_pipeline(config: Config) -> None:
                     docker_image=config.docker_image,
                     output_file=STEP_1_FILE,
                     output_format=config.sbom_format,
+                    spec_version=config.spec_version,
                 )
                 if not result.success:
                     raise SBOMGenerationError(result.error_message or "SBOM generation failed")
@@ -1036,6 +1055,7 @@ def run_pipeline(config: Config) -> None:
                     FILE,
                     output_file=STEP_1_FILE,
                     output_format=config.sbom_format,
+                    spec_version=config.spec_version,
                 )
                 if not result.success:
                     raise SBOMGenerationError(result.error_message or "SBOM generation failed")
@@ -1056,7 +1076,7 @@ def run_pipeline(config: Config) -> None:
                     logger.error(f"Please use LOCK_FILE instead of SBOM_FILE for '{file_name}'.")
             _log_step_end(1, success=False)
             sys.exit(1)
-        except (FileProcessingError, SBOMGenerationError) as e:
+        except (FileProcessingError, SBOMGenerationError, ValueError) as e:
             logger.error(f"Step 1 failed: {e}")
             _log_step_end(1, success=False)
             sys.exit(1)
@@ -1560,22 +1580,35 @@ def _apply_sbom_version_override(sbom_file: str, config: "Config") -> None:
                     f.write(serialized)
 
         elif sbom_format == "spdx":
-            # For SPDX, apply version override to packages[0].versionInfo in JSON
-            # Note: SPDX stores the root package in packages array, not metadata.component
-            if "packages" in original_json and original_json["packages"]:
-                main_package = original_json["packages"][0]
-                old_version = main_package.get("versionInfo")
-                main_package["versionInfo"] = config.component_version
-                # Also update PURL in externalRefs if present
-                _update_spdx_json_purl_version(main_package, config.component_version)
+            if is_spdx3(original_json):
+                # SPDX 3 - use parser/writer
+                from ..spdx3 import get_spdx3_root_package, parse_spdx3_file, write_spdx3_file
 
-                # Record to audit trail
-                audit_trail.record_component_version_override(config.component_version, old_version)
+                payload = parse_spdx3_file(sbom_file)
+                root_pkg = get_spdx3_root_package(payload)
+                if root_pkg:
+                    old_version = root_pkg.package_version
+                    root_pkg.package_version = config.component_version
+                    audit_trail.record_component_version_override(config.component_version, old_version)
+                    write_spdx3_file(payload, sbom_file)
+                else:
+                    logger.warning("SPDX 3 SBOM has no root package - cannot set version override")
             else:
-                logger.warning("SPDX SBOM has no packages - cannot set version override")
+                # SPDX 2.x - apply version override to packages[0].versionInfo in JSON
+                if "packages" in original_json and original_json["packages"]:
+                    main_package = original_json["packages"][0]
+                    old_version = main_package.get("versionInfo")
+                    main_package["versionInfo"] = config.component_version
+                    # Also update PURL in externalRefs if present
+                    _update_spdx_json_purl_version(main_package, config.component_version)
 
-            with Path(sbom_file).open("w") as f:
-                json.dump(original_json, f, indent=2)
+                    # Record to audit trail
+                    audit_trail.record_component_version_override(config.component_version, old_version)
+                else:
+                    logger.warning("SPDX SBOM has no packages - cannot set version override")
+
+                with Path(sbom_file).open("w") as f:
+                    json.dump(original_json, f, indent=2)
 
     except Exception as e:
         logger.warning(f"Failed to apply component version override: {e}")
@@ -1638,16 +1671,35 @@ def _apply_sbom_name_override(sbom_file: str, config: "Config") -> None:
                         f.write(serialized)
 
         elif sbom_format == "spdx":
-            # For SPDX, apply name override to the top-level "name" field
-            old_name = original_json.get("name", "unknown")
-            if old_name != config.component_name:
-                original_json["name"] = config.component_name
+            if is_spdx3(original_json):
+                # SPDX 3 - use parser/writer
+                from ..spdx3 import get_spdx3_document, get_spdx3_root_package, parse_spdx3_file, write_spdx3_file
 
-                # Record to audit trail
-                audit_trail.record_component_name_override(config.component_name, old_name)
+                payload = parse_spdx3_file(sbom_file)
+                doc = get_spdx3_document(payload)
+                root_pkg = get_spdx3_root_package(payload)
+                if not doc and not root_pkg:
+                    logger.warning("SPDX 3 SBOM has no document or root package - cannot set name override")
+                else:
+                    old_name = (doc.name if doc else None) or "unknown"
+                    if old_name != config.component_name:
+                        if doc:
+                            doc.name = config.component_name
+                        if root_pkg:
+                            root_pkg.name = config.component_name
+                        audit_trail.record_component_name_override(config.component_name, old_name)
+                        write_spdx3_file(payload, sbom_file)
+            else:
+                # SPDX 2.x - apply name override to the top-level "name" field
+                old_name = original_json.get("name", "unknown")
+                if old_name != config.component_name:
+                    original_json["name"] = config.component_name
 
-                with Path(sbom_file).open("w") as f:
-                    json.dump(original_json, f, indent=2)
+                    # Record to audit trail
+                    audit_trail.record_component_name_override(config.component_name, old_name)
+
+                    with Path(sbom_file).open("w") as f:
+                        json.dump(original_json, f, indent=2)
 
     except Exception as e:
         logger.warning(f"Failed to apply component name override: {e}")
@@ -1725,47 +1777,63 @@ def _apply_sbom_purl_override(sbom_file: str, config: "Config") -> None:
                         f.write(serialized)
 
         elif sbom_format == "spdx":
-            # For SPDX, apply PURL override to external references of the main package
-            packages = original_json.get("packages", [])
-            if packages:
-                main_package = packages[0]
-                external_refs = main_package.get("externalRefs", [])
+            if is_spdx3(original_json):
+                # SPDX 3 - use parser/writer
+                from ..spdx3 import get_spdx3_root_package, parse_spdx3_file, write_spdx3_file
 
-                # Find existing PURL reference
-                existing_purl_ref = None
-                existing_purl_idx = None
-                for idx, ref in enumerate(external_refs):
-                    if ref.get("referenceType") == "purl":
-                        existing_purl_ref = ref
-                        existing_purl_idx = idx
-                        break
-
-                old_purl = None
-                if existing_purl_ref:
-                    old_purl = existing_purl_ref.get("referenceLocator", "unknown")
+                payload = parse_spdx3_file(sbom_file)
+                root_pkg = get_spdx3_root_package(payload)
+                if root_pkg:
+                    old_purl = root_pkg.package_url
                     if old_purl != config.component_purl:
-                        external_refs[existing_purl_idx]["referenceLocator"] = config.component_purl
+                        root_pkg.package_url = config.component_purl
+                        audit_trail.record_component_purl_override(config.component_purl, old_purl)
+                        write_spdx3_file(payload, sbom_file)
                 else:
-                    # Add new PURL reference
-                    # Determine category based on PURL type - containers aren't package-manager packages
-                    purl_category = "PACKAGE-MANAGER"
-                    if config.component_purl.startswith("pkg:docker/") or config.component_purl.startswith("pkg:oci/"):
-                        purl_category = "OTHER"
-                    new_purl_ref = {
-                        "referenceCategory": purl_category,
-                        "referenceType": "purl",
-                        "referenceLocator": config.component_purl,
-                    }
-                    external_refs.append(new_purl_ref)
-                    main_package["externalRefs"] = external_refs
-
-                # Record to audit trail
-                audit_trail.record_component_purl_override(config.component_purl, old_purl)
-
-                with Path(sbom_file).open("w") as f:
-                    json.dump(original_json, f, indent=2)
+                    logger.warning("SPDX 3 SBOM has no root package - cannot set PURL override")
             else:
-                logger.warning("SPDX SBOM has no packages - cannot set PURL override")
+                # SPDX 2.x - apply PURL override to external references
+                packages = original_json.get("packages", [])
+                if packages:
+                    main_package = packages[0]
+                    external_refs = main_package.get("externalRefs", [])
+
+                    # Find existing PURL reference
+                    existing_purl_ref = None
+                    existing_purl_idx = None
+                    for idx, ref in enumerate(external_refs):
+                        if ref.get("referenceType") == "purl":
+                            existing_purl_ref = ref
+                            existing_purl_idx = idx
+                            break
+
+                    old_purl = None
+                    if existing_purl_ref:
+                        old_purl = existing_purl_ref.get("referenceLocator", "unknown")
+                        if old_purl != config.component_purl:
+                            external_refs[existing_purl_idx]["referenceLocator"] = config.component_purl
+                    else:
+                        # Add new PURL reference
+                        purl_category = "PACKAGE-MANAGER"
+                        if config.component_purl.startswith("pkg:docker/") or config.component_purl.startswith(
+                            "pkg:oci/"
+                        ):
+                            purl_category = "OTHER"
+                        new_purl_ref = {
+                            "referenceCategory": purl_category,
+                            "referenceType": "purl",
+                            "referenceLocator": config.component_purl,
+                        }
+                        external_refs.append(new_purl_ref)
+                        main_package["externalRefs"] = external_refs
+
+                    # Record to audit trail
+                    audit_trail.record_component_purl_override(config.component_purl, old_purl)
+
+                    with Path(sbom_file).open("w") as f:
+                        json.dump(original_json, f, indent=2)
+                else:
+                    logger.warning("SPDX SBOM has no packages - cannot set PURL override")
 
     except Exception as e:
         logger.warning(f"Failed to apply component PURL override: {e}")
@@ -1952,6 +2020,12 @@ def _parse_upload_destinations_callback(
     help="Output SBOM format.",
 )
 @click.option(
+    "--spec-version",
+    envvar="SPEC_VERSION",
+    default=None,
+    help="Override the spec version for SBOM generation (e.g., '1.6', '2.3', '3.0.1').",
+)
+@click.option(
     "--telemetry/--no-telemetry",
     envvar="TELEMETRY",
     default=True,
@@ -1993,6 +2067,7 @@ def cli(
     product_releases: Optional[str],
     api_base_url: str,
     sbom_format: str,
+    spec_version: Optional[str],
     telemetry: bool,
     verbose: bool,
     quiet: bool,
@@ -2086,6 +2161,7 @@ def cli(
         product_releases=product_releases,
         api_base_url=api_base_url,
         sbom_format=sbom_format,
+        spec_version=spec_version,
     )
 
     # Run the pipeline
@@ -2099,6 +2175,7 @@ def cli(
     required=True,
     help="Product release in product_id:version format.",
 )
+@click.option("--component-id", default=None, help="Component ID for SPDX 3 single-file upload.")
 @click.option("--augment/--no-augment", default=False, help="Run augmentation per SBOM.")
 @click.option("--enrich/--no-enrich", default=False, help="Run enrichment per SBOM.")
 @click.option("--dry-run", is_flag=True, default=False, help="Show what would happen without API calls.")
@@ -2108,25 +2185,36 @@ def yocto_cmd(
     ctx: click.Context,
     sbom_input: str,
     release: str,
+    component_id: str | None,
     augment: bool,
     enrich: bool,
     dry_run: bool,
     verbose: bool,
 ) -> None:
-    """Process Yocto/OpenEmbedded SPDX SBOM archives.
+    """Process Yocto/OpenEmbedded SPDX SBOMs.
 
     \b
-    Extracts a .spdx.tar.zst (or .tar.gz) archive from a Yocto build,
-    discovers package SBOMs, creates components, uploads SBOMs, and
-    tags them with a release.
+    Supports two input modes:
 
     \b
-    SBOM_INPUT is the path to the Yocto SPDX archive (.spdx.tar.zst or .tar.gz).
+    1. SPDX 2.2 archive (.spdx.tar.zst or .tar.gz) — extracts per-package
+       SBOMs, creates components, uploads, and tags with a release.
 
     \b
-    Example:
-      sbomify-action --token $TOKEN yocto build/deploy/images/qemux86-64/image.spdx.tar.zst \\
+    2. SPDX 3 single JSON-LD file (Yocto 5.0+) — uploads the entire file
+       as one SBOM to the component specified by --component-id.
+
+    \b
+    SBOM_INPUT is a Yocto SPDX archive (.spdx.tar.zst/.tar.gz) or a single SPDX 3 JSON-LD file.
+
+    \b
+    Examples:
+      sbomify-action --token $TOKEN yocto build/deploy/images/image.spdx.tar.zst \\
         --release "product-id:1.0.0"
+
+    \b
+      sbomify-action --token $TOKEN yocto image.spdx.json \\
+        --release "product-id:1.0.0" --component-id "comp-abc123"
     """
     # Enable debug logging if requested either on this command or the root CLI group
     effective_verbose = verbose or (ctx.parent and ctx.parent.params.get("verbose"))
@@ -2160,7 +2248,7 @@ def yocto_cmd(
     from sbomify_action._yocto.pipeline import run_yocto_pipeline
 
     config = YoctoConfig(
-        archive_path=sbom_input,
+        input_path=sbom_input,
         token=yocto_token,
         product_id=product_id,
         release_version=release_version,
@@ -2168,6 +2256,7 @@ def yocto_cmd(
         augment=augment,
         enrich=enrich,
         dry_run=dry_run,
+        component_id=component_id,
     )
 
     result = run_yocto_pipeline(config)

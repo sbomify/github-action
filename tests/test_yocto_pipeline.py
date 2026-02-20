@@ -1,5 +1,6 @@
 """Tests for Yocto pipeline orchestrator."""
 
+import json
 import shutil
 import tarfile
 from pathlib import Path
@@ -10,7 +11,7 @@ import pytest
 from sbomify_action._upload.result import UploadResult
 from sbomify_action._yocto.models import YoctoConfig, YoctoPipelineResult
 from sbomify_action._yocto.pipeline import _process_single_package, run_yocto_pipeline
-from sbomify_action.exceptions import APIError
+from sbomify_action.exceptions import APIError, ConfigurationError
 
 YOCTO_TEST_DATA = Path(__file__).parent / "test-data" / "yocto"
 API_BASE = "https://app.sbomify.com"
@@ -28,7 +29,7 @@ def _make_tar_gz(tmp_path: Path) -> str:
 
 def _make_config(archive_path: str, **kwargs) -> YoctoConfig:
     defaults = {
-        "archive_path": archive_path,
+        "input_path": archive_path,
         "token": TOKEN,
         "product_id": "test-product",
         "release_version": "1.0.0",
@@ -205,6 +206,101 @@ class TestRunYoctoPipeline:
         assert result.sboms_skipped == 3
         assert result.sboms_uploaded == 0
         assert result.errors == 0
+
+
+SPDX3_DATA = {
+    "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+    "@graph": [
+        {
+            "type": "SpdxDocument",
+            "spdxId": "urn:spdx:doc",
+            "name": "test-image",
+            "creationInfo": "urn:spdx:ci",
+        },
+        {
+            "type": "CreationInfo",
+            "spdxId": "urn:spdx:ci",
+            "specVersion": "3.0.1",
+        },
+        {
+            "type": "software_Package",
+            "spdxId": "urn:spdx:pkg-busybox",
+            "name": "busybox",
+            "packageVersion": "1.36.1",
+            "creationInfo": "urn:spdx:ci",
+        },
+        {
+            "type": "software_Package",
+            "spdxId": "urn:spdx:pkg-zlib",
+            "name": "zlib",
+            "packageVersion": "1.3.1",
+            "creationInfo": "urn:spdx:ci",
+        },
+    ],
+}
+
+
+def _write_spdx3_file(tmp_path: Path) -> str:
+    """Write a minimal SPDX 3 JSON-LD fixture and return the path."""
+    path = tmp_path / "image.spdx.json"
+    path.write_text(json.dumps(SPDX3_DATA))
+    return str(path)
+
+
+class TestSpdx3Pipeline:
+    @patch("sbomify_action._yocto.pipeline.tag_sbom_with_release")
+    @patch("sbomify_action._yocto.pipeline.create_release")
+    @patch("sbomify_action._yocto.pipeline.upload_sbom")
+    def test_spdx3_single_file_pipeline(self, mock_upload, mock_create_release, mock_tag, tmp_path):
+        spdx3_file = _write_spdx3_file(tmp_path)
+        config = _make_config(spdx3_file, component_id="comp-abc")
+
+        mock_upload.return_value = UploadResult.success_result(destination_name="sbomify", sbom_id="sbom-s3")
+        mock_create_release.return_value = "release-s3"
+
+        result = run_yocto_pipeline(config)
+
+        assert result.packages_found == 2  # busybox + zlib
+        assert result.sboms_uploaded == 1
+        assert result.errors == 0
+        assert result.release_id == "release-s3"
+        mock_tag.assert_called_once_with(API_BASE, TOKEN, "sbom-s3", "release-s3")
+
+    @patch("sbomify_action._yocto.pipeline.upload_sbom")
+    def test_spdx3_dry_run(self, mock_upload, tmp_path):
+        spdx3_file = _write_spdx3_file(tmp_path)
+        config = _make_config(spdx3_file, component_id="comp-abc", dry_run=True)
+
+        result = run_yocto_pipeline(config)
+
+        assert result.packages_found == 2
+        assert result.sboms_uploaded == 0
+        assert result.sboms_skipped == 1
+        mock_upload.assert_not_called()
+
+    def test_spdx3_missing_component_id(self, tmp_path):
+        spdx3_file = _write_spdx3_file(tmp_path)
+        config = _make_config(spdx3_file)  # no component_id
+
+        with pytest.raises(ConfigurationError, match="--component-id"):
+            run_yocto_pipeline(config)
+
+    @patch("sbomify_action._yocto.pipeline.tag_sbom_with_release")
+    @patch("sbomify_action._yocto.pipeline.create_release")
+    @patch("sbomify_action._yocto.pipeline.upload_sbom")
+    def test_spdx3_upload_success_with_release_tagging(self, mock_upload, mock_create_release, mock_tag, tmp_path):
+        spdx3_file = _write_spdx3_file(tmp_path)
+        config = _make_config(spdx3_file, component_id="comp-xyz")
+
+        mock_upload.return_value = UploadResult.success_result(destination_name="sbomify", sbom_id="sbom-100")
+        mock_create_release.return_value = "rel-200"
+
+        result = run_yocto_pipeline(config)
+
+        assert result.sboms_uploaded == 1
+        assert result.release_id == "rel-200"
+        mock_create_release.assert_called_once_with(API_BASE, TOKEN, "test-product", "1.0.0")
+        mock_tag.assert_called_once_with(API_BASE, TOKEN, "sbom-100", "rel-200")
 
 
 class TestYoctoPipelineResult:
