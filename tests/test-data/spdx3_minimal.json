@@ -50,7 +50,13 @@
       "@id": "urn:spdx.dev:rel-test",
       "from": "urn:spdx.dev:doc-test",
       "to": ["urn:spdx.dev:pkg-test"],
-      "relationshipType": "describes"
+      "relationshipType": "describes",
+      "creationInfo": {
+        "specVersion": "3.0.1",
+        "created": "2024-01-01T00:00:00Z",
+        "createdBy": [],
+        "profile": ["core", "software"]
+      }
     }
   ]
 }
