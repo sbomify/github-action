@@ -1146,8 +1146,8 @@ class TestSbomifyGzipCompression(unittest.TestCase):
         try:
             # Random bytes don't compress well - gzip output will be larger
             random_data = os.urandom(1_100_000)
-            os.write(fd, random_data)
-            os.close(fd)
+            with os.fdopen(fd, "wb") as f:
+                f.write(random_data)
 
             mock_response = Mock()
             mock_response.ok = True
