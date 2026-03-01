@@ -1138,9 +1138,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .sbomify-cache
-          key: sbomify-${{ runner.os }}-week${{ github.run_number }}
-          restore-keys: |
-            sbomify-${{ runner.os }}-
+          key: sbomify-${{ runner.os }}
 
       - name: Determine version
         id: version
@@ -1227,9 +1225,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .sbomify-cache
-          key: sbomify-${{ runner.os }}-week${{ github.run_number }}
-          restore-keys: |
-            sbomify-${{ runner.os }}-
+          key: sbomify-${{ runner.os }}
 
       - name: Determine version
         id: version
@@ -1295,9 +1291,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .sbomify-cache
-          key: sbomify-${{ runner.os }}-week${{ github.run_number }}
-          restore-keys: |
-            sbomify-${{ runner.os }}-
+          key: sbomify-${{ runner.os }}
 
       - name: Generate additional packages from Dockerfile
         run: ./scripts/generate_additional_packages.sh > container_additional_packages.txt
@@ -1368,9 +1362,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .sbomify-cache
-          key: sbomify-${{ runner.os }}-week${{ github.run_number }}
-          restore-keys: |
-            sbomify-${{ runner.os }}-
+          key: sbomify-${{ runner.os }}
 
       - name: Generate additional packages from Dockerfile
         run: ./scripts/generate_additional_packages.sh > container_additional_packages.txt

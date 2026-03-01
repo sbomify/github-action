@@ -262,10 +262,9 @@ class DependencyEnricher:
 
             # Create new SPDX package
             # Generate a unique SPDXID. SPDX IDs must contain only letters, numbers,
-            # dots, and hyphens, and cannot start with a number. Although dots are
-            # allowed by the SPDX spec, we normalize separators (dots, underscores)
-            # to hyphens for consistency; collision handling below ensures uniqueness
-            # within this document if two packages still normalize to the same ID.
+            # dots, and hyphens. Any character outside [a-zA-Z0-9.-] (e.g. `+` from
+            # PEP 440 local versions, `_`, `~`) is replaced with a hyphen.
+            # Collision handling below ensures uniqueness within this document.
             safe_name = re.sub(r"[^a-zA-Z0-9.\-]", "-", dep.name)
             safe_version = re.sub(r"[^a-zA-Z0-9.\-]", "-", dep.version)
             base_spdx_id = f"SPDXRef-Package-{safe_name}-{safe_version}"

@@ -58,6 +58,12 @@ def list_components(api_base_url: str, token: str) -> dict[str, str]:
             break
         page += 1
 
+    if page > max_pages and data.get("next"):
+        logger.warning(
+            f"Pagination safety limit reached ({max_pages} pages). "
+            f"Component cache may be incomplete ({len(components)} components fetched)."
+        )
+
     logger.info(f"Cached {len(components)} existing components")
     return components
 
