@@ -703,3 +703,182 @@ class TestParseRequirementsEdgeCases:
 
         assert len(deps) == 1
         assert "requests" in deps
+
+
+class TestSpdxRelationships:
+    """Tests that SPDX enrichment adds proper relationships."""
+
+    def _make_discovered(self, name="urllib3", version="2.0.4", parent="requests"):
+        return [
+            DiscoveredDependency(
+                name=name,
+                version=version,
+                purl=f"pkg:pypi/{name}@{version}",
+                parent=parent,
+                depth=1,
+            )
+        ]
+
+    def test_describes_relationship_added(self, tmp_path):
+        """Test that DESCRIBES relationships are added for new packages."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test",
+            "packages": [{"SPDXID": "SPDXRef-Package-requests", "name": "requests", "versionInfo": "2.31.0"}],
+            "relationships": [],
+        }
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = self._make_discovered()
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+
+        updated = json.loads(sbom_file.read_text())
+        rels = updated.get("relationships", [])
+
+        # Should have a DESCRIBES relationship
+        describes = [r for r in rels if r["relationshipType"] == "DESCRIBES"]
+        assert len(describes) == 1
+        assert describes[0]["spdxElementId"] == "SPDXRef-DOCUMENT"
+
+    def test_dependency_of_relationship_added(self, tmp_path):
+        """Test that DEPENDENCY_OF relationships are added when parent is known."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test",
+            "packages": [{"SPDXID": "SPDXRef-Package-requests", "name": "requests", "versionInfo": "2.31.0"}],
+            "relationships": [],
+        }
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = self._make_discovered()
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+
+        updated = json.loads(sbom_file.read_text())
+        rels = updated.get("relationships", [])
+
+        # Should have a DEPENDENCY_OF relationship
+        dep_of = [r for r in rels if r["relationshipType"] == "DEPENDENCY_OF"]
+        assert len(dep_of) == 1
+        assert dep_of[0]["relatedSpdxElement"] == "SPDXRef-Package-requests"
+
+
+class TestSpdxIdSanitization:
+    """Tests that SPDX IDs are properly sanitized."""
+
+    def test_plus_in_version_is_sanitized(self, tmp_path):
+        """PEP 440 local versions with + should be sanitized in SPDX IDs."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test",
+            "packages": [],
+            "relationships": [],
+        }
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = [
+            DiscoveredDependency(
+                name="mypackage",
+                version="1.0+ubuntu1",
+                purl="pkg:pypi/mypackage@1.0+ubuntu1",
+                depth=1,
+            )
+        ]
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+
+        updated = json.loads(sbom_file.read_text())
+        new_pkg = updated["packages"][0]
+
+        # SPDX ID must only contain [a-zA-Z0-9.-]
+        import re
+
+        assert re.match(r"^SPDXRef-[a-zA-Z0-9.\-]+$", new_pkg["SPDXID"]), f"Invalid SPDX ID: {new_pkg['SPDXID']}"
+
+
+class TestExpandSbomSpdx3AndUnknown:
+    """Tests for SPDX 3 and unknown format paths in expand_sbom."""
+
+    def test_spdx3_returns_zero_added(self, tmp_path):
+        """SPDX 3 SBOMs should return added_count=0 (not yet supported)."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {
+            "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+            "@graph": [{"type": "software_Package", "spdxId": "urn:spdx:pkg1", "name": "foo"}],
+        }
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = [
+            DiscoveredDependency(name="bar", version="1.0", purl="pkg:pypi/bar@1.0", depth=1)
+        ]
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        result = enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+        assert result.added_count == 0
+        assert result.discovered_count == 1
+        assert result.original_count == 1
+
+    def test_unknown_format_returns_zero_added(self, tmp_path):
+        """Unknown SBOM formats should return added_count=0."""
+        sbom_file = tmp_path / "sbom.json"
+        sbom_data = {"unknownFormat": True, "data": []}
+        sbom_file.write_text(json.dumps(sbom_data))
+
+        mock_expander = MagicMock()
+        mock_expander.name = "pipdeptree"
+        mock_expander.priority = 10
+        mock_expander.supports.return_value = True
+        mock_expander.can_expand.return_value = True
+        mock_expander.expand.return_value = [
+            DiscoveredDependency(name="bar", version="1.0", purl="pkg:pypi/bar@1.0", depth=1)
+        ]
+
+        registry = ExpanderRegistry()
+        registry.register(mock_expander)
+        enricher = DependencyEnricher(registry=registry)
+
+        result = enricher.expand_sbom(str(sbom_file), str(tmp_path / "requirements.txt"))
+        assert result.added_count == 0
+        assert result.discovered_count == 1

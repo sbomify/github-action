@@ -20,7 +20,7 @@ Usage:
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional, Tuple
+from typing import Literal
 
 import jsonschema
 from referencing import Registry, Resource
@@ -56,7 +56,7 @@ SPDX_SCHEMAS = {
 _schema_cache: dict[str, dict] = {}
 
 # Cache for the schema registry (built lazily)
-_registry_cache: Optional[Registry] = None
+_registry_cache: Registry | None = None
 
 
 def _get_schema_registry() -> Registry:
@@ -102,11 +102,11 @@ class ValidationResult:
     - None: Validation was skipped (e.g., no schema available)
     """
 
-    valid: Optional[bool]
+    valid: bool | None
     sbom_format: SBOMFormat
     spec_version: str
-    error_message: Optional[str] = None
-    error_path: Optional[str] = None
+    error_message: str | None = None
+    error_path: str | None = None
 
     @classmethod
     def success(cls, sbom_format: SBOMFormat, spec_version: str) -> "ValidationResult":
@@ -119,7 +119,7 @@ class ValidationResult:
         sbom_format: SBOMFormat,
         spec_version: str,
         error_message: str,
-        error_path: Optional[str] = None,
+        error_path: str | None = None,
     ) -> "ValidationResult":
         """Create a failed validation result."""
         return cls(
@@ -141,7 +141,7 @@ class ValidationResult:
         )
 
 
-def _load_schema(schema_path: Path) -> Optional[dict]:
+def _load_schema(schema_path: Path) -> dict | None:
     """Load a JSON schema from disk with caching."""
     cache_key = str(schema_path)
     if cache_key in _schema_cache:
@@ -157,7 +157,7 @@ def _load_schema(schema_path: Path) -> Optional[dict]:
         return schema
 
 
-def get_schema_for_format(sbom_format: SBOMFormat, spec_version: str) -> Optional[dict]:
+def get_schema_for_format(sbom_format: SBOMFormat, spec_version: str) -> dict | None:
     """
     Get the JSON schema for a specific format and version.
 
@@ -281,7 +281,7 @@ def validate_sbom_file(
     return validate_sbom_data(sbom_data, sbom_format, spec_version)
 
 
-def detect_sbom_format_and_version(sbom_data: dict) -> Tuple[Optional[SBOMFormat], Optional[str]]:
+def detect_sbom_format_and_version(sbom_data: dict) -> tuple[SBOMFormat | None, str | None]:
     """
     Detect the format and version of an SBOM from its data.
 

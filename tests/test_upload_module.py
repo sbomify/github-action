@@ -1134,6 +1134,43 @@ class TestSbomifyGzipCompression(unittest.TestCase):
         finally:
             Path(sbom_file).unlink()
 
+    @patch("sbomify_action._upload.destinations.sbomify.requests.post")
+    def test_large_incompressible_data_sent_uncompressed(self, mock_post):
+        """When gzip produces larger output, send uncompressed."""
+        import os
+
+        dest = SbomifyDestination(token="test-token", component_id="test-component")
+
+        # Create a file with random (incompressible) data just over threshold
+        fd, path = tempfile.mkstemp(suffix=".json")
+        try:
+            # Random bytes don't compress well - gzip output will be larger
+            random_data = os.urandom(1_100_000)
+            os.write(fd, random_data)
+            os.close(fd)
+
+            mock_response = Mock()
+            mock_response.ok = True
+            mock_response.json.return_value = {"sbom_id": "test-id"}
+            mock_post.return_value = mock_response
+
+            input_data = UploadInput(sbom_file=path, sbom_format="cyclonedx", validate_before_upload=False)
+            dest.upload(input_data)
+
+            # Verify the request was made
+            mock_post.assert_called_once()
+            call_kwargs = mock_post.call_args
+
+            # Should NOT have Content-Encoding: gzip since compressed would be larger
+            headers = call_kwargs.kwargs.get("headers", call_kwargs[1].get("headers", {}))
+            self.assertNotIn("Content-Encoding", headers)
+
+            # Data should be the original uncompressed bytes
+            sent_data = call_kwargs.kwargs.get("data", call_kwargs[1].get("data", b""))
+            self.assertEqual(sent_data, random_data)
+        finally:
+            os.unlink(path)
+
 
 class TestSbomifyTimeout(unittest.TestCase):
     """Tests for Sbomify timeout handling."""

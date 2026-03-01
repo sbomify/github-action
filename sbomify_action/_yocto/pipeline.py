@@ -107,12 +107,18 @@ def _detect_spdx3(input_path: str) -> dict | None:
     if not input_path.endswith((".json", ".spdx.json")):
         return None
     try:
-        with open(input_path) as f:
+        with open(input_path, encoding="utf-8") as f:
             data = json.load(f)
-        if isinstance(data, dict) and is_spdx3(data):
-            return data
-    except (json.JSONDecodeError, OSError):
-        pass
+    except json.JSONDecodeError:
+        # File is JSON-like but malformed — let the archive path try
+        return None
+    except OSError as e:
+        # File exists with a .json extension but can't be read — raise rather
+        # than silently falling through to the archive path, which would
+        # produce a misleading "Unsupported archive type" error.
+        raise ConfigurationError(f"Cannot read input file '{input_path}': {e}") from e
+    if isinstance(data, dict) and is_spdx3(data):
+        return data
     return None
 
 

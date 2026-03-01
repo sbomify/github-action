@@ -459,3 +459,65 @@ class TestYoctoPipelineResult:
     def test_no_errors(self):
         r = YoctoPipelineResult()
         assert r.has_errors is False
+
+
+class TestDetectSpdx3:
+    """Direct tests for _detect_spdx3 branching logic."""
+
+    def test_returns_none_for_non_json_file(self, tmp_path):
+        """Non-JSON files should return None."""
+        from sbomify_action._yocto.pipeline import _detect_spdx3
+
+        archive = tmp_path / "image.tar.zst"
+        archive.write_text("not json")
+        assert _detect_spdx3(str(archive)) is None
+
+    def test_returns_none_for_cyclonedx_json(self, tmp_path):
+        """CycloneDX JSON files should return None."""
+        from sbomify_action._yocto.pipeline import _detect_spdx3
+
+        cdx = tmp_path / "sbom.json"
+        cdx.write_text(json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.6"}))
+        assert _detect_spdx3(str(cdx)) is None
+
+    def test_returns_data_for_spdx3_json(self, tmp_path):
+        """Valid SPDX 3 JSON-LD should return parsed data."""
+        from sbomify_action._yocto.pipeline import _detect_spdx3
+
+        spdx3 = tmp_path / "image.spdx.json"
+        spdx3.write_text(json.dumps(SPDX3_DATA))
+        result = _detect_spdx3(str(spdx3))
+        assert result is not None
+        assert "@graph" in result
+
+    def test_returns_none_for_malformed_json(self, tmp_path):
+        """Malformed JSON should return None (not crash)."""
+        from sbomify_action._yocto.pipeline import _detect_spdx3
+
+        bad_json = tmp_path / "bad.json"
+        bad_json.write_text("{not valid json")
+        assert _detect_spdx3(str(bad_json)) is None
+
+    def test_raises_for_unreadable_json_file(self, tmp_path):
+        """Unreadable .json file should raise ConfigurationError, not silently return None."""
+        import os
+
+        from sbomify_action._yocto.pipeline import _detect_spdx3
+        from sbomify_action.exceptions import ConfigurationError
+
+        restricted = tmp_path / "restricted.spdx.json"
+        restricted.write_text(json.dumps(SPDX3_DATA))
+        os.chmod(str(restricted), 0o000)
+        try:
+            with pytest.raises(ConfigurationError, match="Cannot read"):
+                _detect_spdx3(str(restricted))
+        finally:
+            os.chmod(str(restricted), 0o644)
+
+    def test_max_packages_limits_processing(self, tmp_path):
+        """max_packages should limit the number of packages processed."""
+        archive = _make_tar_gz(tmp_path)
+        config = _make_config(archive, dry_run=True, max_packages=1)
+
+        result = run_yocto_pipeline(config)
+        assert result.packages_found == 1

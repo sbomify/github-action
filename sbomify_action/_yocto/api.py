@@ -26,8 +26,9 @@ def list_components(api_base_url: str, token: str) -> dict[str, str]:
     headers = get_default_headers(token)
     components: dict[str, str] = {}
     page = 1
+    max_pages = 500  # Safety limit against infinite pagination
 
-    while True:
+    while page <= max_pages:
         try:
             response = requests.get(url, headers=headers, params={"page": page, "page_size": 100}, timeout=60)
         except requests.exceptions.ConnectionError:
@@ -101,7 +102,10 @@ def create_component(api_base_url: str, token: str, name: str) -> str:
 
         raise APIError(err_msg)
 
-    data = response.json()
+    try:
+        data = response.json()
+    except (ValueError, requests.exceptions.JSONDecodeError):
+        raise APIError(f"Invalid JSON response when creating component '{name}'")
     comp_id = data.get("id")
     if comp_id is None:
         raise APIError(f"Invalid response when creating component '{name}': no id returned")
