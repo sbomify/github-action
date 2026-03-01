@@ -2189,8 +2189,8 @@ def cli(
     "--max-packages",
     type=int,
     default=None,
-    hidden=True,
-    help="[Debug/testing] Limit number of packages to process (SPDX 2.2 only).",
+    hidden=False,
+    help="[Advanced] Limit number of packages to process (SPDX 2.2 only). Useful for testing.",
 )
 @click.option("--verbose", is_flag=True, default=False, help="Enable verbose logging.")
 @click.pass_context
