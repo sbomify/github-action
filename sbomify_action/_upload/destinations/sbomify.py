@@ -4,7 +4,7 @@ import gzip
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import requests
 
@@ -41,9 +41,9 @@ class SbomifyDestination:
 
     def __init__(
         self,
-        token: Optional[str] = None,
-        component_id: Optional[str] = None,
-        api_base_url: Optional[str] = None,
+        token: str | None = None,
+        component_id: str | None = None,
+        api_base_url: str | None = None,
     ):
         """
         Initialize sbomify destination.
@@ -122,12 +122,16 @@ class SbomifyDestination:
         # Gzip-compress large payloads to avoid upstream timeouts
         upload_data: bytes = sbom_bytes
         if len(sbom_bytes) > GZIP_THRESHOLD:
-            upload_data = gzip.compress(sbom_bytes)
-            headers["Content-Encoding"] = "gzip"
-            logger.info(
-                f"Compressed upload: {len(sbom_bytes):,} -> {len(upload_data):,} bytes "
-                f"({len(sbom_bytes) / len(upload_data):.1f}x)"
-            )
+            compressed = gzip.compress(sbom_bytes)
+            if len(compressed) < len(sbom_bytes):
+                upload_data = compressed
+                headers["Content-Encoding"] = "gzip"
+                logger.info(
+                    f"Compressed upload: {len(sbom_bytes):,} -> {len(upload_data):,} bytes "
+                    f"({len(sbom_bytes) / len(upload_data):.1f}x)"
+                )
+            else:
+                logger.debug("Gzip compression did not reduce size, sending uncompressed")
 
         # Execute the upload
         try:
@@ -194,7 +198,7 @@ class SbomifyDestination:
 
         # Extract SBOM ID from response
         sbom_id = None
-        response_metadata: Dict[str, Any] = {}
+        response_metadata: dict[str, Any] = {}
         try:
             response_data = response.json()
             sbom_id = response_data.get("sbom_id") or response_data.get("id")

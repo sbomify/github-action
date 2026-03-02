@@ -583,5 +583,149 @@ class TestSerializationIntegration(unittest.TestCase):
         self.assertIn("3.0.1", SUPPORTED_SPDX_VERSIONS)
 
 
+class TestPassthroughMutationSafety(unittest.TestCase):
+    """Tests that write_spdx3_file doesn't mutate passthrough elements."""
+
+    def test_double_write_preserves_passthrough(self):
+        """Writing the same payload twice should produce identical output."""
+        payload = parse_spdx3_file(str(TEST_DATA_DIR / "spdx3_multi_type.json"))
+
+        fd1, path1 = tempfile.mkstemp(suffix=".json")
+        os.close(fd1)
+        fd2, path2 = tempfile.mkstemp(suffix=".json")
+        os.close(fd2)
+        try:
+            write_spdx3_file(payload, path1)
+            write_spdx3_file(payload, path2)  # Second write on same payload
+
+            with open(path1) as f1, open(path2) as f2:
+                data1 = json.load(f1)
+                data2 = json.load(f2)
+
+            # Both outputs should be identical
+            self.assertEqual(len(data1["@graph"]), len(data2["@graph"]))
+            # Compare types from both writes
+            types1 = sorted(e.get("type", "") for e in data1["@graph"])
+            types2 = sorted(e.get("type", "") for e in data2["@graph"])
+            self.assertEqual(types1, types2)
+        finally:
+            os.unlink(path1)
+            os.unlink(path2)
+
+
+class TestMalformedElementPassthrough(unittest.TestCase):
+    """Tests that malformed elements become passthrough instead of crashing."""
+
+    def test_malformed_package_becomes_passthrough(self):
+        """A package with invalid creationInfo should be passed through."""
+        from sbomify_action.spdx3 import Spdx3Payload
+
+        data = {
+            "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+            "@graph": [
+                {
+                    "type": "software_Package",
+                    "@id": "urn:spdx.dev:good-pkg",
+                    "name": "good-package",
+                    "creationInfo": {"specVersion": "3.0.1", "created": "2024-01-01T00:00:00Z"},
+                },
+                {
+                    "type": "software_Package",
+                    "@id": "urn:spdx.dev:bad-pkg",
+                    "name": "bad-package",
+                    # creationInfo with invalid specVersion triggers ValueError in semantic_version
+                    "creationInfo": {"specVersion": "not-a-version", "created": "2024-01-01T00:00:00Z"},
+                },
+            ],
+        }
+        payload = parse_spdx3_data(data)
+
+        # Good package should be parsed
+        pkgs = get_spdx3_packages(payload)
+        self.assertEqual(len(pkgs), 1)
+        self.assertEqual(pkgs[0].name, "good-package")
+
+        # Bad package should be in passthrough
+        self.assertIsInstance(payload, Spdx3Payload)
+        self.assertEqual(len(payload.passthrough_elements), 1)
+        self.assertEqual(payload.passthrough_elements[0]["name"], "bad-package")
+
+    def test_valid_graph_continues_after_malformed_element(self):
+        """Parser should continue processing after encountering a malformed element."""
+        data = {
+            "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+            "@graph": [
+                {
+                    "type": "software_Package",
+                    "@id": "urn:spdx.dev:bad",
+                    "name": "bad",
+                    "creationInfo": {"specVersion": "invalid", "created": "2024-01-01T00:00:00Z"},
+                },
+                {
+                    "type": "software_Package",
+                    "@id": "urn:spdx.dev:after-bad",
+                    "name": "after-bad-package",
+                    "creationInfo": {"specVersion": "3.0.1", "created": "2024-01-01T00:00:00Z"},
+                },
+            ],
+        }
+        payload = parse_spdx3_data(data)
+        pkgs = get_spdx3_packages(payload)
+        self.assertEqual(len(pkgs), 1)
+        self.assertEqual(pkgs[0].name, "after-bad-package")
+
+
+class TestAtTypeKeyVariant(unittest.TestCase):
+    """Tests that the parser handles @type as well as type."""
+
+    def test_parse_with_at_type_key(self):
+        """Parser should handle @type key variant."""
+        data = {
+            "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+            "@graph": [
+                {
+                    "@type": "software_Package",
+                    "@id": "urn:spdx.dev:pkg-at-type",
+                    "name": "at-type-package",
+                    "software_packageVersion": "1.0.0",
+                }
+            ],
+        }
+        payload = parse_spdx3_data(data)
+        pkgs = get_spdx3_packages(payload)
+        self.assertEqual(len(pkgs), 1)
+        self.assertEqual(pkgs[0].name, "at-type-package")
+        self.assertEqual(pkgs[0].package_version, "1.0.0")
+
+
+class TestNaiveDatetimeHandling(unittest.TestCase):
+    """Tests that naive datetimes are made timezone-aware."""
+
+    def test_naive_created_gets_utc(self):
+        """creationInfo with no timezone should get UTC."""
+        from datetime import timezone
+
+        data = {
+            "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+            "@graph": [
+                {
+                    "type": "software_Package",
+                    "@id": "urn:spdx.dev:naive-dt",
+                    "name": "naive-dt-package",
+                    "creationInfo": {
+                        "specVersion": "3.0.1",
+                        "created": "2024-01-01T00:00:00",  # No timezone!
+                    },
+                }
+            ],
+        }
+        payload = parse_spdx3_data(data)
+        pkgs = get_spdx3_packages(payload)
+        self.assertEqual(len(pkgs), 1)
+        # The created datetime should be timezone-aware
+        self.assertIsNotNone(pkgs[0].creation_info.created.tzinfo)
+        self.assertEqual(pkgs[0].creation_info.created.tzinfo, timezone.utc)
+
+
 if __name__ == "__main__":
     unittest.main()

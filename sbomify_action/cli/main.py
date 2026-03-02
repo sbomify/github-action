@@ -1143,7 +1143,7 @@ def run_pipeline(config: Config) -> None:
     # Note: Steps 1.x are substeps of the main SBOM generation step (Step 1).
     # These run after initial generation but before Step 2 (Validation/Augmentation).
     # Uses registry pattern to check if any expander supports the lockfile
-    if config.lock_file:
+    if config.lock_file and not config.is_additional_packages_only:
         from sbomify_action._dependency_expansion import supports_dependency_expansion
 
         if supports_dependency_expansion(config.lock_file):
