@@ -1141,35 +1141,36 @@ class TestSbomifyGzipCompression(unittest.TestCase):
 
         dest = SbomifyDestination(token="test-token", component_id="test-component")
 
-        # Create a file with random (incompressible) data just over threshold
-        fd, path = tempfile.mkstemp(suffix=".json")
-        try:
-            # Random bytes don't compress well - gzip output will be larger
-            random_data = os.urandom(1_100_000)
-            with os.fdopen(fd, "wb") as f:
-                f.write(random_data)
+        # Patch GZIP_THRESHOLD low so even small payloads are considered for gzip
+        with patch("sbomify_action._upload.destinations.sbomify.GZIP_THRESHOLD", 1):
+            # Create a file with a small fixed payload where gzip output is larger
+            fd, path = tempfile.mkstemp(suffix=".json")
+            try:
+                payload = b"a"
+                with os.fdopen(fd, "wb") as f:
+                    f.write(payload)
 
-            mock_response = Mock()
-            mock_response.ok = True
-            mock_response.json.return_value = {"sbom_id": "test-id"}
-            mock_post.return_value = mock_response
+                mock_response = Mock()
+                mock_response.ok = True
+                mock_response.json.return_value = {"sbom_id": "test-id"}
+                mock_post.return_value = mock_response
 
-            input_data = UploadInput(sbom_file=path, sbom_format="cyclonedx", validate_before_upload=False)
-            dest.upload(input_data)
+                input_data = UploadInput(sbom_file=path, sbom_format="cyclonedx", validate_before_upload=False)
+                dest.upload(input_data)
 
-            # Verify the request was made
-            mock_post.assert_called_once()
-            call_kwargs = mock_post.call_args
+                # Verify the request was made
+                mock_post.assert_called_once()
+                call_kwargs = mock_post.call_args
 
-            # Should NOT have Content-Encoding: gzip since compressed would be larger
-            headers = call_kwargs.kwargs.get("headers", call_kwargs[1].get("headers", {}))
-            self.assertNotIn("Content-Encoding", headers)
+                # Should NOT have Content-Encoding: gzip since compressed would be larger
+                headers = call_kwargs.kwargs.get("headers", call_kwargs[1].get("headers", {}))
+                self.assertNotIn("Content-Encoding", headers)
 
-            # Data should be the original uncompressed bytes
-            sent_data = call_kwargs.kwargs.get("data", call_kwargs[1].get("data", b""))
-            self.assertEqual(sent_data, random_data)
-        finally:
-            os.unlink(path)
+                # Data should be the original uncompressed bytes
+                sent_data = call_kwargs.kwargs.get("data", call_kwargs[1].get("data", b""))
+                self.assertEqual(sent_data, payload)
+            finally:
+                os.unlink(path)
 
 
 class TestSbomifyTimeout(unittest.TestCase):
