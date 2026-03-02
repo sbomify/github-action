@@ -1141,9 +1141,9 @@ class TestSbomifyGzipCompression(unittest.TestCase):
 
         dest = SbomifyDestination(token="test-token", component_id="test-component")
 
-        # Patch GZIP_THRESHOLD low so even small payloads are considered for gzip
-        with patch("sbomify_action._upload.destinations.sbomify.GZIP_THRESHOLD", 1):
-            # Create a file with a small fixed payload where gzip output is larger
+        # Patch GZIP_THRESHOLD to 0 so the gzip compression path is exercised
+        with patch("sbomify_action._upload.destinations.sbomify.GZIP_THRESHOLD", 0):
+            # A tiny payload where gzip overhead makes output larger than input
             fd, path = tempfile.mkstemp(suffix=".json")
             try:
                 payload = b"a"
