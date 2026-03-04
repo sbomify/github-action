@@ -1221,7 +1221,7 @@ jobs:
           SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
 
       - name: Attest SBOM
-        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: '${{ github.workspace }}/${{ matrix.output_file }}'
 
@@ -1307,7 +1307,7 @@ jobs:
           SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
 
       - name: Attest SBOM
-        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: '${{ github.workspace }}/${{ matrix.output_file }}'
 
@@ -1378,7 +1378,7 @@ jobs:
           SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
 
       - name: Attest SBOM
-        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: '${{ github.workspace }}/${{ matrix.output_file }}'
 
@@ -1448,6 +1448,6 @@ jobs:
           SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
 
       - name: Attest SBOM
-        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: '${{ github.workspace }}/${{ matrix.output_file }}'
