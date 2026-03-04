@@ -1,0 +1,4 @@
+.github/workflows/ @sbomify/team-sbomify
+.github/actions/ @sbomify/team-sbomify
+action.yml @sbomify/team-sbomify
+Dockerfile @sbomify/team-sbomify
