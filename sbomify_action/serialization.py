@@ -453,11 +453,14 @@ def restore_spdx_document_describes(file_path: str) -> int:
         logger.warning(f"Failed to read SPDX file for documentDescribes restoration: {e}")
         return 0
 
+    # Collect unique DESCRIBES targets, preserving first-seen order
+    seen: set[str] = set()
     describes: list[str] = []
     for rel in data.get("relationships", []):
         if rel.get("spdxElementId") == "SPDXRef-DOCUMENT" and rel.get("relationshipType") == "DESCRIBES":
             related = rel.get("relatedSpdxElement")
-            if related:
+            if related and related not in seen:
+                seen.add(related)
                 describes.append(related)
 
     if not describes:

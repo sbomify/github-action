@@ -2762,7 +2762,7 @@ class TestDocumentDescribesRoundTrip:
     """Test that documentDescribes survives the SPDX augmentation round-trip."""
 
     def test_document_describes_preserved_through_augmentation(self, tmp_path):
-        """documentDescribes should be present in output after augment_sbom_from_file."""
+        """documentDescribes should be present in output after the SPDX augmentation round-trip pipeline."""
         # Create an SPDX SBOM with documentDescribes (like Chainguard SBOMs)
         spdx_data = {
             "spdxVersion": "SPDX-2.3",

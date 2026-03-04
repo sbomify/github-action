@@ -273,6 +273,7 @@ class GeneratorRegistry:
         This fixes:
         1. Invalid license IDs (converted to LicenseRef-* format)
         2. Invalid enum values (e.g., Python enum names to SPDX spec values)
+        3. Missing documentDescribes (reconstructed from DESCRIBES relationships)
 
         Args:
             output_file: Path to the SPDX SBOM file
