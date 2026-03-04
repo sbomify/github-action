@@ -2756,3 +2756,75 @@ class TestPurlConstructionFromVCS:
         purl_refs = [ref for ref in main_package.external_references if ref.reference_type == "purl"]
         assert len(purl_refs) == 1
         assert purl_refs[0].locator == "pkg:pypi/test-app@1.0.0"  # Original preserved
+
+
+class TestDocumentDescribesRoundTrip:
+    """Test that documentDescribes survives the SPDX augmentation round-trip."""
+
+    def test_document_describes_preserved_through_augmentation(self, tmp_path):
+        """documentDescribes should be present in output after augment_sbom_from_file."""
+        # Create an SPDX SBOM with documentDescribes (like Chainguard SBOMs)
+        spdx_data = {
+            "spdxVersion": "SPDX-2.3",
+            "dataLicense": "CC0-1.0",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "chainguard-test",
+            "documentNamespace": "https://example.com/test",
+            "creationInfo": {
+                "created": "2024-01-01T00:00:00Z",
+                "creators": ["Tool: test"],
+                "licenseListVersion": "3.19",
+            },
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-main-package",
+                    "name": "test-app",
+                    "versionInfo": "1.0.0",
+                    "downloadLocation": "https://example.com",
+                    "filesAnalyzed": False,
+                }
+            ],
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-main-package",
+                }
+            ],
+            "documentDescribes": ["SPDXRef-main-package"],
+        }
+
+        input_file = tmp_path / "input.spdx.json"
+        output_file = tmp_path / "output.spdx.json"
+        input_file.write_text(json.dumps(spdx_data))
+
+        # Run augmentation via augment_spdx_sbom + write, mimicking the file pipeline
+        from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
+        from spdx_tools.spdx.writer.write_anything import write_file as spdx_write_file
+
+        from sbomify_action.serialization import restore_spdx_document_describes, sanitize_spdx_json_file
+
+        document = spdx_parse_file(str(input_file))
+        augmented = augment_spdx_sbom(
+            document=document,
+            augmentation_data={
+                "supplier": {"name": "Test Corp", "url": ["https://test.com"]},
+                "authors": [],
+                "licenses": [],
+            },
+        )
+        spdx_write_file(augmented, str(output_file), validate=False)
+        sanitize_spdx_json_file(str(output_file))
+        restore_spdx_document_describes(str(output_file))
+
+        # Verify documentDescribes is present in output
+        result = json.loads(output_file.read_text())
+        assert "documentDescribes" in result, "documentDescribes was dropped during augmentation round-trip"
+        assert "SPDXRef-main-package" in result["documentDescribes"]
+        # DESCRIBES relationship should also still be present
+        describes_rels = [
+            r
+            for r in result["relationships"]
+            if r["relationshipType"] == "DESCRIBES" and r["spdxElementId"] == "SPDXRef-DOCUMENT"
+        ]
+        assert len(describes_rels) >= 1

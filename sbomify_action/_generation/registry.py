@@ -7,6 +7,7 @@ from sbomify_action import format_display_name
 from sbomify_action.exceptions import SBOMGenerationError, ToolNotAvailableError
 from sbomify_action.logging_config import logger
 from sbomify_action.serialization import (
+    restore_spdx_document_describes,
     sanitize_cyclonedx_licenses,
     sanitize_spdx_json_file,
     sanitize_spdx_licenses,
@@ -290,6 +291,7 @@ class GeneratorRegistry:
 
             # Then fix enum values (this reads/writes the file itself)
             sanitize_spdx_json_file(output_file)
+            restore_spdx_document_describes(output_file)
         except Exception as e:
             logger.debug(f"Could not sanitize SPDX SBOM before validation: {e}")
 
