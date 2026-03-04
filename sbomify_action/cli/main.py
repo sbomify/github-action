@@ -48,7 +48,11 @@ from ..generation import (
     process_lock_file,
 )
 from ..logging_config import logger
-from ..serialization import _fix_purl_encoding_bugs_in_json, serialize_cyclonedx_bom
+from ..serialization import (
+    _fix_purl_encoding_bugs_in_json,
+    sanitize_spdx_licenses,
+    serialize_cyclonedx_bom,
+)
 from ..spdx3 import is_spdx3
 from ..upload import upload_sbom
 
@@ -1039,6 +1043,19 @@ def run_pipeline(config: Config) -> None:
                 logger.info(f"Processing existing SBOM file: {FILE}")
                 FORMAT = validate_sbom(FILE)
                 shutil.copy(FILE, STEP_1_FILE)
+
+                # Sanitize SPDX licenses in input SBOMs (e.g. RPM-style "GPLv2+", "ASL 2.0")
+                # so that downstream steps can parse the file with spdx_tools
+                if FORMAT == "spdx":
+                    try:
+                        with open(STEP_1_FILE, encoding="utf-8") as f:
+                            spdx_data = json.load(f)
+                        sanitized = sanitize_spdx_licenses(spdx_data)
+                        if sanitized > 0:
+                            with open(STEP_1_FILE, "w", encoding="utf-8") as f:
+                                json.dump(spdx_data, f, ensure_ascii=False)
+                    except (OSError, json.JSONDecodeError) as e:
+                        logger.warning(f"Could not sanitize SPDX licenses in input SBOM: {e}")
             elif config.docker_image:
                 logger.info(f"Generating SBOM from Docker image: {config.docker_image}")
                 result = generate_sbom(
