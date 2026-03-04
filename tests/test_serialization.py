@@ -20,6 +20,7 @@ from sbomify_action.serialization import (
     sanitize_dependency_graph,
     sanitize_purls,
     sanitize_spdx_json_file,
+    sanitize_spdx_licenses,
     sanitize_spdx_purls,
     serialize_cyclonedx_bom,
 )
@@ -1607,6 +1608,171 @@ class TestFixPurlEncodingBugsInJson:
         assert data["version"] == "1.0"
         # Canonical encoding preserved
         assert data["purl"] == "pkg:npm/%40scope/pkg@1.0.0"
+
+
+class TestSanitizeSpdxLicenses:
+    """Tests for sanitize_spdx_licenses with various invalid license formats."""
+
+    @pytest.mark.parametrize(
+        "invalid_license",
+        [
+            "GPLv2+",
+            "LGPLv2+",
+            "ASL 2.0",
+            "GPLv2+ or Artistic",
+            "Public Domain",
+            "BSD-like",
+        ],
+        ids=[
+            "rpm-gplv2-plus",
+            "rpm-lgplv2-plus",
+            "rpm-asl-2.0",
+            "rpm-compound-expression",
+            "public-domain",
+            "bsd-like-suffix",
+        ],
+    )
+    def test_sanitizes_invalid_license_concluded(self, invalid_license):
+        """Invalid license strings in licenseConcluded should be sanitized to LicenseRef-* format."""
+        data = {
+            "packages": [
+                {"licenseConcluded": invalid_license},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count >= 1
+        result = data["packages"][0]["licenseConcluded"]
+        assert result.startswith("LicenseRef-"), (
+            f"Expected '{invalid_license}' to be sanitized to LicenseRef-*, got '{result}'"
+        )
+
+    def test_preserves_valid_spdx_licenses(self):
+        """Valid SPDX license IDs should not be modified."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "MIT", "licenseDeclared": "Apache-2.0"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 0
+        assert data["packages"][0]["licenseConcluded"] == "MIT"
+        assert data["packages"][0]["licenseDeclared"] == "Apache-2.0"
+
+    def test_sanitizes_both_concluded_and_declared(self):
+        """Both licenseConcluded and licenseDeclared should be sanitized."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "GPLv2+", "licenseDeclared": "LGPLv2+"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 2
+        assert data["packages"][0]["licenseConcluded"].startswith("LicenseRef-")
+        assert data["packages"][0]["licenseDeclared"].startswith("LicenseRef-")
+
+    def test_sanitizes_multiple_packages(self):
+        """All packages in the SBOM should have their licenses sanitized."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "GPLv2+"},
+                {"licenseConcluded": "ASL 2.0"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 2
+        for pkg in data["packages"]:
+            assert pkg["licenseConcluded"].startswith("LicenseRef-")
+
+    def test_preserves_valid_alongside_invalid(self):
+        """Valid SPDX licenses should be preserved when other packages have invalid ones."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "MIT"},
+                {"licenseConcluded": "GPLv2+"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        assert data["packages"][0]["licenseConcluded"] == "MIT"
+        assert data["packages"][1]["licenseConcluded"].startswith("LicenseRef-")
+
+    def test_sanitizes_license_info_from_files(self):
+        """licenseInfoFromFiles list should be sanitized."""
+        data = {
+            "packages": [
+                {"licenseInfoFromFiles": ["GPLv2+", "MIT", "ASL 2.0"]},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 2
+        results = data["packages"][0]["licenseInfoFromFiles"]
+        assert results[0].startswith("LicenseRef-")  # GPLv2+ sanitized
+        assert results[1] == "MIT"  # MIT preserved
+        assert results[2].startswith("LicenseRef-")  # ASL 2.0 sanitized
+
+    def test_noassertion_and_none_preserved(self):
+        """NOASSERTION and NONE should not be sanitized."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "NOASSERTION", "licenseDeclared": "NONE"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 0
+
+    def test_empty_packages(self):
+        """Empty packages list should not cause errors."""
+        data = {"packages": []}
+        count = sanitize_spdx_licenses(data)
+        assert count == 0
+
+    def test_sanitizes_file_licenses(self):
+        """File-level licenses should be sanitized."""
+        data = {
+            "packages": [],
+            "files": [
+                {"licenseConcluded": "GPLv2+"},
+            ],
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        assert data["files"][0]["licenseConcluded"].startswith("LicenseRef-")
+
+    def test_sanitizes_snippet_license_concluded(self):
+        """Snippet-level licenseConcluded should be sanitized."""
+        data = {
+            "packages": [],
+            "snippets": [
+                {"licenseConcluded": "GPLv2+"},
+            ],
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        assert data["snippets"][0]["licenseConcluded"].startswith("LicenseRef-")
+
+    def test_sanitizes_license_info_in_snippets(self):
+        """licenseInfoInSnippets list should be sanitized."""
+        data = {
+            "snippets": [
+                {"licenseInfoInSnippets": ["GPLv2+", "MIT"]},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        results = data["snippets"][0]["licenseInfoInSnippets"]
+        assert results[0].startswith("LicenseRef-")
+        assert results[1] == "MIT"
+
+    def test_unparseable_expression_becomes_license_ref(self):
+        """Completely unparseable expressions should fall back to LicenseRef-* conversion."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "LGPL2.1+ (the library), GPL2+ (tests OR examples)"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        assert data["packages"][0]["licenseConcluded"].startswith("LicenseRef-")
 
 
 class TestRestoreSpdxDocumentDescribes:
