@@ -1780,3 +1780,5 @@ class TestRestoreSpdxDocumentDescribes:
 
         count = restore_spdx_document_describes(str(spdx_file))
         assert count == 0
+        # File should not be rewritten
+        assert spdx_file.read_text() == original
