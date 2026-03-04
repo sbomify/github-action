@@ -24,10 +24,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install UV
+      - name: Extract tool versions
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          source ./scripts/generate_additional_packages.sh
+          echo "UV_VERSION=$UV_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7
+        with:
+          version: "${{ env.UV_VERSION }}"
 
       - name: Install dependencies
         run: |
@@ -56,15 +61,19 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install UV
+      - name: Extract tool versions
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          source ./scripts/generate_additional_packages.sh
+          echo "UV_VERSION=$UV_VERSION" >> "$GITHUB_ENV"
+          echo "TRIVY_VERSION=$TRIVY_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7
+        with:
+          version: "${{ env.UV_VERSION }}"
 
       - name: Install Trivy
         run: |
-          # Source version extraction script (sets TRIVY_VERSION, BOMCTL_VERSION)
-          source ./scripts/generate_additional_packages.sh || { echo 'Failed to extract versions from Dockerfile' >&2; exit 1; }
           echo "Installing Trivy version: $TRIVY_VERSION"
           curl -sL \
             -o trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz \
@@ -72,7 +81,7 @@ jobs:
           curl -sL \
             -o trivy_checksum.txt \
             "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
-          sha256sum --ignore-missing -c trivy_checksum.txt
+          grep "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" trivy_checksum.txt | sha256sum -c -
           tar xvfz trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
           chmod +x trivy
           sudo mv trivy /usr/local/bin
@@ -132,17 +141,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install UV
+      - name: Extract tool versions
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          source ./scripts/generate_additional_packages.sh
+          echo "UV_VERSION=$UV_VERSION" >> "$GITHUB_ENV"
+          echo "TRIVY_VERSION=$TRIVY_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7
+        with:
+          version: "${{ env.UV_VERSION }}"
 
       - name: Install dependencies
         run: uv sync --locked --dev
 
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          curl -sL -o trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -sL -o trivy_checksum.txt \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
+          grep "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" trivy_checksum.txt | sha256sum -c -
+          tar xvfz trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
+          chmod +x trivy
+          sudo mv trivy /usr/local/bin
+          rm -f trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz trivy_checksum.txt
 
       - name: Generate and enrich Alpine SBOM (CycloneDX)
         run: |
@@ -393,17 +416,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install UV
+      - name: Extract tool versions
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          source ./scripts/generate_additional_packages.sh
+          echo "UV_VERSION=$UV_VERSION" >> "$GITHUB_ENV"
+          echo "TRIVY_VERSION=$TRIVY_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7
+        with:
+          version: "${{ env.UV_VERSION }}"
 
       - name: Install dependencies
         run: uv sync --locked --dev
 
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          curl -sL -o trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -sL -o trivy_checksum.txt \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
+          grep "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" trivy_checksum.txt | sha256sum -c -
+          tar xvfz trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
+          chmod +x trivy
+          sudo mv trivy /usr/local/bin
+          rm -f trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz trivy_checksum.txt
 
       - name: Generate and enrich Debian SBOM (CycloneDX)
         run: |
@@ -508,10 +545,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install UV
+      - name: Extract tool versions
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          source ./scripts/generate_additional_packages.sh
+          echo "UV_VERSION=$UV_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7
+        with:
+          version: "${{ env.UV_VERSION }}"
 
       - name: Install dependencies
         run: uv sync --locked --dev
