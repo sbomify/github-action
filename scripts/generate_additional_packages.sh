@@ -26,6 +26,8 @@ TRIVY_VERSION=$(extract_version "TRIVY" "$DOCKERFILE")
 BOMCTL_VERSION=$(extract_version "BOMCTL" "$DOCKERFILE")
 SYFT_VERSION=$(extract_version "SYFT" "$DOCKERFILE")
 CARGO_CYCLONEDX_VERSION=$(extract_version "CARGO_CYCLONEDX" "$DOCKERFILE")
+UV_VERSION=$(extract_version "UV" "$DOCKERFILE")
+BUN_VERSION=$(extract_version "BUN" "$DOCKERFILE")
 
 if [ -z "$TRIVY_VERSION" ]; then
   echo "ERROR: Could not extract TRIVY_VERSION from Dockerfile" >&2
@@ -47,11 +49,23 @@ if [ -z "$CARGO_CYCLONEDX_VERSION" ]; then
   exit 1
 fi
 
+if [ -z "$UV_VERSION" ]; then
+  echo "ERROR: Could not extract UV_VERSION from Dockerfile" >&2
+  exit 1
+fi
+
+if [ -z "$BUN_VERSION" ]; then
+  echo "ERROR: Could not extract BUN_VERSION from Dockerfile" >&2
+  exit 1
+fi
+
 # Export for sourcing
 export TRIVY_VERSION
 export BOMCTL_VERSION
 export SYFT_VERSION
 export CARGO_CYCLONEDX_VERSION
+export UV_VERSION
+export BUN_VERSION
 
 # When executed directly (not sourced), output PURLs
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

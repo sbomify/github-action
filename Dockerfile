@@ -1,3 +1,6 @@
+ARG UV_VERSION=0.10.8
+ARG BUN_VERSION=1.3.10
+
 FROM python:3.13-slim-trixie AS fetcher
 
 # Use Docker's automatic platform detection
@@ -59,7 +62,7 @@ RUN curl -sL \
     rm -rf /tmp/*
 
 # Node/Bun stage for cdxgen
-FROM oven/bun:debian AS node-fetcher
+FROM oven/bun:${BUN_VERSION}-debian AS node-fetcher
 
 WORKDIR /app
 COPY package.json bun.lock ./
@@ -88,17 +91,19 @@ RUN apt-get update && apt-get install -y curl xz-utils && \
         cargo install cargo-cyclonedx@${CARGO_CYCLONEDX_VERSION}; \
     fi
 
+# UV binary stage
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-fetcher
+
 # Python builder stage
 FROM python:3.13-slim-trixie AS builder
 
 ARG VERSION=0.0.0
 
-# Install build dependencies and UV
+# Install build dependencies
 RUN apt-get update && \
-    apt-get install -y curl build-essential libxml2-dev libxslt-dev
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+    apt-get install -y build-essential libxml2-dev libxslt-dev
 
-ENV PATH="/root/.local/bin:${PATH}"
+COPY --from=uv-fetcher /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 COPY . /app/
