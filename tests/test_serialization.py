@@ -1713,6 +1713,55 @@ class TestRestoreSpdxDocumentDescribes:
         count = restore_spdx_document_describes(str(bad_file))
         assert count == 0
 
+    def test_merges_with_existing_document_describes(self, tmp_path):
+        """Test that existing documentDescribes entries are preserved and new ones merged."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "documentDescribes": ["SPDXRef-Existing"],
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Existing",
+                },
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-New",
+                },
+            ],
+        }
+        spdx_file.write_text(json.dumps(data))
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 1  # Only the new one
+
+        result = json.loads(spdx_file.read_text())
+        assert result["documentDescribes"] == ["SPDXRef-Existing", "SPDXRef-New"]
+
+    def test_noop_when_existing_already_complete(self, tmp_path):
+        """Test no-op when existing documentDescribes already has all entries."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "documentDescribes": ["SPDXRef-Package"],
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Package",
+                },
+            ],
+        }
+        original = json.dumps(data)
+        spdx_file.write_text(original)
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 0
+        # File should not be rewritten
+        assert spdx_file.read_text() == original
+
     def test_ignores_non_document_describes(self, tmp_path):
         """Test that DESCRIBES from non-DOCUMENT elements are ignored."""
         spdx_file = tmp_path / "test.spdx.json"

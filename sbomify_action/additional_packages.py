@@ -421,7 +421,6 @@ def create_empty_sbom(output_file: str, sbom_format: str, spec_version: str | No
         document = Document(creation_info=creation_info)
         spdx_write_file(document, output_file, validate=False)
         sanitize_spdx_json_file(output_file)
-        restore_spdx_document_describes(output_file)
         logger.info(f"Created empty SPDX SBOM: {output_file}")
         return "spdx"
 

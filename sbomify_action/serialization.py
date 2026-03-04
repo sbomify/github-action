@@ -463,17 +463,28 @@ def restore_spdx_document_describes(file_path: str) -> int:
     if not describes:
         return 0
 
-    data["documentDescribes"] = describes
+    # Merge with any existing documentDescribes to avoid discarding entries
+    existing = data.get("documentDescribes")
+    if isinstance(existing, list):
+        existing_set = set(existing)
+        new_entries = [d for d in describes if d not in existing_set]
+        if not new_entries:
+            return 0
+        existing.extend(new_entries)
+        added_count = len(new_entries)
+    else:
+        data["documentDescribes"] = describes
+        added_count = len(describes)
 
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
-        logger.debug(f"Restored documentDescribes with {len(describes)} element(s)")
+        logger.debug(f"Restored documentDescribes with {added_count} element(s)")
     except OSError as e:
         logger.warning(f"Failed to write SPDX file with documentDescribes: {e}")
         return 0
 
-    return len(describes)
+    return added_count
 
 
 def sanitize_dependency_graph(bom: Bom) -> int:
