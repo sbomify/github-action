@@ -62,7 +62,7 @@ RUN curl -sL \
     rm -rf /tmp/*
 
 # Node/Bun stage for cdxgen
-FROM oven/bun:${BUN_VERSION}-debian AS node-fetcher
+FROM oven/bun:${BUN_VERSION}-debian@sha256:367842b35abbdf23f39e23c71f3a08eee940ff2679a14e08a5afcf4a1436cd89 AS node-fetcher
 
 WORKDIR /app
 COPY package.json bun.lock ./
@@ -92,7 +92,7 @@ RUN apt-get update && apt-get install -y curl xz-utils && \
     fi
 
 # UV binary stage
-FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-fetcher
+FROM ghcr.io/astral-sh/uv:${UV_VERSION}@sha256:88234bc9e09c2b2f6d176a3daf411419eb0370d450a08129257410de9cfafd2a AS uv-fetcher
 
 # Python builder stage
 FROM python:3.13-slim-trixie AS builder
