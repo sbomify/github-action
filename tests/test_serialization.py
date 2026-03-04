@@ -16,6 +16,7 @@ from sbomify_action.serialization import (
     _is_invalid_purl,
     link_root_dependencies,
     normalize_purl,
+    restore_spdx_document_describes,
     sanitize_dependency_graph,
     sanitize_purls,
     sanitize_spdx_json_file,
@@ -1765,3 +1766,178 @@ class TestSanitizeSpdxLicenses:
         count = sanitize_spdx_licenses(data)
         assert count == 1
         assert data["files"][0]["licenseConcluded"].startswith("LicenseRef-")
+
+
+class TestRestoreSpdxDocumentDescribes:
+    """Tests for restore_spdx_document_describes function."""
+
+    def test_restores_document_describes_from_describes_relationships(self, tmp_path):
+        """Test that documentDescribes is reconstructed from DESCRIBES relationships."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test-doc",
+            "packages": [{"SPDXID": "SPDXRef-Package", "name": "test-pkg"}],
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Package",
+                },
+            ],
+        }
+        spdx_file.write_text(json.dumps(data))
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 1
+
+        result = json.loads(spdx_file.read_text())
+        assert result["documentDescribes"] == ["SPDXRef-Package"]
+        # Relationships should still be present
+        assert len(result["relationships"]) == 1
+
+    def test_multiple_describes_relationships(self, tmp_path):
+        """Test with multiple DESCRIBES relationships."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Package1",
+                },
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Package2",
+                },
+                {
+                    "spdxElementId": "SPDXRef-Package1",
+                    "relationshipType": "DEPENDS_ON",
+                    "relatedSpdxElement": "SPDXRef-Package2",
+                },
+            ],
+        }
+        spdx_file.write_text(json.dumps(data))
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 2
+
+        result = json.loads(spdx_file.read_text())
+        assert set(result["documentDescribes"]) == {"SPDXRef-Package1", "SPDXRef-Package2"}
+
+    def test_no_describes_relationships_is_noop(self, tmp_path):
+        """Test that no DESCRIBES relationships results in no changes."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-Package1",
+                    "relationshipType": "DEPENDS_ON",
+                    "relatedSpdxElement": "SPDXRef-Package2",
+                },
+            ],
+        }
+        original = json.dumps(data)
+        spdx_file.write_text(original)
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 0
+        assert spdx_file.read_text() == original
+
+    def test_no_relationships_key_is_noop(self, tmp_path):
+        """Test that missing relationships key is a no-op."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {"spdxVersion": "SPDX-2.3", "name": "test"}
+        original = json.dumps(data)
+        spdx_file.write_text(original)
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 0
+        assert spdx_file.read_text() == original
+
+    def test_nonexistent_file_returns_zero(self):
+        """Test that a nonexistent file returns 0."""
+        count = restore_spdx_document_describes("/nonexistent/path.json")
+        assert count == 0
+
+    def test_invalid_json_returns_zero(self, tmp_path):
+        """Test that invalid JSON returns 0."""
+        bad_file = tmp_path / "bad.json"
+        bad_file.write_text("not json")
+
+        count = restore_spdx_document_describes(str(bad_file))
+        assert count == 0
+
+    def test_merges_with_existing_document_describes(self, tmp_path):
+        """Test that existing documentDescribes entries are preserved and new ones merged."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "documentDescribes": ["SPDXRef-Existing"],
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Existing",
+                },
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-New",
+                },
+            ],
+        }
+        spdx_file.write_text(json.dumps(data))
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 1  # Only the new one
+
+        result = json.loads(spdx_file.read_text())
+        assert result["documentDescribes"] == ["SPDXRef-Existing", "SPDXRef-New"]
+
+    def test_noop_when_existing_already_complete(self, tmp_path):
+        """Test no-op when existing documentDescribes already has all entries."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "documentDescribes": ["SPDXRef-Package"],
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Package",
+                },
+            ],
+        }
+        original = json.dumps(data)
+        spdx_file.write_text(original)
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 0
+        # File should not be rewritten
+        assert spdx_file.read_text() == original
+
+    def test_ignores_non_document_describes(self, tmp_path):
+        """Test that DESCRIBES from non-DOCUMENT elements are ignored."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-Package1",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Package2",
+                },
+            ],
+        }
+        original = json.dumps(data)
+        spdx_file.write_text(original)
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 0
+        # File should not be rewritten
+        assert spdx_file.read_text() == original
