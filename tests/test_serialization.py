@@ -1763,6 +1763,17 @@ class TestSanitizeSpdxLicenses:
         assert results[0].startswith("LicenseRef-")
         assert results[1] == "MIT"
 
+    def test_unparseable_expression_becomes_license_ref(self):
+        """Completely unparseable expressions should fall back to LicenseRef-* conversion."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "LGPL2.1+ (the library), GPL2+ (tests OR examples)"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        assert data["packages"][0]["licenseConcluded"].startswith("LicenseRef-")
+
 
 class TestRestoreSpdxDocumentDescribes:
     """Tests for restore_spdx_document_describes function."""

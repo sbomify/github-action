@@ -5,6 +5,7 @@ This module provides centralized serialization functions for both CycloneDX and 
 formats, supporting multiple versions and making it easy to add new versions in the future.
 """
 
+import hashlib
 import json
 import re
 import warnings
@@ -947,6 +948,10 @@ def sanitize_cyclonedx_licenses(data: dict) -> int:
     return sanitized_count
 
 
+# "LicenseRef-" prefix (11 chars) + max 65 chars for the identifier
+_MAX_LICENSE_REF_LENGTH = 76
+
+
 def _to_license_ref(key: str) -> str:
     """Convert an arbitrary string to a valid LicenseRef-* identifier."""
     sanitized_id = re.sub(r"[^a-zA-Z0-9.\-]", "-", key)
@@ -1005,12 +1010,10 @@ def _sanitize_spdx_license_expression(expression: str) -> tuple[str, bool]:
         # Expression couldn't be parsed at all - convert entire thing to LicenseRef
         logger.debug(f"Could not parse license expression '{expression}': {e}")
         sanitized = _to_license_ref(expression)
-        if len(sanitized) <= 76:  # LicenseRef- (11) + max 65 chars
+        if len(sanitized) <= _MAX_LICENSE_REF_LENGTH:
             return sanitized, True
         else:
-            import hashlib
-
-            hash_val = hashlib.md5(expression.encode()).hexdigest()[:16]
+            hash_val = hashlib.md5(expression.encode(), usedforsecurity=False).hexdigest()[:16]
             return f"LicenseRef-{hash_val}", True
 
 
