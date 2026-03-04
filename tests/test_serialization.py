@@ -1610,35 +1610,6 @@ class TestFixPurlEncodingBugsInJson:
         assert data["purl"] == "pkg:npm/%40scope/pkg@1.0.0"
 
 
-def _make_minimal_spdx_json(**overrides):
-    """Create a minimal valid SPDX 2.3 JSON document."""
-    data = {
-        "spdxVersion": "SPDX-2.3",
-        "dataLicense": "CC0-1.0",
-        "SPDXID": "SPDXRef-DOCUMENT",
-        "name": "test-document",
-        "documentNamespace": "https://example.com/test",
-        "creationInfo": {
-            "created": "2024-01-01T00:00:00Z",
-            "creators": ["Tool: test"],
-        },
-        "packages": [
-            {
-                "SPDXID": "SPDXRef-Package-test",
-                "name": "test-package",
-                "versionInfo": "1.0.0",
-                "downloadLocation": "NOASSERTION",
-                "licenseConcluded": "MIT",
-                "licenseDeclared": "MIT",
-                "copyrightText": "NOASSERTION",
-            }
-        ],
-    }
-    for key, value in overrides.items():
-        data[key] = value
-    return data
-
-
 class TestSanitizeSpdxLicenses:
     """Tests for sanitize_spdx_licenses with various invalid license formats."""
 
@@ -1766,6 +1737,31 @@ class TestSanitizeSpdxLicenses:
         count = sanitize_spdx_licenses(data)
         assert count == 1
         assert data["files"][0]["licenseConcluded"].startswith("LicenseRef-")
+
+    def test_sanitizes_snippet_license_concluded(self):
+        """Snippet-level licenseConcluded should be sanitized."""
+        data = {
+            "packages": [],
+            "snippets": [
+                {"licenseConcluded": "GPLv2+"},
+            ],
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        assert data["snippets"][0]["licenseConcluded"].startswith("LicenseRef-")
+
+    def test_sanitizes_license_info_in_snippets(self):
+        """licenseInfoInSnippets list should be sanitized."""
+        data = {
+            "snippets": [
+                {"licenseInfoInSnippets": ["GPLv2+", "MIT"]},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        results = data["snippets"][0]["licenseInfoInSnippets"]
+        assert results[0].startswith("LicenseRef-")
+        assert results[1] == "MIT"
 
 
 class TestRestoreSpdxDocumentDescribes:
