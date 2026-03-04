@@ -89,7 +89,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Extract tool versions
         run: |
@@ -112,7 +112,7 @@ jobs:
             --output ${{ matrix.distro }}-${{ matrix.version }}.json.gz
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: license-db-${{ matrix.distro }}-${{ matrix.version }}
           path: ${{ matrix.distro }}-${{ matrix.version }}.json.gz
@@ -120,18 +120,22 @@ jobs:
 
       - name: Get release tag
         id: get_tag
+        env:
+          GH_EVENT_NAME: ${{ github.event_name }}
+          GH_RELEASE_TAG: ${{ github.event.release.tag_name }}
+          GH_REPOSITORY: ${{ github.repository }}
         run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          if [ "${GH_EVENT_NAME}" = "release" ]; then
+            echo "tag=${GH_RELEASE_TAG}" >> $GITHUB_OUTPUT
           else
             # For workflow_dispatch, get the latest release tag
-            LATEST_TAG=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
+            LATEST_TAG=$(curl -s "https://api.github.com/repos/${GH_REPOSITORY}/releases/latest" | jq -r .tag_name)
             echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
           fi
           echo "Uploading to release: $(cat $GITHUB_OUTPUT | grep tag | cut -d= -f2)"
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
           files: ${{ matrix.distro }}-${{ matrix.version }}.json.gz
           tag_name: ${{ steps.get_tag.outputs.tag }}
