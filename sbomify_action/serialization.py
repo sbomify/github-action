@@ -432,6 +432,64 @@ def sanitize_spdx_json_file(file_path: str) -> int:
     return fixed_count
 
 
+def restore_spdx_document_describes(file_path: str) -> int:
+    """Reconstruct documentDescribes from DESCRIBES relationships in SPDX JSON.
+
+    Many SBOM consumers (sbomify server, Microsoft vcpkg, GitHub) expect the
+    documentDescribes shorthand field. The spdx-tools library converts it to
+    Relationship objects on parse and never writes it back, so we reconstruct
+    it here from DESCRIBES relationships where spdxElementId is SPDXRef-DOCUMENT.
+
+    Args:
+        file_path: Path to the SPDX JSON file to patch (modified in place)
+
+    Returns:
+        Number of entries added to documentDescribes (0 if none found or on error)
+    """
+    try:
+        with open(file_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning(f"Failed to read SPDX file for documentDescribes restoration: {e}")
+        return 0
+
+    # Collect unique DESCRIBES targets, preserving first-seen order
+    seen: set[str] = set()
+    describes: list[str] = []
+    for rel in data.get("relationships", []):
+        if rel.get("spdxElementId") == "SPDXRef-DOCUMENT" and rel.get("relationshipType") == "DESCRIBES":
+            related = rel.get("relatedSpdxElement")
+            if related and related not in seen:
+                seen.add(related)
+                describes.append(related)
+
+    if not describes:
+        return 0
+
+    # Merge with any existing documentDescribes to avoid discarding entries
+    existing = data.get("documentDescribes")
+    if isinstance(existing, list):
+        existing_set = set(existing)
+        new_entries = [d for d in describes if d not in existing_set]
+        if not new_entries:
+            return 0
+        existing.extend(new_entries)
+        added_count = len(new_entries)
+    else:
+        data["documentDescribes"] = describes
+        added_count = len(describes)
+
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+        logger.debug(f"Restored documentDescribes with {added_count} element(s)")
+    except OSError as e:
+        logger.warning(f"Failed to write SPDX file with documentDescribes: {e}")
+        return 0
+
+    return added_count
+
+
 def sanitize_dependency_graph(bom: Bom) -> int:
     """
     Fix orphaned dependency references by adding stub components for missing refs.

@@ -65,6 +65,7 @@ from .exceptions import SBOMValidationError
 from .logging_config import logger
 from .serialization import (
     link_root_dependencies,
+    restore_spdx_document_describes,
     sanitize_dependency_graph,
     sanitize_spdx_json_file,
     serialize_cyclonedx_bom,
@@ -1997,6 +1998,7 @@ def augment_sbom_from_file(
             try:
                 spdx_write_file(document, str(output_path), validate=False)
                 sanitize_spdx_json_file(str(output_path))
+                restore_spdx_document_describes(str(output_path))
             except PermissionError:
                 raise PermissionError(f"Permission denied writing output file: {output_file}")
             except OSError as e:
