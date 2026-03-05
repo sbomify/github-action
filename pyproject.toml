@@ -62,12 +62,19 @@ dev = [
 include = [
     "sbomify_action/**/*.py",
     "sbomify_action/**/*.json",
+    "sbomify-action.cdx.json",
+    "uv.lock",
+    "hatch_build.py",
 ]
 core-metadata-version = "2.3"
 
 [tool.hatch.build.targets.wheel]
 packages = ["sbomify_action"]
 core-metadata-version = "2.3"
+sbom-files = ["sbomify-action.cdx.json"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_build.py"
 
 [tool.hatch.build]
 include = [
@@ -76,7 +83,7 @@ include = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.28.0"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
