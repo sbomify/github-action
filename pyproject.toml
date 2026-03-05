@@ -63,7 +63,6 @@ include = [
     "sbomify_action/**/*.py",
     "sbomify_action/**/*.json",
     "sbomify-action.cdx.json",
-    "hatch_build.py",
 ]
 core-metadata-version = "2.3"
 
@@ -71,9 +70,6 @@ core-metadata-version = "2.3"
 packages = ["sbomify_action"]
 core-metadata-version = "2.3"
 sbom-files = ["sbomify-action.cdx.json"]
-
-[tool.hatch.build.targets.wheel.hooks.custom]
-path = "hatch_build.py"
 
 [tool.hatch.build]
 include = [
