@@ -24,6 +24,20 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Generate SBOM (PEP 770)
+        uses: sbomify/sbomify-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
+          API_BASE_URL: 'https://stage.sbomify.com'
+          COMPONENT_ID: 'XNsX40tonzvv'
+          COMPONENT_NAME: 'sbomify Action'
+          LOCK_FILE: uv.lock
+          SBOM_FORMAT: cyclonedx
+          OUTPUT_FILE: sbomify-action.cdx.json
+          AUGMENT: "true"
+          ENRICH: "true"
+          UPLOAD: "false"
+
       - name: Determine version
         id: version
         env:
@@ -72,6 +86,19 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+
+      - name: Generate SBOM (PEP 770)
+        uses: sbomify/sbomify-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'XNsX40tonzvv'
+          COMPONENT_NAME: 'sbomify Action'
+          LOCK_FILE: uv.lock
+          SBOM_FORMAT: cyclonedx
+          OUTPUT_FILE: sbomify-action.cdx.json
+          AUGMENT: "true"
+          ENRICH: "true"
+          UPLOAD: "false"
 
       - name: Determine version
         id: version
