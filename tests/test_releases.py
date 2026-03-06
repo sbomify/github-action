@@ -102,6 +102,7 @@ class TestReleasesApi(unittest.TestCase):
         call_args = mock_post.call_args
         self.assertEqual(call_args[1]["json"]["product_id"], "Gu9wem8mkX")
         self.assertEqual(call_args[1]["json"]["version"], "v1.0.0")
+        self.assertEqual(call_args[1]["json"]["name"], "v1.0.0")
 
     @patch("sbomify_action._processors.releases_api.requests.post")
     def test_create_release_api_error(self, mock_post):
@@ -140,10 +141,32 @@ class TestReleasesApi(unittest.TestCase):
         result = create_release(self.api_base_url, self.token, "Gu9wem8mkX", "v1.0.0")
 
         self.assertEqual(result, "existing-release-id")
-        # Should search by name "Release v1.0.0" since API enforces uniqueness on name
-        mock_get_release_id_by_name.assert_called_once_with(
-            self.api_base_url, self.token, "Gu9wem8mkX", "Release v1.0.0"
-        )
+        # Should search by name "v1.0.0" since API enforces uniqueness on name
+        mock_get_release_id_by_name.assert_called_once_with(self.api_base_url, self.token, "Gu9wem8mkX", "v1.0.0")
+
+    @patch("sbomify_action._processors.releases_api.get_release_id_by_name")
+    @patch("sbomify_action._processors.releases_api.requests.post")
+    def test_create_release_duplicate_name_legacy_fallback(self, mock_post, mock_get_release_id_by_name):
+        """Test create release handles DUPLICATE_NAME by falling back to legacy 'Release {version}' name."""
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 400
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.return_value = {
+            "detail": "A release with this name already exists for this product",
+            "error_code": "DUPLICATE_NAME",
+        }
+        mock_post.return_value = mock_response
+
+        # First call (new name) returns None, second call (legacy name) returns the ID
+        mock_get_release_id_by_name.side_effect = [None, "legacy-release-id"]
+
+        result = create_release(self.api_base_url, self.token, "Gu9wem8mkX", "v1.0.0")
+
+        self.assertEqual(result, "legacy-release-id")
+        self.assertEqual(mock_get_release_id_by_name.call_count, 2)
+        mock_get_release_id_by_name.assert_any_call(self.api_base_url, self.token, "Gu9wem8mkX", "v1.0.0")
+        mock_get_release_id_by_name.assert_any_call(self.api_base_url, self.token, "Gu9wem8mkX", "Release v1.0.0")
 
     @patch("sbomify_action._processors.releases_api.get_release_id_by_name")
     @patch("sbomify_action._processors.releases_api.requests.post")
@@ -202,13 +225,13 @@ class TestReleasesApi(unittest.TestCase):
         mock_response.ok = True
         mock_response.json.return_value = {
             "items": [
-                {"id": "rel1", "version": "v1.0.0", "name": "Release v1.0.0"},
-                {"id": "rel2", "version": "v2.0.0", "name": "Release v2.0.0"},
+                {"id": "rel1", "version": "v1.0.0", "name": "v1.0.0"},
+                {"id": "rel2", "version": "v2.0.0", "name": "v2.0.0"},
             ]
         }
         mock_get.return_value = mock_response
 
-        result = get_release_id_by_name(self.api_base_url, self.token, "Gu9wem8mkX", "Release v1.0.0")
+        result = get_release_id_by_name(self.api_base_url, self.token, "Gu9wem8mkX", "v1.0.0")
 
         self.assertEqual(result, "rel1")
         # Verify query params don't include version filter
@@ -222,12 +245,12 @@ class TestReleasesApi(unittest.TestCase):
         mock_response.ok = True
         mock_response.json.return_value = {
             "items": [
-                {"id": "rel1", "version": "v1.0.0", "name": "Release v1.0.0"},
+                {"id": "rel1", "version": "v1.0.0", "name": "v1.0.0"},
             ]
         }
         mock_get.return_value = mock_response
 
-        result = get_release_id_by_name(self.api_base_url, self.token, "Gu9wem8mkX", "Release v2.0.0")
+        result = get_release_id_by_name(self.api_base_url, self.token, "Gu9wem8mkX", "v2.0.0")
 
         self.assertIsNone(result)
 
@@ -236,20 +259,20 @@ class TestReleasesApi(unittest.TestCase):
         """Test get_release_id_by_name finds release even when version field differs.
 
         This is the key scenario that get_release_id_by_name fixes: a release exists
-        with name="Release v1.0.0" but version field is different or empty.
+        with name="v1.0.0" but version field is different or empty.
         """
         mock_response = Mock()
         mock_response.ok = True
         mock_response.json.return_value = {
             "items": [
-                # Release with name "Release v1.0.0" but version is different
-                {"id": "rel1", "version": "different-version", "name": "Release v1.0.0"},
+                # Release with name "v1.0.0" but version is different
+                {"id": "rel1", "version": "different-version", "name": "v1.0.0"},
             ]
         }
         mock_get.return_value = mock_response
 
         # get_release_id would fail here (version mismatch), but get_release_id_by_name succeeds
-        result = get_release_id_by_name(self.api_base_url, self.token, "Gu9wem8mkX", "Release v1.0.0")
+        result = get_release_id_by_name(self.api_base_url, self.token, "Gu9wem8mkX", "v1.0.0")
 
         self.assertEqual(result, "rel1")
 
@@ -264,7 +287,7 @@ class TestReleasesApi(unittest.TestCase):
         mock_get.return_value = mock_response
 
         with self.assertRaises(APIError) as cm:
-            get_release_id_by_name(self.api_base_url, self.token, "Gu9wem8mkX", "Release v1.0.0")
+            get_release_id_by_name(self.api_base_url, self.token, "Gu9wem8mkX", "v1.0.0")
 
         self.assertIn("500", str(cm.exception))
         self.assertIn("Server error", str(cm.exception))
@@ -394,19 +417,31 @@ class TestReleasesApi(unittest.TestCase):
         release_details = {
             "id": "rel1",
             "version": "v1.0.0",
-            "name": "Release v1.0.0",  # Default format
+            "name": "v1.0.0",  # Default format
             "description": "Auto-generated release",
         }
 
         result = get_release_friendly_name(release_details, "v1.0.0")
 
-        self.assertEqual(result, "Release v1.0.0")
+        self.assertEqual(result, "v1.0.0")
+
+    def test_get_release_friendly_name_with_legacy_default_name(self):
+        """Test friendly name generation treats legacy 'Release {version}' as default."""
+        release_details = {
+            "id": "rel1",
+            "version": "v1.0.0",
+            "name": "Release v1.0.0",  # Legacy default format
+        }
+
+        result = get_release_friendly_name(release_details, "v1.0.0")
+
+        self.assertEqual(result, "v1.0.0")
 
     def test_get_release_friendly_name_no_details(self):
         """Test friendly name generation when no release details available."""
         result = get_release_friendly_name(None, "v1.0.0")
 
-        self.assertEqual(result, "Release v1.0.0")
+        self.assertEqual(result, "v1.0.0")
 
     def test_get_release_friendly_name_with_empty_string_name(self):
         """Test friendly name generation when name is empty string."""
@@ -418,7 +453,7 @@ class TestReleasesApi(unittest.TestCase):
 
         result = get_release_friendly_name(release_details, "v1.0.0")
 
-        self.assertEqual(result, "Release v1.0.0")
+        self.assertEqual(result, "v1.0.0")
 
     def test_get_release_friendly_name_with_none_name(self):
         """Test friendly name generation when name is None."""
@@ -430,7 +465,7 @@ class TestReleasesApi(unittest.TestCase):
 
         result = get_release_friendly_name(release_details, "v1.0.0")
 
-        self.assertEqual(result, "Release v1.0.0")
+        self.assertEqual(result, "v1.0.0")
 
     def test_get_release_friendly_name_with_whitespace_only_name(self):
         """Test friendly name generation when name is whitespace only."""
@@ -442,7 +477,7 @@ class TestReleasesApi(unittest.TestCase):
 
         result = get_release_friendly_name(release_details, "v1.0.0")
 
-        self.assertEqual(result, "Release v1.0.0")
+        self.assertEqual(result, "v1.0.0")
 
     def test_get_release_friendly_name_trims_whitespace(self):
         """Test friendly name generation trims leading/trailing whitespace."""

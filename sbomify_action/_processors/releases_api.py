@@ -206,8 +206,8 @@ def create_release(api_base_url: str, token: str, product_id: str, version: str)
     payload = {
         "product_id": product_id,
         "version": version,
-        "name": f"Release {version}",
-        "description": f"Release {version} created by sbomify-action",
+        "name": version,
+        "description": f"{version} created by sbomify-action",
     }
 
     try:
@@ -223,12 +223,17 @@ def create_release(api_base_url: str, token: str, product_id: str, version: str)
             error_data = _safe_json_dict(response)
             if error_data is not None and error_data.get("error_code") == "DUPLICATE_NAME":
                 logger.info(
-                    f"Release {version} for product {product_id} already exists, retrieving existing release ID"
+                    f"Release '{version}' for product {product_id} already exists, retrieving existing release ID"
                 )
                 # Search by name since the API enforces uniqueness on the name field
-                existing_id = get_release_id_by_name(api_base_url, token, product_id, f"Release {version}")
+                existing_id = get_release_id_by_name(api_base_url, token, product_id, version)
                 if existing_id:
                     return existing_id
+                # Fallback: try legacy naming convention "Release {version}"
+                legacy_id = get_release_id_by_name(api_base_url, token, product_id, f"Release {version}")
+                if legacy_id:
+                    logger.info(f"Found existing legacy-named release 'Release {version}' for product {product_id}")
+                    return legacy_id
                 # If we couldn't find it, fall through to error handling
 
         err_msg = f"Failed to create release. [{response.status_code}]"
@@ -304,11 +309,11 @@ def get_release_friendly_name(release_details: Optional[Dict[str, Any]], version
         User-friendly release name
     """
     if not release_details:
-        return f"Release {version}"
+        return version
 
     release_name = release_details.get("name")
     if isinstance(release_name, str):
         stripped_name = release_name.strip()
-        if stripped_name and stripped_name != f"Release {version}":
+        if stripped_name and stripped_name not in (version, f"Release {version}"):
             return f"'{stripped_name}' ({version})"
-    return f"Release {version}"
+    return version
