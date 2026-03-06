@@ -975,7 +975,7 @@ def _sanitize_spdx_license_expression(expression: str) -> tuple[str, bool]:
     Returns:
         Tuple of (sanitized expression, was_modified)
     """
-    from license_expression import ExpressionError, get_spdx_licensing
+    from license_expression import ExpressionError, LicenseWithExceptionSymbol, get_spdx_licensing
 
     if not expression or expression in ("NOASSERTION", "NONE"):
         return expression, False
@@ -993,6 +993,28 @@ def _sanitize_spdx_license_expression(expression: str) -> tuple[str, bool]:
         unknown_set = {str(k) for k in unknown_keys}
         subs_map = {}
         for sym in parsed.symbols:
+            # LicenseWithExceptionSymbol (e.g. "MIT WITH Exception") has no .key;
+            # check its license_symbol and exception_symbol sub-keys instead.
+            if isinstance(sym, LicenseWithExceptionSymbol):
+                lic_key = sym.license_symbol.key
+                exc_key = sym.exception_symbol.key
+                lic_ref = (
+                    _to_license_ref(lic_key)
+                    if lic_key in unknown_set and not lic_key.startswith("LicenseRef-")
+                    else lic_key
+                )
+                exc_ref = (
+                    _to_license_ref(exc_key)
+                    if exc_key in unknown_set and not exc_key.startswith("LicenseRef-")
+                    else exc_key
+                )
+                if lic_ref != lic_key or exc_ref != exc_key:
+                    logger.debug(
+                        f"Converting invalid SPDX license WITH expression: '{lic_key} WITH {exc_key}' to '{lic_ref} WITH {exc_ref}'"
+                    )
+                    subs_map[sym] = spdx_licensing.parse(f"{lic_ref} WITH {exc_ref}", validate=False)
+                continue
+
             key_str = sym.key
             if key_str not in unknown_set or key_str.startswith("LicenseRef-"):
                 continue

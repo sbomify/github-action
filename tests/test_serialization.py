@@ -1774,6 +1774,30 @@ class TestSanitizeSpdxLicenses:
         assert count == 1
         assert data["packages"][0]["licenseConcluded"].startswith("LicenseRef-")
 
+    def test_sanitizes_unknown_license_with_exception(self):
+        """Unknown license in a WITH expression should be sanitized without crashing."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "FakeLicense WITH Classpath-exception-2.0"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        result = data["packages"][0]["licenseConcluded"]
+        assert "LicenseRef-FakeLicense" in result
+        assert "Classpath-exception-2.0" in result
+
+    def test_preserves_valid_license_with_exception(self):
+        """Valid license WITH exception should not be modified."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "GPL-2.0-only WITH Classpath-exception-2.0"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 0
+        assert data["packages"][0]["licenseConcluded"] == "GPL-2.0-only WITH Classpath-exception-2.0"
+
 
 class TestRestoreSpdxDocumentDescribes:
     """Tests for restore_spdx_document_describes function."""
