@@ -1,6 +1,7 @@
 """Dependency expansion orchestration for SBOMs."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -236,6 +237,19 @@ class DependencyEnricher:
             if pkg.get("SPDXID"):
                 existing_spdx_ids.add(pkg["SPDXID"])
 
+        # Build a name→SPDXID lookup for existing packages so we can create
+        # DEPENDENCY_OF relationships from new packages to their parents.
+        name_to_spdx_id: dict[str, str] = {}
+        for pkg in packages:
+            normalized = normalize_python_package_name(pkg.get("name", ""))
+            if pkg.get("SPDXID"):
+                name_to_spdx_id[normalized] = pkg["SPDXID"]
+
+        # Determine the document SPDXID for DESCRIBES relationships
+        doc_spdx_id = sbom_data.get("SPDXID", "SPDXRef-DOCUMENT")
+
+        relationships = sbom_data.get("relationships", [])
+
         # Add new packages
         added_count = 0
         audit = get_audit_trail()
@@ -248,12 +262,11 @@ class DependencyEnricher:
 
             # Create new SPDX package
             # Generate a unique SPDXID. SPDX IDs must contain only letters, numbers,
-            # dots, and hyphens, and cannot start with a number. Although dots are
-            # allowed by the SPDX spec, we normalize separators (dots, underscores)
-            # to hyphens for consistency; collision handling below ensures uniqueness
-            # within this document if two packages still normalize to the same ID.
-            safe_name = dep.name.replace("_", "-").replace(".", "-")
-            safe_version = dep.version.replace("_", "-")
+            # dots, and hyphens. Any character outside [a-zA-Z0-9.-] (e.g. `+` from
+            # PEP 440 local versions, `_`, `~`) is replaced with a hyphen.
+            # Collision handling below ensures uniqueness within this document.
+            safe_name = re.sub(r"[^a-zA-Z0-9.\-]", "-", dep.name)
+            safe_version = re.sub(r"[^a-zA-Z0-9.\-]", "-", dep.version)
             base_spdx_id = f"SPDXRef-Package-{safe_name}-{safe_version}"
 
             # Handle potential collisions by adding a suffix
@@ -282,6 +295,31 @@ class DependencyEnricher:
             packages.append(new_package)
             added_count += 1
 
+            # Track for parent lookups
+            name_to_spdx_id[normalized_name] = spdx_id
+
+            # Add DESCRIBES relationship from document to new package
+            relationships.append(
+                {
+                    "spdxElementId": doc_spdx_id,
+                    "relatedSpdxElement": spdx_id,
+                    "relationshipType": "DESCRIBES",
+                }
+            )
+
+            # Add DEPENDENCY_OF relationship if we know the parent
+            if dep.parent:
+                parent_normalized = normalize_python_package_name(dep.parent)
+                parent_spdx_id = name_to_spdx_id.get(parent_normalized)
+                if parent_spdx_id:
+                    relationships.append(
+                        {
+                            "spdxElementId": spdx_id,
+                            "relatedSpdxElement": parent_spdx_id,
+                            "relationshipType": "DEPENDENCY_OF",
+                        }
+                    )
+
             # Record to audit trail
             parent_info = f"discovered via {dep.parent}" if dep.parent else "discovered as transitive"
             audit.record_enrichment(
@@ -292,6 +330,7 @@ class DependencyEnricher:
             )
 
         sbom_data["packages"] = packages
+        sbom_data["relationships"] = relationships
 
         # Write back
         with sbom_path.open("w") as f:

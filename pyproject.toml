@@ -1,6 +1,6 @@
 [project]
 name = "sbomify-action"
-version = "0.13"
+version = "0.14"
 description = "Generate, augment, enrich, and manage SBOMs in your CI/CD pipeline"
 authors = [{ name = "sbomify", email = "hello@sbomify.com" }]
 requires-python = ">=3.11"
@@ -62,12 +62,14 @@ dev = [
 include = [
     "sbomify_action/**/*.py",
     "sbomify_action/**/*.json",
+    "sbomify-action.cdx.json",
 ]
 core-metadata-version = "2.3"
 
 [tool.hatch.build.targets.wheel]
 packages = ["sbomify_action"]
 core-metadata-version = "2.3"
+sbom-files = ["sbomify-action.cdx.json"]
 
 [tool.hatch.build]
 include = [
@@ -76,7 +78,7 @@ include = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.28.0"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]

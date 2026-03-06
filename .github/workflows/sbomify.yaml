@@ -20,14 +20,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Code Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
-      - name: Install UV
+      - name: Extract tool versions
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          source ./scripts/generate_additional_packages.sh
+          echo "UV_VERSION=$UV_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7
+        with:
+          version: "${{ env.UV_VERSION }}"
 
       - name: Install dependencies
         run: |
@@ -46,25 +51,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Code Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Set up Python
         id: setup-python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
 
-      - name: Install UV
+      - name: Extract tool versions
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          source ./scripts/generate_additional_packages.sh
+          echo "UV_VERSION=$UV_VERSION" >> "$GITHUB_ENV"
+          echo "TRIVY_VERSION=$TRIVY_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7
+        with:
+          version: "${{ env.UV_VERSION }}"
 
       - name: Install Trivy
         run: |
-          # Source version extraction script (sets TRIVY_VERSION, BOMCTL_VERSION)
-          source ./scripts/generate_additional_packages.sh || { echo 'Failed to extract versions from Dockerfile' >&2; exit 1; }
           echo "Installing Trivy version: $TRIVY_VERSION"
           curl -sL \
             -o trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz \
@@ -72,7 +81,7 @@ jobs:
           curl -sL \
             -o trivy_checksum.txt \
             "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
-          sha256sum --ignore-missing -c trivy_checksum.txt
+          grep "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" trivy_checksum.txt | sha256sum -c -
           tar xvfz trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
           chmod +x trivy
           sudo mv trivy /usr/local/bin
@@ -80,7 +89,7 @@ jobs:
 
       - name: Load cached venv
         id: cached-uv-dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: .venv
           key: venv-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/uv.lock') }}
@@ -103,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Code Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -128,21 +137,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Code Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
-      - name: Install UV
+      - name: Extract tool versions
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          source ./scripts/generate_additional_packages.sh
+          echo "UV_VERSION=$UV_VERSION" >> "$GITHUB_ENV"
+          echo "TRIVY_VERSION=$TRIVY_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7
+        with:
+          version: "${{ env.UV_VERSION }}"
 
       - name: Install dependencies
         run: uv sync --locked --dev
 
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          curl -sL -o trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -sL -o trivy_checksum.txt \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
+          grep "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" trivy_checksum.txt | sha256sum -c -
+          tar xvfz trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
+          chmod +x trivy
+          sudo mv trivy /usr/local/bin
+          rm -f trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz trivy_checksum.txt
 
       - name: Generate and enrich Alpine SBOM (CycloneDX)
         run: |
@@ -375,7 +398,7 @@ jobs:
           jq -r '.packages[] | select(.originator != null and .originator != "NOASSERTION") | "\(.name): \(.originator)"' alpine-enriched.spdx.json | head -5
 
       - name: Upload enriched SBOM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: alpine-enriched-sboms
@@ -389,21 +412,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Code Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
-      - name: Install UV
+      - name: Extract tool versions
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          source ./scripts/generate_additional_packages.sh
+          echo "UV_VERSION=$UV_VERSION" >> "$GITHUB_ENV"
+          echo "TRIVY_VERSION=$TRIVY_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7
+        with:
+          version: "${{ env.UV_VERSION }}"
 
       - name: Install dependencies
         run: uv sync --locked --dev
 
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          curl -sL -o trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -sL -o trivy_checksum.txt \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
+          grep "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" trivy_checksum.txt | sha256sum -c -
+          tar xvfz trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
+          chmod +x trivy
+          sudo mv trivy /usr/local/bin
+          rm -f trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz trivy_checksum.txt
 
       - name: Generate and enrich Debian SBOM (CycloneDX)
         run: |
@@ -492,7 +529,7 @@ jobs:
           jq -r '.components[] | select(.properties[]?.name | startswith("cdx:lifecycle")) | "\(.type // "library"): \(.name) v\(.version)"' debian-enriched.cdx.json | sort -u
 
       - name: Upload enriched SBOM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: debian-cle-enriched-sbom
@@ -504,14 +541,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Code Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
-      - name: Install UV
+      - name: Extract tool versions
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          source ./scripts/generate_additional_packages.sh
+          echo "UV_VERSION=$UV_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7
+        with:
+          version: "${{ env.UV_VERSION }}"
 
       - name: Install dependencies
         run: uv sync --locked --dev
@@ -994,7 +1036,7 @@ jobs:
           echo "=== SPDX NTIA Compliance: PASSED ==="
 
       - name: Upload augmented SBOM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: augmented-sboms
@@ -1018,55 +1060,69 @@ jobs:
       packages: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Determine version
         id: version
+        env:
+          GH_REF_TYPE: ${{ github.ref_type }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          GH_SHA: ${{ github.sha }}
         run: |
           # Extract base version from pyproject.toml
           BASE_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+
+          if [[ "${GH_REF_TYPE}" == "tag" ]]; then
             # For tags, use the tag name (strip 'v' prefix if present)
-            VERSION="${{ github.ref_name }}"
+            VERSION="${GH_REF_NAME}"
             VERSION="${VERSION#v}"
           else
             # For branches, use base version + short SHA as semver build metadata
-            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            SHORT_SHA=$(echo "${GH_SHA}" | cut -c1-7)
             VERSION="${BASE_VERSION}+${SHORT_SHA}"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build image
+        env:
+          BUILD_VERSION: ${{ steps.version.outputs.version }}
+          COMMIT_SHA: ${{ github.sha }}
+          VCS_REF: ${{ github.ref_name }}
         run: |
           docker build . \
             --file Dockerfile \
             --tag $IMAGE_NAME \
             --label "runnumber=${GITHUB_RUN_ID}" \
-            --build-arg VERSION=${{ steps.version.outputs.version }} \
-            --build-arg COMMIT_SHA=${{ github.sha }} \
+            --build-arg VERSION="${BUILD_VERSION}" \
+            --build-arg COMMIT_SHA="${COMMIT_SHA}" \
             --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-            --build-arg VCS_REF=${{ github.ref_name }}
+            --build-arg VCS_REF="${VCS_REF}"
 
       - name: Log in to registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ACTOR: ${{ github.actor }}
+        run: echo "${GH_TOKEN}" | docker login ghcr.io -u "${GH_ACTOR}" --password-stdin
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         with:
           username: sbomifyhub
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Push image
+        env:
+          GH_REPO_OWNER: ${{ github.repository_owner }}
+          GH_REF: ${{ github.ref }}
         run: |
           set -x
-          GITHUB_IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
+          GITHUB_IMAGE_ID=ghcr.io/${GH_REPO_OWNER}/$IMAGE_NAME
           GITHUB_IMAGE_ID=$(echo $GITHUB_IMAGE_ID | tr '[A-Z]' '[a-z]')
           DOCKER_HUB_IMAGE_ID=sbomifyhub/$IMAGE_NAME
 
-          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          VERSION=$(echo "${GH_REF}" | sed -e 's,.*/\(.*\),\1,')
 
-          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+          [[ "${GH_REF}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
 
           [ "$VERSION" == "master" ] && VERSION=latest
 
@@ -1132,10 +1188,10 @@ jobs:
             has_product_release: true
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Cache sbomify data
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: .sbomify-cache
           key: sbomify-${{ runner.os }}
@@ -1165,7 +1221,7 @@ jobs:
           SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
 
       - name: Attest SBOM
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: '${{ github.workspace }}/${{ matrix.output_file }}'
 
@@ -1219,10 +1275,10 @@ jobs:
             has_product_release: true
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Cache sbomify data
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: .sbomify-cache
           key: sbomify-${{ runner.os }}
@@ -1251,7 +1307,7 @@ jobs:
           SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
 
       - name: Attest SBOM
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: '${{ github.workspace }}/${{ matrix.output_file }}'
 
@@ -1285,10 +1341,10 @@ jobs:
             has_product_release: true
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Cache sbomify data
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: .sbomify-cache
           key: sbomify-${{ runner.os }}
@@ -1322,7 +1378,7 @@ jobs:
           SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
 
       - name: Attest SBOM
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: '${{ github.workspace }}/${{ matrix.output_file }}'
 
@@ -1356,10 +1412,10 @@ jobs:
             has_product_release: true
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Cache sbomify data
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: .sbomify-cache
           key: sbomify-${{ runner.os }}
@@ -1392,6 +1448,6 @@ jobs:
           SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft
 
       - name: Attest SBOM
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: '${{ github.workspace }}/${{ matrix.output_file }}'

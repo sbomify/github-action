@@ -20,16 +20,32 @@ jobs:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
+      - name: Generate SBOM (PEP 770)
+        uses: sbomify/sbomify-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
+          API_BASE_URL: 'https://stage.sbomify.com'
+          COMPONENT_ID: 'XNsX40tonzvv'
+          COMPONENT_NAME: 'sbomify Action'
+          LOCK_FILE: uv.lock
+          SBOM_FORMAT: cyclonedx
+          OUTPUT_FILE: sbomify-action.cdx.json
+          AUGMENT: "true"
+          ENRICH: "true"
+          UPLOAD: "false"
+
       - name: Determine version
         id: version
+        env:
+          GH_SHA: ${{ github.sha }}
         run: |
           # Get base version from pyproject.toml and append dev suffix with short SHA
           BASE_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          SHORT_SHA=$(echo "${GH_SHA}" | cut -c1-7)
           # Use .devN format where N is derived from SHA (convert hex to decimal, truncate)
           DEV_NUM=$(printf "%d" 0x${SHORT_SHA} 2>/dev/null | cut -c1-9)
           VERSION="${BASE_VERSION}.dev${DEV_NUM}"
@@ -52,7 +68,7 @@ jobs:
           ls -la dist/
 
       - name: Publish distribution to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
 
@@ -67,9 +83,22 @@ jobs:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+
+      - name: Generate SBOM (PEP 770)
+        uses: sbomify/sbomify-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'XNsX40tonzvv'
+          COMPONENT_NAME: 'sbomify Action'
+          LOCK_FILE: uv.lock
+          SBOM_FORMAT: cyclonedx
+          OUTPUT_FILE: sbomify-action.cdx.json
+          AUGMENT: "true"
+          ENRICH: "true"
+          UPLOAD: "false"
 
       - name: Determine version
         id: version
@@ -95,4 +124,4 @@ jobs:
           ls -la dist/
 
       - name: Publish distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1

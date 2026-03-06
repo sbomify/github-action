@@ -12,6 +12,7 @@ official 3.0.1 context URL (the library bundles a local ``context.json``
 instead).
 """
 
+import copy
 import json
 import re
 import uuid
@@ -222,6 +223,9 @@ def _parse_creation_info(ci_dict: dict) -> CreationInfo:
         # Handle ISO-8601 with or without timezone
         created_str = created_str.replace("Z", "+00:00")
         created = datetime.fromisoformat(created_str)
+        # Ensure timezone-aware to avoid TypeError when mixed with aware datetimes
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
     else:
         created = datetime.now(timezone.utc)
 
@@ -398,7 +402,11 @@ def _parse_software_artifact_fields(elem: dict, fields: dict) -> None:
         date_str = elem.get(json_key)
         if date_str:
             date_str = date_str.replace("Z", "+00:00")
-            fields[py_key] = datetime.fromisoformat(date_str)
+            dt = datetime.fromisoformat(date_str)
+            # Ensure timezone-aware to avoid TypeError when mixed with aware datetimes
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            fields[py_key] = dt
 
     # Standards — context uses "standardName", spdx_tools may output "standard"
     stds = elem.get("standardName") or elem.get("standard", [])
@@ -582,7 +590,7 @@ def parse_spdx3_data(data: dict) -> Spdx3Payload:
             else:
                 logger.debug(f"Passing through unhandled SPDX 3 element type: {elem_type}")
                 payload.passthrough_elements.append(elem)
-        except Exception as e:
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
             spdx_id = elem.get("@id") or elem.get("spdxId", "unknown")
             logger.warning(f"Failed to parse SPDX 3 element {spdx_id} (type={elem_type}): {e}")
             payload.passthrough_elements.append(elem)
@@ -700,13 +708,16 @@ def write_spdx3_file(
         _normalize_serialized_element(elem)
 
     # Re-attach passthrough elements that were not parsed into model objects.
-    # Normalize their keys for consistency, but preserve blank-node @id values
-    # (e.g. "_:CreationInfo0") since spdxId must be an IRI per the spec.
+    # Deep-copy to avoid mutating the originals (normalization modifies in place,
+    # so calling write_spdx3_file twice on the same payload would corrupt data).
+    # Preserve blank-node @id values (e.g. "_:CreationInfo0") since spdxId must
+    # be an IRI per the spec.
     passthrough = payload.passthrough_elements if isinstance(payload, Spdx3Payload) else []
     if passthrough:
-        for elem in passthrough:
+        passthrough_copy = copy.deepcopy(passthrough)
+        for elem in passthrough_copy:
             _normalize_passthrough_element(elem)
-        element_list.extend(passthrough)
+        element_list.extend(passthrough_copy)
 
     complete_dict = {"@context": context_url, "@graph": element_list}
 

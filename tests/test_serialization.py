@@ -16,9 +16,11 @@ from sbomify_action.serialization import (
     _is_invalid_purl,
     link_root_dependencies,
     normalize_purl,
+    restore_spdx_document_describes,
     sanitize_dependency_graph,
     sanitize_purls,
     sanitize_spdx_json_file,
+    sanitize_spdx_licenses,
     sanitize_spdx_purls,
     serialize_cyclonedx_bom,
 )
@@ -1606,3 +1608,343 @@ class TestFixPurlEncodingBugsInJson:
         assert data["version"] == "1.0"
         # Canonical encoding preserved
         assert data["purl"] == "pkg:npm/%40scope/pkg@1.0.0"
+
+
+class TestSanitizeSpdxLicenses:
+    """Tests for sanitize_spdx_licenses with various invalid license formats."""
+
+    @pytest.mark.parametrize(
+        "invalid_license",
+        [
+            "GPLv2+",
+            "LGPLv2+",
+            "ASL 2.0",
+            "GPLv2+ or Artistic",
+            "Public Domain",
+            "BSD-like",
+        ],
+        ids=[
+            "rpm-gplv2-plus",
+            "rpm-lgplv2-plus",
+            "rpm-asl-2.0",
+            "rpm-compound-expression",
+            "public-domain",
+            "bsd-like-suffix",
+        ],
+    )
+    def test_sanitizes_invalid_license_concluded(self, invalid_license):
+        """Invalid license strings in licenseConcluded should be sanitized to LicenseRef-* format."""
+        data = {
+            "packages": [
+                {"licenseConcluded": invalid_license},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count >= 1
+        result = data["packages"][0]["licenseConcluded"]
+        assert result.startswith("LicenseRef-"), (
+            f"Expected '{invalid_license}' to be sanitized to LicenseRef-*, got '{result}'"
+        )
+
+    def test_preserves_valid_spdx_licenses(self):
+        """Valid SPDX license IDs should not be modified."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "MIT", "licenseDeclared": "Apache-2.0"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 0
+        assert data["packages"][0]["licenseConcluded"] == "MIT"
+        assert data["packages"][0]["licenseDeclared"] == "Apache-2.0"
+
+    def test_sanitizes_both_concluded_and_declared(self):
+        """Both licenseConcluded and licenseDeclared should be sanitized."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "GPLv2+", "licenseDeclared": "LGPLv2+"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 2
+        assert data["packages"][0]["licenseConcluded"].startswith("LicenseRef-")
+        assert data["packages"][0]["licenseDeclared"].startswith("LicenseRef-")
+
+    def test_sanitizes_multiple_packages(self):
+        """All packages in the SBOM should have their licenses sanitized."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "GPLv2+"},
+                {"licenseConcluded": "ASL 2.0"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 2
+        for pkg in data["packages"]:
+            assert pkg["licenseConcluded"].startswith("LicenseRef-")
+
+    def test_preserves_valid_alongside_invalid(self):
+        """Valid SPDX licenses should be preserved when other packages have invalid ones."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "MIT"},
+                {"licenseConcluded": "GPLv2+"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        assert data["packages"][0]["licenseConcluded"] == "MIT"
+        assert data["packages"][1]["licenseConcluded"].startswith("LicenseRef-")
+
+    def test_sanitizes_license_info_from_files(self):
+        """licenseInfoFromFiles list should be sanitized."""
+        data = {
+            "packages": [
+                {"licenseInfoFromFiles": ["GPLv2+", "MIT", "ASL 2.0"]},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 2
+        results = data["packages"][0]["licenseInfoFromFiles"]
+        assert results[0].startswith("LicenseRef-")  # GPLv2+ sanitized
+        assert results[1] == "MIT"  # MIT preserved
+        assert results[2].startswith("LicenseRef-")  # ASL 2.0 sanitized
+
+    def test_noassertion_and_none_preserved(self):
+        """NOASSERTION and NONE should not be sanitized."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "NOASSERTION", "licenseDeclared": "NONE"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 0
+
+    def test_empty_packages(self):
+        """Empty packages list should not cause errors."""
+        data = {"packages": []}
+        count = sanitize_spdx_licenses(data)
+        assert count == 0
+
+    def test_sanitizes_file_licenses(self):
+        """File-level licenses should be sanitized."""
+        data = {
+            "packages": [],
+            "files": [
+                {"licenseConcluded": "GPLv2+"},
+            ],
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        assert data["files"][0]["licenseConcluded"].startswith("LicenseRef-")
+
+    def test_sanitizes_snippet_license_concluded(self):
+        """Snippet-level licenseConcluded should be sanitized."""
+        data = {
+            "packages": [],
+            "snippets": [
+                {"licenseConcluded": "GPLv2+"},
+            ],
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        assert data["snippets"][0]["licenseConcluded"].startswith("LicenseRef-")
+
+    def test_sanitizes_license_info_in_snippets(self):
+        """licenseInfoInSnippets list should be sanitized."""
+        data = {
+            "snippets": [
+                {"licenseInfoInSnippets": ["GPLv2+", "MIT"]},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        results = data["snippets"][0]["licenseInfoInSnippets"]
+        assert results[0].startswith("LicenseRef-")
+        assert results[1] == "MIT"
+
+    def test_unparseable_expression_becomes_license_ref(self):
+        """Completely unparseable expressions should fall back to LicenseRef-* conversion."""
+        data = {
+            "packages": [
+                {"licenseConcluded": "LGPL2.1+ (the library), GPL2+ (tests OR examples)"},
+            ]
+        }
+        count = sanitize_spdx_licenses(data)
+        assert count == 1
+        assert data["packages"][0]["licenseConcluded"].startswith("LicenseRef-")
+
+
+class TestRestoreSpdxDocumentDescribes:
+    """Tests for restore_spdx_document_describes function."""
+
+    def test_restores_document_describes_from_describes_relationships(self, tmp_path):
+        """Test that documentDescribes is reconstructed from DESCRIBES relationships."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test-doc",
+            "packages": [{"SPDXID": "SPDXRef-Package", "name": "test-pkg"}],
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Package",
+                },
+            ],
+        }
+        spdx_file.write_text(json.dumps(data))
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 1
+
+        result = json.loads(spdx_file.read_text())
+        assert result["documentDescribes"] == ["SPDXRef-Package"]
+        # Relationships should still be present
+        assert len(result["relationships"]) == 1
+
+    def test_multiple_describes_relationships(self, tmp_path):
+        """Test with multiple DESCRIBES relationships."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Package1",
+                },
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Package2",
+                },
+                {
+                    "spdxElementId": "SPDXRef-Package1",
+                    "relationshipType": "DEPENDS_ON",
+                    "relatedSpdxElement": "SPDXRef-Package2",
+                },
+            ],
+        }
+        spdx_file.write_text(json.dumps(data))
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 2
+
+        result = json.loads(spdx_file.read_text())
+        assert set(result["documentDescribes"]) == {"SPDXRef-Package1", "SPDXRef-Package2"}
+
+    def test_no_describes_relationships_is_noop(self, tmp_path):
+        """Test that no DESCRIBES relationships results in no changes."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-Package1",
+                    "relationshipType": "DEPENDS_ON",
+                    "relatedSpdxElement": "SPDXRef-Package2",
+                },
+            ],
+        }
+        original = json.dumps(data)
+        spdx_file.write_text(original)
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 0
+        assert spdx_file.read_text() == original
+
+    def test_no_relationships_key_is_noop(self, tmp_path):
+        """Test that missing relationships key is a no-op."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {"spdxVersion": "SPDX-2.3", "name": "test"}
+        original = json.dumps(data)
+        spdx_file.write_text(original)
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 0
+        assert spdx_file.read_text() == original
+
+    def test_nonexistent_file_returns_zero(self):
+        """Test that a nonexistent file returns 0."""
+        count = restore_spdx_document_describes("/nonexistent/path.json")
+        assert count == 0
+
+    def test_invalid_json_returns_zero(self, tmp_path):
+        """Test that invalid JSON returns 0."""
+        bad_file = tmp_path / "bad.json"
+        bad_file.write_text("not json")
+
+        count = restore_spdx_document_describes(str(bad_file))
+        assert count == 0
+
+    def test_merges_with_existing_document_describes(self, tmp_path):
+        """Test that existing documentDescribes entries are preserved and new ones merged."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "documentDescribes": ["SPDXRef-Existing"],
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Existing",
+                },
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-New",
+                },
+            ],
+        }
+        spdx_file.write_text(json.dumps(data))
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 1  # Only the new one
+
+        result = json.loads(spdx_file.read_text())
+        assert result["documentDescribes"] == ["SPDXRef-Existing", "SPDXRef-New"]
+
+    def test_noop_when_existing_already_complete(self, tmp_path):
+        """Test no-op when existing documentDescribes already has all entries."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "documentDescribes": ["SPDXRef-Package"],
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-DOCUMENT",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Package",
+                },
+            ],
+        }
+        original = json.dumps(data)
+        spdx_file.write_text(original)
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 0
+        # File should not be rewritten
+        assert spdx_file.read_text() == original
+
+    def test_ignores_non_document_describes(self, tmp_path):
+        """Test that DESCRIBES from non-DOCUMENT elements are ignored."""
+        spdx_file = tmp_path / "test.spdx.json"
+        data = {
+            "spdxVersion": "SPDX-2.3",
+            "relationships": [
+                {
+                    "spdxElementId": "SPDXRef-Package1",
+                    "relationshipType": "DESCRIBES",
+                    "relatedSpdxElement": "SPDXRef-Package2",
+                },
+            ],
+        }
+        original = json.dumps(data)
+        spdx_file.write_text(original)
+
+        count = restore_spdx_document_describes(str(spdx_file))
+        assert count == 0
+        # File should not be rewritten
+        assert spdx_file.read_text() == original

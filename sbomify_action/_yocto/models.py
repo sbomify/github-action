@@ -1,6 +1,7 @@
 """Data models for Yocto SPDX processing."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 
 
 @dataclass
@@ -19,7 +20,7 @@ class YoctoConfig:
     """Configuration for the Yocto pipeline."""
 
     input_path: str
-    token: str
+    token: str = dataclass_field(repr=False)
     product_id: str
     release_version: str
     api_base_url: str = "https://app.sbomify.com"
@@ -41,7 +42,7 @@ class YoctoPipelineResult:
     sboms_skipped: int = 0
     errors: int = 0
     release_id: str | None = None
-    error_messages: list[str] = field(default_factory=list)
+    error_messages: list[str] = dataclass_field(default_factory=list)
 
     @property
     def has_errors(self) -> bool:

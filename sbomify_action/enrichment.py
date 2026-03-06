@@ -102,6 +102,7 @@ from .generation import (
 from .logging_config import logger
 from .serialization import (
     link_root_dependencies,
+    restore_spdx_document_describes,
     sanitize_cyclonedx_licenses,
     sanitize_dependency_graph,
     sanitize_purls,
@@ -1390,6 +1391,7 @@ def _enrich_spdx_sbom(input_path: Path, output_path: Path, enricher: Enricher) -
         logger.warning("No packages with PURLs found in SBOM, skipping enrichment")
         spdx_write_file(document, str(output_path), validate=False)
         sanitize_spdx_json_file(str(output_path))
+        restore_spdx_document_describes(str(output_path))
         return
 
     logger.info(f"Found {len(packages)} packages to enrich")
@@ -1418,6 +1420,7 @@ def _enrich_spdx_sbom(input_path: Path, output_path: Path, enricher: Enricher) -
     try:
         spdx_write_file(document, str(output_path), validate=False)
         sanitize_spdx_json_file(str(output_path))
+        restore_spdx_document_describes(str(output_path))
         logger.info(f"Enriched SBOM written to: {output_path}")
     except Exception as e:
         raise Exception(f"Failed to write enriched SBOM: {e}")
