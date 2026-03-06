@@ -206,8 +206,8 @@ def create_release(api_base_url: str, token: str, product_id: str, version: str)
     payload = {
         "product_id": product_id,
         "version": version,
-        "name": f"Release {version}",
-        "description": f"Release {version} created by sbomify-action",
+        "name": version,
+        "description": f"{version} created by sbomify-action",
     }
 
     try:
@@ -226,7 +226,7 @@ def create_release(api_base_url: str, token: str, product_id: str, version: str)
                     f"Release {version} for product {product_id} already exists, retrieving existing release ID"
                 )
                 # Search by name since the API enforces uniqueness on the name field
-                existing_id = get_release_id_by_name(api_base_url, token, product_id, f"Release {version}")
+                existing_id = get_release_id_by_name(api_base_url, token, product_id, version)
                 if existing_id:
                     return existing_id
                 # If we couldn't find it, fall through to error handling
@@ -304,11 +304,11 @@ def get_release_friendly_name(release_details: Optional[Dict[str, Any]], version
         User-friendly release name
     """
     if not release_details:
-        return f"Release {version}"
+        return version
 
     release_name = release_details.get("name")
     if isinstance(release_name, str):
         stripped_name = release_name.strip()
-        if stripped_name and stripped_name != f"Release {version}":
+        if stripped_name and stripped_name != version:
             return f"'{stripped_name}' ({version})"
-    return f"Release {version}"
+    return version
