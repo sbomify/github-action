@@ -8,6 +8,7 @@ from packageurl import PackageURL
 
 from sbomify_action.logging_config import logger
 
+from ..license_utils import normalize_license_list
 from ..metadata import NormalizedMetadata
 
 REPOLOGY_API_BASE = "https://repology.org/api/v1"
@@ -210,7 +211,7 @@ class RepologySource:
         homepage = best_entry.get("www")
         licenses = []
         if best_entry.get("licenses"):
-            licenses = best_entry["licenses"]
+            licenses, _license_texts = normalize_license_list(best_entry["licenses"])
 
         # Extract maintainer info
         maintainer_name = None

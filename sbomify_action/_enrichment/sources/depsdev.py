@@ -9,6 +9,7 @@ from packageurl import PackageURL
 
 from sbomify_action.logging_config import logger
 
+from ..license_utils import normalize_license_list
 from ..metadata import NormalizedMetadata
 from ..sanitization import normalize_vcs_url
 from ..utils import get_qualified_name
@@ -149,8 +150,9 @@ class DepsDevSource:
         if not data:
             return None
 
-        # Extract licenses
-        licenses: List[str] = data.get("licenses", [])
+        # Extract and normalize licenses
+        raw_licenses: List[str] = data.get("licenses", [])
+        licenses, _license_texts = normalize_license_list(raw_licenses)
 
         # Extract links
         homepage = None

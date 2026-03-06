@@ -8,6 +8,7 @@ from packageurl import PackageURL
 
 from sbomify_action.logging_config import logger
 
+from ..license_utils import normalize_license_list
 from ..metadata import NormalizedMetadata
 from ..sanitization import normalize_vcs_url
 
@@ -149,7 +150,7 @@ class ClearlyDefinedSource:
 
         licenses: List[str] = []
         if declared_license and declared_license != "NOASSERTION":
-            licenses = [declared_license]
+            licenses, _license_texts = normalize_license_list([declared_license])
 
         # Extract description from described section
         described = data.get("described", {})

@@ -64,6 +64,20 @@ LICENSE_EXACT_ALIASES = {
     "psf-2.0": "Python-2.0",
     "psf": "Python-2.0",
     "python software foundation license": "Python-2.0",
+    # Common shorthand IDs missing the .0 suffix
+    "gpl-2": "GPL-2.0-only",
+    "gpl-3": "GPL-3.0-only",
+    "lgpl-2": "LGPL-2.0-only",
+    "lgpl-3": "LGPL-3.0-only",
+    # RPM-style license identifiers (seen from Repology/distro packages)
+    "asl 2.0": "Apache-2.0",
+    "bsd": "BSD-3-Clause",
+    "gpl2": "GPL-2.0-only",
+    "gplv2+": "GPL-2.0-or-later",
+    "gplv3+": "GPL-3.0-or-later",
+    "lgplv2+": "LGPL-2.0-or-later",
+    "lgplv2.1+": "LGPL-2.1-or-later",
+    "lgplv3+": "LGPL-3.0-or-later",
 }
 
 # Threshold for considering a string as full license text (not an identifier)
@@ -244,6 +258,34 @@ def normalize_license(license_str: str) -> Tuple[str, Optional[str]]:
     return (stripped, None)
 
 
+def _split_license_string(license_str: str) -> list[str]:
+    """
+    Split a license string that may contain comma, lowercase "and"/"or" separators.
+
+    Some enrichment sources (deps.dev, ecosyste.ms, Repology) return license strings
+    like "MPL-1.1, GPL-2 and LGPL-2.1" or "GPLv2+ or LGPLv3+" which are not valid
+    SPDX expressions. This splits them into individual license identifiers for
+    separate normalization.
+
+    Note: Uppercase "AND" / "OR" are valid SPDX operators and are NOT split.
+    """
+    # First split on commas
+    parts = license_str.split(",")
+
+    # Then split each part on lowercase " and " / " or " (word boundary to avoid
+    # splitting words like "Standard")
+    # Uppercase "AND"/"OR" are valid SPDX operators, so we leave them alone
+    result = []
+    for part in parts:
+        sub_parts = re.split(r"\s+(?:and|or)\s+", part)
+        for sp in sub_parts:
+            stripped = sp.strip()
+            if stripped:
+                result.append(stripped)
+
+    return result
+
+
 def normalize_license_list(licenses: list) -> Tuple[list, dict]:
     """
     Normalize a list of license strings.
@@ -260,20 +302,22 @@ def normalize_license_list(licenses: list) -> Tuple[list, dict]:
     for lic in licenses:
         if not lic:
             continue
-        spdx_id, text = normalize_license(lic)
-        normalized.append(spdx_id)
-        if text:
-            # Use a unique key if we have multiple custom licenses
-            key = spdx_id
-            if key in texts:
-                # Already have this key - make it unique
-                counter = 2
-                while f"{key}-{counter}" in texts:
-                    counter += 1
-                key = f"{key}-{counter}"
-                # Also update the normalized list
-                normalized[-1] = key
-            texts[key] = text
+        # Split comma/"and"-separated license strings into individual licenses
+        for split_lic in _split_license_string(lic):
+            spdx_id, text = normalize_license(split_lic)
+            normalized.append(spdx_id)
+            if text:
+                # Use a unique key if we have multiple custom licenses
+                key = spdx_id
+                if key in texts:
+                    # Already have this key - make it unique
+                    counter = 2
+                    while f"{key}-{counter}" in texts:
+                        counter += 1
+                    key = f"{key}-{counter}"
+                    # Also update the normalized list
+                    normalized[-1] = key
+                texts[key] = text
 
     return (normalized, texts)
 
