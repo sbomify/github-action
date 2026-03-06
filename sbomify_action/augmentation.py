@@ -765,7 +765,9 @@ def augment_cyclonedx_sbom(
             existing_version = bom.metadata.component.version
             if existing_version != component_version:
                 bom.metadata.component.version = component_version
-                logger.info(f"Set component version from configuration: '{existing_version or 'unknown'}' -> '{component_version}'")
+                logger.info(
+                    f"Set component version from configuration: '{existing_version or 'unknown'}' -> '{component_version}'"
+                )
             # Always update PURL to repair possible version/PURL mismatch
             _update_component_purl_version(bom.metadata.component, component_version)
         else:
