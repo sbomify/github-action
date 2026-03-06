@@ -102,6 +102,7 @@ class TestReleasesApi(unittest.TestCase):
         call_args = mock_post.call_args
         self.assertEqual(call_args[1]["json"]["product_id"], "Gu9wem8mkX")
         self.assertEqual(call_args[1]["json"]["version"], "v1.0.0")
+        self.assertEqual(call_args[1]["json"]["name"], "v1.0.0")
 
     @patch("sbomify_action._processors.releases_api.requests.post")
     def test_create_release_api_error(self, mock_post):
