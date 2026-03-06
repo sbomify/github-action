@@ -105,8 +105,8 @@ class TestNormalizeLicenseParenthesized:
         spdx_id, _text = normalize_license("Expat (MIT/X11)")
         assert spdx_id == "MIT"
 
-    def test_valid_spdx_with_parens_not_stripped(self):
-        """Valid SPDX expression should be returned as-is even without stripping."""
+    def test_valid_spdx_not_stripped(self):
+        """Valid SPDX ID should be returned as-is without modification."""
         spdx_id, _text = normalize_license("MIT")
         assert spdx_id == "MIT"
 
