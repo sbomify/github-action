@@ -478,14 +478,14 @@ class TestSbomifyReleasesProcessor(unittest.TestCase):
         get_id_response.ok = True
         # Must include 'name' field since get_release_id_by_name filters by name, not version
         get_id_response.json.return_value = {
-            "items": [{"id": "existing-release-id", "version": "v1.0.0", "name": "Release v1.0.0"}]
+            "items": [{"id": "existing-release-id", "version": "v1.0.0", "name": "v1.0.0"}]
         }
 
         # Mock get details (for logging)
         get_details_response = Mock()
         get_details_response.ok = True
         get_details_response.json.return_value = {
-            "items": [{"id": "existing-release-id", "version": "v1.0.0", "name": "Release v1.0.0"}]
+            "items": [{"id": "existing-release-id", "version": "v1.0.0", "name": "v1.0.0"}]
         }
 
         # Mock tag SBOM

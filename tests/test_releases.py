@@ -141,9 +141,7 @@ class TestReleasesApi(unittest.TestCase):
 
         self.assertEqual(result, "existing-release-id")
         # Should search by name "v1.0.0" since API enforces uniqueness on name
-        mock_get_release_id_by_name.assert_called_once_with(
-            self.api_base_url, self.token, "Gu9wem8mkX", "v1.0.0"
-        )
+        mock_get_release_id_by_name.assert_called_once_with(self.api_base_url, self.token, "Gu9wem8mkX", "v1.0.0")
 
     @patch("sbomify_action._processors.releases_api.get_release_id_by_name")
     @patch("sbomify_action._processors.releases_api.requests.post")
