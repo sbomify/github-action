@@ -73,11 +73,24 @@ LICENSE_EXACT_ALIASES = {
     "asl 2.0": "Apache-2.0",
     "bsd": "BSD-3-Clause",
     "gpl2": "GPL-2.0-only",
+    "gpl3": "GPL-3.0-only",
+    "gpl-2+": "GPL-2.0-or-later",
+    "gpl-3+": "GPL-3.0-or-later",
     "gplv2+": "GPL-2.0-or-later",
     "gplv3+": "GPL-3.0-or-later",
+    "gpl2+": "GPL-2.0-or-later",
+    "gpl3+": "GPL-3.0-or-later",
+    "lgplv2": "LGPL-2.0-only",
+    "lgpl2.1": "LGPL-2.1-only",
+    "lgpl2.1+": "LGPL-2.1-or-later",
     "lgplv2+": "LGPL-2.0-or-later",
     "lgplv2.1+": "LGPL-2.1-or-later",
     "lgplv3+": "LGPL-3.0-or-later",
+    # Verbose license names seen in distro metadata
+    "3-clause bsd license": "BSD-3-Clause",
+    "gnu general public license v2": "GPL-2.0-only",
+    "gnu general public license v3": "GPL-3.0-only",
+    "expat": "MIT",  # Expat is the MIT license (Debian convention)
 }
 
 # Threshold for considering a string as full license text (not an identifier)
@@ -225,6 +238,15 @@ def normalize_license(license_str: str) -> Tuple[str, Optional[str]]:
         # DO NOT try to identify - store as LicenseRef with full text
         # Let humans review the actual license
         return ("LicenseRef-Custom", stripped)
+
+    # Strip parenthesized descriptions like "LGPL2.1+ (the library)" or "Expat (MIT/X11)"
+    # These are informational annotations, not part of the license identifier
+    stripped_no_parens = re.sub(r"\s*\([^)]*\)\s*$", "", stripped).strip()
+    if stripped_no_parens and stripped_no_parens != stripped:
+        # Re-check if stripping the parenthesized part yields a valid SPDX ID
+        if is_spdx_identifier(stripped_no_parens):
+            return (stripped_no_parens, None)
+        stripped = stripped_no_parens
 
     # Try EXACT alias matching (case-insensitive)
     lower = stripped.lower()

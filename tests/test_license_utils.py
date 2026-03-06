@@ -2,6 +2,7 @@
 
 from sbomify_action._enrichment.license_utils import (
     _split_license_string,
+    normalize_license,
     normalize_license_list,
 )
 
@@ -78,3 +79,38 @@ class TestNormalizeLicenseListSplitting:
         licenses, texts = normalize_license_list([])
         assert licenses == []
         assert texts == {}
+
+    def test_rpm_style_aliases(self):
+        """RPM-style license identifiers should be normalized."""
+        licenses, _texts = normalize_license_list(["GPLv2+ or LGPLv3+"])
+        assert "GPL-2.0-or-later" in licenses
+        assert "LGPL-3.0-or-later" in licenses
+
+    def test_expat_alias(self):
+        """Expat (Debian convention for MIT) should normalize to MIT."""
+        licenses, _texts = normalize_license_list(["Expat"])
+        assert licenses == ["MIT"]
+
+
+class TestNormalizeLicenseParenthesized:
+    """Tests for parenthesized description stripping."""
+
+    def test_strip_parenthesized_description(self):
+        """'LGPL2.1+ (the library)' should normalize to LGPL-2.1-or-later."""
+        spdx_id, _text = normalize_license("LGPL2.1+ (the library)")
+        assert spdx_id == "LGPL-2.1-or-later"
+
+    def test_strip_parenthesized_expat(self):
+        """'Expat (MIT/X11)' should normalize to MIT."""
+        spdx_id, _text = normalize_license("Expat (MIT/X11)")
+        assert spdx_id == "MIT"
+
+    def test_valid_spdx_with_parens_not_stripped(self):
+        """Valid SPDX expression should be returned as-is even without stripping."""
+        spdx_id, _text = normalize_license("MIT")
+        assert spdx_id == "MIT"
+
+    def test_gpl2_plus_parenthesized(self):
+        """'GPL2+ (tests and examples)' should normalize to GPL-2.0-or-later."""
+        spdx_id, _text = normalize_license("GPL2+ (tests and examples)")
+        assert spdx_id == "GPL-2.0-or-later"
