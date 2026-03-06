@@ -144,7 +144,7 @@ class EcosystemsSource:
             lic_str = str(data["licenses"]).strip()
             if lic_str:
                 raw_licenses = [lic_str]
-        licenses, _license_texts = normalize_license_list(raw_licenses)
+        licenses, license_texts = normalize_license_list(raw_licenses)
 
         # Extract maintainer info
         maintainer_name = None
@@ -189,6 +189,7 @@ class EcosystemsSource:
         metadata = NormalizedMetadata(
             description=data.get("description"),
             licenses=licenses,
+            license_texts=license_texts,
             supplier=supplier,
             homepage=data.get("homepage"),
             repository_url=repository_url,

@@ -71,7 +71,7 @@ LICENSE_EXACT_ALIASES = {
     "lgpl-3": "LGPL-3.0-only",
     # RPM-style license identifiers (seen from Repology/distro packages)
     "asl 2.0": "Apache-2.0",
-    "bsd": "BSD-3-Clause",
+    "bsd": "BSD-3-Clause",  # RPM "BSD" tag conventionally means 3-Clause
     "gpl2": "GPL-2.0-only",
     "gpl3": "GPL-3.0-only",
     "gpl-2+": "GPL-2.0-or-later",

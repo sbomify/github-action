@@ -152,7 +152,7 @@ class DepsDevSource:
 
         # Extract and normalize licenses
         raw_licenses: List[str] = data.get("licenses", [])
-        licenses, _license_texts = normalize_license_list(raw_licenses)
+        licenses, license_texts = normalize_license_list(raw_licenses)
 
         # Extract links
         homepage = None
@@ -201,6 +201,7 @@ class DepsDevSource:
 
         metadata = NormalizedMetadata(
             licenses=licenses,
+            license_texts=license_texts,
             supplier=supplier,
             homepage=homepage,
             repository_url=repository_url,
