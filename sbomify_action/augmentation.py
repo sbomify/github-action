@@ -762,15 +762,20 @@ def augment_cyclonedx_sbom(
     # Apply component version override if specified
     if component_version:
         if hasattr(bom.metadata, "component") and bom.metadata.component:
-            bom.metadata.component.version = component_version
-            # Also update the PURL version to maintain consistency
+            existing_version = bom.metadata.component.version
+            if existing_version != component_version:
+                bom.metadata.component.version = component_version
+                logger.info(
+                    f"Set component version from configuration: '{existing_version or 'unknown'}' -> '{component_version}'"
+                )
+            # Always update PURL to repair possible version/PURL mismatch
             _update_component_purl_version(bom.metadata.component, component_version)
         else:
             # Create component if it doesn't exist
             bom.metadata.component = Component(
                 name=component_name or "unknown", type=ComponentType.APPLICATION, version=component_version
             )
-        logger.info(f"Set component version from configuration: {component_version}")
+            logger.info(f"Set component version from configuration: '{component_version}'")
 
     # Add lifecycle phase if present (CISA 2025 Generation Context requirement)
     # See: https://sbomify.com/compliance/cisa-minimum-elements/
@@ -1255,21 +1260,27 @@ def augment_spdx_sbom(
     if component_name:
         # SPDX document name is in creation_info
         existing_name = document.creation_info.name
-        document.creation_info.name = component_name
-        logger.info(f"Overriding SPDX document name: '{existing_name}' -> '{component_name}'")
+        if existing_name != component_name:
+            document.creation_info.name = component_name
+            logger.info(f"Overriding SPDX document name: '{existing_name}' -> '{component_name}'")
 
-        # Also update main package if exists
+        # Also update main package name independently (may differ from document name)
         if document.packages:
             main_package = document.packages[0]  # Typically the first package is the main one
-            main_package.name = component_name
+            if main_package.name != component_name:
+                old_pkg_name = main_package.name
+                main_package.name = component_name
+                logger.info(f"Overriding SPDX main package name: '{old_pkg_name}' -> '{component_name}'")
 
     # Apply component version override
     if component_version and document.packages:
         main_package = document.packages[0]
-        main_package.version = component_version
-        # Also update the PURL version in external references to maintain consistency
+        existing_version = main_package.version
+        if existing_version != component_version:
+            main_package.version = component_version
+            logger.info(f"Set package version from configuration: '{existing_version}' -> '{component_version}'")
+        # Always update PURL to repair possible version/PURL mismatch
         _update_spdx_package_purl_version(main_package, component_version)
-        logger.info(f"Set package version from configuration: {component_version}")
 
     # Add lifecycle phase if present (CISA 2025 Generation Context requirement)
     # See: https://sbomify.com/compliance/cisa-minimum-elements/
