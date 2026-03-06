@@ -229,6 +229,11 @@ def create_release(api_base_url: str, token: str, product_id: str, version: str)
                 existing_id = get_release_id_by_name(api_base_url, token, product_id, version)
                 if existing_id:
                     return existing_id
+                # Fallback: try legacy naming convention "Release {version}"
+                legacy_id = get_release_id_by_name(api_base_url, token, product_id, f"Release {version}")
+                if legacy_id:
+                    logger.info(f"Found existing legacy-named release 'Release {version}' for product {product_id}")
+                    return legacy_id
                 # If we couldn't find it, fall through to error handling
 
         err_msg = f"Failed to create release. [{response.status_code}]"
@@ -309,6 +314,6 @@ def get_release_friendly_name(release_details: Optional[Dict[str, Any]], version
     release_name = release_details.get("name")
     if isinstance(release_name, str):
         stripped_name = release_name.strip()
-        if stripped_name and stripped_name != version:
+        if stripped_name and stripped_name not in (version, f"Release {version}"):
             return f"'{stripped_name}' ({version})"
     return version

@@ -145,6 +145,30 @@ class TestReleasesApi(unittest.TestCase):
 
     @patch("sbomify_action._processors.releases_api.get_release_id_by_name")
     @patch("sbomify_action._processors.releases_api.requests.post")
+    def test_create_release_duplicate_name_legacy_fallback(self, mock_post, mock_get_release_id_by_name):
+        """Test create release handles DUPLICATE_NAME by falling back to legacy 'Release {version}' name."""
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 400
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.return_value = {
+            "detail": "A release with this name already exists for this product",
+            "error_code": "DUPLICATE_NAME",
+        }
+        mock_post.return_value = mock_response
+
+        # First call (new name) returns None, second call (legacy name) returns the ID
+        mock_get_release_id_by_name.side_effect = [None, "legacy-release-id"]
+
+        result = create_release(self.api_base_url, self.token, "Gu9wem8mkX", "v1.0.0")
+
+        self.assertEqual(result, "legacy-release-id")
+        self.assertEqual(mock_get_release_id_by_name.call_count, 2)
+        mock_get_release_id_by_name.assert_any_call(self.api_base_url, self.token, "Gu9wem8mkX", "v1.0.0")
+        mock_get_release_id_by_name.assert_any_call(self.api_base_url, self.token, "Gu9wem8mkX", "Release v1.0.0")
+
+    @patch("sbomify_action._processors.releases_api.get_release_id_by_name")
+    @patch("sbomify_action._processors.releases_api.requests.post")
     def test_create_release_duplicate_name_fallback_to_error(self, mock_post, mock_get_release_id_by_name):
         """Test create release raises error if DUPLICATE_NAME but can't find existing release."""
         mock_response = Mock()
@@ -394,6 +418,18 @@ class TestReleasesApi(unittest.TestCase):
             "version": "v1.0.0",
             "name": "v1.0.0",  # Default format
             "description": "Auto-generated release",
+        }
+
+        result = get_release_friendly_name(release_details, "v1.0.0")
+
+        self.assertEqual(result, "v1.0.0")
+
+    def test_get_release_friendly_name_with_legacy_default_name(self):
+        """Test friendly name generation treats legacy 'Release {version}' as default."""
+        release_details = {
+            "id": "rel1",
+            "version": "v1.0.0",
+            "name": "Release v1.0.0",  # Legacy default format
         }
 
         result = get_release_friendly_name(release_details, "v1.0.0")
