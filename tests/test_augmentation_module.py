@@ -2567,6 +2567,104 @@ class TestComponentPurlOverride:
         assert "component" in result["metadata"]
         assert result["metadata"]["component"]["purl"] == "pkg:pypi/new-app@1.0.0"
 
+    def test_spdx_custom_purl_prevents_vcs_auto_purl(self, tmp_path):
+        """Test end-to-end: PURL override written to file, parsed back,
+        then _ensure_spdx_main_package_purl does not add a VCS PURL."""
+        from spdx_tools.spdx.parser.parse_anything import parse_file as spdx_parse_file
+
+        from sbomify_action.augmentation import _ensure_spdx_main_package_purl
+        from sbomify_action.cli.main import _apply_sbom_purl_override
+
+        custom_purl = "pkg:npm/@myorg/my-lib@3.0.0"
+
+        # 1. Create an SPDX SBOM without a PURL, apply override via JSON file
+        sbom = {
+            "spdxVersion": "SPDX-2.3",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": "test-document",
+            "dataLicense": "CC0-1.0",
+            "documentNamespace": "https://example.com/test",
+            "creationInfo": {"created": "2024-01-01T00:00:00Z", "creators": ["Tool: test"]},
+            "packages": [
+                {
+                    "SPDXID": "SPDXRef-Package",
+                    "name": "test-app",
+                    "downloadLocation": "NOASSERTION",
+                }
+            ],
+        }
+        sbom_file = tmp_path / "test.spdx.json"
+        sbom_file.write_text(json.dumps(sbom))
+        _apply_sbom_purl_override(str(sbom_file), MockPurlConfig(custom_purl))
+
+        # 2. Parse the file back (same path as production code)
+        document = spdx_parse_file(str(sbom_file))
+
+        # Verify the PURL was round-tripped
+        purl_refs = [ref for ref in document.packages[0].external_references if ref.reference_type == "purl"]
+        assert len(purl_refs) == 1
+        assert purl_refs[0].locator == custom_purl
+
+        # 3. Run auto-PURL with VCS data — should NOT add a second PURL
+        _ensure_spdx_main_package_purl(
+            document,
+            {
+                "vcs_url": "https://github.com/sbomify/library",
+                "vcs_commit_sha": "e598ae2abc1234567890",
+            },
+        )
+
+        # 4. Verify: custom PURL is preserved and no VCS PURL was added
+        purl_refs = [ref for ref in document.packages[0].external_references if ref.reference_type == "purl"]
+        assert len(purl_refs) == 1
+        assert purl_refs[0].locator == custom_purl
+
+    def test_cyclonedx_custom_purl_survives_augmentation(self, tmp_path):
+        """Test end-to-end: PURL override written to file, deserialized back,
+        then augment_cyclonedx_sbom preserves the custom PURL."""
+        from cyclonedx.model.bom import Bom
+
+        from sbomify_action.augmentation import augment_cyclonedx_sbom
+        from sbomify_action.cli.main import _apply_sbom_purl_override
+
+        custom_purl = "pkg:npm/@myorg/my-lib@3.0.0"
+
+        # 1. Create a CycloneDX SBOM without PURL, apply override
+        sbom = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "version": 1,
+            "metadata": {"component": {"name": "test-app", "version": "1.0.0", "type": "application"}},
+            "components": [],
+        }
+        sbom_file = tmp_path / "test.cdx.json"
+        sbom_file.write_text(json.dumps(sbom))
+        _apply_sbom_purl_override(str(sbom_file), MockPurlConfig(custom_purl))
+
+        # 2. Deserialize from the written file (same path as production code)
+        sbom_data = json.loads(sbom_file.read_text())
+        bom = Bom.from_json(sbom_data)
+
+        # Verify the PURL was round-tripped
+        assert bom.metadata.component.purl is not None
+        assert str(bom.metadata.component.purl) in [custom_purl, "pkg:npm/%40myorg/my-lib@3.0.0"]
+
+        # 3. Run augmentation with VCS data
+        augmented_bom = augment_cyclonedx_sbom(
+            bom=bom,
+            augmentation_data={
+                "vcs_url": "https://github.com/sbomify/library",
+                "vcs_commit_sha": "e598ae2abc1234567890",
+            },
+        )
+
+        # 4. Verify: custom PURL is preserved after augmentation
+        assert augmented_bom.metadata.component.purl is not None
+        assert str(augmented_bom.metadata.component.purl) in [
+            custom_purl,
+            "pkg:npm/%40myorg/my-lib@3.0.0",
+        ]
+
 
 class TestPurlConstructionFromVCS:
     """Test PURL construction from VCS URL for NTIA compliance."""
