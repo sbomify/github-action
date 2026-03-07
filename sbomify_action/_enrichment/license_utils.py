@@ -329,6 +329,13 @@ def normalize_license_list(licenses: list) -> Tuple[list, dict]:
     for lic in licenses:
         if not lic:
             continue
+        # If this looks like full license text, do NOT split — preserve as one blob
+        if is_license_text(lic.strip()):
+            spdx_id, text = normalize_license(lic)
+            normalized.append(spdx_id)
+            if text:
+                texts[spdx_id] = text
+            continue
         # Split comma/"and"-separated license strings into individual licenses
         for split_lic in _split_license_string(lic):
             spdx_id, text = normalize_license(split_lic)

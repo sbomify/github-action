@@ -91,6 +91,18 @@ class TestNormalizeLicenseListSplitting:
         licenses, _texts = normalize_license_list(["Expat"])
         assert licenses == ["MIT"]
 
+    def test_full_license_text_not_split(self):
+        """Full license text with commas and 'and' should not be split."""
+        long_text = (
+            "Permission is hereby granted, free of charge, to any person "
+            "obtaining a copy of this software and associated documentation "
+            "files, to deal in the Software without restriction."
+        )
+        licenses, texts = normalize_license_list([long_text])
+        assert len(licenses) == 1
+        assert licenses[0] == "LicenseRef-Custom"
+        assert long_text.strip() in texts.values()
+
 
 class TestNormalizeLicenseParenthesized:
     """Tests for parenthesized description stripping."""
