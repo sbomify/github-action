@@ -241,12 +241,17 @@ def normalize_license(license_str: str) -> Tuple[str, Optional[str]]:
 
     # Strip parenthesized descriptions like "LGPL2.1+ (the library)" or "Expat (MIT/X11)"
     # These are informational annotations, not part of the license identifier
+    # Only use the stripped version if it yields a valid SPDX ID or known alias;
+    # otherwise preserve the original string to avoid losing information.
     stripped_no_parens = re.sub(r"\s*\([^)]*\)\s*$", "", stripped).strip()
     if stripped_no_parens and stripped_no_parens != stripped:
-        # Re-check if stripping the parenthesized part yields a valid SPDX ID
         if is_spdx_identifier(stripped_no_parens):
             return (stripped_no_parens, None)
-        stripped = stripped_no_parens
+        lower_no_parens = stripped_no_parens.lower()
+        if lower_no_parens in LICENSE_EXACT_ALIASES:
+            normalized = LICENSE_EXACT_ALIASES[lower_no_parens]
+            if validate_spdx_expression(normalized):
+                return (normalized, None)
 
     # Try EXACT alias matching (case-insensitive)
     lower = stripped.lower()

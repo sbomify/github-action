@@ -114,3 +114,10 @@ class TestNormalizeLicenseParenthesized:
         """'GPL2+ (tests and examples)' should normalize to GPL-2.0-or-later."""
         spdx_id, _text = normalize_license("GPL2+ (tests and examples)")
         assert spdx_id == "GPL-2.0-or-later"
+
+    def test_unknown_license_with_parens_preserves_original(self):
+        """Unknown license with parenthesized description should not lose information."""
+        spdx_id, _text = normalize_license("CustomLicense (foo)")
+        # The original string should be preserved since stripping doesn't yield
+        # a valid SPDX ID or known alias
+        assert spdx_id == "CustomLicense (foo)"
