@@ -2631,7 +2631,7 @@ class TestComponentPurlOverride:
                 name="test-document",
                 document_namespace="https://example.com/test",
                 creators=[Actor(ActorType.TOOL, "test-tool")],
-                created=datetime.now(),
+                created=datetime(2024, 1, 1, 0, 0, 0),
             ),
             packages=[package],
         )

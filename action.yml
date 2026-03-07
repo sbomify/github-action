@@ -11,7 +11,7 @@ runs:
   # Bump/pin this to release
   image: 'docker://sbomifyhub/sbomify-action:latest'
   env:
-    COMPONENT_PURL: ${{ inputs.component-purl }}
+    COMPONENT_PURL: ${{ inputs['component-purl'] }}
 branding:
   icon: 'upload-cloud'
   color: 'blue'
