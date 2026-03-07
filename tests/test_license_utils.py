@@ -103,6 +103,15 @@ class TestNormalizeLicenseListSplitting:
         assert licenses[0] == "LicenseRef-Custom"
         assert long_text.strip() in texts.values()
 
+    def test_multiple_full_license_texts_unique_keys(self):
+        """Multiple full license texts should get unique LicenseRef keys."""
+        text_a = "A " * 60  # >100 chars
+        text_b = "B " * 60
+        licenses, texts = normalize_license_list([text_a, text_b])
+        assert len(licenses) == 2
+        assert licenses[0] != licenses[1]
+        assert len(texts) == 2
+
 
 class TestNormalizeLicenseParenthesized:
     """Tests for parenthesized description stripping."""

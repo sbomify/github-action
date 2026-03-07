@@ -334,7 +334,14 @@ def normalize_license_list(licenses: list) -> Tuple[list, dict]:
             spdx_id, text = normalize_license(lic)
             normalized.append(spdx_id)
             if text:
-                texts[spdx_id] = text
+                key = spdx_id
+                if key in texts:
+                    counter = 2
+                    while f"{key}-{counter}" in texts:
+                        counter += 1
+                    key = f"{key}-{counter}"
+                    normalized[-1] = key
+                texts[key] = text
             continue
         # Split comma/"and"-separated license strings into individual licenses
         for split_lic in _split_license_string(lic):
