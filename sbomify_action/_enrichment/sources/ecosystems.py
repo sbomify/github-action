@@ -8,6 +8,7 @@ from packageurl import PackageURL
 
 from sbomify_action.logging_config import logger
 
+from ..license_utils import normalize_license_list
 from ..metadata import NormalizedMetadata
 from ..sanitization import normalize_vcs_url
 from ..utils import purl_to_string
@@ -134,15 +135,16 @@ class EcosystemsSource:
         if not data:
             return None
 
-        # Extract licenses
-        licenses: List[str] = []
+        # Extract and normalize licenses
+        raw_licenses: List[str] = []
         if data.get("normalized_licenses"):
-            licenses = [lic for lic in data["normalized_licenses"] if lic]
+            raw_licenses = [lic for lic in data["normalized_licenses"] if lic]
         elif data.get("licenses"):
             # licenses might be a string
             lic_str = str(data["licenses"]).strip()
             if lic_str:
-                licenses = [lic_str]
+                raw_licenses = [lic_str]
+        licenses, license_texts = normalize_license_list(raw_licenses)
 
         # Extract maintainer info
         maintainer_name = None
@@ -187,6 +189,7 @@ class EcosystemsSource:
         metadata = NormalizedMetadata(
             description=data.get("description"),
             licenses=licenses,
+            license_texts=license_texts,
             supplier=supplier,
             homepage=data.get("homepage"),
             repository_url=repository_url,
