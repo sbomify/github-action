@@ -82,6 +82,16 @@ class DocumentUploadInput:
                     f"Invalid compliance_subcategory: {self.compliance_subcategory}. "
                     f"Must be one of: {', '.join(sorted(VALID_COMPLIANCE_SUBCATEGORIES))}"
                 )
+            # Validated before being dropped, so a typo is still a typo even on
+            # a type that would discard the value. Cleared here rather than only
+            # at the client boundary, so what the caller can read back is what
+            # will actually be sent.
+            if self.document_type != "compliance":
+                logger.warning(
+                    f"compliance_subcategory only applies to document_type='compliance'; "
+                    f"ignoring it for document_type='{self.document_type}'."
+                )
+                self.compliance_subcategory = None
         else:
             self.compliance_subcategory = None
         if not self.version:
@@ -150,6 +160,23 @@ def upload_document(
         )
 
     path = Path(input.document_file)
+    # stat() first: the size checks below are the reason a 2 GB file must not
+    # reach read_bytes(), and reading it in only to reject it would defeat them.
+    try:
+        file_size = path.stat().st_size
+    except FileNotFoundError:
+        return DocumentUploadResult(success=False, error_message=f"Document file not found: {input.document_file}")
+    except OSError as e:
+        return DocumentUploadResult(success=False, error_message=f"Failed to read document file: {e}")
+
+    if file_size > MAX_DOCUMENT_SIZE:
+        return DocumentUploadResult(
+            success=False,
+            error_message=(
+                f"Document is {file_size:,} bytes; sbomify accepts at most "
+                f"{MAX_DOCUMENT_SIZE:,} bytes (50 MB) per document."
+            ),
+        )
     try:
         payload = path.read_bytes()
     except FileNotFoundError:
@@ -157,6 +184,11 @@ def upload_document(
     except OSError as e:
         return DocumentUploadResult(success=False, error_message=f"Failed to read document file: {e}")
 
+    # st_size is a hint, not a promise -- a file can grow between the stat and
+    # the read, and virtual files report 0 while having content -- so the
+    # payload, not the stat, decides. Emptiness is only checked here for that
+    # reason: rejecting a 0-byte stat early would save no memory and would
+    # refuse a file that does have bytes to read.
     if len(payload) > MAX_DOCUMENT_SIZE:
         return DocumentUploadResult(
             success=False,

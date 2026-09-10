@@ -9,6 +9,7 @@ report.
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -64,6 +65,24 @@ def test_input_rejects_unknown_document_type():
 def test_input_rejects_unknown_compliance_subcategory():
     with pytest.raises(ValueError, match="Invalid compliance_subcategory"):
         DocumentUploadInput(document_file="a.pdf", document_type="compliance", compliance_subcategory="pci")
+
+
+def test_input_drops_subcategory_for_non_compliance_types():
+    """The backend only reads the subcategory for compliance documents, so an
+    input that keeps one for a manual would report state that is never sent."""
+    input = DocumentUploadInput(document_file="a.pdf", document_type="manual", compliance_subcategory="soc2")
+    assert input.compliance_subcategory is None
+
+
+def test_input_keeps_subcategory_for_compliance_documents():
+    input = DocumentUploadInput(document_file="a.pdf", document_type="compliance", compliance_subcategory="SOC2")
+    assert input.compliance_subcategory == "soc2"
+
+
+def test_input_validates_subcategory_before_dropping_it():
+    """A typo is a typo even on a type that would discard the value."""
+    with pytest.raises(ValueError, match="Invalid compliance_subcategory"):
+        DocumentUploadInput(document_file="a.pdf", document_type="manual", compliance_subcategory="pci")
 
 
 def test_input_normalizes_case():
@@ -208,13 +227,35 @@ def test_upload_rejects_empty_file(tmp_path):
     assert "empty" in result.error_message
 
 
-def test_upload_rejects_oversized_file_locally(tmp_path):
-    """A 40-minute build should not end in a server-side 400 that a size check
-    could have called before the upload started."""
+def test_upload_rejects_oversized_file_without_reading_it(tmp_path):
+    """A 40-minute build should not end in a server-side 400 a size check could
+    have called first — and the check must come off stat(), not off pulling a
+    multi-gigabyte file into memory only to refuse it."""
     big = tmp_path / "big.pdf"
-    big.write_bytes(b"x" * (MAX_DOCUMENT_SIZE + 1))
-    with patch("sbomify_action._upload.documents.SbomifyApiClient") as client_cls:
+    with big.open("wb") as fh:
+        fh.truncate(MAX_DOCUMENT_SIZE + 1)  # sparse: no bytes actually written
+
+    with (
+        patch("sbomify_action._upload.documents.SbomifyApiClient") as client_cls,
+        patch.object(Path, "read_bytes", side_effect=AssertionError("file was read into memory")) as read_bytes,
+    ):
         result = upload_document(document_file=str(big), token="t", component_id="c")
+
+    assert not result.success
+    assert "50 MB" in result.error_message
+    read_bytes.assert_not_called()
+    client_cls.assert_not_called()
+
+
+def test_upload_rejects_a_file_that_grew_past_the_limit_after_the_stat(pdf):
+    """stat() is a hint, not a promise: a file can grow between the stat and the
+    read, so the payload gets the final say."""
+    with (
+        patch("sbomify_action._upload.documents.SbomifyApiClient") as client_cls,
+        patch.object(Path, "read_bytes", return_value=b"x" * (MAX_DOCUMENT_SIZE + 1)),
+    ):
+        result = upload_document(document_file=str(pdf), token="t", component_id="c")
+
     assert not result.success
     assert "50 MB" in result.error_message
     client_cls.assert_not_called()
@@ -383,3 +424,20 @@ def test_pipeline_tags_document_into_release(pdf, monkeypatch, tmp_path):
     # A document run writes no OUTPUT_FILE; naming one would point processors
     # at a path that does not exist.
     assert processor_input.sbom_file is None
+
+
+def test_pipeline_numbers_document_steps_consecutively(pdf, monkeypatch, tmp_path):
+    """A document run has two steps, not six: post-upload processing must not
+    announce itself as step 6 straight after step 1."""
+    config = _doc_config(pdf, monkeypatch, tmp_path, product_releases='["prod-1:v1.2.3"]')
+
+    with (
+        patch("sbomify_action.cli.main.upload_document") as upload,
+        patch("sbomify_action.cli.main._log_step_header") as step_header,
+        patch("sbomify_action._processors.orchestrator.ProcessorRegistry.process_all") as process_all,
+    ):
+        upload.return_value = DocumentUploadResult(success=True, document_id="doc-9")
+        process_all.return_value = []
+        run_pipeline(config)
+
+    assert [call.args[0] for call in step_header.call_args_list] == [1, 2]

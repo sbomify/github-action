@@ -1861,12 +1861,15 @@ def _finalize_output_content(content: str, bom_type: Optional[str]) -> str:
     return content
 
 
-def _finalize_post_upload(results: "AggregateResult") -> None:
+def _finalize_post_upload(results: "AggregateResult", step_number: int = 6) -> None:
     """Log the outcome of each processor that ran and exit non-zero if any failed.
 
     A failed processor (e.g. a 403 when the OIDC/CI token cuts a release) must
     surface as a non-zero exit, not be swallowed as a green run. Skipped
     processors don't run here, so they aren't logged and aren't failures.
+
+    ``step_number`` matches the header the caller opened: the SBOM pipeline
+    reaches processors at step 6, a document upload at step 2.
     """
     for proc_result in results.enabled_processors:
         if proc_result.success:
@@ -1877,9 +1880,9 @@ def _finalize_post_upload(results: "AggregateResult") -> None:
             logger.error(f"Processor '{proc_result.processor_name}' failed: {proc_result.error_message}")
 
     if results.any_failures:
-        _log_step_end(6, success=False)
+        _log_step_end(step_number, success=False)
         sys.exit(1)
-    _log_step_end(6)
+    _log_step_end(step_number)
 
 
 def _find_existing_submodule_sbom(config: "Config", sbom_format: str) -> Optional[str]:
@@ -1945,13 +1948,22 @@ def _prepare_submodule_mode(config: "Config") -> Optional[str]:
     return None
 
 
-def _run_post_upload_processing(config: "Config", sbom_id: str, artifact_kind: str = "sbom") -> None:
-    """Step 6: post-upload processors (release tagging etc.) for ``sbom_id``.
+def _run_post_upload_processing(
+    config: "Config",
+    sbom_id: str,
+    artifact_kind: str = "sbom",
+    step_number: int = 6,
+) -> None:
+    """Post-upload processors (release tagging etc.) for ``sbom_id``.
 
     ``artifact_kind="document"`` tags a document into the release instead --
     the release-artifact endpoint keys the two differently.
+
+    ``step_number`` is where this lands in the caller's step sequence: 6 in the
+    SBOM pipeline, 2 in a document upload, which has no generate/augment/enrich
+    /finalize steps to number past.
     """
-    _log_step_header(6, "Post-upload Processing")
+    _log_step_header(step_number, "Post-upload Processing")
     try:
         from sbomify_action._processors import ProcessorInput, ProcessorOrchestrator
 
@@ -2004,16 +2016,16 @@ def _run_post_upload_processing(config: "Config", sbom_id: str, artifact_kind: s
             results = orchestrator.process_all(processor_input)
             # Raises SystemExit(1) if any processor failed (e.g. a 403 cutting
             # a release) so the failure isn't swallowed as a green run.
-            _finalize_post_upload(results)
+            _finalize_post_upload(results, step_number)
         else:
             logger.info("No processors enabled for this run")
-            _log_step_end(6)
+            _log_step_end(step_number)
     except Exception as e:
         # Crash in orchestrator setup. A processor's own failure already
         # comes back as a failure_result (handled above), so this only
         # catches setup/import errors; keep it non-fatal as before.
-        logger.error(f"Step 6 (post-upload processing) failed: {e}")
-        _log_step_end(6, success=False)
+        logger.error(f"Step {step_number} (post-upload processing) failed: {e}")
+        _log_step_end(step_number, success=False)
 
 
 def _finalize_run(config: "Config") -> None:
@@ -2072,7 +2084,7 @@ def _run_document_pipeline(config: "Config") -> None:
     _log_step_end(1)
 
     if result.document_id and config.product_releases:
-        _run_post_upload_processing(config, result.document_id, artifact_kind="document")
+        _run_post_upload_processing(config, result.document_id, artifact_kind="document", step_number=2)
     elif config.product_releases:
         _log_step_header(2, "Post-upload Processing - SKIPPED")
         logger.warning("Product releases specified but the upload returned no document ID")
