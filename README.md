@@ -149,11 +149,11 @@ signed.
 ```
 
 The component must be of type **document** in sbomify; a component created for SBOMs (type `bom`)
-cannot hold documents. Locally or on any other CI, the same variables work with `uvx
-sbomify-action` and the container image, and every one of them has a CLI flag (`--document-file`,
+cannot hold documents. Locally or on any other CI the same variables work with the container image
+and with `uvx sbomify-action`, and every one of them has a CLI flag (`--document-file`,
 `--document-type`, …).
 
-| Variable | Default | |
+| Variable | Default | Description |
 | --- | --- | --- |
 | `DOCUMENT_FILE` | — | Path to the document. Mutually exclusive with `SBOM_FILE` / `LOCK_FILE` / `SOURCE_DIR` / `DOCKER_IMAGE` |
 | `DOCUMENT_NAME` | file name without its extension | Name shown in sbomify |
