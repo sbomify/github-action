@@ -90,6 +90,7 @@ This tool wraps generation in three more steps — inject, augment, enrich — a
 - **Hashes and lifecycle data** — integrity hashes pulled from your lock file, CLE end-of-support dates for OS packages and tracked runtimes
 - **Audit trail** — every modification logged with UTC timestamps, for attestation and compliance
 - **Upload** to sbomify or Dependency Track, tag product releases, attest with GitHub build provenance
+- **Documents** — publish the evidence an SBOM cannot carry (pentest reports, SOC 2 attestations, threat models, declarations of conformity) to the same component and the same release
 - **Tokenless publishing** on GitHub Actions via OIDC trusted publishing
 
 ## Supported lock files
@@ -125,6 +126,52 @@ Container images are supported via `DOCKER_IMAGE`, and a whole directory via `SO
 - **CycloneDX** 1.2–1.7 (JSON) — generate and process. Defaults to 1.6; override with `SPEC_VERSION`
 - **SPDX** 2.2 and 2.3 (JSON) — generate and process. Defaults to 2.3
 - **SPDX** 3.0.1 (JSON-LD) — process only; supply an existing document via `SBOM_FILE`
+
+## Documents
+
+Compliance asks for more than an SBOM. The EU CRA wants a security assessment and a declaration of
+conformity, SOC 2 and ISO 27001 want their attestation reports, and FDA and PCI DSS name several
+more. Those are documents, not BOMs — and they belong beside the SBOM they describe rather than in
+a shared drive somewhere.
+
+Point `DOCUMENT_FILE` at the file. It is uploaded exactly as authored: nothing is generated,
+augmented, enriched or re-serialized, so a signed report stays byte-for-byte the one that was
+signed.
+
+```yaml
+- uses: sbomify/sbomify-action@master
+  env:
+    TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+    COMPONENT_ID: ${{ vars.DOCS_COMPONENT_ID }}
+    DOCUMENT_FILE: reports/pentest-2026.pdf
+    DOCUMENT_TYPE: pentest-report
+    DOCUMENT_VERSION: '2026.1'
+```
+
+The component must be of type **document** in sbomify; a component created for SBOMs (type `bom`)
+cannot hold documents. Locally or on any other CI, the same variables work with `uvx
+sbomify-action` and the container image, and every one of them has a CLI flag (`--document-file`,
+`--document-type`, …).
+
+| Variable | Default | |
+| --- | --- | --- |
+| `DOCUMENT_FILE` | — | Path to the document. Mutually exclusive with `SBOM_FILE` / `LOCK_FILE` / `SOURCE_DIR` / `DOCKER_IMAGE` |
+| `DOCUMENT_NAME` | file name without its extension | Name shown in sbomify |
+| `DOCUMENT_TYPE` | `other` | See the list below |
+| `DOCUMENT_VERSION` | `COMPONENT_VERSION`, else `1.0` | Version recorded for the document |
+| `DOCUMENT_DESCRIPTION` | empty | Free text stored with the document |
+| `DOCUMENT_COMPLIANCE_SUBCATEGORY` | — | `nda`, `soc2` or `iso27001`; only for `DOCUMENT_TYPE: compliance` |
+
+`PRODUCT_RELEASE` tags the uploaded document into a release exactly as it does an SBOM, so a
+release can carry its SBOM and its evidence together. OIDC trusted publishing works the same way
+too — no token needed on GitHub Actions.
+
+**Document types:** `specification`, `manual`, `readme`, `documentation`, `build-instructions`,
+`configuration`, `license`, `compliance`, `evidence`, `changelog`, `release-notes`,
+`security-advisory`, `vulnerability-report`, `threat-model`, `risk-assessment`, `pentest-report`,
+`static-analysis`, `dynamic-analysis`, `quality-metrics`, `maturity-report`, `report`, `other`.
+
+Documents are capped at 50 MB each.
 
 ## Documentation
 

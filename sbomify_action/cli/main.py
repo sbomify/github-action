@@ -68,6 +68,7 @@ from ..release_version import (
     tag_from_ci,
     version_from_release_tag,
 )
+from ..sbomify_api import VALID_COMPLIANCE_SUBCATEGORIES, VALID_DOCUMENT_TYPES
 from ..serialization import (
     _add_compositions_if_missing,
     _fix_purl_encoding_bugs_in_json,
@@ -76,7 +77,7 @@ from ..serialization import (
     serialize_cyclonedx_bom,
 )
 from ..spdx3 import is_spdx3
-from ..upload import upload_sbom
+from ..upload import upload_document, upload_sbom
 
 
 # Import version for tool metadata with multiple fallback mechanisms
@@ -228,6 +229,12 @@ class Config:
     docker_image: Optional[str] = None
     lock_file: Optional[str] = None
     source_dir: Optional[str] = None
+    document_file: Optional[str] = None
+    document_name: Optional[str] = None
+    document_type: str = "other"
+    document_version: Optional[str] = None
+    document_description: str = ""
+    document_compliance_subcategory: Optional[str] = None
     output_file: str = "sbom_output.json"
     upload: bool = True
     upload_destinations: list[str] | None = None
@@ -272,6 +279,17 @@ class Config:
         )
 
     @property
+    def is_document_upload(self) -> bool:
+        """True iff this run publishes a document (PDF etc.) rather than an SBOM.
+
+        A document is opaque bytes with metadata: nothing to generate, augment,
+        enrich or validate, and a different endpoint on a different kind of
+        component. The pipeline branches on this early rather than threading
+        skip-conditions through every SBOM step.
+        """
+        return bool(self.document_file)
+
+    @property
     def uploads_to_sbomify(self) -> bool:
         """True iff the configured upload destinations include sbomify."""
         return self.upload and self.upload_destinations is not None and "sbomify" in self.upload_destinations
@@ -298,6 +316,71 @@ class Config:
         ``id-token: write`` get backend metadata via trusted publishing.
         """
         return self.requires_sbomify_api or self.augment
+
+    def _validate_document_upload(self) -> None:
+        """Validate DOCUMENT_FILE mode and drop the settings it cannot honour.
+
+        A document is published exactly as authored — the whole point of
+        uploading a pentest report or a SOC 2 attestation is that the bytes are
+        the ones that were signed off. So every SBOM-shaped setting is either
+        rejected here (where it would change what gets published) or warned
+        about and cleared (where it would simply do nothing).
+
+        Raises:
+            ConfigurationError: If configuration is invalid
+        """
+        if not self.upload:
+            raise ConfigurationError(
+                "DOCUMENT_FILE requires UPLOAD=true: a document is uploaded as authored, so with "
+                "uploads disabled the run would do nothing at all."
+            )
+        non_sbomify = [d for d in (self.upload_destinations or []) if d != "sbomify"]
+        if non_sbomify:
+            raise ConfigurationError(
+                f"DOCUMENT_FILE can only be uploaded to sbomify; remove {', '.join(non_sbomify)} "
+                "from UPLOAD_DESTINATIONS. Other destinations only accept SBOMs."
+            )
+        if self.document_type not in VALID_DOCUMENT_TYPES:
+            raise ConfigurationError(
+                f"Invalid DOCUMENT_TYPE: '{self.document_type}'. "
+                f"Must be one of: {', '.join(sorted(VALID_DOCUMENT_TYPES))}"
+            )
+        if self.document_compliance_subcategory:
+            if self.document_compliance_subcategory not in VALID_COMPLIANCE_SUBCATEGORIES:
+                raise ConfigurationError(
+                    f"Invalid DOCUMENT_COMPLIANCE_SUBCATEGORY: '{self.document_compliance_subcategory}'. "
+                    f"Must be one of: {', '.join(sorted(VALID_COMPLIANCE_SUBCATEGORIES))}"
+                )
+            if self.document_type != "compliance":
+                logger.warning(
+                    f"DOCUMENT_COMPLIANCE_SUBCATEGORY only applies to DOCUMENT_TYPE=compliance; "
+                    f"ignoring it for DOCUMENT_TYPE={self.document_type}."
+                )
+                self.document_compliance_subcategory = None
+        # BOM_TYPE names a kind of BOM. A document is not one, and pairing them
+        # would mislabel whichever the backend believed.
+        if self.bom_type and self.bom_type != "sbom":
+            raise ConfigurationError(
+                f"BOM_TYPE='{self.bom_type}' cannot be combined with DOCUMENT_FILE — a document is "
+                "not a BOM. Use DOCUMENT_TYPE to describe it, or SBOM_FILE for a real BOM artifact."
+            )
+        if self.submodule_path:
+            raise ConfigurationError(
+                "SUBMODULE_PATH resolves a pinned submodule to an SBOM version and has no meaning "
+                "for a document; remove it."
+            )
+        if self.augment or self.enrich:
+            logger.warning("DOCUMENT_FILE is uploaded as authored; ignoring AUGMENT/ENRICH.")
+            self.augment = False
+            self.enrich = False
+        if self.component_name or self.component_purl or self.override_name:
+            logger.warning(
+                "DOCUMENT_FILE is uploaded as authored; ignoring "
+                "COMPONENT_NAME/COMPONENT_PURL/OVERRIDE_NAME. Use DOCUMENT_NAME to name the document."
+            )
+            self.component_name = None
+            self.component_purl = None
+            self.override_name = False
 
     def validate(self) -> None:
         """
@@ -339,13 +422,20 @@ class Config:
                 reason = " or ".join(operations)
                 raise ConfigurationError(f"Component ID is not defined (required when {reason})")
 
-        inputs = [self.sbom_file, self.lock_file, self.source_dir, self.docker_image]
+        inputs = [self.sbom_file, self.lock_file, self.source_dir, self.docker_image, self.document_file]
         if sum(bool(x) for x in inputs) > 1:
-            raise ConfigurationError("Please provide only one of: SBOM_FILE, LOCK_FILE, SOURCE_DIR, or DOCKER_IMAGE")
+            raise ConfigurationError(
+                "Please provide only one of: SBOM_FILE, LOCK_FILE, SOURCE_DIR, DOCKER_IMAGE, or DOCUMENT_FILE"
+            )
         if not any(inputs):
-            raise ConfigurationError("Please provide one of: SBOM_FILE, LOCK_FILE, SOURCE_DIR, or DOCKER_IMAGE")
+            raise ConfigurationError(
+                "Please provide one of: SBOM_FILE, LOCK_FILE, SOURCE_DIR, DOCKER_IMAGE, or DOCUMENT_FILE"
+            )
         if self.source_dir and not Path(self.source_dir).is_dir():
             raise ConfigurationError(f"SOURCE_DIR '{self.source_dir}' is not a directory")
+
+        if self.is_document_upload:
+            self._validate_document_upload()
 
         # Submodule mode: attach-or-backfill against the submodule's
         # component. Needs a lockfile to backfill from, and only makes
@@ -701,6 +791,12 @@ def build_config(
     docker_image: Optional[str] = None,
     lock_file: Optional[str] = None,
     source_dir: Optional[str] = None,
+    document_file: Optional[str] = None,
+    document_name: Optional[str] = None,
+    document_type: str = "other",
+    document_version: Optional[str] = None,
+    document_description: Optional[str] = None,
+    document_compliance_subcategory: Optional[str] = None,
     output_file: str = "sbom_output.json",
     upload: bool = True,
     upload_destinations: Optional[list[str]] = None,
@@ -846,6 +942,15 @@ def build_config(
     # keyword means "build from additional packages alone", which is a
     # statement about lock files and has no reading for a directory.
     expanded_source_dir = directory_expansion(source_dir) if source_dir else None
+    expanded_document_file = path_expansion(document_file) if document_file else None
+
+    # A document carries its own version, but most workflows already compute
+    # one for the component and mean the same thing by it; fall back to that
+    # before the backend's "1.0", which would silently stamp every upload with
+    # the same version.
+    resolved_document_version = document_version or (final_component_version if document_file else None) or "1.0"
+    if document_file:
+        logger.info(f"Uploading document: {expanded_document_file} (type: {document_type or 'other'})")
 
     config = Config(
         token=token or "",
@@ -854,6 +959,14 @@ def build_config(
         docker_image=docker_image,
         lock_file=expanded_lock_file,
         source_dir=expanded_source_dir,
+        document_file=expanded_document_file,
+        document_name=document_name or None,
+        document_type=(document_type or "other").lower(),
+        document_version=resolved_document_version,
+        document_description=document_description or "",
+        document_compliance_subcategory=(
+            document_compliance_subcategory.lower() if document_compliance_subcategory else None
+        ),
         output_file=output_file,
         upload=upload,
         upload_destinations=upload_destinations,
@@ -906,6 +1019,12 @@ def load_config() -> Config:
         docker_image=os.getenv("DOCKER_IMAGE"),
         lock_file=os.getenv("LOCK_FILE"),
         source_dir=os.getenv("SOURCE_DIR"),
+        document_file=os.getenv("DOCUMENT_FILE"),
+        document_name=os.getenv("DOCUMENT_NAME"),
+        document_type=os.getenv("DOCUMENT_TYPE", "other"),
+        document_version=os.getenv("DOCUMENT_VERSION"),
+        document_description=os.getenv("DOCUMENT_DESCRIPTION"),
+        document_compliance_subcategory=os.getenv("DOCUMENT_COMPLIANCE_SUBCATEGORY"),
         output_file=os.getenv("OUTPUT_FILE", "sbom_output.json"),
         upload=evaluate_boolean(os.getenv("UPLOAD", "True"), source="UPLOAD"),
         upload_destinations=upload_destinations,
@@ -1826,8 +1945,12 @@ def _prepare_submodule_mode(config: "Config") -> Optional[str]:
     return None
 
 
-def _run_post_upload_processing(config: "Config", sbom_id: str) -> None:
-    """Step 6: post-upload processors (release tagging etc.) for ``sbom_id``."""
+def _run_post_upload_processing(config: "Config", sbom_id: str, artifact_kind: str = "sbom") -> None:
+    """Step 6: post-upload processors (release tagging etc.) for ``sbom_id``.
+
+    ``artifact_kind="document"`` tags a document into the release instead --
+    the release-artifact endpoint keys the two differently.
+    """
     _log_step_header(6, "Post-upload Processing")
     try:
         from sbomify_action._processors import ProcessorInput, ProcessorOrchestrator
@@ -1865,10 +1988,13 @@ def _run_post_upload_processing(config: "Config", sbom_id: str) -> None:
 
         processor_input = ProcessorInput(
             sbom_id=sbom_id,
-            sbom_file=config.output_file,
+            # A document run writes no OUTPUT_FILE, and naming one here would
+            # point processors at a path that does not exist.
+            sbom_file=None if artifact_kind == "document" else config.output_file,
             product_releases=pr_list,
             api_base_url=config.api_base_url,
             token=config.token,
+            artifact_kind=artifact_kind,
         )
 
         # Check if any processors are enabled
@@ -1911,6 +2037,53 @@ def _finalize_run(config: "Config") -> None:
     print_final_success()
 
 
+def _run_document_pipeline(config: "Config") -> None:
+    """Publish a document to sbomify, then tag it into any product releases.
+
+    Two steps rather than the SBOM pipeline's six: there is nothing to
+    generate, and rewriting the bytes of a signed report is the one thing this
+    path must never do.
+    """
+    _log_step_header(1, f"Uploading Document ({config.document_type})", emoji="📄")
+    if not config.document_file:  # pragma: no cover - guarded by is_document_upload
+        logger.error("No document file configured.")
+        _log_step_end(1, success=False)
+        sys.exit(1)
+
+    result = upload_document(
+        document_file=config.document_file,
+        token=config.token,
+        component_id=config.component_id,
+        api_base_url=config.api_base_url,
+        name=config.document_name,
+        version=config.document_version or "1.0",
+        document_type=config.document_type,
+        description=config.document_description,
+        compliance_subcategory=config.document_compliance_subcategory,
+    )
+
+    if not result.success:
+        if result.error_code == "COMPONENT_NOT_FOUND":
+            print_component_not_found_error(config.component_id)
+        logger.error(f"Document upload failed: {result.error_message}")
+        _log_step_end(1, success=False)
+        sys.exit(1)
+
+    _log_step_end(1)
+
+    if result.document_id and config.product_releases:
+        _run_post_upload_processing(config, result.document_id, artifact_kind="document")
+    elif config.product_releases:
+        _log_step_header(2, "Post-upload Processing - SKIPPED")
+        logger.warning("Product releases specified but the upload returned no document ID")
+        _log_step_end(2, success=False)
+
+    # The audit trail records modifications to an SBOM; a document has none by
+    # construction, so print the summary without writing a trail file next to
+    # an OUTPUT_FILE this run never produced.
+    print_final_success()
+
+
 def run_pipeline(config: Config) -> None:
     """
     Run the SBOM pipeline with the given configuration.
@@ -1930,6 +2103,8 @@ def run_pipeline(config: Config) -> None:
         audit_trail.input_file = config.lock_file
     elif config.docker_image:
         audit_trail.input_file = f"docker:{config.docker_image}"
+    elif config.document_file:
+        audit_trail.input_file = config.document_file
 
     # A version the run derived rather than was handed is exactly what an audit
     # trail is for: "8.21.0" on its own says nothing about whether a human
@@ -1985,6 +2160,15 @@ def run_pipeline(config: Config) -> None:
                 "grants `permissions: id-token: write` for the runner."
             )
             sys.exit(1)
+
+    # Documents (PDFs and the like) are published as authored: no generation,
+    # no augmentation, no enrichment, no output file. Branch here rather than
+    # inside step 1 so none of that machinery has to learn about a file it
+    # cannot parse -- but after the OIDC exchange above, so trusted publishing
+    # works for documents exactly as it does for SBOMs.
+    if config.is_document_upload:
+        _run_document_pipeline(config)
+        return
 
     # Submodule mode: resolve the pin to a version and check whether the
     # submodule's component already published an SBOM at exactly that
@@ -3553,6 +3737,60 @@ def _parse_upload_destinations_callback(
     ),
 )
 @click.option(
+    "--document-file",
+    envvar="DOCUMENT_FILE",
+    type=click.Path(exists=False),
+    help=(
+        "Path to a document (PDF, Markdown, ...) to upload to a sbomify component of type "
+        "'document'. Use instead of --sbom-file/--lock-file: documents are published as "
+        "authored, with no generation, augmentation or enrichment. The EU CRA, FDA and PCI DSS "
+        "all ask for evidence an SBOM cannot carry -- a pentest report, a SOC 2 attestation, a "
+        "declaration of conformity -- and this is how that evidence reaches the same component "
+        "and the same release as the SBOM."
+    ),
+)
+@click.option(
+    "--document-name",
+    envvar="DOCUMENT_NAME",
+    default=None,
+    help="Name to show in sbomify for the uploaded document (default: the file name without its extension).",
+)
+@click.option(
+    "--document-type",
+    envvar="DOCUMENT_TYPE",
+    type=click.Choice(sorted(VALID_DOCUMENT_TYPES), case_sensitive=False),
+    default="other",
+    show_default=True,
+    help=(
+        "What kind of document this is. Auditors look for named evidence, so the type is what "
+        "makes a file findable: 'pentest-report' and 'threat-model' answer EU CRA Annex I "
+        "security-assessment duties, 'compliance' covers SOC 2 / ISO 27001 attestations, and "
+        "'license' or 'release-notes' back the documentation obligations."
+    ),
+)
+@click.option(
+    "--document-version",
+    envvar="DOCUMENT_VERSION",
+    default=None,
+    help="Version recorded for the document (default: COMPONENT_VERSION if set, otherwise 1.0).",
+)
+@click.option(
+    "--document-description",
+    envvar="DOCUMENT_DESCRIPTION",
+    default=None,
+    help="Free-text description stored with the document.",
+)
+@click.option(
+    "--document-compliance-subcategory",
+    envvar="DOCUMENT_COMPLIANCE_SUBCATEGORY",
+    type=click.Choice(sorted(VALID_COMPLIANCE_SUBCATEGORIES), case_sensitive=False),
+    default=None,
+    help=(
+        "Badge a --document-type=compliance document as an NDA, SOC 2 or ISO 27001 artifact so "
+        "the Trust Center can present it as the named attestation. Ignored for other types."
+    ),
+)
+@click.option(
     "-o",
     "--output-file",
     envvar="OUTPUT_FILE",
@@ -3706,6 +3944,12 @@ def cli(
     docker_image: Optional[str],
     lock_file: Optional[str],
     source_dir: Optional[str],
+    document_file: Optional[str],
+    document_name: Optional[str],
+    document_type: str,
+    document_version: Optional[str],
+    document_description: Optional[str],
+    document_compliance_subcategory: Optional[str],
     output_file: str,
     upload: bool,
     upload_destinations: Optional[list[str]],
@@ -3730,7 +3974,7 @@ def cli(
     """Generate, augment, enrich, and manage SBOMs in your CI/CD pipeline.
 
     Provide one of: --sbom-file, --lock-file, --source-dir, or --docker-image
-    as input.
+    as input, or --document-file to publish a document (PDF etc.) instead.
 
     \b
     Commands:
@@ -3748,6 +3992,9 @@ def cli(
 
       # Generate from Docker image with SPDX format
       sbomify-action --docker-image nginx:latest -f spdx -o sbom.spdx.json
+
+      # Upload a pentest report to a document component
+      sbomify-action --document-file pentest.pdf --document-type pentest-report --component-id abc123
 
       # Run the onboarding wizard interactively
       sbomify-action wizard
@@ -3790,7 +4037,7 @@ def cli(
     # 0, so the action step went green having produced no SBOM. Silent, because
     # exit 0 is success -- the failure only surfaced downstream, where
     # something looked for the output file that was never written.
-    if not any([sbom_file, docker_image, lock_file, source_dir]):
+    if not any([sbom_file, docker_image, lock_file, source_dir, document_file]):
         # Check if additional packages are configured — user likely forgot --lock-file none
         from ..additional_packages import has_additional_packages_configured
 
@@ -3843,6 +4090,12 @@ def cli(
         docker_image=docker_image,
         lock_file=lock_file,
         source_dir=source_dir,
+        document_file=document_file,
+        document_name=document_name,
+        document_type=document_type,
+        document_version=document_version,
+        document_description=document_description,
+        document_compliance_subcategory=document_compliance_subcategory,
         output_file=output_file,
         upload=upload,
         upload_destinations=upload_destinations,
