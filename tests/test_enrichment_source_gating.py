@@ -157,12 +157,14 @@ class TestYoctoPurlsNeverReachARegistry:
 
         requested: list[str] = []
 
-        def record(_self: object, *args: object, **kwargs: object) -> NoReturn:
-            requested.append(str(args[0]) if args else str(kwargs.get("url")))
+        # `Session.get` and `Session.post` both go through `Session.request`,
+        # so patching that one method catches every verb, and the URL is the
+        # second positional argument rather than something to guess at.
+        def record(_self: object, _method: object, url: object = None, **kwargs: object) -> NoReturn:
+            requested.append(str(url if url is not None else kwargs.get("url")))
             raise RuntimeError("no network in this test")
 
-        for verb in ("get", "post", "request"):
-            monkeypatch.setattr(requests.Session, verb, record)
+        monkeypatch.setattr(requests.Session, "request", record)
 
         with Enricher() as enricher:
             enricher.fetch_metadata(generate_yocto_purl("openssl", "3.3.1"))
