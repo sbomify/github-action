@@ -15,6 +15,8 @@ were also spending the budget that should have been there when licences
 really were missing.
 """
 
+from typing import NoReturn
+
 import requests
 from packageurl import PackageURL
 
@@ -140,20 +142,32 @@ class TestYoctoPurlsNeverReachARegistry:
         assert EcosystemsSource().supports(purl) is False
 
     def test_a_yocto_recipe_costs_no_http_request(self, monkeypatch, tmp_path):
-        """The gate has to hold across every source, not just the one that had it."""
+        """The gate has to hold across every source, not just the one that had it.
+
+        The claim is about the wire, not the answer. A local source may well
+        have something to say about a recipe, now or later, so this records
+        what was requested rather than asserting on what came back. Recording
+        also survives a source that swallows the error: raising alone would let
+        a suppressed exception read as a pass.
+        """
         from sbomify_action._enrichment.enricher import Enricher
         from sbomify_action._yocto.purl import generate_yocto_purl
 
         monkeypatch.setenv("SBOMIFY_CACHE_DIR", str(tmp_path))
 
-        def explode(*args, **kwargs):
-            raise AssertionError("a pkg:yocto recipe must not be looked up in a registry")
+        requested: list[str] = []
+
+        def record(_self: object, *args: object, **kwargs: object) -> NoReturn:
+            requested.append(str(args[0]) if args else str(kwargs.get("url")))
+            raise RuntimeError("no network in this test")
 
         for verb in ("get", "post", "request"):
-            monkeypatch.setattr(requests.Session, verb, explode)
+            monkeypatch.setattr(requests.Session, verb, record)
 
         with Enricher() as enricher:
-            assert enricher.fetch_metadata(generate_yocto_purl("openssl", "3.3.1")) is None
+            enricher.fetch_metadata(generate_yocto_purl("openssl", "3.3.1"))
+
+        assert requested == []
 
     def test_the_ecosystems_a_registry_does_carry_still_go(self):
         """The gate is for our own type, not a reason to stop enriching."""
