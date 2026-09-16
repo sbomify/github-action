@@ -115,3 +115,50 @@ def test_can_contribute_is_permissive_without_a_declaration():
 
     assert _can_contribute(Bare(), {"licenses"})
     assert _can_contribute(Bare(), set())
+
+
+class TestYoctoPurlsNeverReachARegistry:
+    """A purl we invented has nowhere to be looked up.
+
+    `_yocto/purl.py` mints `pkg:yocto/<recipe>@<version>` so a Yocto recipe has
+    a stable identifier. No registry carries that type, and ecosyste.ms gated on
+    a blocklist, so every recipe went out as an HTTP request that could only
+    come back empty.
+
+    Measured on the published core-image-sato-sdk reference image: 2,206 purls,
+    478 distinct, 421 of them pkg:yocto. Cold, those 421 cost about twelve
+    minutes and enriched nothing, and all of it runs before the SBOM is
+    uploaded.
+    """
+
+    def test_ecosystems_declines_the_type_we_mint(self):
+        from sbomify_action._enrichment.sources.ecosystems import EcosystemsSource
+        from sbomify_action._yocto.purl import generate_yocto_purl
+
+        purl = PackageURL.from_string(generate_yocto_purl("busybox", "1.36.1"))
+
+        assert EcosystemsSource().supports(purl) is False
+
+    def test_a_yocto_recipe_costs_no_http_request(self, monkeypatch, tmp_path):
+        """The gate has to hold across every source, not just the one that had it."""
+        from sbomify_action._enrichment.enricher import Enricher
+        from sbomify_action._yocto.purl import generate_yocto_purl
+
+        monkeypatch.setenv("SBOMIFY_CACHE_DIR", str(tmp_path))
+
+        def explode(*args, **kwargs):
+            raise AssertionError("a pkg:yocto recipe must not be looked up in a registry")
+
+        for verb in ("get", "post", "request"):
+            monkeypatch.setattr(requests.Session, verb, explode)
+
+        with Enricher() as enricher:
+            assert enricher.fetch_metadata(generate_yocto_purl("openssl", "3.3.1")) is None
+
+    def test_the_ecosystems_a_registry_does_carry_still_go(self):
+        """The gate is for our own type, not a reason to stop enriching."""
+        from sbomify_action._enrichment.sources.ecosystems import EcosystemsSource
+
+        source = EcosystemsSource()
+        for purl_str in ("pkg:pypi/requests@2.31.0", "pkg:npm/left-pad@1.3.0", "pkg:cargo/serde@1.0.0"):
+            assert source.supports(PackageURL.from_string(purl_str)) is True
