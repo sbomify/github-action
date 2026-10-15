@@ -2735,7 +2735,7 @@ def run_pipeline(config: Config) -> None:
                     component_name=config.component_name,
                     component_version=config.component_version,
                     destination=destination,
-                    validate_before_upload=(FORMAT == "cyclonedx"),
+                    validate_before_upload=(FORMAT in ("cyclonedx", "spdx")),
                     bom_type=config.bom_type,
                 )
 

@@ -10,6 +10,7 @@ from sbomify_action import format_display_name
 from sbomify_action.exceptions import APIError, AuthError
 from sbomify_action.logging_config import logger
 from sbomify_action.sbomify_api import SbomifyApiClient, clean_validation_error
+from sbomify_action.validation import validate_sbom_file_auto
 
 from ..protocol import UploadInput
 from ..result import UploadResult
@@ -90,6 +91,26 @@ class SbomifyDestination:
             if not validation_result:
                 validation_error = "SBOM validation failed"
                 logger.warning("SBOM validation failed, but proceeding with upload")
+        elif input.validate_before_upload and input.sbom_format == "spdx":
+            # Every SPDX 3 write path runs before this point, so this is the one
+            # check they all pass through. SPDX 3 is held to its schema. An SPDX 2
+            # failure is usually the producer's (Yocto writes 2.3 relationship
+            # types into 2.2 documents), so it is uploaded with a warning.
+            validated = True
+            result = validate_sbom_file_auto(input.sbom_file)
+            if result.valid is False:
+                where = f" at {result.error_path}" if result.error_path else ""
+                validation_error = (
+                    f"SPDX {result.spec_version} document failed validation{where}: {result.error_message}"
+                )
+                if result.spec_version.startswith("3"):
+                    return UploadResult.failure_result(
+                        destination_name=self.name,
+                        error_message=f"{validation_error}. Not uploading it.",
+                        validated=validated,
+                        validation_error=validation_error,
+                    )
+                logger.warning(f"{validation_error}. Uploading it anyway.")
 
         # Read SBOM file
         try:

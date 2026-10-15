@@ -1271,6 +1271,70 @@ class TestSbomifyValidation(unittest.TestCase):
             Path(sbom_file).unlink()
 
 
+SPDX3_FIXTURE = Path(__file__).parent / "test-data" / "spdx3_conformant.json"
+
+
+def _spdx3_with_integer_version() -> dict:
+    """The conformant fixture with one property the schema refuses."""
+    data = json.loads(SPDX3_FIXTURE.read_text())
+    next(e for e in data["@graph"] if e.get("type") == "software_Package")["software_packageVersion"] = 7
+    return data
+
+
+@patch("sbomify_action._upload.destinations.sbomify.SbomifyApiClient")
+class TestSbomifySpdxValidationGate(unittest.TestCase):
+    """SPDX is checked against its schema before it is uploaded to sbomify."""
+
+    def _upload(self, mock_client_cls, data: dict, validate: bool = True) -> tuple[UploadResult, Mock]:
+        mock_response = Mock(ok=True, status_code=200, headers={})
+        mock_response.json.return_value = {"sbom_id": "sbom-123"}
+        mock_client = Mock()
+        mock_client.upload_sbom.return_value = mock_response
+        mock_client_cls.return_value = mock_client
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(data, f)
+        self.addCleanup(Path(f.name).unlink)
+        dest = SbomifyDestination(token="test-token", component_id="my-component")
+        result = dest.upload(UploadInput(sbom_file=f.name, sbom_format="spdx", validate_before_upload=validate))
+        return result, mock_client
+
+    def test_invalid_spdx3_is_not_uploaded(self, mock_client_cls):
+        result, client = self._upload(mock_client_cls, _spdx3_with_integer_version())
+
+        self.assertFalse(result.success)
+        self.assertTrue(result.validated)
+        self.assertIn("SPDX 3.0.1", result.error_message)
+        self.assertIn("@graph.4", result.error_message)
+        client.upload_sbom.assert_not_called()
+
+    def test_valid_spdx3_is_uploaded(self, mock_client_cls):
+        result, client = self._upload(mock_client_cls, json.loads(SPDX3_FIXTURE.read_text()))
+
+        self.assertTrue(result.success)
+        self.assertTrue(result.validated)
+        self.assertIsNone(result.validation_error)
+        client.upload_sbom.assert_called_once()
+
+    def test_invalid_spdx2_is_uploaded_with_a_warning(self, mock_client_cls):
+        """An SPDX 2 producer's schema slip is the producer's to fix, so the package still ships."""
+        spdx2 = {"spdxVersion": "SPDX-2.3", "SPDXID": "SPDXRef-DOCUMENT", "name": "x", "packages": []}
+        with self.assertLogs("sbomify_action", level="WARNING") as logs:
+            result, client = self._upload(mock_client_cls, spdx2)
+
+        self.assertTrue(result.success)
+        self.assertTrue(result.validated)
+        self.assertIsNotNone(result.validation_error)
+        client.upload_sbom.assert_called_once()
+        self.assertTrue(any("Uploading it anyway" in line for line in logs.output))
+
+    def test_validation_can_be_turned_off(self, mock_client_cls):
+        result, client = self._upload(mock_client_cls, _spdx3_with_integer_version(), validate=False)
+
+        self.assertTrue(result.success)
+        self.assertFalse(result.validated)
+        client.upload_sbom.assert_called_once()
+
+
 class TestDependencyTrackErrors(unittest.TestCase):
     """Tests for Dependency Track error handling."""
 
