@@ -1502,6 +1502,14 @@ class TestTheThreeZeroLineIsNotOfferedAsARoute(unittest.TestCase):
     def test_a_later_30_patch_is_offered_sbom_file(self):
         self.assertIn("pass an existing 3.0.2 document", self._error("3.0.2"))
 
+    def test_a_later_30_patch_is_told_which_context_it_must_keep(self):
+        message = self._error("3.0.2")
+
+        self.assertIn("keeps the 3.0.1 @context", message)
+
+    def test_a_version_with_its_own_schema_is_not_told_about_another_context(self):
+        self.assertNotIn("@context", self._error("3.0.1"))
+
 
 if __name__ == "__main__":
     unittest.main()

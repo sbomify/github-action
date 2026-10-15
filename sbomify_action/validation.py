@@ -70,9 +70,9 @@ SPDX_SCHEMAS = {
 
 #: A 3.0 patch release above the newest bundled one is held to the newest
 #: bundled 3.0 schema, unchanged, as the backend does. That schema pins
-#: @context to the 3.0.1 URL, so such a document passes only while it keeps
-#: the 3.0.1 context; one declaring a later patch context is refused on both
-#: ends.
+#: @context to its own version's URL, so such a document passes only while it
+#: keeps that context; one declaring its own later patch context is refused on
+#: both ends.
 _SPDX30_PATCH = re.compile(r"3\.0\.[1-9]\d*")
 _NEWEST_SPDX30 = max((v for v in SPDX_SCHEMAS if v.startswith("3.0.")), key=lambda v: int(v.rsplit(".", 1)[1]))
 
