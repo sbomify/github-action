@@ -43,7 +43,11 @@ runs:
   #
   # `:latest` was also the wrong tag to float on: it is published before the
   # versioned tag, so it lags the release it is meant to represent.
-  image: 'docker://ghcr.io/sbomify/sbomify-action:26.8.0@sha256:b89230442778f50a24b27b55b373cdbaad042f5ffb27d9af195e99ed3bd2e7bb'
+  #
+  # The digest only exists once the release's image is published, so a
+  # release is two steps: tag and publish the image, then pin its digest here
+  # in a follow-up commit. Until that lands, this points at the previous image.
+  image: 'docker://ghcr.io/sbomify/sbomify-action:26.9.0@sha256:f5355ed44e6618d3fd9e8640517d03d7a58eb1e2137c533ba5c24cd92676be98'
   env:
     WORKING_DIR: ${{ inputs['working-dir'] }}
     COMPONENT_PURL: ${{ inputs['component-purl'] }}
