@@ -138,11 +138,20 @@ ENV HOME=/home/sbomify
 # writable, not merely readable, or every pkg:conan/* lookup degrades to a
 # warning.
 #
-# Kept under $HOME rather than a second world-writable tree in /opt: that
-# one would contain conan's executable plugins (profile.py,
-# compatibility.py), which is a code-execution surface this does not need.
+# Only the runtime state is writable, though. Conan's executable plugins
+# (extensions/plugins/profile.py, compatibility.py) and its config (profiles,
+# global.conf, settings.yml, remotes.json) stay root-owned and read-only, so
+# no caller uid can swap code that a later conan call, root's included, loads.
+# The package cache (p/) is fully writable, and CONAN_HOME itself is sticky
+# like /tmp: any uid can create .conan.db there, but none can unlink and
+# replace root's files. Checked against conan 2.32 with everything but p/
+# read-only: a pkg:conan lookup still resolves.
 ENV CONAN_HOME=/home/sbomify/.conan2
-RUN conan profile detect --force && chmod -R a+rwX /home/sbomify
+RUN conan profile detect --force \
+    && chmod -R a+rwX /home/sbomify \
+    && chmod -R go-w "$CONAN_HOME" \
+    && chmod a+rwxt "$CONAN_HOME" \
+    && chmod -R a+rwX "$CONAN_HOME/p"
 
 # Marks our own image, which two behaviours key off:
 #   - runtime tools are fetched on demand only in here, where we decide the
