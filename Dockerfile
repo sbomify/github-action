@@ -146,9 +146,15 @@ ENV HOME=/home/sbomify
 # like /tmp: any uid can create .conan.db there, but none can unlink and
 # replace root's files. Checked against conan 2.32 with everything but p/
 # read-only: a pkg:conan lookup still resolves.
+#
+# HOME is sticky too, or none of that holds: in a world-writable HOME any uid
+# can rename .conan2 aside and put a writable tree of its own in its place.
+# Sticky keeps creation open (.sigstore, caches) and existing files writable,
+# but only the owner can rename or unlink a root-owned entry.
 ENV CONAN_HOME=/home/sbomify/.conan2
 RUN conan profile detect --force \
     && chmod -R a+rwX /home/sbomify \
+    && chmod +t /home/sbomify \
     && chmod -R go-w "$CONAN_HOME" \
     && chmod a+rwxt "$CONAN_HOME" \
     && chmod -R a+rwX "$CONAN_HOME/p"
