@@ -18,7 +18,14 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sbomify_action._platformio import PLATFORMIO_INI, InstalledLibrary, declared_lib_deps, installed_libraries
+from sbomify_action._platformio import (
+    PLATFORMIO_INI,
+    InstalledLibrary,
+    declared_lib_deps,
+    dependency_graph,
+    installed_libraries,
+    libdeps_dir,
+)
 from sbomify_action.logging_config import logger
 
 from ..protocol import (
@@ -46,7 +53,8 @@ def _component(library: InstalledLibrary) -> dict[str, Any]:
     if library.owner:
         component["group"] = library.owner
     if library.uri:
-        component["externalReferences"] = [{"type": "vcs", "url": library.uri}]
+        reference_type = "vcs" if library.from_git else "distribution"
+        component["externalReferences"] = [{"type": reference_type, "url": library.uri}]
     return component
 
 
@@ -85,7 +93,12 @@ class PlatformIOGenerator:
         source = Path(input.lock_file)
         libraries = installed_libraries(source)
         if not libraries:
-            if declared_lib_deps(source):
+            if libdeps_dir(source) is None:
+                message = (
+                    f"{source.name} sets libdeps_dir or workspace_dir to a value that cannot be "
+                    "resolved here; set PLATFORMIO_LIBDEPS_DIR to where the libraries were installed."
+                )
+            elif declared_lib_deps(source):
                 message = (
                     f"{source.name} declares lib_deps but none are installed. "
                     "Run `pio pkg install` (or build) before generating the SBOM."
@@ -104,6 +117,8 @@ class PlatformIOGenerator:
         )
         cyclonedx_version = CYCLONEDX_DEFAULT_VERSION if input.output_format == "spdx" else version
         project = source.resolve().parent.name or "platformio-project"
+        root_ref = f"root-{project}"
+        direct, edges = dependency_graph(source, libraries)
         document = {
             "bomFormat": "CycloneDX",
             "specVersion": cyclonedx_version,
@@ -112,10 +127,16 @@ class PlatformIOGenerator:
                 "component": {
                     "type": "firmware",
                     "name": project,
-                    "bom-ref": f"root-{project}",
+                    "bom-ref": root_ref,
                 }
             },
             "components": [_component(library) for library in libraries],
+            # Direct dependencies are what lib_deps names; the edges below
+            # them come from each library's own manifest. A library reached
+            # only through something not installed stays unattached rather
+            # than being claimed as direct.
+            "dependencies": [{"ref": root_ref, "dependsOn": direct}]
+            + [{"ref": ref, "dependsOn": targets} for ref, targets in edges.items()],
         }
 
         output = Path(input.output_file)

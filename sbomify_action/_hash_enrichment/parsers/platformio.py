@@ -1,6 +1,8 @@
 """Hashes for PlatformIO libraries, from the PlatformIO registry."""
 
+from collections import Counter
 from pathlib import Path
+from typing import Any
 
 import requests
 
@@ -8,10 +10,14 @@ from sbomify_action._platformio import InstalledLibrary, installed_libraries
 from sbomify_action.http_client import get_default_headers
 from sbomify_action.logging_config import logger
 
-from ..models import HashAlgorithm, PackageHash
+from ..models import HashAlgorithm, PackageHash, normalize_package_name
 
 REGISTRY_API = "https://api.registry.platformio.org/v3/packages"
 DEFAULT_TIMEOUT = 10  # seconds
+
+
+class _RegistryUnreachable(Exception):
+    """The registry did not answer at all; asking again for the next library will not help."""
 
 
 def _registry_versions(version: str) -> list[str]:
@@ -29,28 +35,40 @@ def _registry_versions(version: str) -> list[str]:
     return candidates
 
 
+def _archive_sha256(release: dict[str, Any]) -> str | None:
+    """The checksum of the archive for every system, else the only one there is."""
+    files = [f for f in release.get("files") or [] if isinstance(f, dict)]
+    universal = [f for f in files if f.get("system") in (None, "*")]
+    for artifact in universal or (files if len(files) == 1 else []):
+        checksum = artifact.get("checksum")
+        sha256 = checksum.get("sha256") if isinstance(checksum, dict) else None
+        if sha256:
+            return str(sha256)
+    return None
+
+
 def _fetch_sha256(library: InstalledLibrary) -> str | None:
+    url = f"{REGISTRY_API}/{library.owner}/library/{library.name}"
     for version in _registry_versions(library.version):
-        url = f"{REGISTRY_API}/{library.owner}/library/{library.name}"
         try:
             response = requests.get(
                 url, params={"version": version}, headers=get_default_headers(), timeout=DEFAULT_TIMEOUT
             )
+        except (requests.ConnectionError, requests.Timeout) as e:
+            raise _RegistryUnreachable(str(e)) from e
         except requests.RequestException as e:
             logger.debug(f"PlatformIO registry: {library.owner}/{library.name}: {e}")
             return None
         if response.status_code != 200:
             continue
         try:
-            release = response.json().get("version") or {}
+            body = response.json()
         except ValueError:
             return None
-        if release.get("name") != version:
+        release = body.get("version") if isinstance(body, dict) else None
+        if not isinstance(release, dict) or release.get("name") != version:
             continue
-        for artifact in release.get("files") or []:
-            sha256 = (artifact.get("checksum") or {}).get("sha256")
-            if sha256:
-                return str(sha256)
+        return _archive_sha256(release)
     return None
 
 
@@ -73,11 +91,24 @@ class PlatformIOParser:
         return lock_file_name in self.supported_files
 
     def parse(self, lock_file_path: Path) -> list[PackageHash]:
+        libraries = installed_libraries(lock_file_path)
+        # Hashes are matched to components by name and version. Two
+        # installed libraries sharing both -- different owners, or a registry
+        # copy beside an archive -- cannot be told apart that way, and a hash
+        # on the wrong one is worse than none.
+        keys = Counter((normalize_package_name(library.name, self.ecosystem), library.version) for library in libraries)
         hashes: list[PackageHash] = []
-        for library in installed_libraries(lock_file_path):
+        for library in libraries:
             if not library.from_registry:
                 continue
-            sha256 = _fetch_sha256(library)
+            if keys[(normalize_package_name(library.name, self.ecosystem), library.version)] > 1:
+                logger.info(f"PlatformIO: more than one {library.name}@{library.version} installed; not hashing it")
+                continue
+            try:
+                sha256 = _fetch_sha256(library)
+            except _RegistryUnreachable as e:
+                logger.warning(f"PlatformIO registry unreachable, skipping hashes: {e}")
+                break
             if sha256:
                 hashes.append(
                     PackageHash(

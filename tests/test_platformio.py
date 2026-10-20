@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 import requests
 
 from sbomify_action._generation.generators.platformio import PlatformIOGenerator
@@ -138,6 +139,71 @@ class TestInstalledLibraries:
         assert libdeps_dir(ini_path) == tmp_path / "build" / "libdeps"
 
 
+class TestWhereLibrariesAre:
+    def test_a_home_relative_workspace_is_expanded(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("HOME", str(tmp_path / "home"))
+        ini_path = tmp_path / "platformio.ini"
+        ini_path.write_text("[platformio]\nworkspace_dir = ~/pio-ws\n")
+        assert libdeps_dir(ini_path) == tmp_path / "home" / "pio-ws" / "libdeps"
+
+    def test_project_dir_is_interpolated(self, tmp_path):
+        ini_path = tmp_path / "platformio.ini"
+        ini_path.write_text("[platformio]\nworkspace_dir = ${PROJECT_DIR}/../build/.pio\n")
+        assert libdeps_dir(ini_path) == tmp_path / ".." / "build" / ".pio" / "libdeps"
+
+    def test_environment_variables_override_the_file(self, tmp_path, monkeypatch):
+        ini_path = tmp_path / "platformio.ini"
+        ini_path.write_text("[platformio]\nlibdeps_dir = deps\n")
+        monkeypatch.setenv("PLATFORMIO_LIBDEPS_DIR", str(tmp_path / "elsewhere"))
+        assert libdeps_dir(ini_path) == tmp_path / "elsewhere"
+
+    def test_workspace_variable_moves_libdeps_with_it(self, tmp_path, monkeypatch):
+        ini_path = tmp_path / "platformio.ini"
+        ini_path.write_text("[env:x]\n")
+        monkeypatch.setenv("PLATFORMIO_WORKSPACE_DIR", str(tmp_path / "ws"))
+        assert libdeps_dir(ini_path) == tmp_path / "ws" / "libdeps"
+
+    def test_an_unresolvable_location_is_reported_not_guessed(self, tmp_path):
+        ini_path = tmp_path / "platformio.ini"
+        ini_path.write_text("[platformio]\nlibdeps_dir = ${missing.dir}\n\n[env:x]\nlib_deps = a/b@1.0.0\n")
+        assert libdeps_dir(ini_path) is None
+        result = PlatformIOGenerator().generate(
+            GenerationInput(lock_file=str(ini_path), output_file=str(tmp_path / "o.json"), output_format="cyclonedx")
+        )
+        assert "PLATFORMIO_LIBDEPS_DIR" in (result.error_message or "")
+
+    def test_packed_refs_still_give_the_full_commit(self, tmp_path):
+        from sbomify_action._platformio import _git_commit
+
+        git = tmp_path / ".git"
+        git.mkdir()
+        (git / "HEAD").write_text("ref: refs/heads/master\n")
+        (git / "packed-refs").write_text(
+            f"# pack-refs with: peeled\n{'0' * 40} refs/tags/x\n{COMMIT} refs/heads/master\n"
+        )
+        assert _git_commit(git) == COMMIT
+
+    def test_environments_no_longer_configured_are_not_read(self, tmp_path):
+        ini_path = _project(tmp_path)
+        _registry_library(tmp_path / ".pio" / "libdeps" / "removed-env", "Stale", "1.0.0", "someone")
+        assert "Stale" not in {library.name for library in installed_libraries(ini_path)}
+
+    def test_one_purl_is_one_component(self, tmp_path):
+        """Same commit reached through two refs is one bom-ref, so one component."""
+        ini_path = tmp_path / "platformio.ini"
+        ini_path.write_text("[env:a]\n[env:b]\n")
+        _git_library(
+            tmp_path / ".pio" / "libdeps" / "a", "Gfx", "1.2.7+sha.5438181", "git+https://github.com/o/gfx.git#1.2.7"
+        )
+        _git_library(
+            tmp_path / ".pio" / "libdeps" / "b",
+            "Gfx",
+            "1.2.7+sha.5438181",
+            f"git+https://github.com/o/gfx.git#{COMMIT}",
+        )
+        assert len(installed_libraries(ini_path)) == 1
+
+
 class TestPurls:
     def test_registry_library(self):
         library = InstalledLibrary(name="ArduinoJson", version="7.4.3", owner="bblanchon")
@@ -162,18 +228,28 @@ class TestPurls:
         assert COMMIT in library.purl
 
 
+class TestArchives:
+    def test_an_archive_is_a_download_not_a_git_source(self):
+        library = InstalledLibrary(name="lib", version="1.0.0", uri="https://example.com/archive/v1.0.0.zip")
+        assert not library.from_git
+        assert library.purl.startswith("pkg:generic/lib@1.0.0?download_url=")
+
+    def test_a_library_without_an_owner_does_not_claim_the_registry(self):
+        assert InstalledLibrary(name="lib", version="1.0.0").purl == "pkg:generic/lib@1.0.0"
+
+
 class TestLibDepsPinning:
     def _ini(self, tmp_path: Path, lib_deps: str) -> Path:
         path = tmp_path / "platformio.ini"
         path.write_text(f"[env:x]\nlib_deps =\n{lib_deps}\n")
         return path
 
-    def test_entries_are_read_from_every_env_section(self, tmp_path):
+    def test_each_env_resolves_through_env_inheritance_and_interpolation(self, tmp_path):
         ini_path = tmp_path / "platformio.ini"
         ini_path.write_text(INI)
+        # [env:native] has no lib_deps of its own, so it inherits [env]'s.
         assert declared_lib_deps(ini_path) == [
             "bblanchon/ArduinoJson@^7.0.0",
-            "${env.lib_deps}",
             "https://github.com/lovyan03/LovyanGFX.git#1.2.7",
             "knolleary/PubSubClient@2.8",
         ]
@@ -183,21 +259,76 @@ class TestLibDepsPinning:
         ini_path.write_text(INI)
         assert not lib_deps_are_pinned(ini_path)
 
-    def test_exact_versions_and_git_revisions_are_pinned(self, tmp_path):
+    def test_exact_versions_tags_commits_and_local_paths_are_pinned(self, tmp_path):
         path = self._ini(
             tmp_path,
             "    bblanchon/ArduinoJson @ 7.4.3\n"
-            "    knolleary/PubSubClient@=2.8\n"
+            "    knolleary/PubSubClient@=2.8.0\n"
             "    https://github.com/lovyan03/LovyanGFX.git#1.2.7\n"
+            f"    https://github.com/o/r.git#{COMMIT}\n"
+            "    https://example.com/lib-1.0.0.zip\n"
             "    file://../local-lib\n",
         )
         assert lib_deps_are_pinned(path)
 
-    def test_a_bare_name_is_not_pinned(self, tmp_path):
-        assert not lib_deps_are_pinned(self._ini(tmp_path, "    bblanchon/ArduinoJson"))
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            # semantic_version treats a partial version as a wildcard:
+            # @2.8 accepts 2.8.0 and 2.8.1.
+            "knolleary/PubSubClient@2.8",
+            "knolleary/PubSubClient@=2.8",
+            "knolleary/PubSubClient@1",
+            "bblanchon/ArduinoJson@^7.0.0",
+            "bblanchon/ArduinoJson@~7.4.0",
+            "bblanchon/ArduinoJson@>=7.0.0",
+            "bblanchon/ArduinoJson@v7.4.3",
+            "bblanchon/ArduinoJson",
+            "https://github.com/lovyan03/LovyanGFX.git",
+            "https://github.com/lovyan03/LovyanGFX.git#develop",
+            "https://github.com/lovyan03/LovyanGFX",
+        ],
+    )
+    def test_anything_that_can_resolve_differently_is_not_pinned(self, tmp_path, entry):
+        assert not lib_deps_are_pinned(self._ini(tmp_path, f"    {entry}"))
 
-    def test_a_git_url_without_a_revision_is_not_pinned(self, tmp_path):
-        assert not lib_deps_are_pinned(self._ini(tmp_path, "    https://github.com/lovyan03/LovyanGFX.git"))
+    def test_an_inline_hash_comment_is_not_part_of_the_entry(self, tmp_path):
+        assert lib_deps_are_pinned(self._ini(tmp_path, "    bblanchon/ArduinoJson@7.4.3  # pinned"))
+
+    def test_a_single_line_list_splits_on_comma_space(self, tmp_path):
+        path = tmp_path / "platformio.ini"
+        path.write_text("[env:x]\nlib_deps = a/b@1.0.0, c/d@^2.0.0\n")
+        assert declared_lib_deps(path) == ["a/b@1.0.0", "c/d@^2.0.0"]
+
+    def test_a_range_behind_a_common_section_is_found(self, tmp_path):
+        path = tmp_path / "platformio.ini"
+        path.write_text(
+            "[common]\nlib_deps = bblanchon/ArduinoJson@^7.0.0\n\n[env:esp32]\nlib_deps = ${common.lib_deps}\n"
+        )
+        assert declared_lib_deps(path) == ["bblanchon/ArduinoJson@^7.0.0"]
+        assert not lib_deps_are_pinned(path)
+
+    def test_extends_is_followed(self, tmp_path):
+        path = tmp_path / "platformio.ini"
+        path.write_text("[base]\nlib_deps = a/b@^1.0.0\n\n[env:x]\nextends = base\nplatform = native\n")
+        assert declared_lib_deps(path) == ["a/b@^1.0.0"]
+
+    def test_extra_configs_are_read(self, tmp_path):
+        (tmp_path / "libs.ini").write_text("[env:x]\nlib_deps = a/b@^1.0.0\n")
+        path = tmp_path / "platformio.ini"
+        path.write_text("[platformio]\nextra_configs = libs.ini\n\n[env:x]\nplatform = native\n")
+        assert declared_lib_deps(path) == ["a/b@^1.0.0"]
+
+    def test_this_env_resolves_to_the_environment_name(self, tmp_path):
+        path = tmp_path / "platformio.ini"
+        path.write_text("[env:x]\nlib_deps = owner/lib-${this.__env__}@1.0.0\n")
+        assert declared_lib_deps(path) == ["owner/lib-x@1.0.0"]
+
+    def test_an_unresolvable_reference_is_not_pinned(self, tmp_path):
+        path = tmp_path / "platformio.ini"
+        path.write_text("[env:x]\nlib_deps = ${missing.lib_deps}\n")
+        assert declared_lib_deps(path) == ["${missing.lib_deps}"]
+        assert not lib_deps_are_pinned(path)
 
     def test_no_lib_deps_is_not_a_recorded_resolution(self, tmp_path):
         path = tmp_path / "platformio.ini"
@@ -273,6 +404,32 @@ class TestGenerator:
         assert not result.success
         assert "declares no lib_deps" in (result.error_message or "")
 
+    def test_direct_dependencies_and_manifest_edges_form_the_graph(self, tmp_path):
+        ini_path = tmp_path / "platformio.ini"
+        ini_path.write_text("[env:x]\nlib_deps = adafruit/Adafruit GFX Library@1.11.9\n")
+        env = tmp_path / ".pio" / "libdeps" / "x"
+        _registry_library(env, "Adafruit GFX Library", "1.11.9", "adafruit")
+        _registry_library(env, "Adafruit BusIO", "1.16.1", "adafruit")
+        # The GFX library's manifest names BusIO, which LDF installed beside it.
+        (env / "Adafruit GFX Library" / "library.json").write_text(
+            json.dumps({"dependencies": [{"owner": "adafruit", "name": "Adafruit BusIO", "version": "^1.0"}]})
+        )
+        # library.properties form, pointing at nothing installed.
+        (env / "Adafruit BusIO" / "library.json").unlink()
+        (env / "Adafruit BusIO" / "library.properties").write_text("name=Adafruit BusIO\ndepends=Wire (>=1.0)\n")
+        output = tmp_path / "sbom.json"
+        PlatformIOGenerator().generate(
+            GenerationInput(lock_file=str(ini_path), output_file=str(output), output_format="cyclonedx")
+        )
+        document = json.loads(output.read_text())
+        graph = {entry["ref"]: entry["dependsOn"] for entry in document["dependencies"]}
+        refs = {component["name"]: component["bom-ref"] for component in document["components"]}
+        root = document["metadata"]["component"]["bom-ref"]
+        # Only what lib_deps names is direct; BusIO hangs off GFX.
+        assert graph[root] == [refs["Adafruit GFX Library"]]
+        assert graph[refs["Adafruit GFX Library"]] == [refs["Adafruit BusIO"]]
+        assert graph[refs["Adafruit BusIO"]] == []
+
     def test_it_is_registered(self):
         from sbomify_action._generation.generator import create_default_registry as create_generators
 
@@ -330,6 +487,46 @@ class TestRegistryHashes:
         with patch(
             "sbomify_action._hash_enrichment.parsers.platformio.requests.get", return_value=_response(200, body)
         ):
+            assert PlatformIOParser().parse(ini_path) == []
+
+    def test_same_name_and_version_from_two_owners_gets_no_hash(self, tmp_path):
+        """Matching is by name and version; a hash on the wrong one is worse than none."""
+        ini_path = tmp_path / "platformio.ini"
+        ini_path.write_text("[env:a]\n[env:b]\n")
+        _registry_library(tmp_path / ".pio" / "libdeps" / "a", "Foo", "1.0.0", "owner1")
+        _registry_library(tmp_path / ".pio" / "libdeps" / "b", "Foo", "1.0.0", "owner2")
+        with patch("sbomify_action._hash_enrichment.parsers.platformio.requests.get") as get:
+            assert PlatformIOParser().parse(ini_path) == []
+        get.assert_not_called()
+
+    def test_an_unreachable_registry_is_asked_once(self, tmp_path):
+        ini_path = _project(tmp_path)
+        with patch(
+            "sbomify_action._hash_enrichment.parsers.platformio.requests.get",
+            side_effect=requests.Timeout("offline"),
+        ) as get:
+            assert PlatformIOParser().parse(ini_path) == []
+        assert get.call_count == 1
+
+    def test_the_archive_for_every_system_is_preferred(self, tmp_path):
+        ini_path = tmp_path / "platformio.ini"
+        ini_path.write_text("[env:x]\n")
+        _registry_library(tmp_path / ".pio" / "libdeps" / "x", "Lib", "1.0.0", "o")
+        files = [
+            {"system": "linux_x86_64", "checksum": {"sha256": "11" * 32}},
+            {"system": "*", "checksum": {"sha256": "22" * 32}},
+        ]
+        body = {"version": {"name": "1.0.0", "files": files}}
+        with patch(
+            "sbomify_action._hash_enrichment.parsers.platformio.requests.get", return_value=_response(200, body)
+        ):
+            assert [h.value for h in PlatformIOParser().parse(ini_path)] == ["22" * 32]
+
+    def test_an_unexpected_response_shape_is_ignored(self, tmp_path):
+        ini_path = tmp_path / "platformio.ini"
+        ini_path.write_text("[env:x]\n")
+        _registry_library(tmp_path / ".pio" / "libdeps" / "x", "Lib", "1.0.0", "o")
+        with patch("sbomify_action._hash_enrichment.parsers.platformio.requests.get", return_value=_response(200, [])):
             assert PlatformIOParser().parse(ini_path) == []
 
     def test_the_parser_is_registered_for_platformio_ini(self):
