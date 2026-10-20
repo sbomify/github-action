@@ -41,13 +41,18 @@ def _check_before_upload(pkg_name: str, sbom_file: str) -> None:
     into documents that declare SPDX-2.2, and the 2.2 schema refuses them.
     Nobody running the build can fix that, and refusing the document would
     drop the package from the release, so an SPDX 2 failure is uploaded with a
-    warning that names the package and the reason.
+    warning that names the package and the reason. A document that could not
+    be validated at all, such as a version with no bundled schema, is treated
+    the same way: it is not a pass.
     """
     result = validate_sbom_file_auto(sbom_file)
-    if result.valid is not False:
+    if result.valid is True:
         return
-    where = f" at {result.error_path}" if result.error_path else ""
-    reason = f"SPDX {result.spec_version} document failed validation{where}: {result.error_message}"
+    if result.valid is None:
+        reason = f"SPDX {result.spec_version} document could not be validated: {result.error_message}"
+    else:
+        where = f" at {result.error_path}" if result.error_path else ""
+        reason = f"SPDX {result.spec_version} document failed validation{where}: {result.error_message}"
     if result.spec_version.startswith("3"):
         raise SBOMValidationError(f"{pkg_name}: {reason}")
     logger.warning(f"{pkg_name}: {reason}. Uploading it anyway.")

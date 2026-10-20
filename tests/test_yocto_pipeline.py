@@ -11,7 +11,8 @@ import pytest
 from sbomify_action._upload.result import UploadResult
 from sbomify_action._yocto.models import YoctoConfig, YoctoPipelineResult
 from sbomify_action._yocto.pipeline import _process_single_package, run_yocto_pipeline
-from sbomify_action.exceptions import APIError, ConfigurationError, PlanLimitError
+from sbomify_action.exceptions import APIError, ConfigurationError, PlanLimitError, SBOMValidationError
+from sbomify_action.validation import ValidationResult
 
 YOCTO_TEST_DATA = Path(__file__).parent / "test-data" / "yocto"
 API_BASE = "https://app.sbomify.com"
@@ -157,6 +158,36 @@ class TestValidationBeforeUpload:
         assert _process_single_package("busybox", spdx_file, "comp-1", config) == "sbom-123"
 
         mock_logger.warning.assert_not_called()
+
+    @patch("sbomify_action._yocto.pipeline.validate_sbom_file_auto")
+    @patch("sbomify_action._yocto.pipeline.logger")
+    @patch("sbomify_action._yocto.pipeline.upload_sbom")
+    def test_a_22_document_that_could_not_be_checked_is_uploaded_with_a_warning(
+        self, mock_upload, mock_logger, mock_validate, tmp_path
+    ):
+        mock_validate.return_value = ValidationResult.skipped("spdx", "2.2", "No schema available for SPDX 2.2")
+        spdx_file = _busybox_with_relationship(tmp_path, "CONTAINS")
+        mock_upload.return_value = UploadResult.success_result(destination_name="sbomify", sbom_id="sbom-123")
+        config = _make_config(str(tmp_path / "dummy.tar.gz"))
+
+        assert _process_single_package("busybox", spdx_file, "comp-1", config) == "sbom-123"
+
+        mock_upload.assert_called_once()
+        warning = mock_logger.warning.call_args.args[0]
+        assert warning.startswith("busybox: SPDX 2.2 document could not be validated")
+        assert "No schema available for SPDX 2.2" in warning
+
+    @patch("sbomify_action._yocto.pipeline.validate_sbom_file_auto")
+    @patch("sbomify_action._yocto.pipeline.upload_sbom")
+    def test_an_spdx3_document_that_could_not_be_checked_is_not_uploaded(self, mock_upload, mock_validate, tmp_path):
+        mock_validate.return_value = ValidationResult.skipped("spdx", "3.0.1", "No schema available for SPDX 3.0.1")
+        spdx_file = _busybox_with_relationship(tmp_path, "CONTAINS")
+        config = _make_config(str(tmp_path / "dummy.tar.gz"))
+
+        with pytest.raises(SBOMValidationError, match="could not be validated: No schema available"):
+            _process_single_package("busybox", spdx_file, "comp-1", config)
+
+        mock_upload.assert_not_called()
 
     @patch("sbomify_action._yocto.pipeline.tag_sbom_with_release")
     @patch("sbomify_action._yocto.pipeline.create_release")
