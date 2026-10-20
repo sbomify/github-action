@@ -186,6 +186,8 @@ LOCKFILE_DESCRIPTIONS = {
     # C++
     "conan.lock": "C++ Conan lockfile",
     "vcpkg.json": "C++ vcpkg manifest",
+    # Embedded
+    "platformio.ini": "PlatformIO project (installed libraries)",
 }
 
 # CycloneDX component type for operating system

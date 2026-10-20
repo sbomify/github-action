@@ -17,6 +17,7 @@ from .parsers import (
     CargoLockParser,
     PackageLockParser,
     PipfileLockParser,
+    PlatformIOParser,
     PnpmLockParser,
     PoetryLockParser,
     PubspecLockParser,
@@ -45,6 +46,9 @@ def create_default_registry() -> ParserRegistry:
     registry.register(PackageLockParser())
     registry.register(YarnLockParser())
     registry.register(PnpmLockParser())
+
+    # PlatformIO: checksums come from the registry, not the project
+    registry.register(PlatformIOParser())
 
     return registry
 
