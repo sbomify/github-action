@@ -34,7 +34,7 @@ def _prerelease_flag(version: str) -> bool | None:
     return True if is_prerelease(version) else None
 
 
-def _check_before_upload(pkg_name: str, sbom_file: str) -> None:
+def _check_before_upload(pkg_name: str, sbom_file: str, *, spdx3: bool = False) -> None:
     """Hold SPDX 3 to its schema, and warn about an SPDX 2 document that fails.
 
     Yocto writes relationship types that SPDX added in 2.3, such as AMENDS,
@@ -44,6 +44,10 @@ def _check_before_upload(pkg_name: str, sbom_file: str) -> None:
     warning that names the package and the reason. A document that could not
     be validated at all, such as a version with no bundled schema, is treated
     the same way: it is not a pass.
+
+    ``spdx3`` is the pipeline's own reading of the document. A result whose
+    version could not be read reports ``unknown``, which says nothing about
+    which policy applies, so the caller's knowledge decides.
     """
     result = validate_sbom_file_auto(sbom_file)
     if result.valid is True:
@@ -53,7 +57,7 @@ def _check_before_upload(pkg_name: str, sbom_file: str) -> None:
     else:
         where = f" at {result.error_path}" if result.error_path else ""
         reason = f"SPDX {result.spec_version} document failed validation{where}: {result.error_message}"
-    if result.spec_version.startswith("3"):
+    if spdx3 or result.spec_version.startswith("3"):
         raise SBOMValidationError(f"{pkg_name}: {reason}")
     logger.warning(f"{pkg_name}: {reason}. Uploading it anyway.")
 
@@ -63,6 +67,8 @@ def _process_single_package(
     pkg_spdx_file: str,
     component_id: str,
     config: YoctoConfig,
+    *,
+    spdx3: bool = False,
 ) -> str | None:
     """Process a single package SBOM: augment, enrich, upload.
 
@@ -95,7 +101,7 @@ def _process_single_package(
         )
         working_file = enriched_file
 
-    _check_before_upload(pkg_name, working_file)
+    _check_before_upload(pkg_name, working_file, spdx3=spdx3)
 
     result = upload_sbom(
         sbom_file=working_file,
@@ -198,6 +204,7 @@ def _run_spdx3_pipeline(config: YoctoConfig, data: dict[str, Any]) -> YoctoPipel
             pkg_spdx_file=config.input_path,
             component_id=config.component_id,
             config=config,
+            spdx3=True,
         )
 
         if sbom_id:

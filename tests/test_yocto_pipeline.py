@@ -206,6 +206,37 @@ class TestValidationBeforeUpload:
         assert result.sboms_uploaded == 0
         assert "SPDX 3.0.1 document failed validation" in result.error_messages[0]
 
+    @pytest.mark.parametrize(
+        "outcome",
+        [
+            ValidationResult.failure("spdx", "unknown", "Could not determine the SPDX version"),
+            ValidationResult.skipped("spdx", "unknown", "Could not determine the SPDX version"),
+        ],
+    )
+    @patch("sbomify_action._yocto.pipeline.validate_sbom_file_auto")
+    @patch("sbomify_action._yocto.pipeline.tag_sbom_with_release")
+    @patch("sbomify_action._yocto.pipeline.create_release")
+    @patch("sbomify_action._yocto.pipeline.upload_sbom")
+    def test_an_spdx3_document_with_no_readable_version_is_not_uploaded(
+        self, mock_upload, mock_create_release, mock_tag, mock_validate, outcome, tmp_path
+    ):
+        """The pipeline knows the document is SPDX 3 before validation says so.
+
+        A validation result reporting version "unknown" does not start with 3,
+        so deciding from it let an unversioned SPDX 3 document through with a
+        warning, against the fail-closed SPDX 3 policy.
+        """
+        mock_validate.return_value = outcome
+        path = tmp_path / "image.spdx.json"
+        path.write_text(json.dumps(SPDX3_DATA))
+        config = _make_config(str(path), component_id="comp-abc")
+
+        result = run_yocto_pipeline(config)
+
+        mock_upload.assert_not_called()
+        assert result.errors == 1
+        assert result.sboms_uploaded == 0
+
 
 class TestRunYoctoPipeline:
     @patch("sbomify_action._yocto.pipeline.inject_yocto_purls_spdx22")
