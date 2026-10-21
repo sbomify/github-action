@@ -353,7 +353,7 @@ def detect_sbom_format_and_version(sbom_data: Any) -> tuple[SBOMFormat | None, s
     # CycloneDX detection
     if "bomFormat" in sbom_data and sbom_data.get("bomFormat") == "CycloneDX":
         spec_version = sbom_data.get("specVersion")
-        if spec_version:
+        if isinstance(spec_version, str) and spec_version:
             return "cyclonedx", spec_version
         return "cyclonedx", None
 
@@ -368,7 +368,7 @@ def detect_sbom_format_and_version(sbom_data: Any) -> tuple[SBOMFormat | None, s
     if "spdxVersion" in sbom_data:
         spdx_version = sbom_data.get("spdxVersion", "")
         # Extract version from "SPDX-2.3" format
-        if spdx_version.startswith("SPDX-"):
+        if isinstance(spdx_version, str) and spdx_version.startswith("SPDX-"):
             version = spdx_version[5:]  # Remove "SPDX-" prefix
             return "spdx", version
         return "spdx", None

@@ -65,6 +65,16 @@ class TestDetectSBOMFormatAndVersion(unittest.TestCase):
         self.assertEqual(format, "cyclonedx")
         self.assertIsNone(version)
 
+    def test_detect_non_string_version(self):
+        """A version that is not a string is no version, but the format still is."""
+        for data, expected_format in (
+            ({"spdxVersion": 2.3}, "spdx"),
+            ({"spdxVersion": None}, "spdx"),
+            ({"bomFormat": "CycloneDX", "specVersion": ["1.5"]}, "cyclonedx"),
+        ):
+            with self.subTest(data=data):
+                self.assertEqual(detect_sbom_format_and_version(data), (expected_format, None))
+
     def test_detect_non_object(self):
         """JSON that is not an object has no format."""
         for data in ([], 42, "bomFormat", None, True):
@@ -259,6 +269,26 @@ class TestValidateSBOMFileAuto(unittest.TestCase):
                     self.assertFalse(result.valid)
                     self.assertIsNone(result.sbom_format)
                     self.assertIn("could not detect", result.error_message.lower())
+                finally:
+                    Path(temp_path).unlink()
+
+    def test_non_string_version_fails_with_its_format(self):
+        """A version that is not a string fails as undetectable instead of raising."""
+        for data, expected_format in (
+            ({"spdxVersion": 2.3}, "spdx"),
+            ({"spdxVersion": None}, "spdx"),
+            ({"bomFormat": "CycloneDX", "specVersion": ["1.5"]}, "cyclonedx"),
+        ):
+            with self.subTest(data=data):
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+                    json.dump(data, f)
+                    temp_path = f.name
+
+                try:
+                    result = validate_sbom_file_auto(temp_path)
+                    self.assertFalse(result.valid)
+                    self.assertEqual(result.sbom_format, expected_format)
+                    self.assertIn(f"could not detect {expected_format} spec version", result.error_message.lower())
                 finally:
                     Path(temp_path).unlink()
 
