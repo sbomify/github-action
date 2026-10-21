@@ -66,10 +66,21 @@ def _no_registry_has(purl: PackageURL) -> bool:
     # A file:, link: or relative-path reference, in the version or a qualifier.
     # Not _is_invalid_purl, which sanitize_purls uses on CycloneDX: it also
     # rejects a `root` namespace, and npm has a real @root scope.
-    local = ("file:", "link:")
-    if (purl.version or "").startswith(("./", "../", *local)):
+    version = purl.version or ""
+    if version.startswith(("./", "../")):
         return True
-    return any(value.startswith(local) for value in (purl.qualifiers or {}).values())
+    return any(_is_local_url(value) for value in (version, *(purl.qualifiers or {}).values()))
+
+
+def _is_local_url(value: str) -> bool:
+    """Whether a value's URL scheme is file: or link:, VCS prefix and case aside.
+
+    By scheme, not substring: `permalink:` partway down a path is not a local
+    reference, while `FILE:` and `git+file:` are. Split by hand rather than
+    with urlsplit, which raises on a malformed value such as `http://[::1`.
+    """
+    scheme, colon, _ = value.strip().partition(":")
+    return bool(colon) and scheme.lower().rsplit("+", 1)[-1] in ("file", "link")
 
 
 class SourceRegistry:

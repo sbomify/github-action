@@ -177,6 +177,11 @@ UNPUBLISHED = [
     # Maven's own snapshot test ignores case.
     pytest.param("pkg:maven/com.acme/billing@2.4.0-snapshot?type=jar", id="maven-snapshot-lowercase"),
     pytest.param("pkg:npm/shared-ui@1.0.0?download_url=file:../shared-ui", id="npm-file-dep"),
+    # A URL scheme is case-insensitive, and a VCS prefix does not make a file
+    # URL remote. Missing either sends an internal package's name to every
+    # public registry that supports the type.
+    pytest.param("pkg:npm/shared-ui@1.0.0?download_url=FILE:../shared-ui", id="npm-file-dep-uppercase"),
+    pytest.param("pkg:pypi/mylib@0.1.0?download_url=git%2Bfile:///srv/repos/mylib", id="pypi-git-file-download"),
     # The local reference can sit in the version instead of a qualifier.
     pytest.param("pkg:npm/shared-ui@file:../shared-ui", id="npm-file-version"),
     pytest.param("pkg:npm/shared-ui@link:../shared-ui", id="npm-link-version"),
