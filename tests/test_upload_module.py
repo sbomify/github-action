@@ -1369,6 +1369,29 @@ class TestSbomifySpdxValidationGate(unittest.TestCase):
         self.assertIn("unknown", result.error_message)
         client.upload_sbom.assert_not_called()
 
+    def _spdx3_stating(self, version: str) -> dict:
+        data = json.loads(SPDX3_FIXTURE.read_text())
+        for element in data["@graph"]:
+            if "specVersion" in element:
+                element["specVersion"] = version
+        return data
+
+    def test_spdx3_whose_version_matches_no_schema_is_not_uploaded(self, mock_client_cls):
+        """A skipped check is not a pass: "v3.0.1" names no bundled schema, so nothing was checked."""
+        result, client = self._upload(mock_client_cls, self._spdx3_stating("v3.0.1"))
+
+        self.assertFalse(result.success)
+        self.assertIn("v3.0.1", result.error_message)
+        client.upload_sbom.assert_not_called()
+
+    def test_spdx3_that_states_an_spdx2_version_is_not_uploaded(self, mock_client_cls):
+        """The SPDX 2 allowance follows the document's shape, not the version it claims."""
+        result, client = self._upload(mock_client_cls, self._spdx3_stating("2.3"))
+
+        self.assertFalse(result.success)
+        self.assertIn("SPDX 2.3", result.error_message)
+        client.upload_sbom.assert_not_called()
+
     def test_a_file_that_cannot_be_read_as_a_document_fails_instead_of_raising(self, mock_client_cls):
         for raw in (b'{"spdxVersion": "SPDX-2.3", "name": "\xff"}', b"[]", b"null", b"not json"):
             with self.subTest(raw=raw):
