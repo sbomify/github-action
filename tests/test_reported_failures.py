@@ -556,3 +556,28 @@ class TestBareLicenseTextReachesEveryParser:
             "Bom.from_json outside load_cyclonedx_bom (the licence repair is skipped there):\n  "
             + "\n  ".join(offenders)
         )
+
+
+class TestSpdxConversionPaths:
+    """GITHUB-ACTION-P1 / GITHUB-ACTION-P0: `syft convert` ran in the project
+    directory with paths relative to where sbomify-action started, so a
+    LOCK_FILE in a subdirectory plus a relative OUTPUT_FILE failed with
+    ``open .step_1.json.cdx.json: no such file or directory``."""
+
+    def test_syft_gets_absolute_paths(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from sbomify_action._generation import utils
+
+        calls: list[tuple[list[str], str | None]] = []
+        monkeypatch.setattr(utils, "ensure_runtime", lambda name: None)
+        monkeypatch.setattr(utils, "run_command", lambda cmd, tool, timeout=None, cwd=None: calls.append((cmd, cwd)))
+
+        project = tmp_path / "sub"
+        project.mkdir()
+        monkeypatch.chdir(tmp_path)
+
+        utils.convert_to_spdx(Path(".step_1.json.cdx.json"), Path("step_1.json"), project)
+
+        (cmd, cwd) = calls[0]
+        assert cwd == str(project)
+        assert cmd[2] == str(tmp_path / ".step_1.json.cdx.json")
+        assert cmd[-1] == f"spdx-json={tmp_path / 'step_1.json'}"
