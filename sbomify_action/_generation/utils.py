@@ -252,8 +252,12 @@ def convert_to_spdx(cyclonedx: Path, output: Path, cwd: Path) -> None:
     because the bundles that carry a native generator carry syft too.
     """
     ensure_runtime("syft")
+    # Absolute, because syft runs in the project directory and the caller's
+    # paths are relative to wherever sbomify-action was started. With
+    # LOCK_FILE in a subdirectory and a relative OUTPUT_FILE, syft looked
+    # for the staged document inside the project and failed.
     run_command(
-        ["syft", "convert", str(cyclonedx), "-o", f"spdx-json={output}"],
+        ["syft", "convert", str(cyclonedx.resolve()), "-o", f"spdx-json={output.resolve()}"],
         "syft",
         timeout=600,
         cwd=str(cwd),
