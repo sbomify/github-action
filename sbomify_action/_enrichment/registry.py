@@ -6,6 +6,7 @@ import requests
 from packageurl import PackageURL
 
 from sbomify_action.logging_config import logger
+from sbomify_action.serialization import _is_invalid_purl
 
 from . import cache
 from .exceptions import TransientSourceError
@@ -38,6 +39,32 @@ def _can_contribute(source: object, missing: set[str]) -> bool:
     if not provides:
         return True
     return bool(set(provides) & missing)
+
+
+def _no_registry_has(purl: PackageURL) -> bool:
+    """Whether no public registry could know this package.
+
+    Asking anyway costs a round trip per source that cannot succeed -- 421
+    Yocto recipes were twelve minutes of it -- and where a local crate's name
+    is taken upstream, it brings back a stranger's licence.
+
+    A `repository_url` pointing away from the default registry is deliberately
+    not a reason: it is as often a corporate proxy of crates.io or Maven
+    Central, where skipping would strip enrichment from public packages.
+    """
+    # YOCTO_PURL_TYPE, spelled out: importing _yocto pulls in its pipeline,
+    # which imports enrichment, which imports this. The test that enriches a
+    # generate_yocto_purl() result is what keeps the two in step.
+    if purl.type == "yocto":  # a type we mint; no registry carries it
+        return True
+    if "vcs_url" in (purl.qualifiers or {}):  # built from a git checkout, not a release
+        return True
+    if purl.type == "maven" and (purl.version or "").endswith("-SNAPSHOT"):  # Central never hosts one
+        return True
+    # file:, link: and path versions: the same test that clears these from a
+    # CycloneDX BOM, which SPDX input never goes through.
+    local, _ = _is_invalid_purl(purl.to_string())
+    return local
 
 
 class SourceRegistry:
@@ -88,6 +115,11 @@ class SourceRegistry:
             sorted by priority (lowest/highest priority first)
         """
         applicable = [s for s in self._sources if s.supports(purl)]
+        if _no_registry_has(purl):
+            # Only sources that declare `offline` answer without the network;
+            # one that does not say is assumed to need it.
+            logger.debug(f"{purl.name}: no public registry publishes it, asking local sources only")
+            applicable = [s for s in applicable if getattr(s, "offline", False)]
         return sorted(applicable, key=lambda s: s.priority)
 
     def fetch_metadata(

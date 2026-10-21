@@ -17,6 +17,7 @@ really were missing.
 
 from typing import NoReturn
 
+import pytest
 import requests
 from packageurl import PackageURL
 
@@ -119,62 +120,114 @@ def test_can_contribute_is_permissive_without_a_declaration():
     assert _can_contribute(Bare(), set())
 
 
-class TestYoctoPurlsNeverReachARegistry:
-    """A purl we invented has nowhere to be looked up.
+def _requests_sent(monkeypatch, tmp_path, purl_str: str) -> list[str]:
+    """Enrich one purl through every default source and return the URLs asked for.
 
-    `_yocto/purl.py` mints `pkg:yocto/<recipe>@<version>` so a Yocto recipe has
-    a stable identifier. No registry carries that type, and ecosyste.ms gated on
-    a blocklist, so every recipe went out as an HTTP request that could only
-    come back empty.
+    The claim is about the wire, not the answer. A local source may well have
+    something to say about a package, now or later, so this records what was
+    requested rather than asserting on what came back. Recording also survives
+    a source that swallows the error: raising alone would let a suppressed
+    exception read as a pass.
+    """
+    from sbomify_action._enrichment.enricher import Enricher, clear_all_caches
 
-    Measured on the published core-image-sato-sdk reference image: 2,206 purls,
-    478 distinct, 421 of them pkg:yocto. Cold, those 421 cost about twelve
-    minutes and enriched nothing, and all of it runs before the SBOM is
-    uploaded.
+    monkeypatch.setenv("SBOMIFY_CACHE_DIR", str(tmp_path))
+    # Sources also cache in memory, misses included, so a purl an earlier test
+    # looked up would cost nothing here and read as a pass.
+    clear_all_caches()
+
+    requested: list[str] = []
+
+    # `Session.get` and `Session.post` both go through `Session.request`,
+    # so patching that one method catches every verb, and the URL is the
+    # second positional argument rather than something to guess at.
+    def record(_self: object, _method: object, url: object = None, **kwargs: object) -> NoReturn:
+        requested.append(str(url if url is not None else kwargs.get("url")))
+        raise RuntimeError("no network in this test")
+
+    monkeypatch.setattr(requests.Session, "request", record)
+
+    with Enricher() as enricher:
+        enricher.fetch_metadata(purl_str)
+
+    return requested
+
+
+class TestUnpublishedPurlsNeverReachARegistry:
+    """A package no registry publishes has nowhere to be looked up.
+
+    It started with the type we mint: `_yocto/purl.py` gives a Yocto recipe
+    `pkg:yocto/<recipe>@<version>`, which no registry carries. Measured on the
+    published core-image-sato-sdk reference image: 2,206 purls, 478 distinct,
+    421 of them pkg:yocto. Cold, those 421 cost about twelve minutes and
+    enriched nothing, and all of it runs before the SBOM is uploaded.
+
+    Rust and Java have the same shape inside a registry-backed type. A crate
+    built from a git checkout or a path, or a Maven -SNAPSHOT, carries a purl
+    that crates.io and Maven Central have never seen -- and a local crate
+    called `utils` can match a stranger's crate there and come back with
+    their licence.
     """
 
-    def test_ecosystems_declines_the_type_we_mint(self):
-        from sbomify_action._enrichment.sources.ecosystems import EcosystemsSource
+    @pytest.mark.parametrize(
+        "purl_str",
+        [
+            pytest.param("pkg:yocto/openssl@3.3.1", id="yocto-recipe"),
+            pytest.param(
+                "pkg:cargo/my-fork@0.3.0?vcs_url=git%2Bhttps://github.com/acme/my-fork%4080f3c1a",
+                id="cargo-git-crate",
+            ),
+            # CycloneDX input never gets here: sanitize_purls clears a file:
+            # purl first. SPDX input has no such step, so the gate is what
+            # stands between a path crate and crates.io.
+            pytest.param("pkg:cargo/utils@0.1.0?download_url=file://../utils", id="cargo-path-crate"),
+            pytest.param("pkg:maven/com.acme/billing@2.4.0-SNAPSHOT?type=jar", id="maven-snapshot"),
+            pytest.param("pkg:npm/shared-ui@1.0.0?download_url=file:../shared-ui", id="npm-file-dep"),
+        ],
+    )
+    def test_costs_no_http_request(self, monkeypatch, tmp_path, purl_str):
+        assert _requests_sent(monkeypatch, tmp_path, purl_str) == []
+
+    def test_the_yocto_gate_and_the_purls_it_mints_agree(self, monkeypatch, tmp_path):
+        """Generated rather than spelled out, so the two cannot drift apart."""
         from sbomify_action._yocto.purl import generate_yocto_purl
 
-        purl = PackageURL.from_string(generate_yocto_purl("busybox", "1.36.1"))
+        assert _requests_sent(monkeypatch, tmp_path, generate_yocto_purl("busybox", "1.36.1")) == []
 
-        assert EcosystemsSource().supports(purl) is False
+    @pytest.mark.parametrize(
+        "purl_str",
+        [
+            "pkg:cargo/serde@1.0.0",
+            "pkg:maven/org.apache.commons/commons-lang3@3.14.0",
+            "pkg:pypi/requests@2.31.0",
+            "pkg:npm/left-pad@1.3.0",
+        ],
+    )
+    def test_a_published_package_is_still_looked_up(self, monkeypatch, tmp_path, purl_str):
+        """The gate is for what no registry has, not a reason to stop enriching."""
+        assert _requests_sent(monkeypatch, tmp_path, purl_str) != []
 
-    def test_a_yocto_recipe_costs_no_http_request(self, monkeypatch, tmp_path):
-        """The gate has to hold across every source, not just the one that had it.
+    def test_a_local_source_still_answers(self, monkeypatch):
+        """Only the network is off limits. A source that answers from local data
+        costs nothing and may know the package -- the lifecycle DB knows a
+        Yocto python3 recipe by name."""
+        monkeypatch.setattr("sbomify_action._enrichment.registry.cache.get", lambda *_a: (False, None))
+        monkeypatch.setattr("sbomify_action._enrichment.registry.cache.set", lambda *_a: None)
 
-        The claim is about the wire, not the answer. A local source may well
-        have something to say about a recipe, now or later, so this records
-        what was requested rather than asserting on what came back. Recording
-        also survives a source that swallows the error: raising alone would let
-        a suppressed exception read as a pass.
-        """
-        from sbomify_action._enrichment.enricher import Enricher
-        from sbomify_action._yocto.purl import generate_yocto_purl
+        local = _Source("local-db", 5, NormalizedMetadata(cle_eol="2028-10-31", source="local-db"))
+        local.offline = True
+        network = _Source("deps.dev", 40, NormalizedMetadata(licenses=["MIT"], source="deps.dev"))
 
-        monkeypatch.setenv("SBOMIFY_CACHE_DIR", str(tmp_path))
+        snapshot = PackageURL.from_string("pkg:maven/com.acme/billing@2.4.0-SNAPSHOT")
+        result = _registry(local, network).fetch_metadata(snapshot, requests.Session())
 
-        requested: list[str] = []
+        assert local.called
+        assert not network.called
+        assert result is not None and result.cle_eol == "2028-10-31"
 
-        # `Session.get` and `Session.post` both go through `Session.request`,
-        # so patching that one method catches every verb, and the URL is the
-        # second positional argument rather than something to guess at.
-        def record(_self: object, _method: object, url: object = None, **kwargs: object) -> NoReturn:
-            requested.append(str(url if url is not None else kwargs.get("url")))
-            raise RuntimeError("no network in this test")
+    def test_the_lifecycle_db_is_still_consulted_for_a_yocto_recipe(self):
+        from sbomify_action._enrichment.enricher import create_default_registry
 
-        monkeypatch.setattr(requests.Session, "request", record)
+        sources = create_default_registry().get_sources_for(PackageURL.from_string("pkg:yocto/python3@3.12.4"))
 
-        with Enricher() as enricher:
-            enricher.fetch_metadata(generate_yocto_purl("openssl", "3.3.1"))
-
-        assert requested == []
-
-    def test_the_ecosystems_a_registry_does_carry_still_go(self):
-        """The gate is for our own type, not a reason to stop enriching."""
-        from sbomify_action._enrichment.sources.ecosystems import EcosystemsSource
-
-        source = EcosystemsSource()
-        for purl_str in ("pkg:pypi/requests@2.31.0", "pkg:npm/left-pad@1.3.0", "pkg:cargo/serde@1.0.0"):
-            assert source.supports(PackageURL.from_string(purl_str)) is True
+        assert [s.name for s in sources] == ["sbomify-lifecycle-db"]
