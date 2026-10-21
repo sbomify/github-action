@@ -6,7 +6,6 @@ import requests
 from packageurl import PackageURL
 
 from sbomify_action.logging_config import logger
-from sbomify_action.serialization import _is_invalid_purl
 
 from . import cache
 from .exceptions import TransientSourceError
@@ -61,10 +60,13 @@ def _no_registry_has(purl: PackageURL) -> bool:
         return True
     if purl.type == "maven" and (purl.version or "").endswith("-SNAPSHOT"):  # Central never hosts one
         return True
-    # file:, link: and path versions: the same test that clears these from a
-    # CycloneDX BOM, which SPDX input never goes through.
-    local, _ = _is_invalid_purl(purl.to_string())
-    return local
+    # A file:, link: or relative-path reference, in the version or a qualifier.
+    # Not _is_invalid_purl, which sanitize_purls uses on CycloneDX: it also
+    # rejects a `root` namespace, and npm has a real @root scope.
+    version = purl.version or ""
+    if version.startswith(("./", "../")):
+        return True
+    return any("file:" in value or "link:" in value for value in (version, *(purl.qualifiers or {}).values()))
 
 
 class SourceRegistry:

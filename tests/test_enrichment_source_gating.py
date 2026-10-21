@@ -183,6 +183,9 @@ class TestUnpublishedPurlsNeverReachARegistry:
             pytest.param("pkg:cargo/utils@0.1.0?download_url=file://../utils", id="cargo-path-crate"),
             pytest.param("pkg:maven/com.acme/billing@2.4.0-SNAPSHOT?type=jar", id="maven-snapshot"),
             pytest.param("pkg:npm/shared-ui@1.0.0?download_url=file:../shared-ui", id="npm-file-dep"),
+            # The local reference can sit in the version instead of a qualifier.
+            pytest.param("pkg:npm/shared-ui@file:../shared-ui", id="npm-file-version"),
+            pytest.param("pkg:npm/shared-ui@../../packages/shared-ui", id="npm-path-version"),
         ],
     )
     def test_costs_no_http_request(self, monkeypatch, tmp_path, purl_str):
@@ -201,6 +204,9 @@ class TestUnpublishedPurlsNeverReachARegistry:
             "pkg:maven/org.apache.commons/commons-lang3@3.14.0",
             "pkg:pypi/requests@2.31.0",
             "pkg:npm/left-pad@1.3.0",
+            # A real npm scope. sanitize_purls treats a `root` namespace as a
+            # generator bug, which says nothing about where a package lives.
+            "pkg:npm/%40root/asn1@1.0.2",
         ],
     )
     def test_a_published_package_is_still_looked_up(self, monkeypatch, tmp_path, purl_str):
