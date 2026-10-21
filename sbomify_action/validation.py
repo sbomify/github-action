@@ -337,16 +337,19 @@ def validate_sbom_file(
     return validate_sbom_data(sbom_data, sbom_format, spec_version)
 
 
-def detect_sbom_format_and_version(sbom_data: dict[str, Any]) -> tuple[SBOMFormat | None, str | None]:
+def detect_sbom_format_and_version(sbom_data: Any) -> tuple[SBOMFormat | None, str | None]:
     """
     Detect the format and version of an SBOM from its data.
 
     Args:
-        sbom_data: The parsed SBOM JSON data
+        sbom_data: The parsed SBOM JSON data, which may be any JSON value
 
     Returns:
         Tuple of (format, version) or (None, None) if unrecognized
     """
+    if not isinstance(sbom_data, dict):
+        return None, None
+
     # CycloneDX detection
     if "bomFormat" in sbom_data and sbom_data.get("bomFormat") == "CycloneDX":
         spec_version = sbom_data.get("specVersion")

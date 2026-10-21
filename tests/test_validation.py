@@ -65,6 +65,12 @@ class TestDetectSBOMFormatAndVersion(unittest.TestCase):
         self.assertEqual(format, "cyclonedx")
         self.assertIsNone(version)
 
+    def test_detect_non_object(self):
+        """JSON that is not an object has no format."""
+        for data in ([], 42, "bomFormat", None, True):
+            with self.subTest(data=data):
+                self.assertEqual(detect_sbom_format_and_version(data), (None, None))
+
 
 class TestValidateSBOMData(unittest.TestCase):
     """Tests for validate_sbom_data function."""
@@ -239,6 +245,22 @@ class TestValidateSBOMFileAuto(unittest.TestCase):
             self.assertIn("could not detect", result.error_message.lower())
         finally:
             Path(temp_path).unlink()
+
+    def test_json_that_is_not_an_object_has_no_format(self):
+        """Valid JSON that is not an object fails with no format instead of raising."""
+        for content in ("[]", "42", '"bomFormat"', "null", "true"):
+            with self.subTest(content=content):
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+                    f.write(content)
+                    temp_path = f.name
+
+                try:
+                    result = validate_sbom_file_auto(temp_path)
+                    self.assertFalse(result.valid)
+                    self.assertIsNone(result.sbom_format)
+                    self.assertIn("could not detect", result.error_message.lower())
+                finally:
+                    Path(temp_path).unlink()
 
 
 class TestValidationWithSPDXLicenses(unittest.TestCase):
