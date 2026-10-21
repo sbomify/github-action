@@ -1392,6 +1392,14 @@ class TestSbomifySpdxValidationGate(unittest.TestCase):
         self.assertIn("SPDX 2.3", result.error_message)
         client.upload_sbom.assert_not_called()
 
+    def test_a_later_30_patch_is_uploaded(self, mock_client_cls):
+        """The backend accepts 3.0.2 under the 3.0.1 context, so the gate must not hold it back."""
+        result, client = self._upload(mock_client_cls, self._spdx3_stating("3.0.2"))
+
+        self.assertTrue(result.success, result.error_message)
+        self.assertIsNone(result.validation_error)
+        client.upload_sbom.assert_called_once()
+
     def test_a_file_that_cannot_be_read_as_a_document_fails_instead_of_raising(self, mock_client_cls):
         for raw in (b'{"spdxVersion": "SPDX-2.3", "name": "\xff"}', b"[]", b"null", b"not json"):
             with self.subTest(raw=raw):
