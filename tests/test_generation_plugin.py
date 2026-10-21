@@ -1,6 +1,7 @@
 """Tests for the SBOM generation plugin architecture."""
 
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -16,6 +17,7 @@ from sbomify_action._generation import (
 from sbomify_action._generation.generators import (
     CdxgenFsGenerator,
     CdxgenImageGenerator,
+    CycloneDXGomodGenerator,
     CycloneDXPyGenerator,
     SyftFsGenerator,
     SyftImageGenerator,
@@ -729,6 +731,30 @@ class TestSyftFsGenerator(unittest.TestCase):
         self.assertIn("1.5", cyclonedx.versions)
         self.assertNotIn("1.7", cyclonedx.versions)  # Syft doesn't support 1.7
         self.assertIn("2.2", spdx.versions)
+
+
+class TestCycloneDXGomodGenerator(unittest.TestCase):
+    """Tests for CycloneDXGomodGenerator."""
+
+    @patch("sbomify_action._generation.generators.cyclonedx_gomod.run_command")
+    def test_requested_cyclonedx_version_reaches_the_tool(self, mock_run):
+        """Without -output-version gomod writes its own default (1.6) whatever
+        was asked for, while the result reports the requested version."""
+
+        def _run(cmd, name, timeout=None, cwd=None):
+            Path(cmd[cmd.index("-output") + 1]).write_text('{"bomFormat": "CycloneDX"}')
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = _run
+        with tempfile.TemporaryDirectory() as tmp:
+            gen_input = GenerationInput(
+                lock_file=str(Path(tmp) / "go.mod"), output_file=str(Path(tmp) / "sbom.json"), spec_version="1.4"
+            )
+            result = CycloneDXGomodGenerator().generate(gen_input)
+
+        self.assertTrue(result.success)
+        cmd = mock_run.call_args[0][0]
+        self.assertEqual(cmd[cmd.index("-output-version") + 1], "1.4")
 
 
 class TestCreateDefaultRegistry(unittest.TestCase):

@@ -179,7 +179,7 @@ class TestCycloneDXCargoGenerator(unittest.TestCase):
     @patch("sbomify_action._generation.generators.cyclonedx_cargo.ensure_runtime", lambda *a, **k: None)
     @patch("sbomify_action._generation.generators.cyclonedx_cargo.convert_to_spdx")
     @patch("sbomify_action._generation.generators.cyclonedx_cargo.run_command")
-    def test_spdx_without_a_version_reports_2_3(self, mock_run, mock_convert):
+    def test_spdx_without_a_version_reports_2_3(self, mock_run, _mock_convert):
         """The internal "SPDX-2.3" marker is not a version. Reported as one, it
         reached the log and matched no schema, so validation was skipped."""
         with tempfile.TemporaryDirectory() as tmp:

@@ -21,7 +21,7 @@ from ..protocol import FormatVersion, GenerationInput
 from ..result import GenerationResult
 from ..utils import convert_to_spdx, run_command
 
-#: Versions cyclonedx-gomod can emit via --spec-version.
+#: Versions cyclonedx-gomod can emit via -output-version.
 GOMOD_CYCLONEDX_VERSIONS = ("1.4", "1.5", "1.6")
 GOMOD_CYCLONEDX_DEFAULT = "1.6"
 
@@ -135,16 +135,18 @@ class CycloneDXGomodGenerator:
             # It shells out to `go list`, so the toolchain has to be present.
             ensure_runtime("go")
 
+            tool_version = GOMOD_CYCLONEDX_DEFAULT if wants_spdx else spec_version
             cmd = [
                 "cyclonedx-gomod",
                 "mod",
                 "-json",
                 "-output",
                 output_file_abs,
+                "-output-version",
+                tool_version,
                 "-std",
                 str(project_dir),
             ]
-            tool_version = GOMOD_CYCLONEDX_DEFAULT if wants_spdx else spec_version
             logger.info(f"Running cyclonedx-gomod for {input.lock_file_name} (CycloneDX {tool_version})")
             run_command(cmd, "cyclonedx-gomod", timeout=600, cwd=str(project_dir))
             if wants_spdx:
