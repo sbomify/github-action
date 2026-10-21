@@ -15,6 +15,7 @@ were also spending the budget that should have been there when licences
 really were missing.
 """
 
+import json
 from typing import NoReturn
 
 import pytest
@@ -120,8 +121,8 @@ def test_can_contribute_is_permissive_without_a_declaration():
     assert _can_contribute(Bare(), set())
 
 
-def _requests_sent(monkeypatch, tmp_path, purl_str: str) -> list[str]:
-    """Enrich one purl through every default source and return the URLs asked for.
+def _record_requests(monkeypatch, tmp_path) -> list[str]:
+    """From here on, every URL any source asks for lands in the returned list.
 
     The claim is about the wire, not the answer. A local source may well have
     something to say about a package, now or later, so this records what was
@@ -129,7 +130,7 @@ def _requests_sent(monkeypatch, tmp_path, purl_str: str) -> list[str]:
     a source that swallows the error: raising alone would let a suppressed
     exception read as a pass.
     """
-    from sbomify_action._enrichment.enricher import Enricher, clear_all_caches
+    from sbomify_action._enrichment.enricher import clear_all_caches
 
     monkeypatch.setenv("SBOMIFY_CACHE_DIR", str(tmp_path))
     # Sources also cache in memory, misses included, so a purl an earlier test
@@ -146,10 +147,130 @@ def _requests_sent(monkeypatch, tmp_path, purl_str: str) -> list[str]:
         raise RuntimeError("no network in this test")
 
     monkeypatch.setattr(requests.Session, "request", record)
+    return requested
 
+
+def _requests_sent(monkeypatch, tmp_path, purl_str: str) -> list[str]:
+    """Enrich one purl through every default source and return the URLs asked for."""
+    from sbomify_action._enrichment.enricher import Enricher
+
+    requested = _record_requests(monkeypatch, tmp_path)
     with Enricher() as enricher:
         enricher.fetch_metadata(purl_str)
+    return requested
 
+
+UNPUBLISHED = [
+    pytest.param("pkg:yocto/openssl@3.3.1", id="yocto-recipe"),
+    pytest.param(
+        "pkg:cargo/my-fork@0.3.0?vcs_url=git%2Bhttps://github.com/acme/my-fork%4080f3c1a",
+        id="cargo-git-crate",
+    ),
+    # Run live against master, this one came back with the MIT licence of an
+    # unrelated `utils` crate. CycloneDX input is no safer: sanitize_purls
+    # clears a file: purl only at serialisation, after enrichment has written
+    # the stranger's licence onto the component.
+    pytest.param("pkg:cargo/utils@0.1.0?download_url=file://../utils", id="cargo-path-crate"),
+    pytest.param("pkg:maven/com.acme/billing@2.4.0-SNAPSHOT?type=jar", id="maven-snapshot"),
+    pytest.param("pkg:npm/shared-ui@1.0.0?download_url=file:../shared-ui", id="npm-file-dep"),
+    # The local reference can sit in the version instead of a qualifier.
+    pytest.param("pkg:npm/shared-ui@file:../shared-ui", id="npm-file-version"),
+    pytest.param("pkg:npm/shared-ui@link:../shared-ui", id="npm-link-version"),
+    pytest.param("pkg:npm/shared-ui@../../packages/shared-ui", id="npm-path-version"),
+    pytest.param("pkg:npm/left-pad@1.3.0?vcs_url=git%2Bhttps://github.com/stevemao/left-pad", id="npm-git-dep"),
+    pytest.param("pkg:pypi/mylib@0.1.0?vcs_url=git%2Bhttps://github.com/acme/mylib", id="pypi-git-dep"),
+]
+
+PUBLISHED = [
+    "pkg:cargo/serde@1.0.0",
+    "pkg:maven/org.apache.commons/commons-lang3@3.14.0",
+    "pkg:pypi/requests@2.31.0",
+    "pkg:npm/left-pad@1.3.0",
+    # A real npm scope. sanitize_purls treats a `root` namespace as a
+    # generator bug, which says nothing about where a package lives.
+    "pkg:npm/%40root/asn1@1.0.2",
+]
+
+
+def _cyclonedx(purls: list[str]) -> dict:
+    return {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.6",
+        "version": 1,
+        "metadata": {"component": {"type": "application", "bom-ref": "root", "name": "app", "version": "1.0.0"}},
+        "components": [
+            {"type": "library", "bom-ref": f"c{i}", "name": PackageURL.from_string(p).name, "purl": p}
+            for i, p in enumerate(purls)
+        ],
+    }
+
+
+def _spdx2(purls: list[str]) -> dict:
+    return {
+        "spdxVersion": "SPDX-2.3",
+        "dataLicense": "CC0-1.0",
+        "SPDXID": "SPDXRef-DOCUMENT",
+        "name": "app",
+        "documentNamespace": "https://acme.test/spdx/app-1.0.0",
+        "creationInfo": {"created": "2026-10-21T00:00:00Z", "creators": ["Tool: test"]},
+        "packages": [
+            {
+                "SPDXID": f"SPDXRef-c{i}",
+                "name": PackageURL.from_string(p).name,
+                "downloadLocation": "NOASSERTION",
+                "filesAnalyzed": False,
+                "externalRefs": [
+                    {"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl", "referenceLocator": p}
+                ],
+            }
+            for i, p in enumerate(purls)
+        ],
+    }
+
+
+def _spdx3(purls: list[str]) -> dict:
+    info = "_:creationinfo"
+    return {
+        "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+        "@graph": [
+            {
+                "type": "CreationInfo",
+                "@id": info,
+                "specVersion": "3.0.1",
+                "created": "2026-10-21T00:00:00Z",
+                "createdBy": ["urn:acme:agent"],
+            },
+            {"type": "Organization", "spdxId": "urn:acme:agent", "creationInfo": info, "name": "Acme"},
+            {"type": "SpdxDocument", "spdxId": "urn:acme:doc", "creationInfo": info, "rootElement": ["urn:acme:c0"]},
+            *(
+                {
+                    "type": "software_Package",
+                    "spdxId": f"urn:acme:c{i}",
+                    "creationInfo": info,
+                    "name": PackageURL.from_string(p).name,
+                    "software_packageUrl": p,
+                }
+                for i, p in enumerate(purls)
+            ),
+        ],
+    }
+
+
+SBOM_FORMATS = [
+    pytest.param(_cyclonedx, id="cyclonedx-1.6"),
+    pytest.param(_spdx2, id="spdx-2.3"),
+    pytest.param(_spdx3, id="spdx-3.0.1"),
+]
+
+
+def _requests_to_enrich_sbom(monkeypatch, tmp_path, build, purls: list[str]) -> list[str]:
+    """Enrich a whole SBOM file the way the CLI and the Yocto pipeline do."""
+    from sbomify_action.enrichment import enrich_sbom
+
+    src = tmp_path / "in.json"
+    src.write_text(json.dumps(build(purls)))
+    requested = _record_requests(monkeypatch, tmp_path / "cache")
+    enrich_sbom(str(src), str(tmp_path / "out.json"))
     return requested
 
 
@@ -169,27 +290,21 @@ class TestUnpublishedPurlsNeverReachARegistry:
     their licence.
     """
 
-    @pytest.mark.parametrize(
-        "purl_str",
-        [
-            pytest.param("pkg:yocto/openssl@3.3.1", id="yocto-recipe"),
-            pytest.param(
-                "pkg:cargo/my-fork@0.3.0?vcs_url=git%2Bhttps://github.com/acme/my-fork%4080f3c1a",
-                id="cargo-git-crate",
-            ),
-            # CycloneDX input never gets here: sanitize_purls clears a file:
-            # purl first. SPDX input has no such step, so the gate is what
-            # stands between a path crate and crates.io.
-            pytest.param("pkg:cargo/utils@0.1.0?download_url=file://../utils", id="cargo-path-crate"),
-            pytest.param("pkg:maven/com.acme/billing@2.4.0-SNAPSHOT?type=jar", id="maven-snapshot"),
-            pytest.param("pkg:npm/shared-ui@1.0.0?download_url=file:../shared-ui", id="npm-file-dep"),
-            # The local reference can sit in the version instead of a qualifier.
-            pytest.param("pkg:npm/shared-ui@file:../shared-ui", id="npm-file-version"),
-            pytest.param("pkg:npm/shared-ui@../../packages/shared-ui", id="npm-path-version"),
-        ],
-    )
+    @pytest.mark.parametrize("purl_str", UNPUBLISHED)
     def test_costs_no_http_request(self, monkeypatch, tmp_path, purl_str):
         assert _requests_sent(monkeypatch, tmp_path, purl_str) == []
+
+    @pytest.mark.parametrize("build", SBOM_FORMATS)
+    def test_an_sbom_of_them_costs_no_http_request_in_any_format(self, monkeypatch, tmp_path, build):
+        """End to end: each format has its own reader and enrichment loop."""
+        purls = [p.values[0] for p in UNPUBLISHED]
+
+        assert _requests_to_enrich_sbom(monkeypatch, tmp_path, build, purls) == []
+
+    @pytest.mark.parametrize("build", SBOM_FORMATS)
+    def test_an_sbom_of_published_packages_is_still_looked_up_in_any_format(self, monkeypatch, tmp_path, build):
+        """And the recorder sees requests on this path at all."""
+        assert _requests_to_enrich_sbom(monkeypatch, tmp_path, build, PUBLISHED) != []
 
     def test_the_yocto_gate_and_the_purls_it_mints_agree(self, monkeypatch, tmp_path):
         """Generated rather than spelled out, so the two cannot drift apart."""
@@ -197,18 +312,7 @@ class TestUnpublishedPurlsNeverReachARegistry:
 
         assert _requests_sent(monkeypatch, tmp_path, generate_yocto_purl("busybox", "1.36.1")) == []
 
-    @pytest.mark.parametrize(
-        "purl_str",
-        [
-            "pkg:cargo/serde@1.0.0",
-            "pkg:maven/org.apache.commons/commons-lang3@3.14.0",
-            "pkg:pypi/requests@2.31.0",
-            "pkg:npm/left-pad@1.3.0",
-            # A real npm scope. sanitize_purls treats a `root` namespace as a
-            # generator bug, which says nothing about where a package lives.
-            "pkg:npm/%40root/asn1@1.0.2",
-        ],
-    )
+    @pytest.mark.parametrize("purl_str", PUBLISHED)
     def test_a_published_package_is_still_looked_up(self, monkeypatch, tmp_path, purl_str):
         """The gate is for what no registry has, not a reason to stop enriching."""
         assert _requests_sent(monkeypatch, tmp_path, purl_str) != []
