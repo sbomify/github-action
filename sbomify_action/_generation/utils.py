@@ -133,6 +133,11 @@ SCALA_LOCK_FILES = ["build.sbt"]
 
 TERRAFORM_LOCK_FILES = [".terraform.lock.hcl"]
 
+# PlatformIO (Arduino, ESP32 and other embedded targets). Not a lock file:
+# the generator reads what `pio pkg install` recorded under .pio/libdeps --
+# see sbomify_action._platformio.
+PLATFORMIO_LOCK_FILES = ["platformio.ini"]
+
 # All supported lock files
 ALL_LOCK_FILES = (
     PYTHON_LOCK_FILES
@@ -152,6 +157,7 @@ ALL_LOCK_FILES = (
     + HASKELL_LOCK_FILES
     + ERLANG_LOCK_FILES
     + CLOJURE_LOCK_FILES
+    + PLATFORMIO_LOCK_FILES
 )
 
 # =============================================================================

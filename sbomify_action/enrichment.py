@@ -186,6 +186,8 @@ LOCKFILE_DESCRIPTIONS = {
     # C++
     "conan.lock": "C++ Conan lockfile",
     "vcpkg.json": "C++ vcpkg manifest",
+    # Embedded
+    "platformio.ini": "PlatformIO project (installed libraries)",
 }
 
 # CycloneDX component type for operating system
@@ -1000,9 +1002,10 @@ def _apply_metadata_to_spdx_package(
             return True
         return False
 
-    # Registry URL (sanitized)
+    # Registry URL (sanitized). OTHER, because SPDX allows only purl,
+    # maven-central, npm, nuget and bower as PACKAGE-MANAGER reference types.
     if metadata.registry_url:
-        if _add_external_ref(ExternalPackageRefCategory.PACKAGE_MANAGER, "url", metadata.registry_url):
+        if _add_external_ref(ExternalPackageRefCategory.OTHER, "url", metadata.registry_url):
             added_fields.append("externalRef (registry)")
 
     # Documentation URL (sanitized)
