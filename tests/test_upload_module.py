@@ -1286,13 +1286,16 @@ class TestSbomifySpdxValidationGate(unittest.TestCase):
     """SPDX is checked against its schema before it is uploaded to sbomify."""
 
     def _upload(self, mock_client_cls, data: dict, validate: bool = True) -> tuple[UploadResult, Mock]:
+        return self._upload_bytes(mock_client_cls, json.dumps(data).encode(), validate)
+
+    def _upload_bytes(self, mock_client_cls, raw: bytes, validate: bool = True) -> tuple[UploadResult, Mock]:
         mock_response = Mock(ok=True, status_code=200, headers={})
         mock_response.json.return_value = {"sbom_id": "sbom-123"}
         mock_client = Mock()
         mock_client.upload_sbom.return_value = mock_response
         mock_client_cls.return_value = mock_client
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump(data, f)
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".json", delete=False) as f:
+            f.write(raw)
         self.addCleanup(Path(f.name).unlink)
         dest = SbomifyDestination(token="test-token", component_id="my-component")
         result = dest.upload(UploadInput(sbom_file=f.name, sbom_format="spdx", validate_before_upload=validate))
@@ -1316,14 +1319,18 @@ class TestSbomifySpdxValidationGate(unittest.TestCase):
         client.upload_sbom.assert_called_once()
 
     def test_invalid_spdx2_is_uploaded_with_a_warning(self, mock_client_cls):
-        """An SPDX 2 producer's schema slip is the producer's to fix, so the package still ships."""
-        spdx2 = {"spdxVersion": "SPDX-2.3", "SPDXID": "SPDXRef-DOCUMENT", "name": "x", "packages": []}
+        """Yocto writes 2.3 relationship types into SPDX-2.2 documents; that is the producer's to fix."""
+        spdx2 = json.loads((Path(__file__).parent / "test-data" / "yocto" / "zlib.spdx.json").read_text())
+        spdx2["relationships"] = [
+            {"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "AMENDS", "relatedSpdxElement": "SPDXRef-Package"}
+        ]
         with self.assertLogs("sbomify_action", level="WARNING") as logs:
             result, client = self._upload(mock_client_cls, spdx2)
 
         self.assertTrue(result.success)
         self.assertTrue(result.validated)
-        self.assertIsNotNone(result.validation_error)
+        self.assertIn("SPDX 2.2", result.validation_error)
+        self.assertIn("relationshipType", result.validation_error)
         client.upload_sbom.assert_called_once()
         self.assertTrue(any("Uploading it anyway" in line for line in logs.output))
 
@@ -1333,6 +1340,53 @@ class TestSbomifySpdxValidationGate(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertFalse(result.validated)
         client.upload_sbom.assert_called_once()
+
+    def test_invalid_spdx3_with_a_byte_order_mark_is_not_uploaded(self, mock_client_cls):
+        """Earlier steps read with utf-8-sig, so a BOM reaches the upload; it must not hide the document."""
+        raw = b"\xef\xbb\xbf" + json.dumps(_spdx3_with_integer_version()).encode()
+        result, client = self._upload_bytes(mock_client_cls, raw)
+
+        self.assertFalse(result.success)
+        self.assertIn("SPDX 3.0.1", result.error_message)
+        client.upload_sbom.assert_not_called()
+
+    def test_valid_spdx3_with_a_byte_order_mark_is_uploaded(self, mock_client_cls):
+        result, client = self._upload_bytes(mock_client_cls, b"\xef\xbb\xbf" + SPDX3_FIXTURE.read_bytes())
+
+        self.assertTrue(result.success)
+        self.assertIsNone(result.validation_error)
+        client.upload_sbom.assert_called_once()
+
+    def test_spdx3_whose_version_cannot_be_read_is_not_uploaded(self, mock_client_cls):
+        """A missing specVersion is a fault the gate exists to catch, not a reason to wave the document through."""
+        data = json.loads(SPDX3_FIXTURE.read_text())
+        data["@context"] = "https://spdx.org/rdf/3/terms/Core/"
+        for element in data["@graph"]:
+            element.pop("specVersion", None)
+        result, client = self._upload(mock_client_cls, data)
+
+        self.assertFalse(result.success)
+        self.assertIn("unknown", result.error_message)
+        client.upload_sbom.assert_not_called()
+
+    def test_a_file_that_cannot_be_read_as_a_document_fails_instead_of_raising(self, mock_client_cls):
+        for raw in (b'{"spdxVersion": "SPDX-2.3", "name": "\xff"}', b"[]", b"null", b"not json"):
+            with self.subTest(raw=raw):
+                result, client = self._upload_bytes(mock_client_cls, raw)
+
+                self.assertFalse(result.success)
+                self.assertTrue(result.validated)
+                client.upload_sbom.assert_not_called()
+
+    def test_a_check_that_breaks_holds_the_document_back(self, mock_client_cls):
+        with patch(
+            "sbomify_action._upload.destinations.sbomify.validate_sbom_file_auto", side_effect=RecursionError("deep")
+        ):
+            result, client = self._upload(mock_client_cls, json.loads(SPDX3_FIXTURE.read_text()))
+
+        self.assertFalse(result.success)
+        self.assertIn("Could not check the SPDX document: deep", result.error_message)
+        client.upload_sbom.assert_not_called()
 
 
 class TestDependencyTrackErrors(unittest.TestCase):

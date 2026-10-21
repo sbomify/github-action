@@ -322,9 +322,9 @@ def validate_sbom_file(
         )
 
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8-sig") as f:
             sbom_data = json.load(f)
-    except json.JSONDecodeError as e:
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
         return ValidationResult.failure(
             sbom_format=sbom_format,
             spec_version=spec_version,
@@ -389,13 +389,20 @@ def validate_sbom_file_auto(file_path: str) -> ValidationResult:
         )
 
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8-sig") as f:
             sbom_data = json.load(f)
-    except json.JSONDecodeError as e:
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
         return ValidationResult.failure(
             sbom_format="cyclonedx",
             spec_version="unknown",
             error_message=f"Invalid JSON: {e}",
+        )
+
+    if not isinstance(sbom_data, dict):
+        return ValidationResult.failure(
+            sbom_format="cyclonedx",
+            spec_version="unknown",
+            error_message="Not an SBOM: the file is JSON but not a JSON object",
         )
 
     sbom_format, spec_version = detect_sbom_format_and_version(sbom_data)

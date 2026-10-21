@@ -95,15 +95,27 @@ class SbomifyDestination:
             # Every SPDX 3 write path runs before this point, so this is the one
             # check they all pass through. SPDX 3 is held to its schema. An SPDX 2
             # failure is usually the producer's (Yocto writes 2.3 relationship
-            # types into 2.2 documents), so it is uploaded with a warning.
+            # types into 2.2 documents), so it is uploaded with a warning. Only a
+            # document read as SPDX 2 gets that allowance: one whose version could
+            # not be read says nothing about which rule applies, so it is held back.
             validated = True
-            result = validate_sbom_file_auto(input.sbom_file)
+            logger.info("Checking the SPDX document against its schema before upload")
+            try:
+                result = validate_sbom_file_auto(input.sbom_file)
+            except Exception as e:
+                validation_error = f"Could not check the SPDX document: {e}"
+                return UploadResult.failure_result(
+                    destination_name=self.name,
+                    error_message=f"{validation_error}. Not uploading it.",
+                    validated=validated,
+                    validation_error=validation_error,
+                )
             if result.valid is False:
                 where = f" at {result.error_path}" if result.error_path else ""
                 validation_error = (
                     f"SPDX {result.spec_version} document failed validation{where}: {result.error_message}"
                 )
-                if result.spec_version.startswith("3"):
+                if not result.spec_version.startswith("2"):
                     return UploadResult.failure_result(
                         destination_name=self.name,
                         error_message=f"{validation_error}. Not uploading it.",
