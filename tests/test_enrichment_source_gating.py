@@ -16,6 +16,7 @@ really were missing.
 """
 
 import json
+import logging
 from typing import NoReturn
 
 import pytest
@@ -139,11 +140,12 @@ def _record_requests(monkeypatch, tmp_path) -> list[str]:
 
     requested: list[str] = []
 
-    # `Session.get` and `Session.post` both go through `Session.request`,
-    # so patching that one method catches every verb, and the URL is the
-    # second positional argument rather than something to guess at.
-    def record(_self: object, _method: object, url: object = None, **kwargs: object) -> NoReturn:
-        requested.append(str(url if url is not None else kwargs.get("url")))
+    # `Session.get`/`post` and module-level `requests.get`/`post` all go
+    # through `Session.request`, so patching that one method catches every
+    # verb. The session methods pass method and url positionally, module-level
+    # `requests` passes them as keywords; take the url from either.
+    def record(_self: object, *args: object, **kwargs: object) -> NoReturn:
+        requested.append(str(kwargs.get("url", args[1] if len(args) > 1 else None)))
         raise RuntimeError("no network in this test")
 
     monkeypatch.setattr(requests.Session, "request", record)
@@ -172,6 +174,8 @@ UNPUBLISHED = [
     # the stranger's licence onto the component.
     pytest.param("pkg:cargo/utils@0.1.0?download_url=file://../utils", id="cargo-path-crate"),
     pytest.param("pkg:maven/com.acme/billing@2.4.0-SNAPSHOT?type=jar", id="maven-snapshot"),
+    # Maven's own snapshot test ignores case.
+    pytest.param("pkg:maven/com.acme/billing@2.4.0-snapshot?type=jar", id="maven-snapshot-lowercase"),
     pytest.param("pkg:npm/shared-ui@1.0.0?download_url=file:../shared-ui", id="npm-file-dep"),
     # The local reference can sit in the version instead of a qualifier.
     pytest.param("pkg:npm/shared-ui@file:../shared-ui", id="npm-file-version"),
@@ -189,6 +193,8 @@ PUBLISHED = [
     # A real npm scope. sanitize_purls treats a `root` namespace as a
     # generator bug, which says nothing about where a package lives.
     "pkg:npm/%40root/asn1@1.0.2",
+    # `link:` mid-URL is a path, not a local reference.
+    "pkg:npm/left-pad@1.3.0?download_url=https://mirror.acme.test/npm/permalink:left-pad-1.3.0.tgz",
 ]
 
 
@@ -305,6 +311,25 @@ class TestUnpublishedPurlsNeverReachARegistry:
     def test_an_sbom_of_published_packages_is_still_looked_up_in_any_format(self, monkeypatch, tmp_path, build):
         """And the recorder sees requests on this path at all."""
         assert _requests_to_enrich_sbom(monkeypatch, tmp_path, build, PUBLISHED) != []
+
+    def test_a_run_says_how_many_it_kept_off_the_network(self, monkeypatch, tmp_path, caplog):
+        """Per run, at info: a generator that put vcs_url on published packages
+        would otherwise cost them their enrichment with nothing in the log."""
+        caplog.set_level(logging.INFO, logger="sbomify_action")
+        purls = [p.values[0] for p in UNPUBLISHED]
+
+        _requests_to_enrich_sbom(monkeypatch, tmp_path, _cyclonedx, purls)
+
+        assert f"Skipped registry lookups for {len(purls)} package(s)" in caplog.text
+
+    def test_the_recorder_sees_module_level_requests_too(self, monkeypatch, tmp_path):
+        """requests.get() reaches Session.request with method and url as keywords."""
+        requested = _record_requests(monkeypatch, tmp_path)
+
+        with pytest.raises(RuntimeError, match="no network"):
+            requests.get("https://registry.acme.test/pkg")
+
+        assert requested == ["https://registry.acme.test/pkg"]
 
     def test_the_yocto_gate_and_the_purls_it_mints_agree(self, monkeypatch, tmp_path):
         """Generated rather than spelled out, so the two cannot drift apart."""

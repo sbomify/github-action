@@ -58,15 +58,18 @@ def _no_registry_has(purl: PackageURL) -> bool:
         return True
     if "vcs_url" in (purl.qualifiers or {}):  # built from a git checkout, not a release
         return True
-    if purl.type == "maven" and (purl.version or "").endswith("-SNAPSHOT"):  # Central never hosts one
+    # Central never hosts one; Maven's own test ignores case. A resolved,
+    # timestamped snapshot (1.0-20240101.123456-1) is left alone: from the
+    # purl alone it reads like a date-stamped release.
+    if purl.type == "maven" and (purl.version or "").upper().endswith("-SNAPSHOT"):
         return True
     # A file:, link: or relative-path reference, in the version or a qualifier.
     # Not _is_invalid_purl, which sanitize_purls uses on CycloneDX: it also
     # rejects a `root` namespace, and npm has a real @root scope.
-    version = purl.version or ""
-    if version.startswith(("./", "../")):
+    local = ("file:", "link:")
+    if (purl.version or "").startswith(("./", "../", *local)):
         return True
-    return any("file:" in value or "link:" in value for value in (version, *(purl.qualifiers or {}).values()))
+    return any(value.startswith(local) for value in (purl.qualifiers or {}).values())
 
 
 class SourceRegistry:
@@ -92,6 +95,8 @@ class SourceRegistry:
     def __init__(self) -> None:
         """Initialize an empty registry."""
         self._sources: List[DataSource] = []
+        #: Lookups kept to local sources by _no_registry_has, for the run summary.
+        self.unpublished_skipped = 0
 
     def register(self, source: DataSource) -> None:
         """
@@ -121,6 +126,7 @@ class SourceRegistry:
             # Only sources that declare `offline` answer without the network;
             # one that does not say is assumed to need it.
             logger.debug(f"{purl.name}: no public registry publishes it, asking local sources only")
+            self.unpublished_skipped += 1
             applicable = [s for s in applicable if getattr(s, "offline", False)]
         return sorted(applicable, key=lambda s: s.priority)
 
