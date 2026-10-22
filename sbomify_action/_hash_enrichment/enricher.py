@@ -307,7 +307,7 @@ def enrich_sbom_with_hashes(
     lock_path = Path(lock_file)
 
     # Load SBOM
-    with sbom_path.open("r") as f:
+    with sbom_path.open("r", encoding="utf-8") as f:
         sbom_data = json.load(f)
 
     enricher = HashEnricher()
@@ -321,7 +321,7 @@ def enrich_sbom_with_hashes(
         # Serialize back
         spec_version = sbom_data.get("specVersion", "1.6")
         serialized = serialize_cyclonedx_bom(bom, spec_version)
-        with sbom_path.open("w") as f:
+        with sbom_path.open("w", encoding="utf-8") as f:
             f.write(serialized)
 
     elif sbom_data.get("spdxVersion"):
@@ -329,7 +329,7 @@ def enrich_sbom_with_hashes(
         stats = enricher.enrich_spdx(sbom_data, lock_path, overwrite_existing)
 
         # Write back
-        with sbom_path.open("w") as f:
+        with sbom_path.open("w", encoding="utf-8") as f:
             json.dump(sbom_data, f, indent=2)
 
     elif is_spdx3(sbom_data):
