@@ -8,11 +8,15 @@ from .generators import (
     CdxgenFsGenerator,
     CdxgenImageGenerator,
     CycloneDXCargoGenerator,
+    CycloneDXGomodGenerator,
+    CycloneDXGradleGenerator,
+    CycloneDXMavenGenerator,
     CycloneDXPyGenerator,
+    CycloneDXSbtGenerator,
+    GradleLockfileGenerator,
+    PlatformIOGenerator,
     SyftFsGenerator,
     SyftImageGenerator,
-    TrivyFsGenerator,
-    TrivyImageGenerator,
 )
 from .protocol import GenerationInput
 from .registry import GeneratorRegistry
@@ -29,9 +33,20 @@ def create_default_registry() -> GeneratorRegistry:
     - CycloneDXPyGenerator: Native Python CycloneDX generator
       - Input: Python lock files only (requirements.txt, poetry.lock, Pipfile.lock, pyproject.toml)
       - Output: CycloneDX 1.0-1.7
-    - CycloneDXCargoGenerator: Native Rust/Cargo CycloneDX generator
+    - CycloneDXCargoGenerator: Native Rust/Cargo generator
       - Input: Rust lock files only (Cargo.lock)
-      - Output: CycloneDX 1.4-1.6
+      - Output: CycloneDX 1.3-1.5, SPDX 2.3 by conversion
+    - CycloneDXGomodGenerator: Native Go generator
+      - Input: go.mod, with Go source beside it
+      - Output: CycloneDX 1.4-1.6, SPDX 2.3 by conversion
+    - CycloneDXMavenGenerator/Gradle/Sbt: Native JVM generators
+      - Input: pom.xml, build.gradle(.kts), build.sbt
+      - Output: CycloneDX 1.4-1.6, SPDX 2.3 by conversion
+    - GradleLockfileGenerator: Reads gradle.lockfile without running Gradle
+      - Input: gradle.lockfile
+    - PlatformIOGenerator: Reads the libraries PlatformIO installed
+      - Input: platformio.ini (with .pio/libdeps present)
+      - Output: CycloneDX 1.2-1.7, SPDX 2.2-2.3
 
     Priority 20 - Comprehensive Multi-Ecosystem (cdxgen):
     - CdxgenFsGenerator: Filesystem/lock file scanning
@@ -42,7 +57,7 @@ def create_default_registry() -> GeneratorRegistry:
       - Input: Container images
       - Output: CycloneDX 1.4-1.7 (no SPDX support)
 
-    Priority 30 - Generic Multi-Ecosystem (Trivy):
+    Priority 30 - Generic Multi-Ecosystem (Trivy) [TEMPORARILY DISABLED]:
     - TrivyFsGenerator: Filesystem/lock file scanning
       - Input: Python, JavaScript, Java/Gradle, Go, Rust, Ruby, C++, PHP, .NET
                (NOT Dart, Swift, Elixir, Scala, Terraform)
@@ -50,6 +65,7 @@ def create_default_registry() -> GeneratorRegistry:
     - TrivyImageGenerator: Docker image scanning
       - Input: Container images
       - Output: CycloneDX 1.6, SPDX 2.3
+    NOTE: Trivy is temporarily disabled due to recurring security vulnerabilities.
 
     Priority 35 - Generic Multi-Ecosystem (Syft):
     - SyftFsGenerator: Filesystem/lock file scanning
@@ -71,14 +87,30 @@ def create_default_registry() -> GeneratorRegistry:
     # Priority 10: Native generators
     registry.register(CycloneDXPyGenerator())
     registry.register(CycloneDXCargoGenerator())
+    registry.register(CycloneDXGomodGenerator())
+    # The JVM build systems' own plugins. cdxgen fails outright on real
+    # Maven, Gradle and sbt projects; measured against whole checkouts the
+    # plugins return 106/340/288 components where syft returns 42/92/34.
+    registry.register(CycloneDXMavenGenerator())
+    registry.register(CycloneDXGradleGenerator())
+    # Reads gradle.lockfile without running Gradle, so it wins over the
+    # plugin when a project has one -- see the module docstring.
+    registry.register(GradleLockfileGenerator())
+    registry.register(CycloneDXSbtGenerator())
+    # Nothing else catalogs PlatformIO; reads what `pio pkg install` recorded.
+    registry.register(PlatformIOGenerator())
 
     # Priority 20: cdxgen generators (comprehensive multi-ecosystem)
     registry.register(CdxgenFsGenerator())
     registry.register(CdxgenImageGenerator())
 
-    # Priority 30: Trivy generators (fixed versions, but wide ecosystem support)
-    registry.register(TrivyFsGenerator())
-    registry.register(TrivyImageGenerator())
+    # Priority 30: Trivy generators - TEMPORARILY DISABLED due to recurring
+    # security vulnerabilities in Trivy. To re-enable, reintroduce the
+    # TrivyFsGenerator/TrivyImageGenerator imports at the top of this module,
+    # uncomment the two lines below, and restore Trivy installation in the
+    # Dockerfile and CI workflow.
+    # registry.register(TrivyFsGenerator())
+    # registry.register(TrivyImageGenerator())
 
     # Priority 35: Syft generators (version selection, wide ecosystem support)
     registry.register(SyftFsGenerator())

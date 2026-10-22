@@ -5,3 +5,39 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    exclude-paths:
+      - "tests/test-data/**"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    exclude-paths:
+      - "tests/test-data/**"
+    groups:
+      bun:
+        patterns:
+          - "*"
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    exclude-paths:
+      - "tests/test-data/**"
+    groups:
+      uv:
+        patterns:
+          - "*"
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    exclude-paths:
+      - "tests/test-data/**"
+    groups:
+      docker:
+        patterns:
+          - "*"

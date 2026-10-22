@@ -42,6 +42,21 @@ class NormalizedMetadata:
     maintainer_name: Optional[str] = None
     maintainer_email: Optional[str] = None
 
+    # Distribution info (BSI TR-03183-2 compliance)
+    distribution_filename: Optional[str] = None
+    # Hashes of the deployable artifact, keyed by algorithm name as the
+    # source provided it. Keys are lower-case strings — typically SPDX /
+    # CycloneDX canonical names such as "sha256", "sha512", "md5", but
+    # some sources legitimately use their own variant spelling. The PyPI
+    # source, for instance, returns BLAKE2b-256 under the underscore
+    # form "blake2b_256" (matching PyPI's JSON API), and we keep that
+    # form here so the downstream algorithm map (_CYCLONEDX_HASH_ALGORITHMS /
+    # _SPDX_CHECKSUM_ALGORITHMS in enrichment.py) can recognize it
+    # without a second normalization step. Values are lower-case hex
+    # strings. Used to populate NTIA / BSI §5.2.2 / CISA "Component
+    # Hash" elements.
+    hashes: Dict[str, str] = field(default_factory=dict)
+
     # CLE (Common Lifecycle Enumeration) fields - ECMA-428
     # Used for distro-level lifecycle dates applied to all packages from that distro
     cle_eos: Optional[str] = None  # End of Support date (ISO 8601)
@@ -83,6 +98,33 @@ class NormalizedMetadata:
                     merged_sources[field_name] = other.source
                 return other_val
 
+        # Merge hashes as a union keyed by algorithm — self wins on
+        # conflicting algorithms, but every algorithm contributed by
+        # `other` is preserved. Dropping other's keys would silently lose
+        # useful digests when PyPI gives sha256 and another source
+        # contributes blake2b / md5 for the same artifact.
+        #
+        # Attribution for the union field: if `other` adds at least one
+        # new algorithm key, refresh ``field_sources["hashes"]`` to
+        # record BOTH contributing sources (comma-separated). Previously
+        # this branch early-exited when self already had a "hashes"
+        # entry, which hid the fact that the merged value actually
+        # contained algorithms from both sources. Attribution follows
+        # the existing source-tracking convention used elsewhere (e.g.
+        # AugmentationMetadata.merge concatenates sources with ", ").
+        merged_hashes: Dict[str, str] = dict(self.hashes)
+        added_hash_alg = False
+        for alg, hex_value in other.hashes.items():
+            if alg not in merged_hashes:
+                merged_hashes[alg] = hex_value
+                added_hash_alg = True
+        if added_hash_alg and other.source:
+            prior = merged_sources.get("hashes")
+            if not prior:
+                merged_sources["hashes"] = other.source
+            elif other.source not in prior.split(", "):
+                merged_sources["hashes"] = f"{prior}, {other.source}"
+
         # Merge license_texts (combine both)
         merged_license_texts = dict(self.license_texts)
         for lic_id, text in other.license_texts.items():
@@ -105,6 +147,11 @@ class NormalizedMetadata:
             # Maintainer info
             maintainer_name=pick("maintainer_name", self.maintainer_name, other.maintainer_name),
             maintainer_email=pick("maintainer_email", self.maintainer_email, other.maintainer_email),
+            # Distribution info
+            distribution_filename=pick(
+                "distribution_filename", self.distribution_filename, other.distribution_filename
+            ),
+            hashes=merged_hashes,
             # CLE fields
             cle_eos=pick("cle_eos", self.cle_eos, other.cle_eos),
             cle_eol=pick("cle_eol", self.cle_eol, other.cle_eol),
@@ -127,6 +174,9 @@ class NormalizedMetadata:
             or self.issue_tracker_url
             or self.download_url
             or self.maintainer_name
+            or self.maintainer_email
+            or self.distribution_filename
+            or self.hashes
             or self.cle_eos
             or self.cle_eol
             or self.cle_release_date

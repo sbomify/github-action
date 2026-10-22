@@ -1,4 +1,6 @@
+import contextlib
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -23,6 +25,69 @@ from sbomify_action.augmentation import augment_sbom_from_file
 from sbomify_action.enrichment import clear_cache, enrich_sbom
 from sbomify_action.serialization import serialize_cyclonedx_bom
 
+# Environment keys that any augmentation provider might react to.
+# The schema-compliance tests mock sbomify-api and drive the whole
+# pipeline to verify that an operator-supplied lifecycle_phase makes
+# it all the way to the emitted BOM. If the suite runs IN GitHub
+# Actions / GitLab CI / Bitbucket Pipelines / TeamCity, the real CI providers
+# fire and win over the sbomify-api mock (priority 20 < 50), which
+# would falsely fail these assertions. Scrub the relevant env vars
+# for the duration of each test so only the mocked providers speak.
+_AUGMENTATION_ENV_KEYS_TO_CLEAR = (
+    "GITHUB_ACTIONS",
+    "GITHUB_REPOSITORY",
+    "GITHUB_SHA",
+    "GITHUB_REF",
+    "GITHUB_REF_NAME",
+    "GITHUB_SERVER_URL",
+    "GITLAB_CI",
+    "CI_PROJECT_URL",
+    "CI_PROJECT_PATH",
+    "CI_SERVER_URL",
+    "CI_COMMIT_SHA",
+    "CI_COMMIT_REF_NAME",
+    "CI_COMMIT_TAG",
+    "BITBUCKET_PIPELINE_UUID",
+    "BITBUCKET_GIT_HTTP_ORIGIN",
+    "BITBUCKET_WORKSPACE",
+    "BITBUCKET_REPO_SLUG",
+    "BITBUCKET_COMMIT",
+    "BITBUCKET_BRANCH",
+    "BITBUCKET_TAG",
+    "TEAMCITY_VERSION",
+    "TEAMCITY_BUILD_PROPERTIES_FILE",
+    "BUILD_VCS_NUMBER",
+    "SBOMIFY_VCS_URL",
+    "SBOMIFY_VCS_REF",
+    "DOCKER_IMAGE",
+)
+
+
+@contextlib.contextmanager
+def _scrub_ci_env():
+    """Remove all CI / docker-image environment variables for the
+    duration of the block and restore them afterwards. Use this when
+    a test wants only the mocked providers (sbomify-api / json-config)
+    to contribute augmentation metadata.
+
+    Clearing the vendor variables is no longer enough on its own: with none of
+    them set the local platform takes over and reads VCS metadata straight from
+    this repository's git checkout. DISABLE_VCS_AUGMENTATION is the supported
+    switch that silences the ci-platform provider whichever platform resolved.
+    """
+    saved = {k: os.environ.pop(k, None) for k in _AUGMENTATION_ENV_KEYS_TO_CLEAR}
+    saved["DISABLE_VCS_AUGMENTATION"] = os.environ.get("DISABLE_VCS_AUGMENTATION")
+    os.environ["DISABLE_VCS_AUGMENTATION"] = "true"
+    try:
+        yield
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
 # Path to schemas
 REPO_ROOT = Path(__file__).parent.parent
 CDX_SCHEMA_DIR = REPO_ROOT / "sbomify_action" / "schemas" / "cyclonedx"
@@ -39,7 +104,11 @@ CDX_SCHEMAS = {
 SPDX_SCHEMAS = {
     "2.2": SPDX_SCHEMA_DIR / "spdx-2.2.schema.json",
     "2.3": SPDX_SCHEMA_DIR / "spdx-2.3.schema.json",
+    "3.0.0": SPDX_SCHEMA_DIR / "spdx-3.0.0.schema.json",
+    "3.0.1": SPDX_SCHEMA_DIR / "spdx-3.0.1.schema.json",
 }
+
+SPDX3_FIXTURE = Path(__file__).parent / "test-data" / "spdx3_conformant.json"
 
 
 def load_schema(schema_path: Path):
@@ -88,13 +157,14 @@ def test_cyclonedx_full_flow_compliance(version, tmp_path):
     mock_api_response.json.return_value = augmentation_data
 
     with (
+        _scrub_ci_env(),
         patch(
             "sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file",
             return_value=None,
         ),
         patch(
-            "sbomify_action._augmentation.providers.sbomify_api.requests.get",
-            return_value=mock_api_response,
+            "sbomify_action._augmentation.providers.sbomify_api.SbomifyApiProvider._fetch_backend_metadata",
+            return_value=mock_api_response.json.return_value,
         ),
     ):
         augment_sbom_from_file(
@@ -222,13 +292,14 @@ def test_spdx_full_flow_compliance(version, tmp_path):
     mock_api_response.json.return_value = augmentation_data
 
     with (
+        _scrub_ci_env(),
         patch(
             "sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file",
             return_value=None,
         ),
         patch(
-            "sbomify_action._augmentation.providers.sbomify_api.requests.get",
-            return_value=mock_api_response,
+            "sbomify_action._augmentation.providers.sbomify_api.SbomifyApiProvider._fetch_backend_metadata",
+            return_value=mock_api_response.json.return_value,
         ),
     ):
         augment_sbom_from_file(
@@ -279,3 +350,105 @@ def test_spdx_full_flow_compliance(version, tmp_path):
     assert "Lifecycle phase: build" in creator_comment, (
         f"SPDX {version} should have lifecycle phase in creator comment. Got: {creator_comment}"
     )
+
+
+def _spdx3_document_at(version: str) -> dict:
+    """The conformant fixture, retargeted to *version*.
+
+    Both official schemas pin `@context` with a `const` to their own fully
+    qualified URL, and `specVersion` has to agree with it, so a version sweep
+    has to move both together.
+    """
+    document = json.loads(SPDX3_FIXTURE.read_text())
+    document["@context"] = f"https://spdx.org/rdf/{version}/spdx-context.jsonld"
+    for element in document["@graph"]:
+        if element.get("type") == "CreationInfo":
+            element["specVersion"] = version
+    return document
+
+
+def _declared_licences(document: dict) -> list[str]:
+    """Every licence stated through a hasDeclaredLicense relationship."""
+    by_id = {e.get("spdxId"): e for e in document["@graph"]}
+    return [
+        by_id.get(relationship["to"][0], {}).get("simplelicensing_licenseExpression")
+        for relationship in document["@graph"]
+        if relationship.get("type") == "Relationship" and relationship.get("relationshipType") == "hasDeclaredLicense"
+    ]
+
+
+@pytest.mark.parametrize("version", ["3.0.0", "3.0.1"])
+def test_spdx3_full_flow_compliance(version, tmp_path):
+    """Augment and enrich an SPDX 3 document and hold the result to the schema.
+
+    Nothing generates SPDX 3, so this starts from a document rather than a
+    lock file. Everything after that is the path a user takes, and it is the
+    path that produced documents failing every element until the writer was
+    fixed: both augment and enrich re-validate their own output, so an
+    unconformant write was an unconditional exit 1.
+    """
+    schema = load_schema(SPDX_SCHEMAS[version])
+    source = _spdx3_document_at(version)
+
+    # The control. Every assertion below is worthless if this is not valid.
+    jsonschema.validate(instance=source, schema=schema)
+
+    input_file = tmp_path / f"input_spdx_{version}.json"
+    augmented_file = tmp_path / f"augmented_spdx_{version}.json"
+    final_file = tmp_path / f"final_spdx_{version}.json"
+    input_file.write_text(json.dumps(source))
+
+    augmentation_data = {
+        "supplier": {"name": "Augmented Supplier", "url": "https://supplier.com"},
+        "authors": [{"name": "Augmented Author", "email": "author@example.com"}],
+        "licenses": ["MIT"],
+        "lifecycle_phase": "build",
+    }
+    with (
+        _scrub_ci_env(),
+        patch(
+            "sbomify_action._augmentation.providers.json_config.JsonConfigProvider._find_config_file",
+            return_value=None,
+        ),
+        patch(
+            "sbomify_action._augmentation.providers.sbomify_api.SbomifyApiProvider._fetch_backend_metadata",
+            return_value=augmentation_data,
+        ),
+    ):
+        augment_sbom_from_file(
+            input_file=str(input_file),
+            output_file=str(augmented_file),
+            api_base_url="https://api.test",
+            token="dummy",
+            component_id="123",
+        )
+
+    clear_cache()
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "info": {
+            "summary": "Enriched description",
+            "home_page": "https://enriched.com",
+            "license": "Apache-2.0",
+            "author": "Test Author",
+        }
+    }
+    with patch("requests.Session.get", return_value=mock_response):
+        enrich_sbom(input_file=str(augmented_file), output_file=str(final_file))
+
+    final = json.loads(final_file.read_text())
+
+    try:
+        jsonschema.validate(instance=final, schema=schema)
+    except jsonschema.ValidationError as e:
+        pytest.fail(f"SPDX {version} schema validation failed after augment and enrich: {e}")
+
+    # The version it arrived as is the version it leaves as. Relabelling a 3.0
+    # document 3.0.1 leaves the context disagreeing with every specVersion.
+    assert final["@context"] == f"https://spdx.org/rdf/{version}/spdx-context.jsonld"
+
+    # 3.0.1 states a licence as a relationship and spdx-tools has no field for
+    # it, so the writer used to drop every one. The fixture declares MIT and
+    # neither step is asked to override it.
+    assert _declared_licences(final) == ["MIT"]

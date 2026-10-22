@@ -5,7 +5,8 @@ from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from libtea.exceptions import TeaConnectionError, TeaNotFoundError
+import pytest
+from libtea.exceptions import TeaConnectionError, TeaNotFoundError, TeaServerError
 from libtea.models import (
     CLE,
     CLEEvent,
@@ -16,6 +17,7 @@ from libtea.models import (
 )
 from packageurl import PackageURL
 
+from sbomify_action._enrichment.exceptions import TransientSourceError
 from sbomify_action._enrichment.sources.tea import (
     PURL_TYPE_TO_TEA_DOMAIN,
     TeaSource,
@@ -320,11 +322,26 @@ class TestTeaSourceFetch(unittest.TestCase):
     @patch.dict("os.environ", {}, clear=True)
     @patch("sbomify_action._enrichment.sources.tea.TeaClient", autospec=True)
     def test_fetch_connection_error(self, mock_client_cls):
-        """Fetch returns None on connection error."""
+        """Discovery failure is transient (never persisted as a miss) and latches after two attempts."""
         mock_client_cls.from_well_known.side_effect = TeaConnectionError("Connection refused")
 
-        metadata = self.source.fetch(self.purl, self.session)
-        assert metadata is None
+        for _ in range(3):
+            with pytest.raises(TransientSourceError):
+                self.source.fetch(self.purl, self.session)
+        assert mock_client_cls.from_well_known.call_count == 2
+
+    @patch.dict("os.environ", {}, clear=True)
+    @patch("sbomify_action._enrichment.sources.tea.TeaClient", autospec=True)
+    def test_fetch_server_error_is_transient(self, mock_client_cls):
+        """A 5xx says nothing about the package: raise transient and leave it uncached."""
+        mock_client = MagicMock()
+        mock_client_cls.from_well_known.return_value = mock_client
+        mock_client.search_product_releases.side_effect = TeaServerError("HTTP 503")
+
+        for _ in range(2):
+            with pytest.raises(TransientSourceError):
+                self.source.fetch(self.purl, self.session)
+        assert mock_client.search_product_releases.call_count == 2
 
     @patch.dict("os.environ", {}, clear=True)
     @patch("sbomify_action._enrichment.sources.tea.TeaClient", autospec=True)

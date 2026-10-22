@@ -23,12 +23,13 @@ from urllib.parse import urlparse
 
 import requests
 from libtea import TeaClient
-from libtea.exceptions import TeaError, TeaNotFoundError
+from libtea.exceptions import TeaConnectionError, TeaError, TeaNotFoundError, TeaServerError
 from libtea.models import CLEEventType
 from packageurl import PackageURL
 
 from sbomify_action.logging_config import logger
 
+from ..exceptions import TransientSourceError
 from ..metadata import NormalizedMetadata
 
 # PURL type → TEA domain for .well-known/tea discovery.
@@ -150,7 +151,8 @@ def _get_client(purl_type: str) -> TeaClient | None:
     cache_key = f"domain:{domain}:token:{hashlib.sha256((token or '').encode()).hexdigest()[:16]}"
     if cache_key not in _client_cache:
         if _discovery_failures.get(cache_key, 0) >= _MAX_DISCOVERY_ATTEMPTS:
-            return None
+            # Transient, not a miss: returning None would persist these packages as having no TEA data.
+            raise TransientSourceError(f"TEA discovery for {domain} skipped after {_MAX_DISCOVERY_ATTEMPTS} failures")
         try:
             _client_cache[cache_key] = TeaClient.from_well_known(domain, token=token, timeout=DEFAULT_TIMEOUT)
         except Exception as exc:
@@ -159,7 +161,7 @@ def _get_client(purl_type: str) -> TeaClient | None:
                 f"TEA well-known discovery failed for {domain} "
                 f"(attempt {_discovery_failures[cache_key]}/{_MAX_DISCOVERY_ATTEMPTS}): {exc}"
             )
-            return None
+            raise TransientSourceError(f"TEA well-known discovery failed for {domain}") from None
     return _client_cache[cache_key]
 
 
@@ -215,6 +217,11 @@ class TeaSource:
             metadata = self._fetch_from_tea(purl, purl_str)
             _cache[cache_key] = metadata
             return metadata
+        except TransientSourceError:
+            raise
+        except (TeaConnectionError, TeaServerError) as exc:
+            # Says nothing about the package, so the registry must not persist it as a miss.
+            raise TransientSourceError(f"TEA request failed for {purl_str}: {exc}") from None
         except Exception as exc:
             logger.warning(f"TEA enrichment failed for {purl_str}: {exc}")
             _cache[cache_key] = None
@@ -261,6 +268,8 @@ class TeaSource:
                     field_sources["licenses"] = self.name
         except TeaNotFoundError:
             logger.debug(f"No CLE data for release {release.uuid}")
+        except (TeaConnectionError, TeaServerError):
+            raise  # transient: a partial result here would be persisted without its CLE dates
         except TeaError as exc:
             logger.debug(f"CLE lookup failed for {release.uuid}: {exc}")
 
