@@ -357,9 +357,9 @@ class PlatformIOGenerator:
             f"framework packages for env:{', env:'.join(resolution.environments)} in {source.name}"
         )
         if input.output_format == "spdx":
-            output.write_text(json.dumps(_to_spdx(document, version), indent=2))
+            output.write_text(json.dumps(_to_spdx(document, version), indent=2), encoding="utf-8")
         else:
-            output.write_text(json.dumps(document, indent=2))
+            output.write_text(json.dumps(document, indent=2), encoding="utf-8")
 
         return GenerationResult.success_result(
             output_file=str(output),

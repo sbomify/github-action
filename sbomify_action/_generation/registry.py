@@ -212,7 +212,7 @@ def _requirements_txt_is_pinned(path: str) -> bool:
     way is a document that claims to be a record when it is a guess.
     """
     try:
-        text = pathlib.Path(path).read_text(errors="replace")
+        text = pathlib.Path(path).read_text(encoding="utf-8", errors="replace")
     except OSError:
         return False
 

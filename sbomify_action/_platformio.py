@@ -443,20 +443,20 @@ def libdeps_dir(ini_path: Path) -> Path | None:
 def _git_commit(git_dir: Path) -> str | None:
     """The full commit a git-installed library is checked out at."""
     try:
-        head = (git_dir / "HEAD").read_text().strip()
+        head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
     except OSError:
         return None
     if not head.startswith("ref: "):
         return head if _FULL_SHA.match(head) else None
     ref = head[5:]
     try:
-        commit = (git_dir / ref).read_text().strip()
+        commit = (git_dir / ref).read_text(encoding="utf-8").strip()
         return commit if _FULL_SHA.match(commit) else None
     except OSError:
         pass
     # After `git gc` the ref lives in packed-refs: "<sha> <ref>" per line.
     try:
-        packed = (git_dir / "packed-refs").read_text()
+        packed = (git_dir / "packed-refs").read_text(encoding="utf-8")
     except OSError:
         return None
     for line in packed.splitlines():
