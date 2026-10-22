@@ -105,8 +105,8 @@ from .generation import (
 from .logging_config import logger
 from .serialization import (
     link_root_dependencies,
+    load_cyclonedx_bom,
     restore_spdx_document_describes,
-    sanitize_cyclonedx_licenses,
     sanitize_dependency_graph,
     sanitize_purls,
     sanitize_spdx_json_file,
@@ -186,6 +186,8 @@ LOCKFILE_DESCRIPTIONS = {
     # C++
     "conan.lock": "C++ Conan lockfile",
     "vcpkg.json": "C++ vcpkg manifest",
+    # Embedded
+    "platformio.ini": "PlatformIO project (installed libraries)",
 }
 
 # CycloneDX component type for operating system
@@ -1000,9 +1002,10 @@ def _apply_metadata_to_spdx_package(
             return True
         return False
 
-    # Registry URL (sanitized)
+    # Registry URL (sanitized). OTHER, because SPDX allows only purl,
+    # maven-central, npm, nuget and bower as PACKAGE-MANAGER reference types.
     if metadata.registry_url:
-        if _add_external_ref(ExternalPackageRefCategory.PACKAGE_MANAGER, "url", metadata.registry_url):
+        if _add_external_ref(ExternalPackageRefCategory.OTHER, "url", metadata.registry_url):
             added_fields.append("externalRef (registry)")
 
     # Documentation URL (sanitized)
@@ -1470,6 +1473,7 @@ def _enrich_spdx3_sbom(input_path: Path, output_path: Path, enricher: Enricher) 
         make_spdx3_creation_info,
         make_spdx3_spdx_id,
         parse_spdx3_file,
+        spdx3_ids_stating_a_license,
         spdx3_license_from_string,
         write_spdx3_file,
     )
@@ -1488,6 +1492,10 @@ def _enrich_spdx3_sbom(input_path: Path, output_path: Path, enricher: Enricher) 
         return
 
     logger.info(f"Found {len(packages)} packages to enrich")
+
+    # Once, not once per package: asking per package walks the whole payload
+    # each time, which over a large document is packages times elements.
+    already_declared = spdx3_ids_stating_a_license(payload)
 
     spdx3_sources: Dict[str, int] = {}
     stats: Dict[str, Any] = {
@@ -1536,7 +1544,10 @@ def _enrich_spdx3_sbom(input_path: Path, output_path: Path, enricher: Enricher) 
                 added_fields.append("download_location")
 
         # License
-        if metadata.licenses and not package.declared_license:
+        # `declared_license` is unset on any package whose author stated a
+        # licence the 3.0.1 way, as a relationship, so it alone is not enough
+        # to tell an undeclared package from a declared one.
+        if metadata.licenses and not package.declared_license and package.spdx_id not in already_declared:
             # Use first license
             license_str = metadata.licenses[0] if metadata.licenses else None
             if license_str:
@@ -1722,12 +1733,11 @@ def _enrich_cyclonedx_sbom(data: Dict[str, Any], input_path: Path, output_path: 
                     components.append(component_data)
                 data["metadata"]["tools"] = {"components": components, "services": []}
 
-    # Sanitize invalid license IDs (e.g., Trivy puts non-SPDX IDs in license.id field)
-    sanitize_cyclonedx_licenses(data)
-
-    # Parse BOM
+    # Parse BOM, repairing the licence shapes the deserializer refuses
+    # (Trivy puts non-SPDX ids in license.id, cdxgen puts a bare string in
+    # license.text).
     try:
-        bom = Bom.from_json(data)  # type: ignore[attr-defined]
+        bom = load_cyclonedx_bom(data)
     except Exception as e:
         raise SBOMValidationError(f"Failed to parse CycloneDX SBOM: {e}")
 

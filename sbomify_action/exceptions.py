@@ -108,6 +108,18 @@ class PlanLimitError(APIError):
         self.resource = resource
 
 
+class DuplicateArtifactError(APIError):
+    """Raised when every upload failure was "this version already exists".
+
+    An expected outcome, not a defect: re-running a workflow on the same
+    commit, or two triggers racing on one push, both land here. The run
+    still fails so the user knows nothing new was published, but it is
+    filtered out of telemetry the same way the other user-side conditions
+    are — see ``initialize_sentry``. It accounted for ~10% of all reported
+    events before being classified.
+    """
+
+
 class OIDCError(APIError):
     """Base exception for OIDC trusted-publishing failures."""
 
@@ -127,6 +139,21 @@ class OIDCExchangeError(OIDCError):
 
 class FileProcessingError(SbomifyError):
     """Raised when file operations fail."""
+
+
+class InputPathNotFoundError(FileProcessingError):
+    """Raised when the path the *user* named does not exist.
+
+    A distinct type only so telemetry can tell it apart. "You pointed
+    LOCK_FILE at a file that is not there" is a user-side condition like the
+    others ``initialize_sentry`` filters -- the run still fails and the user
+    still gets the message naming every location searched, but it is not a
+    defect in the action and does not belong in Sentry.
+
+    Deliberately narrow: it covers the paths a user supplies, not every
+    missing file. "No SBOM file found from previous step" stays a plain
+    ``FileProcessingError``, because that one *is* a bug in the pipeline.
+    """
 
 
 class CommandExecutionError(SbomifyError):

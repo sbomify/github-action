@@ -36,6 +36,49 @@ VALID_BOM_TYPES = ("sbom", "vex", "cbom", "hbom")
 # call site instead of an opaque enum-validation dump from the API.
 VALID_COMPONENT_TYPES = frozenset({"bom", "document"})
 
+# Document types the backend records on a document artifact (mirrors
+# ``documents.models.Document.DocumentType``). Django applies ``choices`` only
+# in ``full_clean()``, and the document API saves the value straight through --
+# so an unrecognised type is stored verbatim rather than rejected, and shows up
+# in the UI as a type that filters and badges nothing. Validate client-side.
+VALID_DOCUMENT_TYPES = frozenset(
+    {
+        # Technical documentation
+        "specification",
+        "manual",
+        "readme",
+        "documentation",
+        "build-instructions",
+        "configuration",
+        # Legal and compliance
+        "license",
+        "compliance",
+        "evidence",
+        # Release information
+        "changelog",
+        "release-notes",
+        # Security
+        "security-advisory",
+        "vulnerability-report",
+        "threat-model",
+        "risk-assessment",
+        "pentest-report",
+        # Analysis reports
+        "static-analysis",
+        "dynamic-analysis",
+        "quality-metrics",
+        "maturity-report",
+        "report",
+        # Other
+        "other",
+    }
+)
+
+# Subcategories the backend badges a ``compliance`` document with (mirrors
+# ``documents.models.Document.ComplianceSubcategory``). Ignored for every other
+# document type -- the backend only reads it when document_type=compliance.
+VALID_COMPLIANCE_SUBCATEGORIES = frozenset({"nda", "soc2", "iso27001"})
+
 
 def clean_validation_error(detail: Any) -> str | None:
     """Render an API error ``detail`` into human-readable text.
@@ -107,7 +150,8 @@ class SbomifyApiClient:
         *,
         params: dict[str, Any] | None = None,
         json_body: Any | None = None,
-        data: bytes | None = None,
+        data: bytes | dict[str, str] | None = None,
+        files: dict[str, tuple[str, bytes, str]] | None = None,
         extra_headers: dict[str, str] | None = None,
         timeout: int | None = None,
     ) -> requests.Response:
@@ -115,6 +159,9 @@ class SbomifyApiClient:
 
         ``json_body`` and ``data`` are mutually exclusive — ``data`` is for
         raw payloads (SBOM upload), ``json_body`` for normal JSON requests.
+        ``files`` sends a multipart/form-data body (document upload), in which
+        case ``data`` carries the accompanying form fields and no Content-Type
+        is set: requests must generate it, boundary included.
         Connection / timeout failures and 401s raise immediately; other
         non-2xx responses are returned to the caller so they can build
         endpoint-specific error messages from the body.
@@ -133,6 +180,7 @@ class SbomifyApiClient:
                 params=params,
                 json=json_body,
                 data=data,
+                files=files,
                 timeout=timeout if timeout is not None else self.timeout,
             )
         except requests.exceptions.ConnectionError:
@@ -439,6 +487,49 @@ class SbomifyApiClient:
             return
         if not response.ok:
             logger.warning(f"Failed to set visibility for component {component_id}: [{response.status_code}]")
+
+    def list_component_sboms(
+        self,
+        component_id: str,
+        *,
+        version: str | None = None,
+        sbom_format: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List a component's SBOMs, newest first.
+
+        ``version`` / ``sbom_format`` are passed to the backend's
+        exact-match filters (``GET /api/v1/components/{id}/sboms``).
+        Each item is ``{"sbom": {id, version, format, created_at, ...},
+        "releases": [...], ...}``.
+        """
+        params: dict[str, Any] = {}
+        if version is not None:
+            params["version"] = version
+        if sbom_format is not None:
+            params["format"] = sbom_format
+        return list(
+            self._paginate(
+                f"/api/v1/components/{component_id}/sboms",
+                params=params,
+                error_context="list component SBOMs",
+            )
+        )
+
+    def find_component_sbom(self, component_id: str, version: str, sbom_format: str) -> str | None:
+        """ID of the newest SBOM at exactly ``(version, sbom_format)``, or None.
+
+        The filter params are re-checked client-side: a backend that
+        predates the server-side filters ignores unknown query params and
+        would otherwise return the full unfiltered listing, silently
+        matching the wrong SBOM.
+        """
+        for item in self.list_component_sboms(component_id, version=version, sbom_format=sbom_format):
+            sbom = item.get("sbom")
+            if not isinstance(sbom, dict):
+                continue
+            if sbom.get("version") == version and sbom.get("format") == sbom_format and sbom.get("id"):
+                return str(sbom["id"])
+        return None
 
     def get_augmentation_meta(self, component_id: str) -> dict[str, Any]:
         """Fetch augmentation metadata for a component.
@@ -832,20 +923,32 @@ class SbomifyApiClient:
 
     def tag_sbom_with_release(self, sbom_id: str, release_id: str) -> None:
         """Associate an SBOM with a release. Idempotent on DUPLICATE_ARTIFACT."""
+        self.tag_artifact_with_release(sbom_id, release_id)
+
+    def tag_artifact_with_release(self, artifact_id: str, release_id: str, *, artifact_kind: str = "sbom") -> None:
+        """Associate an SBOM or a document with a release.
+
+        The release-artifact endpoint takes exactly one of ``sbom_id`` /
+        ``document_id`` and rejects a payload carrying both, so the kind
+        selects the key. Idempotent on DUPLICATE_ARTIFACT.
+        """
+        if artifact_kind not in ("sbom", "document"):
+            raise ValueError(f"Invalid artifact_kind {artifact_kind!r}; expected 'sbom' or 'document'.")
+        label = "SBOM" if artifact_kind == "sbom" else "document"
         response = self._request(
             "POST",
             f"/api/v1/releases/{release_id}/artifacts",
-            json_body={"sbom_id": sbom_id},
+            json_body={f"{artifact_kind}_id": artifact_id},
         )
         if response.ok:
             return
         if response.status_code == 409:
             error_data = self._safe_json_dict(response)
             if error_data is not None and error_data.get("error_code") == "DUPLICATE_ARTIFACT":
-                logger.info(f"SBOM {sbom_id} already tagged with release {release_id}")
+                logger.info(f"{label} {artifact_id} already tagged with release {release_id}")
                 return
 
-        err_msg = f"Failed to tag SBOM with release. [{response.status_code}]"
+        err_msg = f"Failed to tag {label} with release. [{response.status_code}]"
         body = self._safe_json_dict(response)
         if body is not None and "detail" in body:
             err_msg += f" - {body['detail']}"
@@ -948,5 +1051,66 @@ class SbomifyApiClient:
             data=sbom_payload,
             params=params,
             extra_headers=extra,
+            timeout=timeout,
+        )
+
+    def upload_document(
+        self,
+        component_id: str,
+        document_payload: bytes,
+        *,
+        name: str,
+        version: str = "1.0",
+        document_type: str = "other",
+        description: str = "",
+        compliance_subcategory: str | None = None,
+        filename: str | None = None,
+        content_type: str = "application/octet-stream",
+        timeout: int | None = None,
+    ) -> requests.Response:
+        """POST a document (PDF, Markdown, …) to ``/api/v1/documents/``.
+
+        Sent as ``multipart/form-data`` rather than as a raw body, even though
+        the endpoint accepts both. The raw-body branch reads
+        ``request.body``, which Django caps at ``DATA_UPLOAD_MAX_MEMORY_SIZE``
+        (20 MB on app.sbomify.com) — well below the 50 MB the file-upload
+        branch allows and checks for — and it drops the original filename.
+
+        The component must be a ``document`` component; uploading to a ``bom``
+        component comes back as 404 from the backend.
+
+        Like :meth:`upload_sbom`, this returns the raw response (including
+        non-2xx) so the caller owns error-to-result translation; network and
+        timeout failures still raise ``APIError``.
+        """
+        if document_type not in VALID_DOCUMENT_TYPES:
+            raise ValueError(
+                f"Invalid document_type {document_type!r}; expected one of {sorted(VALID_DOCUMENT_TYPES)}."
+            )
+        if compliance_subcategory is not None and compliance_subcategory not in VALID_COMPLIANCE_SUBCATEGORIES:
+            raise ValueError(
+                f"Invalid compliance_subcategory {compliance_subcategory!r}; "
+                f"expected one of {sorted(VALID_COMPLIANCE_SUBCATEGORIES)}."
+            )
+        if not name:
+            raise ValueError("name is required for document upload")
+
+        form_fields: dict[str, str] = {
+            "component_id": component_id,
+            "name": name,
+            "version": version,
+            "document_type": document_type,
+            "description": description,
+        }
+        # Only the compliance type has subcategories; the backend ignores the
+        # field for every other type, so don't send noise it would discard.
+        if compliance_subcategory and document_type == "compliance":
+            form_fields["compliance_subcategory"] = compliance_subcategory
+
+        return self._request(
+            "POST",
+            "/api/v1/documents/",
+            data=form_fields,
+            files={"document_file": (filename or name, document_payload, content_type)},
             timeout=timeout,
         )
