@@ -270,9 +270,24 @@ def convert_to_spdx(cyclonedx: Path, output: Path, cwd: Path) -> None:
     )
 
 
-# ANSI SGR sequences. cdxgen colours its diagnostics, and the escape bytes end
-# up inside the log message (and therefore inside the Sentry issue title).
-_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+# Terminal escape sequences and other control characters. cdxgen colours its
+# diagnostics, and the escape bytes end up inside the log message (and
+# therefore inside the Sentry issue title). Colour codes are not the only
+# thing that arrives here, though: a generator that fetches over git relays
+# whatever the remote sent on the sideband (CVE-2024-52005,
+# CVE-2018-1000021), so a malicious server can put OSC, DCS or bare carriage
+# returns in a failing generator's stderr to retitle, hide or spoof lines in
+# a terminal reading the log. Strip every escape sequence (7-bit and C1) and
+# every control character except tab and newline.
+_ANSI_RE = re.compile(
+    r"""
+      \x1b\[[0-?]*[\x20-/]*[@-~]                    # CSI, e.g. colours
+    | \x1b[\]PX^_][^\x07\x1b]*(?:\x07|\x1b\\)?      # OSC, DCS, SOS, PM, APC
+    | \x1b[\x20-/]*[0-~]                            # other two-byte escapes
+    | [\x00-\x08\x0b-\x1f\x7f-\x9f]                 # remaining C0/C1, incl. CR
+    """,
+    re.VERBOSE,
+)
 
 # Volatile fragments that differ between runs of the *same* failure: absolute
 # paths, hex ids, line/column numbers, durations.

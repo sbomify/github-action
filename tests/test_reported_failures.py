@@ -271,6 +271,35 @@ class TestToolErrorGrouping:
         assert "\x1b[" not in caplog.text
         assert "SECURE MODE" in caplog.text
 
+    @pytest.mark.parametrize(
+        "sideband",
+        [
+            "remote: \x1b]0;pwned\x07fatal: repository not found",  # OSC, BEL-terminated
+            "remote: \x1b]8;;https://evil.example\x1b\\click\x1b]8;;\x1b\\ fatal",  # OSC 8 hyperlink
+            "remote: \x1bP+q544e\x1b\\fatal",  # DCS
+            "remote: \x9b2Jfatal",  # 8-bit CSI
+            "remote: done\rfatal: spoofed line",  # bare CR overwrites the line
+            "remote: \x1b7\x1b8\x1bcfatal",  # save/restore cursor, full reset
+        ],
+    )
+    def test_git_sideband_escapes_are_stripped(self, caplog: pytest.LogCaptureFixture, sideband: str) -> None:
+        """A malicious git remote cannot drive the terminal through our log.
+
+        Generators that fetch over git relay the remote's sideband text in
+        their stderr (CVE-2024-52005, CVE-2018-1000021). Only colour codes
+        used to be stripped, so OSC, DCS and the rest reached the log intact.
+        """
+        with caplog.at_level("ERROR"):
+            log_command_error("go", sideband, "")
+        message = caplog.records[-1].getMessage()
+        assert not any(ch in message for ch in "\x1b\x07\x9b\r"), repr(message)
+        assert "fatal" in message
+
+    def test_newlines_and_tabs_survive_stripping(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level("ERROR"):
+            log_command_error("go", "first\tline\r\nsecond line", "")
+        assert "first\tline\nsecond line" in caplog.records[-1].getMessage()
+
     def test_a_broken_telemetry_scope_cannot_break_generation(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
