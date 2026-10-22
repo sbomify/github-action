@@ -260,6 +260,99 @@ def test_emit_no_attestation_by_default(tmp_path: Path) -> None:
     yaml = emit_workflow(plan, facts=facts, api_base_url="https://app.sbomify.com")
     assert "attestations: write" not in yaml
     assert "attest-build-provenance" not in yaml
+    # The per-row attest flag only exists when attestation is enabled.
+    assert "attest:" not in yaml
+
+
+def test_emit_attestation_gates_rows_and_step(tmp_path: Path) -> None:
+    """Every matrix row carries an ``attest`` boolean and the attest step
+    is conditioned on it, so submodule rows can opt out per-entry."""
+    facts = _facts(tmp_path)
+    plan = Plan(
+        use_product_id="prod-1",
+        attestation=True,
+        create_components=[PlannedComponent(lockfile=_python_lockfile(tmp_path), name="widget-py")],
+    )
+    yaml = emit_workflow(plan, facts=facts, api_base_url="https://app.sbomify.com")
+    assert "            attest: true\n" in yaml
+    assert "        if: ${{ matrix.attest }}\n" in yaml
+
+
+def test_emit_attestation_skips_nested_repo_lockfiles(tmp_path: Path) -> None:
+    """SBOMs for submodule / vendored lockfiles must NOT be attested: the
+    Sigstore identity would be this repo's workflow, but the code belongs
+    to another repository, so the attestation would fail verification
+    against the repo the code actually comes from."""
+    facts = _facts(tmp_path)
+    sub = DiscoveredLockfile(
+        path=tmp_path / "extern" / "lib" / "Cargo.lock",
+        rel_path=Path("extern") / "lib" / "Cargo.lock",
+        ecosystem="rust",
+        suggested_name="widget-rust",
+        nested_repo="extern/lib",
+        nested_repo_kind="submodule",
+    )
+    plan = Plan(
+        use_product_id="prod-1",
+        attestation=True,
+        create_components=[
+            PlannedComponent(lockfile=_python_lockfile(tmp_path), name="widget-py"),
+            PlannedComponent(lockfile=sub, name="widget-rust"),
+        ],
+    )
+    yaml = emit_workflow(plan, facts=facts, api_base_url="https://app.sbomify.com")
+    assert "            attest: true\n" in yaml  # own lockfile still attests
+    assert "            attest: false\n" in yaml  # submodule row opts out
+    assert "        if: ${{ matrix.attest }}\n" in yaml
+    # The opt-out must be self-documenting in the YAML: an explicit
+    # "deliberately not signed" annotation naming the nested repo.
+    assert "Deliberately NOT signed: extern/lib is a submodule" in yaml
+    # The row-level flag order must match the component order: widget-py
+    # (attest: true) before widget-rust (attest: false).
+    assert yaml.index("attest: true") < yaml.index("attest: false")
+
+
+def _nested_lockfile(tmp_path: Path) -> DiscoveredLockfile:
+    return DiscoveredLockfile(
+        path=tmp_path / "extern" / "lib" / "Cargo.lock",
+        rel_path=Path("extern") / "lib" / "Cargo.lock",
+        ecosystem="rust",
+        suggested_name="widget-rust",
+        nested_repo="extern/lib",
+        nested_repo_kind="submodule",
+    )
+
+
+def test_emit_submodule_rows_drive_attach_or_backfill(tmp_path: Path) -> None:
+    """Nested-repo lockfiles get a submodule_path matrix field, the env
+    block forwards it as SUBMODULE_PATH, and the checkout pulls
+    submodules so the backfill path can generate."""
+    facts = _facts(tmp_path)
+    plan = Plan(
+        use_product_id="prod-1",
+        create_components=[
+            PlannedComponent(lockfile=_python_lockfile(tmp_path), name="widget-py"),
+            PlannedComponent(lockfile=_nested_lockfile(tmp_path), name="widget-rust"),
+        ],
+    )
+    yaml = emit_workflow(plan, facts=facts, api_base_url="https://app.sbomify.com")
+    assert "            submodule_path: extern/lib\n" in yaml
+    assert "          SUBMODULE_PATH: ${{ matrix.submodule_path }}\n" in yaml
+    assert "          submodules: recursive\n" in yaml
+    # Exactly one row carries the field — the non-submodule row must not.
+    assert yaml.count("submodule_path:") == 1
+
+
+def test_emit_no_submodule_plumbing_without_nested_lockfiles(tmp_path: Path) -> None:
+    facts = _facts(tmp_path)
+    plan = Plan(
+        use_product_id="prod-1",
+        create_components=[PlannedComponent(lockfile=_python_lockfile(tmp_path), name="widget-py")],
+    )
+    yaml = emit_workflow(plan, facts=facts, api_base_url="https://app.sbomify.com")
+    assert "submodule_path" not in yaml
+    assert "SUBMODULE_PATH" not in yaml
+    assert "submodules: recursive" not in yaml
 
 
 def test_emit_cache_step_always_present(tmp_path: Path) -> None:
@@ -273,6 +366,28 @@ def test_emit_cache_step_always_present(tmp_path: Path) -> None:
     assert "path: .sbomify-cache" in yaml
     assert "SBOMIFY_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache" in yaml
     assert "SYFT_CACHE_DIR: ${{ github.workspace }}/.sbomify-cache/syft" in yaml
+
+
+def test_emit_cache_key_is_unique_per_run_with_a_restore_prefix(tmp_path: Path) -> None:
+    """A static primary key would make the cache write-once.
+
+    actions/cache skips its save step on an exact primary-key hit, so a key of
+    just ``sbomify-${{ runner.os }}`` freezes the directory after the first
+    run: the enrichment cache never grows past that snapshot, and license_db
+    re-downloads a refreshed database on every run forever.
+    """
+    facts = _facts(tmp_path)
+    plan = Plan(
+        use_product_id="prod-1",
+        create_components=[PlannedComponent(lockfile=_python_lockfile(tmp_path), name="widget-py")],
+    )
+    yaml = emit_workflow(plan, facts=facts, api_base_url="https://app.sbomify.com")
+
+    assert "key: sbomify-${{ runner.os }}-${{ github.run_id }}" in yaml
+    assert "restore-keys: |" in yaml
+    assert "sbomify-${{ runner.os }}-" in yaml
+    # The bare form must not survive as the primary key.
+    assert "key: sbomify-${{ runner.os }}\n" not in yaml
 
 
 def test_emit_component_name_env_uses_matrix(tmp_path: Path) -> None:
@@ -634,7 +749,7 @@ def test_apply_plan_create_new_product(tmp_path: Path) -> None:
     state = _state(tmp_path)
     api = state.api
     assert api is not None
-    api.create_product.return_value = {"id": "prod-new", "name": "Widget"}
+    api.get_or_create_product.return_value = ({"id": "prod-new", "name": "Widget"}, True)
     api.get_or_create_component.return_value = ("comp-1", True)
 
     state.plan = Plan(
@@ -651,7 +766,7 @@ def test_apply_plan_create_new_product(tmp_path: Path) -> None:
     )
     apply_mod.apply_plan(state, opts)
 
-    api.create_product.assert_called_once_with("Widget")
+    api.get_or_create_product.assert_called_once_with("Widget")
     assert state.created_product_id == "prod-new"
 
 
@@ -688,6 +803,7 @@ def test_apply_plan_dry_run_skips_api_mutations_and_writes(tmp_path: Path) -> No
     # attach, no patch, no OIDC binding.
     api.get_or_create_component.assert_not_called()
     api.create_product.assert_not_called()
+    api.get_or_create_product.assert_not_called()
     api.attach_components_to_product.assert_not_called()
     api.patch_component.assert_not_called()
     api.create_oidc_binding.assert_not_called()

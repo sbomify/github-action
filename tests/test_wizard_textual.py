@@ -209,6 +209,80 @@ async def test_welcome_to_discover_navigates(tmp_path: Path, monkeypatch: pytest
         assert len(app.state.discovered) == 1
 
 
+async def test_discover_deselects_nested_repo_lockfiles_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Submodule / vendored-repo lockfiles are annotated and start
+    deselected — they belong to another repository and should get their
+    own SBOM setup there."""
+    from textual.widgets import SelectionList
+
+    lockfiles = [
+        DiscoveredLockfile(
+            path=tmp_path / "uv.lock",
+            rel_path=Path("uv.lock"),
+            ecosystem="python",
+            suggested_name="widget-py",
+        ),
+        DiscoveredLockfile(
+            path=tmp_path / "extern" / "lib" / "Cargo.lock",
+            rel_path=Path("extern") / "lib" / "Cargo.lock",
+            ecosystem="rust",
+            suggested_name="widget-rust",
+            nested_repo="extern/lib",
+            nested_repo_kind="submodule",
+        ),
+    ]
+    _stub_discovery(monkeypatch, lockfiles)
+
+    app = WizardApp(_opts(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.press("enter")  # welcome → discover
+        await pilot.pause()
+
+        from sbomify_action.cli.wizard.screens.discover import DiscoverScreen
+
+        assert isinstance(app.screen, DiscoverScreen)
+        sel = app.screen.query_one("#lockfile-list", SelectionList)
+        # Only the top-level lockfile is pre-selected.
+        assert list(sel.selected) == [0]
+        # The submodule row carries the annotation, and the explanatory
+        # note is present.
+        labels = [str(sel.get_option_at_index(i).prompt) for i in range(sel.option_count)]
+        assert any("submodule: extern/lib" in label for label in labels)
+        app.screen.query_one("#nested-repo-note")
+
+
+async def test_discover_labels_nested_repo_of_unknown_kind_neutrally(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``nested_repo`` without a ``nested_repo_kind`` must not be
+    labelled 'vendored repo' — both fields are optional, so an unset
+    kind gets a neutral annotation rather than a wrong one."""
+    from textual.widgets import SelectionList
+
+    lockfiles = [
+        DiscoveredLockfile(
+            path=tmp_path / "extern" / "lib" / "Cargo.lock",
+            rel_path=Path("extern") / "lib" / "Cargo.lock",
+            ecosystem="rust",
+            suggested_name="widget-rust",
+            nested_repo="extern/lib",
+        ),
+    ]
+    _stub_discovery(monkeypatch, lockfiles)
+
+    app = WizardApp(_opts(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.press("enter")  # welcome → discover
+        await pilot.pause()
+
+        sel = app.screen.query_one("#lockfile-list", SelectionList)
+        label = str(sel.get_option_at_index(0).prompt)
+        assert "nested repo: extern/lib" in label
+        assert "vendored" not in label
+
+
 async def test_enter_on_focused_radio_set_toggles_radio(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Regression: Enter while a RadioSet has focus must commit the
     highlighted radio (not skip past the whole screen).
@@ -249,7 +323,7 @@ async def test_enter_on_focused_radio_set_toggles_radio(tmp_path: Path, monkeypa
 
     app = WizardApp(_opts(tmp_path))
     # Larger viewport so the augmentation panel + profile picker + Next
-    # button all render — Textual focus/visibility behaviour can shift
+    # button all render — Textual focus/visibility behavior can shift
     # when widgets are clipped on tiny pilot terminals.
     async with app.run_test(size=(120, 60)) as pilot:
         # Walk to ConfigureSbom (where Augmentation now lives — moved
@@ -342,7 +416,7 @@ async def test_escape_from_components_goes_back_in_any_focus_state(
     The Components screen mounts one PickOrCreate per lockfile; depending
     on auto-match the user may be focused on the OptionList (existing
     picked) or the "Create new" Input (no auto-match). Both paths must
-    honour the screen's Escape binding so Back navigation isn't trapped
+    honor the screen's Escape binding so Back navigation isn't trapped
     by whichever widget happened to take focus.
     """
     from textual.widgets import Input, OptionList
@@ -576,7 +650,7 @@ async def test_augmentation_default_with_no_profiles_bootstraps_create_and_cance
 ) -> None:
     """With zero workspace profiles, the default recommended 'profile'
     strategy highlights the '+ Create new' sentinel, so Enter routes to
-    CreateProfileScreen (the bootstrap path). Cancelling that form must
+    CreateProfileScreen (the bootstrap path). Canceling that form must
     revert augmentation to Skip — otherwise the screen's own defaults
     put the user in an Enter→Escape→Enter loop.
     """
@@ -646,7 +720,7 @@ async def test_augmentation_default_with_no_profiles_bootstraps_create_and_cance
         assert app.screen is configure_screen
         pressed = configure_screen.query_one("#augmentation", RadioSet).pressed_button
         assert pressed is not None and pressed.id == "aug-skip", (
-            f"Cancelled CreateProfile must revert augmentation to Skip, got {pressed.id if pressed else None}"
+            f"Canceled CreateProfile must revert augmentation to Skip, got {pressed.id if pressed else None}"
         )
         assert picker.display is False
 
@@ -700,3 +774,212 @@ async def test_enter_on_focused_back_button_goes_back(tmp_path: Path, monkeypatc
         assert isinstance(app.screen, WelcomeScreen), (
             "Enter on focused Back button must pop the screen, not advance forward"
         )
+
+
+async def test_apply_plan_limit_offers_reuse_and_retries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A product plan-limit failure with exactly one existing product must
+    repurpose the primary button as "use existing & retry" — flipping the
+    plan to the existing product and re-running apply in place. "Back and
+    retry" alone is a dead end: retrying the same create-product plan
+    fails identically.
+    """
+    from textual.widgets import Button
+
+    from sbomify_action.cli.wizard import apply as apply_mod
+    from sbomify_action.cli.wizard.screens.apply import ApplyScreen
+    from sbomify_action.cli.wizard.state import WorkspaceSnapshot
+    from sbomify_action.exceptions import PlanLimitError
+
+    _stub_discovery(monkeypatch, [])
+    calls: list[tuple[str | None, str | None]] = []
+
+    def fake_apply(state, opts, *, log=None):  # noqa: ANN001, ANN202
+        calls.append((state.plan.create_product, state.plan.use_product_id))
+        if len(calls) == 1:
+            raise PlanLimitError(
+                "Could not create product 'Notipus': you have reached the maximum 1 products allowed by your plan.",
+                resource="product",
+            )
+
+    monkeypatch.setattr(apply_mod, "apply_plan", fake_apply)
+
+    app = WizardApp(_opts(tmp_path, dry_run=False))
+    async with app.run_test() as pilot:
+        app.state.api = MagicMock()
+        app.state.workspace = WorkspaceSnapshot(products=[{"id": "p1", "name": "Existing"}], team_key="acme")
+        app.state.plan.create_product = "Notipus"
+        app.push_screen(ApplyScreen())
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        screen = app.screen
+        assert isinstance(screen, ApplyScreen)
+        continue_btn = screen.query_one("#continue", Button)
+        assert not continue_btn.disabled, "reuse-existing must be actionable after a product plan-limit failure"
+        assert "retry" in str(continue_btn.label).lower()
+        # The pinned banner must NOT leak the HTTP status code.
+        banner = screen.query_one("#apply-error-banner")
+        assert "[403]" not in str(banner.render())
+
+        screen.on_button_pressed(Button.Pressed(continue_btn))
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        # Second apply ran with the plan flipped to the existing product.
+        assert calls == [("Notipus", None), (None, "p1")]
+        assert not screen.query_one("#continue", Button).disabled
+
+
+async def test_apply_plan_limit_back_jumps_to_product_screen(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """With several existing products the wizard can't pick one for the
+    user — Back must jump straight to the Pick-a-product step (not strand
+    the user on Review, where Apply would fail identically)."""
+    from sbomify_action.cli.wizard import apply as apply_mod
+    from sbomify_action.cli.wizard.screens.apply import ApplyScreen
+    from sbomify_action.cli.wizard.screens.product import ProductScreen
+    from sbomify_action.cli.wizard.state import WorkspaceSnapshot
+    from sbomify_action.exceptions import PlanLimitError
+
+    _stub_discovery(monkeypatch, [])
+
+    def fake_apply(state, opts, *, log=None):  # noqa: ANN001, ANN202
+        raise PlanLimitError("plan limit reached", resource="product")
+
+    monkeypatch.setattr(apply_mod, "apply_plan", fake_apply)
+
+    app = WizardApp(_opts(tmp_path, dry_run=False))
+    async with app.run_test() as pilot:
+        app.state.api = MagicMock()
+        app.state.workspace = WorkspaceSnapshot(
+            products=[{"id": "p1", "name": "One"}, {"id": "p2", "name": "Two"}],
+            team_key="acme",
+        )
+        app.state.plan.create_product = "Another"
+        product_screen = ProductScreen()
+        app.push_screen(product_screen)
+        await pilot.pause()
+        app.push_screen(ApplyScreen())
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        screen = app.screen
+        assert isinstance(screen, ApplyScreen)
+        screen._go_back()
+        await pilot.pause()
+        assert app.screen is product_screen, "Back after a product plan-limit must land on the product step"
+
+
+def _lockfile(tmp_path: Path, rel: str, ecosystem: str = "javascript", **kwargs) -> DiscoveredLockfile:
+    return DiscoveredLockfile(
+        path=tmp_path / rel,
+        rel_path=Path(rel),
+        ecosystem=ecosystem,
+        suggested_name=rel.replace("/", "-"),
+        **kwargs,
+    )
+
+
+async def test_discover_preselects_only_the_shallowest_lockfiles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A monorepo must not arrive with every package ticked.
+
+    Measured across 251 repositories, ticking everything meant a mean of
+    31.8 selections and nine repos at the discovery cap of 200 -- vite,
+    next.js, spring-boot, rust-lang/rust, deno. Pressing Enter on vite
+    created two hundred components, most of them scaffolding templates that
+    are not dependencies of vite at all.
+    """
+    from textual.widgets import SelectionList
+
+    lockfiles = [
+        _lockfile(tmp_path, "pnpm-lock.yaml"),
+        _lockfile(tmp_path, "packages/create-vite/template-lit/package.json"),
+        _lockfile(tmp_path, "packages/create-vite/template-preact/package.json"),
+        _lockfile(tmp_path, "docs/package.json"),
+    ]
+    _stub_discovery(monkeypatch, lockfiles)
+
+    app = WizardApp(_opts(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+        await pilot.pause()
+
+        sel = app.screen.query_one("#lockfile-list", SelectionList)
+        assert list(sel.selected) == [0], "only the root lockfile should start ticked"
+        # The rest are still offered, just not chosen for the user.
+        assert sel.option_count == 4
+
+
+async def test_discover_preselects_every_lockfile_at_the_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A polyglot root is several real projects, so all of them start ticked."""
+    from textual.widgets import SelectionList
+
+    lockfiles = [
+        _lockfile(tmp_path, "uv.lock", "python"),
+        _lockfile(tmp_path, "bun.lock"),
+        _lockfile(tmp_path, "sub/go.sum", "go"),
+    ]
+    _stub_discovery(monkeypatch, lockfiles)
+
+    app = WizardApp(_opts(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+        await pilot.pause()
+
+        sel = app.screen.query_one("#lockfile-list", SelectionList)
+        assert list(sel.selected) == [0, 1]
+
+
+async def test_discover_falls_back_to_the_shallowest_when_nothing_is_at_the_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Thirty of the surveyed repositories have no lockfile at the root.
+
+    Ticking "root only" would leave those on a screen that refuses to
+    advance, which is why the rule is depth-relative rather than absolute.
+    """
+    from textual.widgets import SelectionList
+
+    lockfiles = [
+        _lockfile(tmp_path, "frontend/package.json"),
+        _lockfile(tmp_path, "backend/go.sum", "go"),
+        _lockfile(tmp_path, "deep/nested/thing/package.json"),
+    ]
+    _stub_discovery(monkeypatch, lockfiles)
+
+    app = WizardApp(_opts(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+        await pilot.pause()
+
+        sel = app.screen.query_one("#lockfile-list", SelectionList)
+        assert list(sel.selected) == [0, 1], "both depth-1 entries, not the depth-3 one"
+
+
+async def test_discover_skips_nested_repos_when_choosing_the_depth(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A submodule at the root must not decide the depth for everyone else.
+
+    It is excluded by policy, so letting it set the shallowest depth would
+    tick nothing and strand the user.
+    """
+    from textual.widgets import SelectionList
+
+    lockfiles = [
+        _lockfile(tmp_path, "vendored/Cargo.lock", "rust", nested_repo="vendored", nested_repo_kind="submodule"),
+        _lockfile(tmp_path, "app/package.json"),
+    ]
+    _stub_discovery(monkeypatch, lockfiles)
+
+    app = WizardApp(_opts(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+        await pilot.pause()
+
+        sel = app.screen.query_one("#lockfile-list", SelectionList)
+        assert list(sel.selected) == [1]

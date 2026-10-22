@@ -7,7 +7,7 @@ the "when/how does the workflow run?" half.
 
 Enrichment and augmentation are grouped together because they're both
 metadata-source choices — enrichment pulls package data from external
-registries (PyPI, deps.dev, Repology), augmentation pulls organisational
+registries (PyPI, deps.dev, Repology), augmentation pulls organizational
 metadata (supplier / contacts) from a sbomify contact profile.
 """
 
@@ -93,10 +93,10 @@ class ConfigureSbomScreen(WizardScreen):
         ]
         aug = Vertical(classes="wizard-panel")
         aug.border_title = "◆  Augmentation"
-        aug.border_subtitle = "organisational metadata (supplier, contacts, authors)"
+        aug.border_subtitle = "organizational metadata (supplier, contacts, authors)"
         with aug:
             yield Static(
-                "[#5E5E5E]Lockfiles never carry organisational metadata — who the supplier is, "
+                "[#5E5E5E]Lockfiles never carry organizational metadata — who the supplier is, "
                 "who authored the SBOM, how to contact security. Both [b]Supplier Name[/] and "
                 "[b]Author of SBOM Data[/] are minimum elements under [b]NTIA[/], [b]CISA[/], "
                 "and the [b]EU Cyber Resilience Act[/], so SBOMs without them fail compliance "
@@ -187,6 +187,41 @@ class ConfigureSbomScreen(WizardScreen):
                     value=not attest_default_yes,
                 )
 
+        # Only worth asking when the workflow will actually be tag-triggered.
+        #
+        # Gating on has_release_tags alone was not enough: a repository that
+        # has tags but runs on trunk gets a workflow whose version always comes
+        # from a short SHA, so the setting could never fire and would sit in
+        # the generated file misleading whoever read it next.
+        if self.wizard.state.plan.release_strategy == "tag":
+            version = Vertical(classes="wizard-panel")
+            version.border_title = "◆  Release version"
+            version.border_subtitle = "how a tag becomes the component version"
+            with version:
+                yield Static(
+                    "On a tag-triggered run the SBOM takes its version from the tag.",
+                    classes="wizard-muted",
+                )
+                # Concrete, because the abstract version of this question is
+                # unanswerable. These are real tags from real projects.
+                yield Static(
+                    "Some projects tag a plain version, others do not: "
+                    "[b]curl-8_21_0[/], [b]rel/release-3.5.0[/], [b]svelte@5.56.8[/]. "
+                    "A CVE feed knows 8.21.0, not curl-8_21_0.",
+                    classes="wizard-help",
+                )
+                with RadioSet(id="normalize-version"):
+                    yield StatefulRadioButton(
+                        "Use the tag exactly as written  [#86EFAC]✓ default[/]",
+                        id="normver-no",
+                        value=True,
+                    )
+                    yield StatefulRadioButton(
+                        "Normalise it to a plain version (curl-8_21_0 → 8.21.0)",
+                        id="normver-yes",
+                    )
+
+    def compose_actions(self) -> ComposeResult:
         with Horizontal(classes="button-row"):
             yield Button("◂ Back", id="back")
             yield Button("Next  ▸", id="next", variant="primary")
@@ -250,9 +285,9 @@ class ConfigureSbomScreen(WizardScreen):
         gained a new profile — rebuild the picker so it appears, and
         auto-select it via the id CreateProfileScreen stashed on the
         plan. If ConfigureSbomifyJsonScreen was pushed and the user
-        cancelled (no data on the plan), flip the augmentation back
+        canceled (no data on the plan), flip the augmentation back
         to Skip so the user isn't trapped in a re-push loop. A
-        cancelled CreateProfileScreen gets the same treatment: move
+        canceled CreateProfileScreen gets the same treatment: move
         the highlight off the "+ Create new" sentinel (or revert to
         Skip when the workspace has zero profiles to fall back on).
         """
@@ -272,7 +307,7 @@ class ConfigureSbomScreen(WizardScreen):
             return
         # Snapshot the previous selection so we can preserve it across
         # the clear+add rebuild when there's no fresh auto-select
-        # target. Without this, a cancelled CreateProfileScreen leaves
+        # target. Without this, a canceled CreateProfileScreen leaves
         # picker.highlighted=None and the next Enter silently downgrades
         # augmentation to "skip".
         previous_highlighted_id: str | None = None
@@ -304,7 +339,7 @@ class ConfigureSbomScreen(WizardScreen):
                     picker.highlighted = idx
                     break
 
-        # Handle a cancelled CreateProfileScreen (Escape without saving).
+        # Handle a canceled CreateProfileScreen (Escape without saving).
         # With "profile" as the default strategy, a zero-profile
         # workspace reaches Enter→CreateProfile→Escape→Enter straight
         # from the screen's defaults — break the loop the same way the
@@ -325,7 +360,7 @@ class ConfigureSbomScreen(WizardScreen):
             else:
                 self._set_radio_value(aug, target_id="aug-skip")
                 self.notify(
-                    "Cancelled — augmentation reverted to Skip. Pick the radio again to retry.",
+                    "Canceled — augmentation reverted to Skip. Pick the radio again to retry.",
                     title="Contact profile",
                     severity="information",
                 )
@@ -343,7 +378,7 @@ class ConfigureSbomScreen(WizardScreen):
             self._json_form_visited = False
             self._set_radio_value(aug, target_id="aug-skip")
             self.notify(
-                "Cancelled — augmentation reverted to Skip. Pick the radio again to retry.",
+                "Canceled — augmentation reverted to Skip. Pick the radio again to retry.",
                 title="sbomify.json",
                 severity="information",
             )
@@ -442,6 +477,7 @@ class ConfigureSbomScreen(WizardScreen):
         plan.augmentation = self._selected_augmentation()
         plan.sbom_formats = self._selected_formats()
         plan.attestation = self._selected_attestation()
+        plan.normalize_version = self._selected_normalize_version()
 
         # contact_profile_id / sbomify_json_data are only meaningful
         # when we're actually using that strategy; clear stale state
@@ -588,3 +624,13 @@ class ConfigureSbomScreen(WizardScreen):
     def _selected_attestation(self) -> bool:
         pressed = self.query_one("#attestation", RadioSet).pressed_button
         return pressed is not None and pressed.id == "attest-yes"
+
+    def _selected_normalize_version(self) -> bool:
+        # The panel is only composed when the repository has release tags, so
+        # a missing RadioSet means the question was never asked -- not that the
+        # user declined it.
+        found = self.query(RadioSet).filter("#normalize-version")
+        if not found:
+            return False
+        pressed = found.first(RadioSet).pressed_button
+        return pressed is not None and pressed.id == "normver-yes"
