@@ -275,18 +275,33 @@ def test_hbom_can_be_tagged_into_a_product_release(tmp_path, monkeypatch):
     """A release slot is keyed on (component, format, bom_type), so an HBOM
     occupies its own slot rather than the component's SBOM slot. This
     combination used to be refused at config time, which left a hardware BOM
-    unable to be part of the release it ships in."""
+    unable to be part of the release it ships in.
+
+    Upload is on so the run gets an id back and reaches release tagging; with
+    it off, step 6 is skipped and nothing here would be tagged."""
+    from unittest.mock import patch
+
+    from sbomify_action.upload import UploadResult
+
     config, _ = _hbom_config(
         tmp_path,
         monkeypatch,
+        upload=True,
         component_id="comp123",
         product_releases='["myproduct:v1.2.3"]',
-        token="test-token",  # nosec B106 - PRODUCT_RELEASE requires one; never sent, upload is off
+        token="test-token",  # nosec B106 - test stub, upload and release calls are patched
     )
 
-    assert config.product_releases == ["myproduct:v1.2.3"]
-    assert config.bom_type == "hbom"
+    with (
+        patch("sbomify_action.cli.main.upload_sbom") as upload,
+        patch("sbomify_action._processors.orchestrator.ProcessorRegistry.process_all") as process_all,
+    ):
+        upload.return_value = UploadResult(success=True, destination_name="sbomify", sbom_id="hbom-9")
+        process_all.return_value = []
+        run_pipeline(config)
 
-    run_pipeline(config)
-
+    assert upload.call_args.kwargs["bom_type"] == "hbom"
+    processor_input = process_all.call_args.args[0]
+    assert processor_input.sbom_id == "hbom-9"
+    assert processor_input.product_releases == ["myproduct:v1.2.3"]
     assert (tmp_path / "out.hbom.json").read_bytes() == AUTHORED_HBOM
