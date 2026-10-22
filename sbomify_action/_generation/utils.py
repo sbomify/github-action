@@ -498,7 +498,9 @@ def extract_error_summary(output: str | None, max_chars: int = 500) -> str:
     if not output:
         return ""
 
-    output = output.strip()
+    # The summary ends up in the SBOMGenerationError message, which the
+    # registry logs when it falls back to the next generator.
+    output = _ANSI_RE.sub("", output).strip()
 
     # Try to find error-specific lines
     error_lines = []
