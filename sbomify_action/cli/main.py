@@ -76,6 +76,7 @@ from ..serialization import (
 )
 from ..spdx3 import is_spdx3
 from ..upload import upload_document, upload_sbom
+from .tea import tea_group
 
 
 # Import version for tool metadata with multiple fallback mechanisms
@@ -4516,6 +4517,9 @@ def _inherit_root_token(ctx: click.Context, token: Optional[str]) -> Optional[st
     if isinstance(parent_token, str) and parent_token:
         return parent_token
     return None
+
+
+cli.add_command(tea_group, "tea")
 
 
 def main() -> None:
